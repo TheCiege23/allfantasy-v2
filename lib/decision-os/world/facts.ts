@@ -109,6 +109,27 @@ export interface RawPlayerMetadataRow {
   source: string | null
 }
 
+/**
+ * Raw season-schedule row for the F2.2 schedule/bye enrichment seam. Decoupled from Prisma and sourced
+ * from already-persisted schedule caches only (`FantasyScheduleGame` first, `GameSchedule` fallback).
+ * Provider/source survive ONLY as provenance/freshness metadata; business logic consumes normalized team
+ * schedule facts only.
+ */
+export interface RawScheduleGameRow {
+  sport: string
+  season: number
+  week: number
+  homeTeam: string | null
+  awayTeam: string | null
+  kickoffTime: Date | null
+  status: string | null
+  source: string | null
+  fetchedAt: Date | null
+  expiresAt: Date | null
+  updatedAt: Date | null
+  sourceModel: 'FantasyScheduleGame' | 'GameSchedule'
+}
+
 // ──────────────────────────────────────────────────────────────────────────
 // Fact contract (origin-blind)
 // ──────────────────────────────────────────────────────────────────────────

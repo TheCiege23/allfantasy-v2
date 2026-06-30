@@ -94,6 +94,28 @@ export type {
   EnrichedWorldMetadataSummary,
   EnrichedWorldDeps,
 } from './enrichedWorld'
+// F2.2 — Canonical Enrichment: schedule / bye derived VIEW (read-only, additive). See ADR_F2_2_SCHEDULE_BYE.md.
+export {
+  projectScheduleContext,
+  resolveScheduleContext,
+  projectScheduleEnrichedWorld,
+  resolveScheduleEnrichedCanonicalWorld,
+  defaultScheduleContextPort,
+  defaultScheduleEnrichedWorldDeps,
+} from './scheduleBye'
+export type {
+  ScheduleHomeAway,
+  ScheduleContextProvenance,
+  ScheduleContextFreshness,
+  TeamScheduleContext,
+  ScheduleEnrichedPlayer,
+  ScheduleEnrichedRosterFacts,
+  ScheduleEnrichmentSummary,
+  ScheduleEnrichedCanonicalWorld,
+  ScheduleContextResult,
+  ScheduleContextPort,
+  ScheduleEnrichedWorldDeps,
+} from './scheduleBye'
 // Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
 export {
   resolveCanonicalAssets,

@@ -13,6 +13,7 @@ import type {
   RawPerformanceRow,
   RawPlayerMetadataRow,
   RawRosterRow,
+  RawScheduleGameRow,
   RawTeamRow,
 } from './facts'
 import { mapRedraftRosterRowToRawRoster, unionRosterRows, type RawRedraftRosterRow } from './redraftRoster'
@@ -104,7 +105,24 @@ export const defaultCanonicalWorldPort: CanonicalWorldPort = {
         claimedByUserId: true,
       },
     })
-    return rows.map((row) => ({
+    return rows.map((row: {
+      id: string
+      externalId: string | null
+      ownerName: string | null
+      teamName: string | null
+      wins: number | null
+      losses: number | null
+      ties: number | null
+      pointsFor: number | null
+      pointsAgainst: number | null
+      currentRank: number | null
+      role: string | null
+      isOrphan: boolean | null
+      isCommissioner: boolean | null
+      isCoCommissioner: boolean | null
+      platformUserId: string | null
+      claimedByUserId: string | null
+    }) => ({
       id: row.id,
       externalId: row.externalId ?? '',
       ownerName: row.ownerName ?? '',
@@ -137,7 +155,14 @@ export const defaultCanonicalWorldPort: CanonicalWorldPort = {
         settings: true,
       },
     })
-    const canonical: RawRosterRow[] = rows.map((row) => ({
+    const canonical: RawRosterRow[] = rows.map((row: {
+      id: string
+      platformUserId: string | null
+      playerData: unknown
+      faabRemaining: number | null
+      waiverPriority: number | null
+      settings: unknown
+    }) => ({
       id: row.id,
       platformUserId: row.platformUserId ?? '',
       playerData: row.playerData ?? null,
@@ -184,7 +209,14 @@ export const defaultCanonicalWorldPort: CanonicalWorldPort = {
         result: true,
       },
     })
-    return rows.map((row) => ({
+    return rows.map((row: {
+      teamId: string
+      week: number
+      season: number
+      points: number | null
+      opponent: string | null
+      result: string | null
+    }) => ({
       teamId: row.teamId,
       week: row.week,
       season: row.season,
@@ -243,4 +275,157 @@ export async function loadPlayerMetadataRows(
       source: row.source ?? null,
     }),
   )
+}
+
+function cleanScheduleSeason(input: string | number): string {
+  const raw = String(input ?? '').trim()
+  return raw.includes('-') ? raw.split('-')[0]! : raw
+}
+
+function cleanScheduleTeam(value: string | null | undefined): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim().toUpperCase()
+  return trimmed ? trimmed : null
+}
+
+function scheduleGameKey(row: Pick<RawScheduleGameRow, 'week' | 'homeTeam' | 'awayTeam'>): string {
+  return `${row.week}|${cleanScheduleTeam(row.homeTeam) ?? ''}|${cleanScheduleTeam(row.awayTeam) ?? ''}`
+}
+
+/**
+ * READ-ONLY season-schedule read for the F2.2 schedule/bye enrichment seam.
+ *
+ * Reads ONLY already-persisted schedule rows. Preference order:
+ *   1. `FantasyScheduleGame` (canonical fantasy cache: source + fetchedAt + expiresAt)
+ *   2. `GameSchedule` (generic schedule cache fallback: updatedAt only)
+ *
+ * The first row per normalized matchup key wins, so fantasy-cache rows shadow generic schedule rows when
+ * both exist. NO writes, NO refreshes, NO provider API calls.
+ */
+export async function loadScheduleGameRows(
+  sport: string,
+  season: number,
+  teamKeys?: string[],
+): Promise<RawScheduleGameRow[]> {
+  const cleanSport = String(sport ?? '').trim().toUpperCase()
+  if (!cleanSport) return []
+  const cleanTeams = Array.from(
+    new Set(
+      (teamKeys ?? [])
+        .map((value) => cleanScheduleTeam(value))
+        .filter((value): value is string => Boolean(value)),
+    ),
+  )
+
+  const fantasyWhere =
+    cleanTeams.length > 0
+      ? {
+          sport: cleanSport,
+          season: cleanScheduleSeason(season),
+          OR: [{ homeTeam: { in: cleanTeams } }, { awayTeam: { in: cleanTeams } }],
+        }
+      : { sport: cleanSport, season: cleanScheduleSeason(season) }
+
+  const gameWhere =
+    cleanTeams.length > 0
+      ? {
+          sportType: cleanSport,
+          season,
+          OR: [{ homeTeam: { in: cleanTeams } }, { awayTeam: { in: cleanTeams } }],
+        }
+      : { sportType: cleanSport, season }
+
+  const [fantasyRows, gameRows] = await Promise.all([
+    prisma.fantasyScheduleGame.findMany({
+      where: fantasyWhere,
+      orderBy: [{ week: 'asc' }, { fetchedAt: 'desc' }],
+      select: {
+        sport: true,
+        season: true,
+        week: true,
+        homeTeam: true,
+        awayTeam: true,
+        kickoffTime: true,
+        status: true,
+        source: true,
+        fetchedAt: true,
+        expiresAt: true,
+        updatedAt: true,
+      },
+    }),
+    prisma.gameSchedule.findMany({
+      where: gameWhere,
+      orderBy: [{ weekOrRound: 'asc' }, { updatedAt: 'desc' }],
+      select: {
+        sportType: true,
+        season: true,
+        weekOrRound: true,
+        homeTeam: true,
+        awayTeam: true,
+        startTime: true,
+        status: true,
+        updatedAt: true,
+      },
+    }),
+  ])
+
+  const combined: RawScheduleGameRow[] = [
+    ...fantasyRows.map((row: {
+      sport: string
+      season: string
+      week: number
+      homeTeam: string
+      awayTeam: string
+      kickoffTime: Date | null
+      status: string | null
+      source: string
+      fetchedAt: Date
+      expiresAt: Date
+      updatedAt: Date
+    }) => ({
+      sport: cleanSport,
+      season: Number.parseInt(cleanScheduleSeason(row.season), 10) || season,
+      week: row.week,
+      homeTeam: cleanScheduleTeam(row.homeTeam),
+      awayTeam: cleanScheduleTeam(row.awayTeam),
+      kickoffTime: row.kickoffTime ?? null,
+      status: row.status ?? null,
+      source: row.source ?? null,
+      fetchedAt: row.fetchedAt ?? null,
+      expiresAt: row.expiresAt ?? null,
+      updatedAt: row.updatedAt ?? null,
+      sourceModel: 'FantasyScheduleGame' as const,
+    })),
+    ...gameRows.map((row: {
+      sportType: string
+      season: number
+      weekOrRound: number
+      homeTeam: string | null
+      awayTeam: string | null
+      startTime: Date | null
+      status: string
+      updatedAt: Date
+    }) => ({
+      sport: cleanSport,
+      season: row.season,
+      week: row.weekOrRound,
+      homeTeam: cleanScheduleTeam(row.homeTeam),
+      awayTeam: cleanScheduleTeam(row.awayTeam),
+      kickoffTime: row.startTime ?? null,
+      status: row.status ?? null,
+      source: null,
+      fetchedAt: null,
+      expiresAt: null,
+      updatedAt: row.updatedAt ?? null,
+      sourceModel: 'GameSchedule' as const,
+    })),
+  ]
+
+  const deduped = new Map<string, RawScheduleGameRow>()
+  for (const row of combined) {
+    if (row.week <= 0) continue
+    const key = scheduleGameKey(row)
+    if (!deduped.has(key)) deduped.set(key, row)
+  }
+  return [...deduped.values()].sort((a, b) => a.week - b.week)
 }
