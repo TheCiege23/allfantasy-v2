@@ -17,12 +17,12 @@ describe('shadow-mount wiring: /api/today/lineup-actions', () => {
   })
 
   it('is gated by the DECISION_OS_LINEUP_SHADOW flag', () => {
-    expect(route).toMatch(/if \(shouldRunLineupShadow\(\)\)/)
+    expect(route).toMatch(/shouldRunLineupShadow\(process\.env/)
   })
 
   it('is isolated in try/catch so the shadow can never break the legacy response', () => {
     // the shadow block must be wrapped in try/catch
-    const idx = route.indexOf('shouldRunLineupShadow()')
+    const idx = route.indexOf('shouldRunLineupShadow(process.env')
     const block = route.slice(idx, idx + 400)
     expect(block).toMatch(/try\s*\{/)
     expect(block).toMatch(/catch/)
