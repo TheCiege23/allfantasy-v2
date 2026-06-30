@@ -11,6 +11,8 @@ import { prisma } from '@/lib/prisma'
 import type {
   RawAdpRow,
   RawInjuryContextRow,
+  RawLeagueActivityCounts,
+  RawLeagueReputationRow,
   RawLeagueRow,
   RawMarketValueRow,
   RawNewsRow,
@@ -828,4 +830,42 @@ export async function loadNewsRows(
     publishedAt: row.publishedAt,
     createdAt: row.createdAt,
   }))
+}
+
+/**
+ * F2.8 — Load league activity counts (waiver claims, trades, roster moves) for a lookback window.
+ * Issues three `_count` queries — no row data fetched. Read-only.
+ */
+export async function loadLeagueActivityCounts(
+  leagueId: string,
+  since: Date,
+  lookbackDays: number,
+): Promise<RawLeagueActivityCounts> {
+  const [waiverClaimCount, tradeCount, rosterMoveCount] = await Promise.all([
+    prisma.waiverClaim.count({ where: { leagueId, createdAt: { gte: since } } }),
+    prisma.afLeagueTrade.count({ where: { leagueId, createdAt: { gte: since } } }),
+    prisma.afRosterMoveHistory.count({ where: { leagueId, createdAt: { gte: since } } }),
+  ])
+  return { waiverClaimCount, tradeCount, rosterMoveCount, lookbackDays, loadedAt: new Date() }
+}
+
+/**
+ * F2.8 — Load the precomputed LeagueReputation row for a league (read-only carry).
+ * Returns null when no row exists. Prisma Decimal fields are cast to number | null.
+ */
+export async function loadLeagueReputation(leagueId: string): Promise<RawLeagueReputationRow | null> {
+  const row = await prisma.leagueReputation.findUnique({ where: { leagueId } })
+  if (!row) return null
+  return {
+    leagueId: row.leagueId,
+    overallScore: row.overallScore !== null ? Number(row.overallScore) : null,
+    tier: row.tier ?? null,
+    completionRate: row.completionRate !== null ? Number(row.completionRate) : null,
+    retentionRate: row.retentionRate !== null ? Number(row.retentionRate) : null,
+    stabilityScore: row.stabilityScore !== null ? Number(row.stabilityScore) : null,
+    longevityScore: row.longevityScore !== null ? Number(row.longevityScore) : null,
+    competitivenessScore: row.competitivenessScore !== null ? Number(row.competitivenessScore) : null,
+    totalSeasons: row.totalSeasons,
+    lastComputedAt: row.lastComputedAt,
+  }
 }

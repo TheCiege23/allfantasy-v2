@@ -236,6 +236,36 @@ export type {
   NewsPort,
   NewsEnrichedWorldDeps,
 } from './newsEnrichedWorld'
+// F2.8 — Canonical Enrichment: league-intelligence derived VIEW (read-only, additive). See ADR_F2_8_LEAGUE_INTELLIGENCE.md.
+export {
+  deriveActivityTier,
+  deriveEngagementTier,
+  projectManagerParticipation,
+  projectRosterCompleteness,
+  projectCommissionerWorkload,
+  projectLeagueHealthScore,
+  buildInactivityWarnings,
+  buildEngagementWarnings,
+  projectLeagueIntelEnrichedWorld,
+  resolveLeagueIntelEnrichedCanonicalWorld,
+  defaultLeagueIntelPort,
+} from './leagueIntelEnrichedWorld'
+export type {
+  LeagueHealthTier,
+  LeagueActivityTier,
+  LeagueEngagementTier,
+  LeagueHealthScore,
+  ManagerParticipationSignal,
+  RosterCompletenessSignal,
+  ActivitySignal,
+  CommissionerWorkloadSignal,
+  LeagueReputationCarry,
+  LeagueIntelFreshness,
+  LeagueIntelContext,
+  LeagueIntelEnrichedCanonicalWorld,
+  LeagueIntelPort,
+  LeagueIntelEnrichedWorldDeps,
+} from './leagueIntelEnrichedWorld'
 // Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
 export {
   resolveCanonicalAssets,

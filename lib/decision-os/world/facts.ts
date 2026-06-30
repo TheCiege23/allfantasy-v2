@@ -265,6 +265,39 @@ export interface RawNewsRow {
 }
 
 /**
+ * Raw league activity counts for the F2.8 league-intelligence enrichment seam. Returned by a single
+ * port call that issues three `_count` Prisma queries (WaiverClaim, AfLeagueTrade,
+ * AfRosterMoveHistory) for a given leagueId + lookback window.
+ * No row data is fetched — counts only. Decoupled from Prisma.
+ */
+export interface RawLeagueActivityCounts {
+  waiverClaimCount: number
+  tradeCount: number
+  rosterMoveCount: number
+  lookbackDays: number
+  loadedAt: Date
+}
+
+/**
+ * Raw league reputation row for the F2.8 league-intelligence enrichment seam. Sourced from
+ * `LeagueReputation` (`league_reputations` — `leagueId` unique). Carried as provenance only;
+ * health score is computed independently from canonical signals (see ADR_F2_8 §3).
+ * `overallScore` / sub-scores are stored as Prisma Decimal — mapped to `number | null` here.
+ */
+export interface RawLeagueReputationRow {
+  leagueId: string
+  overallScore: number | null
+  tier: string | null
+  completionRate: number | null
+  retentionRate: number | null
+  stabilityScore: number | null
+  longevityScore: number | null
+  competitivenessScore: number | null
+  totalSeasons: number
+  lastComputedAt: Date
+}
+
+/**
  * Raw season-schedule row for the F2.2 schedule/bye enrichment seam. Decoupled from Prisma and sourced
  * from already-persisted schedule caches only (`FantasyScheduleGame` first, `GameSchedule` fallback).
  * Provider/source survive ONLY as provenance/freshness metadata; business logic consumes normalized team
