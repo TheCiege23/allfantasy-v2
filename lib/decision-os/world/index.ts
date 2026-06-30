@@ -81,6 +81,19 @@ export type {
   PlayerMetadataResult,
   PlayerMetadataPort,
 } from './playerMetadata'
+// F2.1 — Canonical Enrichment: player metadata derived VIEW (read-only, additive). See ADR_F2_1_PLAYER_METADATA.md.
+export {
+  projectEnrichedWorld,
+  resolveEnrichedCanonicalWorld,
+  defaultEnrichedWorldDeps,
+} from './enrichedWorld'
+export type {
+  EnrichedPlayer,
+  EnrichedRosterFacts,
+  EnrichedCanonicalWorld,
+  EnrichedWorldMetadataSummary,
+  EnrichedWorldDeps,
+} from './enrichedWorld'
 // Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
 export {
   resolveCanonicalAssets,
