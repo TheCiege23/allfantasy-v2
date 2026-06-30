@@ -10,7 +10,7 @@ import type { LineupValidationContext } from '@/lib/roster-lineup-engine/types'
 import type { RuleVerdict } from '@/lib/decision-os/core/decision'
 import { emitShadowParity, emitValidatorParity } from '@/lib/decision-os/core/parity'
 import { shouldRunShadow, type DecisionShadowScope } from '@/lib/decision-os/core/shadow'
-import { runLineupSetDecision, type LineupParityResult, type LineupWorld, type RunLineupSetInput } from './index'
+import { runLineupSetDecision, type LineupParityResult, type LineupWorld, type RunLineupSetInput, type RunLineupSetResult } from './index'
 import { defaultLineupRuleDeps, evaluateLineupRulesWithParity, type LineupRuleContext, type LineupRuleDeps } from './rules'
 import type { ValidatorParity } from './validatorParity'
 import { loadLineupSetInputs, loadCanonicalValidatorContext } from './loader'
@@ -28,6 +28,16 @@ export function shouldRunLineupShadow(
   return shouldRunShadow('DECISION_OS_LINEUP_SHADOW', env, scope)
 }
 
+/**
+ * Stage 1 kill switch: when DECISION_OS_LINEUP_LIVE=true, decisionOs is appended to the lineup
+ * route response unconditionally (no scope filter). Instant rollback by unsetting the env var.
+ */
+export function shouldRunLineupLive(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return String(env['DECISION_OS_LINEUP_LIVE'] ?? '').trim().toLowerCase() === 'true'
+}
+
 export interface LineupShadowResult {
   ran: boolean
   leagueId: string
@@ -39,6 +49,8 @@ export interface LineupShadowResult {
   /** Honest degradation notes from the input resolution (provenance/debug only). */
   warnings?: string[]
   error?: string
+  /** Full Decision OS result when the shadow ran — available for Stage 1 LIVE response enrichment. */
+  result?: RunLineupSetResult
 }
 
 export interface LineupShadowDeps {
@@ -116,7 +128,7 @@ export async function runLineupShadow(
     // active gate (the decision above already issued unchanged). Never throws.
     const validatorParity = await runValidatorParityShadow(args.leagueId, input, result.world, ruleDeps, deps, result.decision.decision_id)
 
-    return { ran: true, leagueId: args.leagueId, source, warnings, parity: result.parity, validatorParity }
+    return { ran: true, leagueId: args.leagueId, source, warnings, parity: result.parity, validatorParity, result }
   } catch (e) {
     emitShadowParity('manager.lineup.set', { shadow: true, ran: false, reason: 'shadow_error', leagueId: args.leagueId })
     return { ran: false, leagueId: args.leagueId, error: e instanceof Error ? e.message : 'shadow_error' }

@@ -28,9 +28,11 @@ describe('shadow-mount wiring: /api/today/lineup-actions', () => {
     expect(block).toMatch(/catch/)
   })
 
-  it('returns the UNCHANGED legacy response (not shadow-derived)', () => {
-    expect(route).toContain('return NextResponse.json({ ...withChimmy, intelligence })')
-    // the returned payload must not include shadow output
+  it('legacy response fields (withChimmy + intelligence) always present; decisionOs is optional', () => {
+    // Stage 1: decisionOs is spread in optionally — withChimmy and intelligence are always present
+    expect(route).toContain('...withChimmy')
+    expect(route).toContain('intelligence')
+    // the returned payload must never include raw shadow output
     expect(route).not.toMatch(/NextResponse\.json\([^)]*shadow/i)
   })
 

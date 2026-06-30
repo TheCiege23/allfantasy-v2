@@ -4,7 +4,8 @@ import { authOptions } from '@/lib/auth'
 import { computeLineupActionsForUser } from '@/lib/lineup-actions/computeLineupActionsForUser'
 import { attachChimmyAdviceToLineupSummary } from '@/lib/lineup-actions/chimmyLineupAdvice'
 import { buildAiTimeContextPayload } from '@/lib/time-engine/userContext'
-import { shouldRunLineupShadow, runLineupShadowForSummary } from '@/lib/decision-os/lineup/shadow'
+import { shouldRunLineupShadow, shouldRunLineupLive, runLineupShadowForSummary } from '@/lib/decision-os/lineup/shadow'
+import { toTodayLineupCard, type LineupTodayCard } from '@/lib/decision-os/lineup/todayCardAdapter'
 import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
 import { prisma } from '@/lib/prisma'
 
@@ -23,27 +24,49 @@ export async function GET() {
     schemaVersion: 1 as const,
     time: await buildAiTimeContextPayload(userId),
   }
-  const shadowFilters = getDecisionShadowScopeFilters()
-  const shadowProfile = shadowFilters.hasUsernameFilter
-    ? await prisma.userProfile.findUnique({
-        where: { userId },
-        select: { sleeperUsername: true },
-      })
-    : null
+  // Decision OS Slice 1 — lineup shadow/live runner. Evaluation only; never sets a lineup.
+  // Stage 0 (SHADOW only): scope-filtered, logs parity, result discarded.
+  // Stage 1 (LIVE): unconditional, decisionOs appended to response for the first league.
+  const isLive = shouldRunLineupLive(process.env)
+  let decisionOs: { decisionId: string; card: LineupTodayCard; confidence: number; leagueId: string } | null = null
 
-  // Decision OS Slice 1 — SHADOW ONLY (DECISION_OS_LINEUP_SHADOW=true). Runs the new
-  // manager.lineup.set path beside legacy, logs decision parity AND canonical-validator parity
-  // (primary vs rosterValidationService), and can NEVER alter or break this response.
-  if (shouldRunLineupShadow(process.env, {
-    username: shadowProfile?.sleeperUsername ?? null,
-    leagueIds: (summary.leagues ?? []).map((league) => league.leagueId),
-  })) {
+  if (isLive) {
     try {
-      await runLineupShadowForSummary(userId, summary, { maxLeagues: 1 })
+      const results = await runLineupShadowForSummary(userId, summary, { maxLeagues: 1 })
+      const first = results[0]
+      if (first?.ran && first.result) {
+        const { decision } = first.result
+        const card = toTodayLineupCard(decision)
+        decisionOs = {
+          decisionId: decision.decision_id,
+          card,
+          confidence: decision.confidence,
+          leagueId: first.leagueId,
+        }
+      }
     } catch {
-      // shadow must never affect the legacy response
+      // live path must never fail the lineup route
+    }
+  } else {
+    const shadowFilters = getDecisionShadowScopeFilters()
+    const shadowProfile = shadowFilters.hasUsernameFilter
+      ? await prisma.userProfile.findUnique({
+          where: { userId },
+          select: { sleeperUsername: true },
+        })
+      : null
+
+    if (shouldRunLineupShadow(process.env, {
+      username: shadowProfile?.sleeperUsername ?? null,
+      leagueIds: (summary.leagues ?? []).map((league) => league.leagueId),
+    })) {
+      try {
+        await runLineupShadowForSummary(userId, summary, { maxLeagues: 1 })
+      } catch {
+        // shadow must never affect the legacy response
+      }
     }
   }
 
-  return NextResponse.json({ ...withChimmy, intelligence })
+  return NextResponse.json({ ...withChimmy, intelligence, ...(decisionOs ? { decisionOs } : {}) })
 }
