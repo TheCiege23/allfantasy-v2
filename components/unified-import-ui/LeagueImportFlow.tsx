@@ -19,6 +19,10 @@ import {
 } from '@/lib/league-import/LeagueCreationImportSubmissionService'
 import { getImportProviderLabel, supportsImportProviderDiscovery } from '@/lib/league-import/provider-ui-config'
 import type { ImportProvider } from '@/lib/league-import/types'
+import {
+  CommissionerIntelligencePreview,
+  type CommissionerPreviewPayload,
+} from '@/components/league-import/CommissionerIntelligencePreview'
 
 const IMPORT_TABS: ReadonlyArray<{
   id: LegacyPlatformTab
@@ -89,7 +93,9 @@ export function LeagueImportFlow({
     sourceInput: string
     leagueName: string
     canonical: CanonicalPreview | null
+    rawPayload: CommissionerPreviewPayload
   } | null>(null)
+  const [intelligenceModalOpen, setIntelligenceModalOpen] = useState(false)
   const [committing, setCommitting] = useState(false)
   const [conflict, setConflict] = useState<{ message: string } | null>(null)
   const [formError, setFormError] = useState<string | null>(null)
@@ -174,6 +180,7 @@ export function LeagueImportFlow({
     setLeaguePreviewError(null)
     setPreviewInfo(null)
     setConflict(null)
+    setIntelligenceModalOpen(false)
 
     try {
       const preview = await fetchImportPreview(provider, sourceInput)
@@ -181,14 +188,14 @@ export function LeagueImportFlow({
         throw new Error(preview.error || t('import.error.previewFailed'))
       }
 
-      const payload = preview.data as {
+      const rawPayload = (preview.data ?? {}) as CommissionerPreviewPayload & {
         league?: { name?: string }
         canonical?: CanonicalPreview | null
       }
-      const leagueName =
-        payload?.league?.name?.trim() || t('import.leagueDefaultName')
-      const canonical = payload?.canonical ?? null
-      setPreviewInfo({ provider, sourceInput, leagueName, canonical })
+      const leagueName = rawPayload.league?.name?.trim() || t('import.leagueDefaultName')
+      const canonical = rawPayload.canonical ?? null
+      setPreviewInfo({ provider, sourceInput, leagueName, canonical, rawPayload })
+      setIntelligenceModalOpen(true)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : t('import.error.generic')
       if (discoverySourceId) {
@@ -318,6 +325,18 @@ export function LeagueImportFlow({
 
   return (
     <div className={rootShellClassName}>
+      {intelligenceModalOpen && previewInfo && (
+        <CommissionerIntelligencePreview
+          leagueName={previewInfo.leagueName}
+          provider={previewInfo.provider}
+          payload={previewInfo.rawPayload}
+          onClose={() => setIntelligenceModalOpen(false)}
+          onContinue={() => {
+            setIntelligenceModalOpen(false)
+            previewSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+          }}
+        />
+      )}
       {resultsKind === 'league_created' && leagueSuccess && (
         <LegacyImportResults
           variant="league_created"
@@ -383,6 +402,7 @@ export function LeagueImportFlow({
                     setConflict(null)
                     setDiscoveryError(null)
                     setDiscoveredLeagues([])
+                    setIntelligenceModalOpen(false)
                   }}
                   className={`min-w-[100px] flex-1 rounded-xl px-2 py-2.5 text-sm font-semibold transition ${
                     tab === id
