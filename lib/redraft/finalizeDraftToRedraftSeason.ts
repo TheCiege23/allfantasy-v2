@@ -477,24 +477,10 @@ export async function syncCompletedDraftToRedraftSeason(
     })
   })
 
-  // G15.2 — publish (best-effort, never throws; deterministic keys → exactly one
-  // event per draft/season even across idempotent re-runs). Concept is 'redraft'
-  // because this is the redraft finalizer (gated above); sport is data, not assumed.
+  // G15.2 / G12: DRAFT_COMPLETED is now emitted generically from completeDraftSession
+  // (all league types). SEASON_ACTIVATED remains here — it carries the season-specific
+  // payload and is Redraft-concept-specific.
   const events = getPlatformEvents()
-  await events.emit(EVENT.DRAFT_COMPLETED, {
-    leagueId,
-    seasonId: season.id,
-    sport: season.sport ?? null,
-    leagueConcept: 'redraft',
-    actor: { type: 'system' },
-    idempotencyKey: `draft.completed:${session.id}`,
-    source: 'engine:draft-finalize',
-    subjects: [
-      { kind: 'draft', id: session.id },
-      { kind: 'season', id: season.id },
-    ],
-    payload: { draftId: session.id, pickCount: session.picks.length },
-  })
   await events.emit(EVENT.SEASON_ACTIVATED, {
     leagueId,
     seasonId: season.id,

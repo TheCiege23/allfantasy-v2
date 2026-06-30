@@ -18,7 +18,7 @@ export interface AssignedPlayer {
   byeWeek?: number | null
 }
 
-function hasExistingLineup(playerData: unknown): boolean {
+export function hasExistingLineup(playerData: unknown): boolean {
   if (!playerData || typeof playerData !== 'object') return false
   const data = playerData as Record<string, unknown>
   const starters = data.starters
