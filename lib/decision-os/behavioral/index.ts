@@ -69,3 +69,46 @@ export type {
   ManagerBehavioralAssemblyInput,
   LeagueBehavioralAssemblyInput,
 } from './facts'
+
+// ── Phase 5.1: Port (raw row types) ──────────────────────────────────────────
+
+export type {
+  RawWaiverClaimRow,
+  RawLeagueTradeRow,
+  RawRosterMoveRow,
+  RawDraftSessionRow,
+  RawDraftPickRow,
+} from './port'
+
+export {
+  loadWaiverClaimRows,
+  loadLeagueTradeRows,
+  loadRosterMoveRows,
+  loadDraftRows,
+} from './port'
+
+// ── Phase 5.1: Mappers (pure row → event) ────────────────────────────────────
+
+export {
+  mapWaiverClaimToCreatedEvent,
+  mapWaiverClaimToProcessedEvent,
+  mapLeagueTradeToCreatedEvent,
+  mapLeagueTradeToAcceptedEvent,
+  mapLeagueTradeToRejectedEvent,
+  mapLeagueTradeToEvents,
+  mapRosterMoveToLineupSavedEvent,
+  mapDraftSessionToStartedEvent,
+  mapDraftPickToEvent,
+  mapWaiverClaimsToEvents,
+  mapLeagueTradesToEvents,
+  mapRosterMovesToEvents,
+  mapDraftRowsToEvents,
+} from './mappers'
+
+// ── Phase 5.1: Assembler (pure events → facts) ───────────────────────────────
+
+export {
+  assembleManagerBehavioralFacts,
+  assembleLeagueBehavioralFacts,
+  assembleBehavioralFactsCoverage,
+} from './assemble'
