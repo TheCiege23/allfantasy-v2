@@ -21,6 +21,17 @@ export function shouldRunCommissionerHealthShadow(
   return shouldRunShadow('DECISION_OS_COMMISSIONER_HEALTH_SHADOW', env, scope)
 }
 
+/**
+ * Stage 1 kill switch: when DECISION_OS_COMMISSIONER_HEALTH_LIVE=true, decisionOsShadow is
+ * populated unconditionally on all database-source snapshots (not scope-filtered). Instant
+ * rollback by setting the env var to false/unsetting it — no deploy required.
+ */
+export function shouldRunCommissionerHealthLive(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return String(env['DECISION_OS_COMMISSIONER_HEALTH_LIVE'] ?? '').trim().toLowerCase() === 'true'
+}
+
 export interface CommissionerHealthShadowResult {
   ran: boolean
   leagueId: string

@@ -1,7 +1,7 @@
 import type { UserLeague } from '@/app/dashboard/types'
 import { prisma } from '@/lib/prisma'
 import { monitorLeagueHealth, type OverallStatus } from '@/lib/league-health/league-health-engine'
-import { shouldRunCommissionerHealthShadow, runCommissionerHealthShadow } from '@/lib/decision-os/commissioner-health/shadow'
+import { shouldRunCommissionerHealthShadow, shouldRunCommissionerHealthLive, runCommissionerHealthShadow } from '@/lib/decision-os/commissioner-health/shadow'
 import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
 import { toCommissionerHealthCard, type CommissionerHealthCard } from '@/lib/decision-os/commissioner-health/healthCardAdapter'
 import { getNormalizedLineupSections } from '@/lib/roster/LineupTemplateValidation'
@@ -819,37 +819,61 @@ export async function getCommissionerHubHealthForUser(
       })
     })
 
-    // Decision OS Slice 4 — SHADOW ONLY (DECISION_OS_COMMISSIONER_HEALTH_SHADOW=true). Assesses the
-    // new commissioner.league.health path beside legacy using the SAME built deterministic snapshot,
-    // logs wrap-fidelity parity, and can NEVER alter these snapshots, block the hub, execute a
-    // commissioner action, or mutate league state. One database-source league per request; skips
-    // fallback. Read-only.
-    const shadowTargetIndex = snapshots.findIndex((snapshot) =>
-      snapshot &&
-      snapshot.source === 'database' &&
-      shouldRunCommissionerHealthShadow(process.env, {
-        username: shadowProfile?.sleeperUsername ?? null,
-        leagueId: snapshot.leagueId,
-      }),
-    )
+    // Decision OS Slice 4 — commissioner.league.health shadow/live runner. Assessment only;
+    // never executes commissioner actions, never mutates league state, never throws to the hub.
+    // Stage 0 (SHADOW only): runs beside one scope-matched database-source league, logs parity.
+    // Stage 1 (LIVE): populates decisionOsShadow on all database-source leagues unconditionally.
+    const isLive = shouldRunCommissionerHealthLive(process.env)
 
-    if (shadowTargetIndex >= 0) {
-      const target = snapshots[shadowTargetIndex]
-      if (target) {
-        try {
-          const shadow = await runCommissionerHealthShadow({ userId, snapshot: target })
-          if (shadow.ran && shadow.result) {
-            snapshots[shadowTargetIndex] = {
-              ...target,
-              decisionOsShadow: {
-                decisionId: shadow.result.decision.decision_id,
-                parityPassed: shadow.result.parity?.passed ?? null,
-                card: toCommissionerHealthCard(shadow.result.decision),
-              },
+    if (isLive) {
+      await Promise.all(
+        snapshots.map(async (snapshot, i) => {
+          if (!snapshot || snapshot.source !== 'database') return
+          try {
+            const shadow = await runCommissionerHealthShadow({ userId, snapshot })
+            if (shadow.ran && shadow.result) {
+              snapshots[i] = {
+                ...snapshot,
+                decisionOsShadow: {
+                  decisionId: shadow.result.decision.decision_id,
+                  parityPassed: shadow.result.parity?.passed ?? null,
+                  card: toCommissionerHealthCard(shadow.result.decision),
+                },
+              }
             }
+          } catch {
+            // live path must never affect the Commissioner Hub
           }
-        } catch {
-          // shadow must never affect the Commissioner Hub
+        }),
+      )
+    } else {
+      const shadowTargetIndex = snapshots.findIndex((snapshot) =>
+        snapshot &&
+        snapshot.source === 'database' &&
+        shouldRunCommissionerHealthShadow(process.env, {
+          username: shadowProfile?.sleeperUsername ?? null,
+          leagueId: snapshot.leagueId,
+        }),
+      )
+
+      if (shadowTargetIndex >= 0) {
+        const target = snapshots[shadowTargetIndex]
+        if (target) {
+          try {
+            const shadow = await runCommissionerHealthShadow({ userId, snapshot: target })
+            if (shadow.ran && shadow.result) {
+              snapshots[shadowTargetIndex] = {
+                ...target,
+                decisionOsShadow: {
+                  decisionId: shadow.result.decision.decision_id,
+                  parityPassed: shadow.result.parity?.passed ?? null,
+                  card: toCommissionerHealthCard(shadow.result.decision),
+                },
+              }
+            }
+          } catch {
+            // shadow must never affect the Commissioner Hub
+          }
         }
       }
     }
