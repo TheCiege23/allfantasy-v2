@@ -116,6 +116,28 @@ export type {
   ScheduleContextPort,
   ScheduleEnrichedWorldDeps,
 } from './scheduleBye'
+// F2.3 — Canonical Enrichment: injury / availability derived VIEW (read-only, additive). See ADR_F2_3_INJURY_STATUS.md.
+export {
+  deriveAvailabilityCategory,
+  projectInjuryContext,
+  projectInjuryEnrichedWorld,
+  resolveInjuryContext,
+  resolveInjuryEnrichedCanonicalWorld,
+  defaultInjuryContextPort,
+  defaultInjuryEnrichedWorldDeps,
+} from './injuryEnrichedWorld'
+export type {
+  InjuryAvailabilityCategory,
+  InjuryStatusFreshness,
+  InjuryContext,
+  InjuryEnrichedPlayer,
+  InjuryEnrichedRosterFacts,
+  InjuryEnrichmentSummary,
+  InjuryEnrichedCanonicalWorld,
+  InjuryContextResult,
+  InjuryContextPort,
+  InjuryEnrichedWorldDeps,
+} from './injuryEnrichedWorld'
 // Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
 export {
   resolveCanonicalAssets,

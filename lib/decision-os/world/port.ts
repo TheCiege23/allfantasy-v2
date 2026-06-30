@@ -9,6 +9,7 @@
  */
 import { prisma } from '@/lib/prisma'
 import type {
+  RawInjuryContextRow,
   RawLeagueRow,
   RawPerformanceRow,
   RawPlayerMetadataRow,
@@ -428,4 +429,51 @@ export async function loadScheduleGameRows(
     if (!deduped.has(key)) deduped.set(key, row)
   }
   return [...deduped.values()].sort((a, b) => a.week - b.week)
+}
+
+/**
+ * READ-ONLY injury-context read for the F2.3 injury/availability enrichment seam.
+ *
+ * Reads the SAME SportsPlayer cache as F2.1 player metadata but selects freshness fields
+ * (fetchedAt / expiresAt / updatedAt) that the F2.1 read does not include. One `findMany` only —
+ * no writes, no cache warming, no live API calls. Freshest row per id wins (orderBy fetchedAt desc).
+ */
+export async function loadInjuryContextRows(
+  sport: string,
+  ids: string[],
+): Promise<RawInjuryContextRow[]> {
+  const clean = Array.from(new Set(ids.filter((x) => typeof x === 'string' && x.length > 0))).slice(0, 200)
+  if (clean.length === 0) return []
+  const rows = await prisma.sportsPlayer.findMany({
+    where: { sport, OR: [{ externalId: { in: clean } }, { sleeperId: { in: clean } }] },
+    orderBy: { fetchedAt: 'desc' },
+    select: {
+      externalId: true,
+      sleeperId: true,
+      status: true,
+      source: true,
+      fetchedAt: true,
+      expiresAt: true,
+      updatedAt: true,
+    },
+  })
+  return rows.map(
+    (row: {
+      externalId: string
+      sleeperId: string | null
+      status: string | null
+      source: string | null
+      fetchedAt: Date
+      expiresAt: Date
+      updatedAt: Date
+    }) => ({
+      externalId: row.externalId,
+      sleeperId: row.sleeperId ?? null,
+      status: row.status ?? null,
+      source: row.source ?? null,
+      fetchedAt: row.fetchedAt ?? null,
+      expiresAt: row.expiresAt ?? null,
+      updatedAt: row.updatedAt ?? null,
+    }),
+  )
 }

@@ -110,6 +110,32 @@ export interface RawPlayerMetadataRow {
 }
 
 /**
+ * Raw injury-context row for the F2.3 injury/availability enrichment seam. Decoupled from Prisma.
+ * Sourced from the persisted SportsPlayer cache — the SAME table as F2.1 player metadata but
+ * selecting freshness fields (fetchedAt / expiresAt / updatedAt) that F2.1 does not read.
+ * Provider / lookup keys survive ONLY as provenance (externalId / sleeperId); business logic
+ * consumes normalized injury/freshness facts only. Richer fields (practiceStatus / gameStatus /
+ * bodyPart) are intentionally ABSENT — no player-id-keyed read-only source carries them in a
+ * joinable namespace; they stay null + warned in the derived view (see ADR_F2_3_INJURY_STATUS.md).
+ */
+export interface RawInjuryContextRow {
+  /** Provider lookup key — same as SportsPlayer.externalId (e.g. Sleeper player id). */
+  externalId: string
+  /** Alternate Sleeper-specific lookup key; null when absent. */
+  sleeperId: string | null
+  /** Injury / availability status string as persisted (e.g. "Q", "O", "IR", "Active"); null when unknown. */
+  status: string | null
+  /** Which import source produced the cached row (provenance only). */
+  source: string | null
+  /** When the cached row was fetched. Null when not tracked by this source. */
+  fetchedAt: Date | null
+  /** When the cached row is expected to expire / become stale. Null when not tracked. */
+  expiresAt: Date | null
+  /** When the cached row was last updated. Null when not tracked. */
+  updatedAt: Date | null
+}
+
+/**
  * Raw season-schedule row for the F2.2 schedule/bye enrichment seam. Decoupled from Prisma and sourced
  * from already-persisted schedule caches only (`FantasyScheduleGame` first, `GameSchedule` fallback).
  * Provider/source survive ONLY as provenance/freshness metadata; business logic consumes normalized team
