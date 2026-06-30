@@ -196,3 +196,9 @@ export {
   leagueIntelligenceHandler,
   managerIntelligenceHandler,
 } from './api/intelligence-handlers'
+
+// ── Phase 5.8: Intelligence API Real Data Provider ───────────────────────────
+// NOTE: Route files still use stubDataProvider (Phase 5.7). Swap to realDataProvider in Phase 5.9.
+
+export type { RealDataProviderDeps } from './api/real-data-provider'
+export { createRealDataProvider, realDataProvider } from './api/real-data-provider'
