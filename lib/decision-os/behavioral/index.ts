@@ -168,3 +168,14 @@ export type {
 } from './platform-intelligence'
 
 export { derivePlatformBehavioralIntelligence } from './platform-intelligence'
+
+// ── Phase 5.6: Intelligence API Internal Resolvers ───────────────────────────
+// NOTE: api/contracts.ts is standalone — import it directly.
+// These resolver functions map internal intelligence → curated external contracts.
+
+export {
+  resolveManagerIntelligence,
+  resolveLeagueIntelligence,
+  resolvePlatformIntelligenceBasic,
+  resolvePlatformIntelligenceFull,
+} from './api/resolvers'
