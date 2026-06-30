@@ -187,6 +187,28 @@ export interface RawMarketValueRow {
 }
 
 /**
+ * Raw projection row for the F2.5 projection enrichment seam. Sourced from `FantasyProjection`
+ * (canonical fantasy projection cache — importers write provider-backed values only). `playerId` uses
+ * the same canonical AF player ID namespace as canonical roster player IDs. `scoringPresetId` matches
+ * `LeagueFacts.scoringPresetId` directly. `expiresAt` is a real TTL (no age-estimation needed).
+ */
+export interface RawProjectionRow {
+  playerId: string
+  sport: string
+  /** Stored as a string in the DB (e.g. '2026'). Compare with String(LeagueFacts.season). */
+  season: string
+  week: number
+  /** Matches LeagueFacts.scoringPresetId directly ('ppr', 'half_ppr', 'standard', '2qb', etc.). */
+  scoringPresetId: string
+  projectedPoints: number
+  /** Raw stat breakdown — carried as provenance, never parsed for decision logic. */
+  stats: unknown
+  source: string
+  fetchedAt: Date
+  expiresAt: Date
+}
+
+/**
  * Raw season-schedule row for the F2.2 schedule/bye enrichment seam. Decoupled from Prisma and sourced
  * from already-persisted schedule caches only (`FantasyScheduleGame` first, `GameSchedule` fallback).
  * Provider/source survive ONLY as provenance/freshness metadata; business logic consumes normalized team

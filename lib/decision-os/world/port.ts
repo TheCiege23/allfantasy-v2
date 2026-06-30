@@ -15,6 +15,7 @@ import type {
   RawMarketValueRow,
   RawPerformanceRow,
   RawPlayerMetadataRow,
+  RawProjectionRow,
   RawRosterRow,
   RawScheduleGameRow,
   RawTeamRow,
@@ -602,5 +603,69 @@ export async function loadMarketValueRows(
     scoringFormat: row.scoringFormat ?? null,
     generatedAt: row.generatedAt,
     updatedAt: row.updatedAt,
+  }))
+}
+
+/**
+ * READ-ONLY weekly projection read for the F2.5 projection enrichment seam.
+ *
+ * Reads `FantasyProjection` — the canonical fantasy projection cache (importers write provider-backed
+ * values only; no AI-generated or heuristic values). Returns ALL scoring-preset variants for the given
+ * player IDs + sport + season + week; format selection happens in the projector (`selectBestProjectionRow`),
+ * not here, so this port remains format-agnostic.
+ *
+ * `season` must be passed as a string (matches the DB column type). `week` must be a known current week
+ * (callers must resolve `LeagueFacts.currentWeek` before invoking — if week is null, skip this call).
+ *
+ * Ordered by `expiresAt desc` so freshest rows come first within each scoring preset.
+ * Slice limit: 200 unique ids max (consistent with other enrichment ports).
+ * NO writes, NO live provider calls, NO cache warming.
+ */
+export async function loadProjectionRows(
+  sport: string,
+  ids: string[],
+  season: string,
+  week: number,
+): Promise<RawProjectionRow[]> {
+  const clean = Array.from(new Set(ids.filter((x) => typeof x === 'string' && x.length > 0))).slice(0, 200)
+  if (clean.length === 0) return []
+  const rows = await prisma.fantasyProjection.findMany({
+    where: { playerId: { in: clean }, sport, season, week },
+    orderBy: { expiresAt: 'desc' },
+    select: {
+      playerId: true,
+      sport: true,
+      season: true,
+      week: true,
+      scoringPresetId: true,
+      projectedPoints: true,
+      stats: true,
+      source: true,
+      fetchedAt: true,
+      expiresAt: true,
+    },
+  })
+  return rows.map((row: {
+    playerId: string
+    sport: string
+    season: string
+    week: number
+    scoringPresetId: string
+    projectedPoints: number
+    stats: unknown
+    source: string
+    fetchedAt: Date
+    expiresAt: Date
+  }) => ({
+    playerId: row.playerId,
+    sport: row.sport,
+    season: row.season,
+    week: row.week,
+    scoringPresetId: row.scoringPresetId,
+    projectedPoints: row.projectedPoints,
+    stats: row.stats,
+    source: row.source,
+    fetchedAt: row.fetchedAt,
+    expiresAt: row.expiresAt,
   }))
 }

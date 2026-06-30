@@ -167,6 +167,28 @@ export type {
   AdpPort,
   AdpEnrichedWorldDeps,
 } from './adpEnrichedWorld'
+// F2.5 — Canonical Enrichment: projection derived VIEW (read-only, additive). See ADR_F2_5_PROJECTIONS.md.
+export {
+  selectBestProjectionRow,
+  projectProjectionFreshness,
+  projectProjectionContext,
+  projectProjectionEnrichedWorld,
+  resolveProjectionContext,
+  resolveProjectionEnrichedCanonicalWorld,
+  defaultProjectionPort,
+} from './projectionEnrichedWorld'
+export type {
+  ProjectionMatchTier,
+  ProjectionFreshness,
+  ProjectionContext,
+  ProjectionEnrichedPlayer,
+  ProjectionEnrichedRosterFacts,
+  ProjectionEnrichmentSummary,
+  ProjectionEnrichedCanonicalWorld,
+  ProjectionContextResult,
+  ProjectionPort,
+  ProjectionEnrichedWorldDeps,
+} from './projectionEnrichedWorld'
 // Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
 export {
   resolveCanonicalAssets,
