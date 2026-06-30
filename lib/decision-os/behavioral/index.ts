@@ -112,3 +112,18 @@ export {
   assembleLeagueBehavioralFacts,
   assembleBehavioralFactsCoverage,
 } from './assemble'
+
+// ── Phase 5.2: Manager Behavioral Intelligence (pure derived intelligence) ────
+
+export type {
+  ParticipationTier,
+  ManagerRetentionRisk,
+  EngagementLevel,
+  ManagerEngagementDimension,
+  NudgePriority,
+  NudgeCategory,
+  ManagerNudge,
+  ManagerBehavioralIntelligence,
+} from './manager-intelligence'
+
+export { deriveManagerBehavioralIntelligence } from './manager-intelligence'
