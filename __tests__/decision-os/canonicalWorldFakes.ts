@@ -138,6 +138,36 @@ export function makeImportedProviderWorld(
 }
 
 /**
+ * A REALISTIC imported `League.settings` snapshot — the shape `canonicalImportNormalizer` actually
+ * persists for a Sleeper import (see the real "KBI Smoke Black" staging league). It deliberately folds
+ * BOTH genuine scoring config AND league chrome / provenance that carry provider-branded strings:
+ *   - `visualTheme.logoUrl` / `mediaSettings.logoUrl` = a `sleepercdn.com` URL  ← the F0-1 leak source
+ *   - `avatar`, `name`, `leagueSize` league chrome
+ *   - `scoringSettings.source = 'sleeper'` provenance nested inside the scoring slice
+ *   - `conceptRules.extensions.importSource = 'sleeper'`, `source_tracking`, `identity_mappings`
+ * The substrate must surface the scoring config while letting NONE of the `sleeper` strings reach a fact.
+ */
+export const IMPORTED_SETTINGS_SNAPSHOT_WITH_PROVIDER_CHROME = {
+  name: 'KBI Smoke Black',
+  avatar: 'aecc2886e68404faed2ff80ee53f3277',
+  leagueSize: 12,
+  scoring: 'PPR TEP',
+  snapshotVersion: 1,
+  visualTheme: { logoUrl: 'https://sleepercdn.com/avatars/thumbs/aecc2886e68404faed2ff80ee53f3277' },
+  mediaSettings: { logoUrl: 'https://sleepercdn.com/avatars/thumbs/aecc2886e68404faed2ff80ee53f3277' },
+  scoringSettings: {
+    rules: { rec: 1, rec_yd: 0.1, bonus_rec_te: 0.5 },
+    format: 'custom',
+    source: 'sleeper', // provenance nested in the scoring slice — must be stripped, not surfaced
+    scoringTemplateId: 'fb_half_ppr',
+  },
+  scoring_settings: { rec: 1, rec_yd: 0.1, bonus_rec_te: 0.5 },
+  conceptRules: { concept: 'redraft', extensions: { importSource: 'sleeper', sourceLeagueId: '1096853585905799168' } },
+  source_tracking: { source_provider: 'sleeper', source_league_id: '1096853585905799168' },
+  identity_mappings: [{ stable_key: 'sleeper:league:1096853585905799168', source_provider: 'sleeper' }],
+} as const
+
+/**
  * NATIVE AllFantasy league. Clean ids, stored FAAB remaining, persisted waiver_budget_used, simple
  * playerData. Proves the substrate produces the same fact shape without any provider metadata.
  */

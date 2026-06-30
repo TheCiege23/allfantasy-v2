@@ -23,6 +23,7 @@ import { assembleCanonicalWorld } from '@/lib/decision-os/world/assemble'
 import { projectCanonicalLineupInput } from '@/lib/decision-os/lineup/canonicalBridge'
 import type { CanonicalWorld, CanonicalWorldRawInput } from '@/lib/decision-os/world/facts'
 import {
+  IMPORTED_SETTINGS_SNAPSHOT_WITH_PROVIDER_CHROME,
   makeImportedProviderWorld,
   makeImportedSleeperDynastyWorld,
   makeNativeAfWorld,
@@ -290,5 +291,44 @@ describe('Phase D.2 — documented substrate findings', () => {
     expect(res.input).not.toBeNull()
     expect(res.input!.projectionConfidence).toBeNull()
     expect(res.input!.players.every((p) => p.byeWeek === null)).toBe(true)
+  })
+
+  // FINDING F0-1 (CLOSED): a REAL imported settings snapshot carries league chrome + provenance whose
+  // strings include the provider name (a `sleepercdn.com` logo URL, `scoringSettings.source`, etc.).
+  // The opaque pass-through used to leak those into `world.league.scoringSettings`. The narrowing now
+  // surfaces ONLY scoring config — proven here against the realistic chrome-laden blob. See ADR §10.
+  it('CLOSED (F0-1): a provider-branded settings blob does NOT leak into league facts', () => {
+    const input = makeImportedProviderWorld({
+      league: {
+        ...makeImportedProviderWorld().league,
+        settings: IMPORTED_SETTINGS_SNAPSHOT_WITH_PROVIDER_CHROME as unknown as Record<string, unknown>,
+      },
+    })
+    const world = assemble(input)
+
+    // No provider string (nor the leaking logo URL host) survives anywhere in the league facts.
+    const leagueJson = JSON.stringify(world.league)
+    expect(leagueJson).not.toContain('sleeper')
+    expect(leagueJson).not.toContain('sleepercdn.com')
+
+    // The genuine scoring config IS preserved (origin-blind), with provenance (`source`) stripped.
+    const scoring = world.league.scoringSettings as Record<string, unknown>
+    expect(scoring).not.toBeNull()
+    expect(scoring.scoring_settings).toEqual({ rec: 1, rec_yd: 0.1, bonus_rec_te: 0.5 })
+    expect(scoring.scoring).toBe('PPR TEP')
+    const slice = scoring.scoringSettings as Record<string, unknown>
+    expect(slice.rules).toEqual({ rec: 1, rec_yd: 0.1, bonus_rec_te: 0.5 })
+    expect(slice.format).toBe('custom')
+    expect(slice.scoringTemplateId).toBe('fb_half_ppr')
+    expect('source' in slice).toBe(false) // provenance dropped
+
+    // Chrome never rides through: no logo/visualTheme/avatar/name/leagueSize keys on the scoring facts.
+    expect('visualTheme' in scoring).toBe(false)
+    expect('mediaSettings' in scoring).toBe(false)
+    expect('avatar' in scoring).toBe(false)
+    expect('name' in scoring).toBe(false)
+    expect('leagueSize' in scoring).toBe(false)
+    expect('conceptRules' in scoring).toBe(false)
+    expect('identity_mappings' in scoring).toBe(false)
   })
 })

@@ -39,6 +39,69 @@ export interface AssembleOptions {
 
 const DEFAULT_STALE_AFTER_MS = 24 * 60 * 60 * 1000
 
+/**
+ * Scoring-PURPOSE top-level key names allow-listed out of the opaque `League.settings` blob. Listing
+ * scoring purposes (never provider strings) is what keeps the substrate origin-blind: imported leagues
+ * persist a full settings snapshot whose CHROME (`name` / `avatar` / `visualTheme` / `mediaSettings` /
+ * `leagueSize`) and PROVENANCE (`source_tracking` / `identity_mappings` / `importCanonical` /
+ * `conceptRules`) carry provider-branded strings — e.g. a `sleepercdn.com` logo URL. Those keys are
+ * simply never selected, so a provider URL/tag in chrome cannot ride through into a fact. See Finding
+ * F0-1 in `ADR_F0_NONPROD_IMPORTED_LEAGUE.md` §10.
+ */
+const SCORING_SETTINGS_KEY_NAMES = [
+  'scoring',
+  'scoringSettings',
+  'scoring_settings',
+  'scoringMode',
+  'scoring_mode',
+  'categoryPresetId',
+  'categoryScoring',
+] as const
+
+/**
+ * Provenance KEY NAMES stripped from any selected scoring object so an opaque provider tag (e.g. a
+ * `source: '<provider>'` field nested inside a scoring slice) can never leak. These are purpose names,
+ * not provider values — nothing here hardcodes a provider, preserving P1 purpose-blindness.
+ */
+const PROVENANCE_KEY_NAMES = new Set([
+  'source',
+  'provider',
+  'importSource',
+  'source_provider',
+  'sourceProvider',
+])
+
+function stripProvenanceKeys(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripProvenanceKeys)
+  if (value && typeof value === 'object') {
+    const out: Record<string, unknown> = {}
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (PROVENANCE_KEY_NAMES.has(k)) continue
+      out[k] = stripProvenanceKeys(v)
+    }
+    return out
+  }
+  return value
+}
+
+/**
+ * Narrow the opaque `League.settings` blob down to ONLY origin-blind scoring config. Purpose-blind by
+ * construction: allow-list scoring KEY NAMES ({@link SCORING_SETTINGS_KEY_NAMES}) and strip provenance
+ * KEY NAMES ({@link PROVENANCE_KEY_NAMES}) — no provider string is hardcoded, and league chrome /
+ * provenance never reaches the fact. Returns null when no scoring config is present (honest degradation).
+ */
+export function narrowScoringSettings(settings: unknown): unknown {
+  if (!settings || typeof settings !== 'object' || Array.isArray(settings)) return null
+  const blob = settings as Record<string, unknown>
+  const out: Record<string, unknown> = {}
+  for (const key of SCORING_SETTINGS_KEY_NAMES) {
+    if (key in blob && blob[key] !== undefined) {
+      out[key] = stripProvenanceKeys(blob[key])
+    }
+  }
+  return Object.keys(out).length > 0 ? out : null
+}
+
 function readSourceTeamId(roster: RawRosterRow): string | null {
   const blob = (roster.playerData ?? {}) as Record<string, unknown>
   const direct = blob.source_team_id
@@ -96,7 +159,9 @@ function assembleLeagueFacts(input: CanonicalWorldRawInput): LeagueFacts {
     leagueType: league.leagueType,
     isDynasty: league.isDynasty,
     scoringPresetId: league.scoringPresetId,
-    scoringSettings: league.settings ?? null,
+    // Origin-blind: narrow the opaque settings blob to scoring config only (drops chrome/provenance
+    // that would otherwise leak a provider-branded string, e.g. a logo URL). See Finding F0-1.
+    scoringSettings: narrowScoringSettings(league.settings),
     rosterSettings: {
       rosterSize: league.rosterSize,
       starterSlots,
