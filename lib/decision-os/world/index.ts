@@ -211,6 +211,31 @@ export type {
   WeatherPort,
   WeatherEnrichedWorldDeps,
 } from './weatherEnrichedWorld'
+// F2.7 — Canonical Enrichment: news-signal derived VIEW (read-only, additive). See ADR_F2_7_NEWS_SIGNALS.md.
+export {
+  deriveNewsAgeTier,
+  projectNewsFreshness,
+  selectBestNewsRow,
+  classifyNewsCategory,
+  projectNewsContext,
+  projectNewsEnrichedWorld,
+  resolveNewsContext,
+  resolveNewsEnrichedCanonicalWorld,
+  defaultNewsPort,
+} from './newsEnrichedWorld'
+export type {
+  NewsSignalCategory,
+  NewsAgeTier,
+  NewsSignalFreshness,
+  NewsSignalContext,
+  NewsEnrichedPlayer,
+  NewsEnrichedRosterFacts,
+  NewsEnrichmentSummary,
+  NewsEnrichedCanonicalWorld,
+  NewsContextResult,
+  NewsPort,
+  NewsEnrichedWorldDeps,
+} from './newsEnrichedWorld'
 // Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
 export {
   resolveCanonicalAssets,

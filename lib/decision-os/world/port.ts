@@ -13,6 +13,7 @@ import type {
   RawInjuryContextRow,
   RawLeagueRow,
   RawMarketValueRow,
+  RawNewsRow,
   RawPerformanceRow,
   RawPlayerMetadataRow,
   RawProjectionRow,
@@ -766,5 +767,65 @@ export async function loadWeatherRows(
     fetchedAt: row.fetchedAt,
     expiresAt: row.expiresAt,
     dataSource: row.dataSource,
+  }))
+}
+
+/**
+ * READ-ONLY news read for the F2.7 news-signal enrichment seam.
+ *
+ * Queries `PlayerNewsRecord` by sport + playerName IN list within a configurable lookback
+ * window. Rows where playerName = 'General Update' or is blank are excluded at the DB level
+ * (they represent general sports news without player attribution).
+ *
+ * `playerNames` should be passed as-is from F2.1 EnrichedPlayer.name values — Prisma uses
+ * `mode: 'insensitive'` for the case-insensitive match.
+ *
+ * NO writes, NO live API calls, NO cache warming.
+ */
+export async function loadNewsRows(
+  sport: string,
+  playerNames: string[],
+  since: Date,
+): Promise<RawNewsRow[]> {
+  const clean = Array.from(new Set(playerNames.filter((n) => typeof n === 'string' && n.trim().length > 0))).slice(0, 200)
+  if (clean.length === 0) return []
+
+  const rows = await prisma.playerNewsRecord.findMany({
+    where: {
+      sport,
+      publishedAt: { gte: since },
+      playerName: { in: clean, mode: 'insensitive' },
+      // Exclude general news rows with no player attribution
+      NOT: { playerName: { in: ['General Update', ''], mode: 'insensitive' } },
+    },
+    orderBy: { publishedAt: 'desc' },
+    take: clean.length * 5, // up to 5 news items per player name
+    select: {
+      id: true,
+      sport: true,
+      playerName: true,
+      team: true,
+      headline: true,
+      body: true,
+      impact: true,
+      fantasyRelevant: true,
+      source: true,
+      publishedAt: true,
+      createdAt: true,
+    },
+  })
+
+  return rows.map((row) => ({
+    id: row.id,
+    sport: row.sport,
+    playerName: row.playerName,
+    team: row.team ?? null,
+    headline: row.headline,
+    body: row.body,
+    impact: row.impact,
+    fantasyRelevant: row.fantasyRelevant,
+    source: row.source,
+    publishedAt: row.publishedAt,
+    createdAt: row.createdAt,
   }))
 }

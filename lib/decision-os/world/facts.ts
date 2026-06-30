@@ -187,6 +187,35 @@ export interface RawMarketValueRow {
 }
 
 /**
+ * Raw weather row for the F2.6 weather enrichment seam. Sourced from `WeatherCache` (team-window
+ * keyed: `weather:team-window:{TEAM}:{YYYY-MM-DD}`). Weather is team-level — all players on the
+ * same team share the same WeatherCache entry. `expiresAt` is a real TTL (1h for team-window).
+ * Never has live API data — port reads only already-persisted rows.
+ */
+export interface RawWeatherRow {
+  cacheKey: string
+  sport: string | null
+  /** Optional event/game link — null in all team-window entries; present in game-specific entries. */
+  eventId: string | null
+  temperatureF: number | null
+  feelsLikeF: number | null
+  windSpeedMph: number | null
+  windGustsMph: number | null
+  windDirectionDeg: number | null
+  precipChancePct: number | null
+  rainInches: number | null
+  snowInches: number | null
+  conditionCode: string | null
+  conditionLabel: string | null
+  isIndoor: boolean
+  isDome: boolean
+  roofClosed: boolean
+  fetchedAt: Date
+  expiresAt: Date
+  dataSource: string
+}
+
+/**
  * Raw projection row for the F2.5 projection enrichment seam. Sourced from `FantasyProjection`
  * (canonical fantasy projection cache — importers write provider-backed values only). `playerId` uses
  * the same canonical AF player ID namespace as canonical roster player IDs. `scoringPresetId` matches
@@ -206,6 +235,33 @@ export interface RawProjectionRow {
   source: string
   fetchedAt: Date
   expiresAt: Date
+}
+
+/**
+ * Raw news row for the F2.7 news-signal enrichment seam. Sourced from `PlayerNewsRecord`
+ * (`player_news` table) — the already-persisted provider news cache written by the 15-min
+ * import cron. Joined by `sport` + case-insensitive `playerName` (see ADR_F2_7 §3).
+ *
+ * No `expiresAt` field in source — freshness is age-estimated from `publishedAt`.
+ * `playerId` is excluded from `RawNewsRow` because it is in the PROVIDER's namespace,
+ * not the canonical AF player ID namespace (see ADR_F2_7 §2.6).
+ * `source` is carried as provenance only — never branched on.
+ */
+export interface RawNewsRow {
+  id: string
+  sport: string
+  /** Provider player name — the join key (case-insensitive exact match against EnrichedPlayer.name). */
+  playerName: string
+  team: string | null
+  headline: string
+  body: string
+  /** Heuristic tier from importer: 'high' | 'medium' | 'low'. Carried as-is. */
+  impact: string
+  fantasyRelevant: boolean
+  /** Import source label (e.g. 'rolling_insights', 'clearsports', 'espn', 'cache'). Provenance only. */
+  source: string
+  publishedAt: Date
+  createdAt: Date
 }
 
 /**
