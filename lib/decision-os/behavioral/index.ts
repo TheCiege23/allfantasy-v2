@@ -198,7 +198,12 @@ export {
 } from './api/intelligence-handlers'
 
 // ── Phase 5.8: Intelligence API Real Data Provider ───────────────────────────
-// NOTE: Route files still use stubDataProvider (Phase 5.7). Swap to realDataProvider in Phase 5.9.
 
 export type { RealDataProviderDeps } from './api/real-data-provider'
 export { createRealDataProvider, realDataProvider } from './api/real-data-provider'
+
+// ── Phase 5.9: Intelligence API provider selector (env-gated opt-in) ─────────
+// Route files call resolveDataProvider() to get stub or real provider based on
+// DECISION_OS_INTELLIGENCE_API_PROVIDER env var.
+
+export { resolveDataProvider } from './api/provider-selector'
