@@ -25,6 +25,16 @@ export function shouldRunTradeShadow(
   return shouldRunShadow('DECISION_OS_TRADE_SHADOW', env, scope)
 }
 
+/**
+ * Stage 1 kill switch: when DECISION_OS_TRADE_LIVE=true, decisionOs is appended to the trade
+ * proposal response unconditionally (no scope filter). Instant rollback by unsetting the env var.
+ */
+export function shouldRunTradeLive(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return String(env['DECISION_OS_TRADE_LIVE'] ?? '').trim().toLowerCase() === 'true'
+}
+
 export interface TradeShadowResult {
   ran: boolean
   proposalId: string

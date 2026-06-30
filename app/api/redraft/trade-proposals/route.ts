@@ -7,7 +7,8 @@ import { recordAfLearningEvent } from '@/lib/ai-learning-system/recordEvent'
 import { resolveLeagueSport } from '@/lib/ai-learning-system/resolveLeagueSport'
 import { captureRedraftTradeValueSnapshot } from '@/lib/trade-value/captureSnapshot'
 import { recordRedraftTradeMarketEvent } from '@/lib/trade-market/redraftTradeMarketEvents'
-import { shouldRunTradeShadow, runTradeShadowForProposal } from '@/lib/decision-os/trade/shadow'
+import { shouldRunTradeShadow, shouldRunTradeLive, runTradeShadowForProposal } from '@/lib/decision-os/trade/shadow'
+import { toTradeCard, type TradeCard } from '@/lib/decision-os/trade/tradeCardAdapter'
 import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
 
 export const dynamic = 'force-dynamic'
@@ -250,24 +251,12 @@ export async function POST(req: NextRequest) {
     }
   }
 
-  // Decision OS Slice 3 — SHADOW ONLY (DECISION_OS_TRADE_SHADOW=true). Evaluates the new
-  // manager.trade.evaluate path beside legacy using the SAME persisted deterministic snapshot, logs
-  // wrap-fidelity parity, and can NEVER alter this response, block creation, execute, or mutate trade
-  // state. Skips when no snapshot was captured.
-  const shadowFilters = getDecisionShadowScopeFilters()
-  const shadowProfile = created?.id && snapshotRow && shadowFilters.hasUsernameFilter
-    ? await prisma.userProfile.findUnique({
-        where: { userId },
-        select: { sleeperUsername: true },
-      })
-    : null
-
-  if (created?.id && snapshotRow && shouldRunTradeShadow(process.env, {
-    username: shadowProfile?.sleeperUsername ?? null,
-    leagueId,
-  })) {
-    try {
-      await runTradeShadowForProposal({
+  // Decision OS Slice 3 — trade shadow/live runner. Evaluation only; never executes or mutates trades.
+  // Stage 0 (SHADOW only): scope-filtered, logs parity, result discarded.
+  // Stage 1 (LIVE): unconditional when a snapshot exists, decisionOs appended to response.
+  const isLive = shouldRunTradeLive(process.env)
+  const shadowArgs = created?.id && snapshotRow
+    ? {
         userId,
         leagueId,
         seasonId,
@@ -282,11 +271,46 @@ export async function POST(req: NextRequest) {
         })),
         snapshotPayload: (snapshotRow as { payload?: unknown }).payload,
         snapshotConfidenceScore: (snapshotRow as { confidenceScore?: number | null }).confidenceScore ?? null,
-      })
+      }
+    : null
+
+  let decisionOs: { decisionId: string; card: TradeCard; completeness: number; uncertaintySources: string[] } | null = null
+
+  if (isLive && shadowArgs) {
+    try {
+      const liveResult = await runTradeShadowForProposal(shadowArgs)
+      if (liveResult.ran && liveResult.result) {
+        const { decision } = liveResult.result
+        decisionOs = {
+          decisionId: decision.decision_id,
+          card: toTradeCard(decision),
+          completeness: decision.data_completeness,
+          uncertaintySources: decision.uncertainty_sources,
+        }
+      }
     } catch {
-      // shadow must never affect the legacy response
+      // live path must never fail the trade route
+    }
+  } else if (!isLive && shadowArgs) {
+    const shadowFilters = getDecisionShadowScopeFilters()
+    const shadowProfile = shadowFilters.hasUsernameFilter
+      ? await prisma.userProfile.findUnique({
+          where: { userId },
+          select: { sleeperUsername: true },
+        })
+      : null
+
+    if (shouldRunTradeShadow(process.env, {
+      username: shadowProfile?.sleeperUsername ?? null,
+      leagueId,
+    })) {
+      try {
+        await runTradeShadowForProposal(shadowArgs)
+      } catch {
+        // shadow must never affect the legacy response
+      }
     }
   }
 
-  return NextResponse.json({ proposal: created, valueSnapshot: snapshotRow })
+  return NextResponse.json({ proposal: created, valueSnapshot: snapshotRow, ...(decisionOs ? { decisionOs } : {}) })
 }
