@@ -145,3 +145,26 @@ export type {
 } from './league-intelligence'
 
 export { deriveLeagueBehavioralIntelligence } from './league-intelligence'
+
+// ── Phase 5.4: Platform Behavioral Intelligence (pure derived intelligence) ───
+
+export type {
+  PlatformEngagementTier,
+  PlatformUncertaintyLevel,
+  PlatformMomentumSignal,
+  PlatformTrendConfidence,
+  InterventionScope,
+  PlatformInterventionPriority,
+  LeagueHealthDistribution,
+  CommissionerQualityDistribution,
+  PlatformRetentionDistribution,
+  PlatformEcosystemDimension,
+  HeatmapCell,
+  PlatformActivityHeatmap,
+  PlatformEngagementTrends,
+  PlatformInterventionOpportunity,
+  PlatformIntelligenceProvenance,
+  PlatformBehavioralIntelligence,
+} from './platform-intelligence'
+
+export { derivePlatformBehavioralIntelligence } from './platform-intelligence'
