@@ -40,3 +40,39 @@ describe('import page provider flow', () => {
     expect(source).not.toContain('This page now imports Sleeper leagues by league ID.')
   })
 })
+
+describe('import page discovery UX feedback', () => {
+  it('tracks which discovered league is being previewed', () => {
+    expect(source).toContain('previewingSourceId')
+    expect(source).toContain('leaguePreviewError')
+  })
+
+  it('disables the button and shows a spinner while preview is loading', () => {
+    expect(source).toContain('isThisLoading')
+    expect(source).toContain('isAnyLoading')
+    expect(source).toContain('Loading preview...')
+    expect(source).toContain('Loader2')
+  })
+
+  it('renders errors adjacent to the triggering league card', () => {
+    expect(source).toContain('thisError')
+    expect(source).toContain('leaguePreviewError?.sourceId === league.sourceId')
+  })
+
+  it('shows a success indicator on the card when preview is loaded', () => {
+    expect(source).toContain('Preview loaded — see below')
+    expect(source).toContain('thisPreviewed')
+  })
+
+  it('passes discoverySourceId to runPreview from the league card button', () => {
+    expect(source).toContain('discoverySourceId')
+    // runPreview is called with sourceId as both sourceInput and discoverySourceId
+    expect(source).toMatch(/runPreview\(\s*activeImportProvider,\s*league\.sourceId,\s*league\.sourceId,/)
+  })
+
+  it('scrolls the preview section into view on success', () => {
+    expect(source).toContain('previewSectionRef')
+    expect(source).toContain('scrollIntoView')
+    expect(source).toContain('ref={previewSectionRef}')
+  })
+})

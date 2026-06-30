@@ -3,8 +3,8 @@
 import React from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useMemo, useState } from 'react'
-import { ChevronDown, HelpCircle, Search } from 'lucide-react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { ChevronDown, HelpCircle, Loader2, Search } from 'lucide-react'
 import CanonicalImportSummaryCard, {
   type CanonicalPreview,
 } from '@/components/league-import/CanonicalImportSummaryCard'
@@ -103,6 +103,19 @@ export function LeagueImportFlow({
   >([])
   const [discoveredAccountLabel, setDiscoveredAccountLabel] =
     useState<string>('')
+  const [previewingSourceId, setPreviewingSourceId] = useState<string | null>(null)
+  const [leaguePreviewError, setLeaguePreviewError] = useState<{
+    sourceId: string
+    message: string
+  } | null>(null)
+
+  const previewSectionRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (previewInfo && previewSectionRef.current) {
+      previewSectionRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+    }
+  }, [previewInfo])
 
   const commissionerSupport = useMemo(
     () =>
@@ -154,9 +167,11 @@ export function LeagueImportFlow({
     } as Partial<Record<ImportProvider, string>>
   }, [activeImportProvider, initialLeagueSourceId])
 
-  async function runPreview(provider: ImportProvider, sourceInput: string) {
+  async function runPreview(provider: ImportProvider, sourceInput: string, discoverySourceId?: string) {
     setLoadingProvider(provider)
+    setPreviewingSourceId(discoverySourceId ?? null)
     setFormError(null)
+    setLeaguePreviewError(null)
     setPreviewInfo(null)
     setConflict(null)
 
@@ -175,11 +190,15 @@ export function LeagueImportFlow({
       const canonical = payload?.canonical ?? null
       setPreviewInfo({ provider, sourceInput, leagueName, canonical })
     } catch (error: unknown) {
-      setFormError(
-        error instanceof Error ? error.message : t('import.error.generic'),
-      )
+      const message = error instanceof Error ? error.message : t('import.error.generic')
+      if (discoverySourceId) {
+        setLeaguePreviewError({ sourceId: discoverySourceId, message })
+      } else {
+        setFormError(message)
+      }
     } finally {
       setLoadingProvider(null)
+      setPreviewingSourceId(null)
     }
   }
 
@@ -454,36 +473,67 @@ export function LeagueImportFlow({
                           : 'Discovered leagues'}
                       </p>
                       <div className="space-y-2">
-                        {discoveredLeagues.map((league) => (
-                          <div
-                            key={league.sourceId}
-                            className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-3 sm:flex-row sm:items-center sm:justify-between"
-                          >
-                            <div className="min-w-0">
-                              <p className="truncate text-sm font-semibold text-white">
-                                {league.name}
-                              </p>
-                              <p className="mt-1 text-[12px] text-white/55">
-                                {league.season ?? 'Current season'} |{' '}
-                                {(league.sport ?? 'NFL').toUpperCase()} |{' '}
-                                {league.totalTeams ?? '--'} teams
-                                {league.isDynasty ? ' | Dynasty' : ' | Redraft'}
-                              </p>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={() =>
-                                void runPreview(
-                                  activeImportProvider,
-                                  league.sourceId,
-                                )
-                              }
-                              className="inline-flex h-10 items-center justify-center rounded-xl bg-cyan-500 px-4 text-sm font-semibold text-black hover:bg-cyan-400"
+                        {discoveredLeagues.map((league) => {
+                          const isThisLoading = previewingSourceId === league.sourceId
+                          const isAnyLoading = previewingSourceId !== null || loadingProvider !== null
+                          const thisError = leaguePreviewError?.sourceId === league.sourceId ? leaguePreviewError.message : null
+                          const thisPreviewed = previewInfo?.sourceInput === league.sourceId
+
+                          return (
+                            <div
+                              key={league.sourceId}
+                              className="flex flex-col gap-3 rounded-xl border border-white/10 bg-black/20 p-3 sm:flex-row sm:items-start sm:justify-between"
                             >
-                              Select and preview
-                            </button>
-                          </div>
-                        ))}
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-semibold text-white">
+                                  {league.name}
+                                </p>
+                                <p className="mt-1 text-[12px] text-white/55">
+                                  {league.season ?? 'Current season'} |{' '}
+                                  {(league.sport ?? 'NFL').toUpperCase()} |{' '}
+                                  {league.totalTeams ?? '--'} teams
+                                  {league.isDynasty ? ' | Dynasty' : ' | Redraft'}
+                                </p>
+                                {thisError ? (
+                                  <p className="mt-2 text-[12px] text-red-300">
+                                    <HelpCircle className="mr-1 inline h-3.5 w-3.5" />
+                                    {thisError}
+                                  </p>
+                                ) : null}
+                                {thisPreviewed && !thisError ? (
+                                  <p className="mt-2 text-[12px] font-semibold text-cyan-300">
+                                    Preview loaded — see below
+                                  </p>
+                                ) : null}
+                              </div>
+                              <button
+                                type="button"
+                                disabled={isAnyLoading}
+                                onClick={() =>
+                                  void runPreview(
+                                    activeImportProvider,
+                                    league.sourceId,
+                                    league.sourceId,
+                                  )
+                                }
+                                className={`inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-black ${
+                                  isThisLoading
+                                    ? 'bg-cyan-500/60'
+                                    : 'bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50'
+                                }`}
+                              >
+                                {isThisLoading ? (
+                                  <>
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                    Loading preview...
+                                  </>
+                                ) : (
+                                  'Select and preview'
+                                )}
+                              </button>
+                            </div>
+                          )
+                        })}
                       </div>
                     </div>
                   ) : null}
@@ -496,7 +546,7 @@ export function LeagueImportFlow({
                 initialInputs={unifiedInitialInputs}
               />
               {previewInfo && previewInfo.provider === activeImportProvider && (
-                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
+                <div ref={previewSectionRef} className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
                   <p className="mb-1 text-[15px] font-semibold text-cyan-200">
                     {t('import.previewLoaded')}
                   </p>
