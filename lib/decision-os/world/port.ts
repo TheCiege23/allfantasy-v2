@@ -19,6 +19,7 @@ import type {
   RawRosterRow,
   RawScheduleGameRow,
   RawTeamRow,
+  RawWeatherRow,
 } from './facts'
 import { mapRedraftRosterRowToRawRoster, unionRosterRows, type RawRedraftRosterRow } from './redraftRoster'
 
@@ -667,5 +668,103 @@ export async function loadProjectionRows(
     source: row.source,
     fetchedAt: row.fetchedAt,
     expiresAt: row.expiresAt,
+  }))
+}
+
+/**
+ * READ-ONLY weather read for the F2.6 weather enrichment seam.
+ *
+ * Reads `WeatherCache` by team-window cache-key prefix for each supplied team abbreviation.
+ * Cache keys follow the pattern `weather:team-window:{TEAM}:{YYYY-MM-DD}` (see ADR_F2_6_WEATHER.md
+ * §2.2). The query uses Prisma `startsWith` on `cacheKey` per team (OR-combined) so it picks up the
+ * most recent entry for each team regardless of the exact game date — this keeps F2.6 independent of
+ * F2.2 schedule context. Port returns ALL matching rows; the projector takes the freshest per team.
+ *
+ * `teamAbbrevs` must already be normalized to UPPERCASE (matching the cache key format).
+ * Slice limit: 50 unique team abbreviations (one NFL roster has at most 32 teams).
+ * NO writes, NO live API calls, NO cache warming.
+ */
+export async function loadWeatherRows(
+  teamAbbrevs: string[],
+): Promise<RawWeatherRow[]> {
+  const clean = Array.from(new Set(teamAbbrevs.filter((x) => typeof x === 'string' && x.length > 0))).slice(0, 50)
+  if (clean.length === 0) return []
+
+  // WeatherCache is accessed via the escape hatch (prisma as any) because the model may not be
+  // present in all schema variants; the weather service already does the same thing.
+  const wc = (prisma as unknown as Record<string, unknown>)['weatherCache'] as {
+    findMany(args: unknown): Promise<unknown[]>
+  }
+  if (!wc) return []
+
+  const rows = await wc.findMany({
+    where: {
+      OR: clean.map((t) => ({ cacheKey: { startsWith: `weather:team-window:${t}:` } })),
+    },
+    orderBy: { expiresAt: 'desc' },
+    take: clean.length * 4, // up to 4 entries per team (multiple game dates in cache)
+    select: {
+      cacheKey: true,
+      sport: true,
+      eventId: true,
+      temperatureF: true,
+      feelsLikeF: true,
+      windSpeedMph: true,
+      windGustsMph: true,
+      windDirectionDeg: true,
+      precipChancePct: true,
+      rainInches: true,
+      snowInches: true,
+      conditionCode: true,
+      conditionLabel: true,
+      isIndoor: true,
+      isDome: true,
+      roofClosed: true,
+      fetchedAt: true,
+      expiresAt: true,
+      dataSource: true,
+    },
+  })
+
+  return (rows as Array<{
+    cacheKey: string
+    sport: string | null
+    eventId: string | null
+    temperatureF: number | null
+    feelsLikeF: number | null
+    windSpeedMph: number | null
+    windGustsMph: number | null
+    windDirectionDeg: number | null
+    precipChancePct: number | null
+    rainInches: number | null
+    snowInches: number | null
+    conditionCode: string | null
+    conditionLabel: string | null
+    isIndoor: boolean
+    isDome: boolean
+    roofClosed: boolean
+    fetchedAt: Date
+    expiresAt: Date
+    dataSource: string
+  }>).map((row) => ({
+    cacheKey: row.cacheKey,
+    sport: row.sport ?? null,
+    eventId: row.eventId ?? null,
+    temperatureF: row.temperatureF ?? null,
+    feelsLikeF: row.feelsLikeF ?? null,
+    windSpeedMph: row.windSpeedMph ?? null,
+    windGustsMph: row.windGustsMph ?? null,
+    windDirectionDeg: row.windDirectionDeg ?? null,
+    precipChancePct: row.precipChancePct ?? null,
+    rainInches: row.rainInches ?? null,
+    snowInches: row.snowInches ?? null,
+    conditionCode: row.conditionCode ?? null,
+    conditionLabel: row.conditionLabel ?? null,
+    isIndoor: row.isIndoor ?? false,
+    isDome: row.isDome ?? false,
+    roofClosed: row.roofClosed ?? false,
+    fetchedAt: row.fetchedAt,
+    expiresAt: row.expiresAt,
+    dataSource: row.dataSource,
   }))
 }

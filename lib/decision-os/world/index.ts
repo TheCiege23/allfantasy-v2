@@ -189,6 +189,28 @@ export type {
   ProjectionPort,
   ProjectionEnrichedWorldDeps,
 } from './projectionEnrichedWorld'
+// F2.6 — Canonical Enrichment: weather-context derived VIEW (read-only, additive). See ADR_F2_6_WEATHER.md.
+export {
+  deriveWeatherRiskCategory,
+  projectWeatherFreshness,
+  projectWeatherContext,
+  projectWeatherEnrichedWorld,
+  resolveWeatherContext,
+  resolveWeatherEnrichedCanonicalWorld,
+  defaultWeatherPort,
+} from './weatherEnrichedWorld'
+export type {
+  WeatherRiskCategory,
+  WeatherFreshness,
+  WeatherContext,
+  WeatherEnrichedPlayer,
+  WeatherEnrichedRosterFacts,
+  WeatherEnrichmentSummary,
+  WeatherEnrichedCanonicalWorld,
+  WeatherContextResult,
+  WeatherPort,
+  WeatherEnrichedWorldDeps,
+} from './weatherEnrichedWorld'
 // Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
 export {
   resolveCanonicalAssets,
