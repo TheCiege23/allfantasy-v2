@@ -56,7 +56,7 @@ describe('lineup route Stage 1 wiring', () => {
   it('LIVE path builds decisionOs from all four required fields', () => {
     const liveIdx = routeSrc.indexOf('if (isLive) {')
     expect(liveIdx).toBeGreaterThan(-1)
-    const liveBlock = routeSrc.slice(liveIdx, liveIdx + 600)
+    const liveBlock = routeSrc.slice(liveIdx, liveIdx + 900)
     expect(liveBlock).toContain('decisionId: decision.decision_id')
     expect(liveBlock).toContain('toTodayLineupCard(decision)')
     expect(liveBlock).toContain('confidence: decision.confidence')
@@ -66,7 +66,7 @@ describe('lineup route Stage 1 wiring', () => {
   it('LIVE path is isolated in try/catch so a Decision OS failure never breaks the route', () => {
     const liveIdx = routeSrc.indexOf('if (isLive) {')
     expect(liveIdx).toBeGreaterThan(-1)
-    const liveBlock = routeSrc.slice(liveIdx, liveIdx + 600)
+    const liveBlock = routeSrc.slice(liveIdx, liveIdx + 900)
     expect(liveBlock).toMatch(/try\s*\{/)
     expect(liveBlock).toMatch(/catch/)
   })

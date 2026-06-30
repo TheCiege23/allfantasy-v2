@@ -13,8 +13,10 @@ export type DecisionTelemetryEventName =
   | 'decision.adopted'
   | 'decision.resolved'
   // Parity taxonomy (split from the former single 'decision.parity'):
-  | 'decision.shadow_parity' // Decision OS recommendation vs legacy
+  | 'decision.shadow_parity'   // Decision OS recommendation vs legacy
   | 'decision.validator_parity' // composed validators vs each other
+  // Stage 1 enrichment tracking:
+  | 'decision.live_enrichment'  // LIVE path ran; enriched=true means decisionOs was added to response
 
 export interface DecisionTelemetryEvent {
   event: DecisionTelemetryEventName
@@ -42,7 +44,8 @@ export function emitDecisionTelemetry(
   try {
     recordDecisionTelemetryDebugEvent(payload)
     if (sink) sink(payload)
-    else if (process.env.NODE_ENV !== 'production') console.debug('[decision-os]', JSON.stringify(payload))
+    // console.log (not debug) so Vercel captures these in production log drain
+    else console.log('[decision-os]', JSON.stringify(payload))
   } catch {
     // telemetry must never break a decision
   }

@@ -11,6 +11,7 @@ import { TokenSpendService } from '@/lib/tokens/TokenSpendService'
 import { shouldRunWaiverShadow, shouldRunWaiverLive, runWaiverShadowForEngine } from '@/lib/decision-os/waiver/shadow'
 import { toWaiverCard, type WaiverCard } from '@/lib/decision-os/waiver/waiverCardAdapter'
 import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
+import { emitLiveTelemetry } from '@/lib/decision-os/core/parity'
 import { prisma } from '@/lib/prisma'
 
 const SUPPORTED_SPORTS_ENUM = SUPPORTED_SPORTS as [
@@ -214,6 +215,7 @@ export const POST = withApiUsage({
     // Stage 0 (SHADOW only): scope-filtered, logs parity, result discarded.
     // Stage 1 (LIVE): unconditional when leagueId present, decisionOs appended to response.
     const isLive = shouldRunWaiverLive(process.env)
+    const liveStart = Date.now()
     let decisionOs: { decisionId: string; card: WaiverCard; confidence: number; legal: boolean } | null = null
 
     if (isLive && input.leagueId) {
@@ -228,8 +230,12 @@ export const POST = withApiUsage({
             confidence: card.confidence,
             legal: card.legal,
           }
+          emitLiveTelemetry('waiver.claim', { enriched: true, latency_ms: Date.now() - liveStart, leagueId: input.leagueId }, decision.decision_id)
+        } else {
+          emitLiveTelemetry('waiver.claim', { enriched: false, reason: 'shadow_no_result', latency_ms: Date.now() - liveStart, leagueId: input.leagueId })
         }
       } catch {
+        emitLiveTelemetry('waiver.claim', { enriched: false, reason: 'exception', latency_ms: Date.now() - liveStart, leagueId: input.leagueId })
         // live path must never fail the waiver route
       }
     } else if (!isLive && input.leagueId) {

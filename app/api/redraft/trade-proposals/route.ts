@@ -10,6 +10,7 @@ import { recordRedraftTradeMarketEvent } from '@/lib/trade-market/redraftTradeMa
 import { shouldRunTradeShadow, shouldRunTradeLive, runTradeShadowForProposal } from '@/lib/decision-os/trade/shadow'
 import { toTradeCard, type TradeCard } from '@/lib/decision-os/trade/tradeCardAdapter'
 import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
+import { emitLiveTelemetry } from '@/lib/decision-os/core/parity'
 
 export const dynamic = 'force-dynamic'
 
@@ -255,6 +256,7 @@ export async function POST(req: NextRequest) {
   // Stage 0 (SHADOW only): scope-filtered, logs parity, result discarded.
   // Stage 1 (LIVE): unconditional when a snapshot exists, decisionOs appended to response.
   const isLive = shouldRunTradeLive(process.env)
+  const liveStart = Date.now()
   const shadowArgs = created?.id && snapshotRow
     ? {
         userId,
@@ -287,8 +289,12 @@ export async function POST(req: NextRequest) {
           completeness: decision.data_completeness,
           uncertaintySources: decision.uncertainty_sources,
         }
+        emitLiveTelemetry('trade.value', { enriched: true, latency_ms: Date.now() - liveStart, leagueId }, decision.decision_id)
+      } else {
+        emitLiveTelemetry('trade.value', { enriched: false, reason: 'shadow_no_result', latency_ms: Date.now() - liveStart, leagueId })
       }
     } catch {
+      emitLiveTelemetry('trade.value', { enriched: false, reason: 'exception', latency_ms: Date.now() - liveStart, leagueId })
       // live path must never fail the trade route
     }
   } else if (!isLive && shadowArgs) {

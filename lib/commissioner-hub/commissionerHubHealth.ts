@@ -4,6 +4,7 @@ import { monitorLeagueHealth, type OverallStatus } from '@/lib/league-health/lea
 import { shouldRunCommissionerHealthShadow, shouldRunCommissionerHealthLive, runCommissionerHealthShadow } from '@/lib/decision-os/commissioner-health/shadow'
 import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
 import { toCommissionerHealthCard, type CommissionerHealthCard } from '@/lib/decision-os/commissioner-health/healthCardAdapter'
+import { emitLiveTelemetry } from '@/lib/decision-os/core/parity'
 import { getNormalizedLineupSections } from '@/lib/roster/LineupTemplateValidation'
 import { getCanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/nflDataCoverage'
 import type { CanonicalNflDataCoverage } from '@/lib/nfl-data-foundation/types'
@@ -824,6 +825,8 @@ export async function getCommissionerHubHealthForUser(
     // Stage 0 (SHADOW only): runs beside one scope-matched database-source league, logs parity.
     // Stage 1 (LIVE): populates decisionOsShadow on all database-source leagues unconditionally.
     const isLive = shouldRunCommissionerHealthLive(process.env)
+    const liveStart = Date.now()
+    let enrichedCount = 0
 
     if (isLive) {
       await Promise.all(
@@ -840,12 +843,20 @@ export async function getCommissionerHubHealthForUser(
                   card: toCommissionerHealthCard(shadow.result.decision),
                 },
               }
+              enrichedCount++
             }
           } catch {
             // live path must never affect the Commissioner Hub
           }
         }),
       )
+      const totalDbSource = snapshots.filter((s) => s?.source === 'database').length
+      emitLiveTelemetry('commissioner.league.health', {
+        enriched: enrichedCount > 0,
+        enriched_count: enrichedCount,
+        total_db_source: totalDbSource,
+        latency_ms: Date.now() - liveStart,
+      })
     } else {
       const shadowTargetIndex = snapshots.findIndex((snapshot) =>
         snapshot &&

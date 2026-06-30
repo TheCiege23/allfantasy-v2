@@ -23,3 +23,17 @@ export function emitValidatorParity(
 ): void {
   emitDecisionTelemetry('decision.validator_parity', decisionType, flags, decisionId)
 }
+
+/**
+ * Emitted by each Stage 1 LIVE block after it runs.
+ * `enriched: true`  → decisionOs was built and will be in the response.
+ * `enriched: false` → decisionOs is absent (inputs unavailable / ran=false / exception).
+ * `latency_ms`      → wall-clock time for the entire LIVE path (useful for p95/p99 tracking).
+ */
+export function emitLiveTelemetry(
+  decisionType: string,
+  flags: DecisionTelemetryEvent['flags'],
+  decisionId?: string,
+): void {
+  emitDecisionTelemetry('decision.live_enrichment', decisionType, flags, decisionId)
+}

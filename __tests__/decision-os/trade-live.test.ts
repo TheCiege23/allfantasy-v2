@@ -57,7 +57,7 @@ describe('trade-proposals route Stage 1 wiring', () => {
     // Anchor to the branch itself so the shadowArgs declaration doesn't eat the window.
     const liveIdx = routeSrc.indexOf('if (isLive && shadowArgs)')
     expect(liveIdx).toBeGreaterThan(-1)
-    const liveBlock = routeSrc.slice(liveIdx, liveIdx + 600)
+    const liveBlock = routeSrc.slice(liveIdx, liveIdx + 900)
     expect(liveBlock).toContain('decisionId: decision.decision_id')
     expect(liveBlock).toContain('card: toTradeCard(decision)')
     expect(liveBlock).toContain('completeness: decision.data_completeness')
@@ -67,7 +67,7 @@ describe('trade-proposals route Stage 1 wiring', () => {
   it('LIVE path is isolated in try/catch so a Decision OS failure never breaks the route', () => {
     const liveIdx = routeSrc.indexOf('if (isLive && shadowArgs)')
     expect(liveIdx).toBeGreaterThan(-1)
-    const liveBlock = routeSrc.slice(liveIdx, liveIdx + 600)
+    const liveBlock = routeSrc.slice(liveIdx, liveIdx + 900)
     expect(liveBlock).toMatch(/try\s*\{/)
     expect(liveBlock).toMatch(/catch/)
   })

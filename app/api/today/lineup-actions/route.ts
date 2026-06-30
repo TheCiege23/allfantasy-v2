@@ -7,6 +7,7 @@ import { buildAiTimeContextPayload } from '@/lib/time-engine/userContext'
 import { shouldRunLineupShadow, shouldRunLineupLive, runLineupShadowForSummary } from '@/lib/decision-os/lineup/shadow'
 import { toTodayLineupCard, type LineupTodayCard } from '@/lib/decision-os/lineup/todayCardAdapter'
 import { getDecisionShadowScopeFilters } from '@/lib/decision-os/core/shadow'
+import { emitLiveTelemetry } from '@/lib/decision-os/core/parity'
 import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
@@ -28,6 +29,7 @@ export async function GET() {
   // Stage 0 (SHADOW only): scope-filtered, logs parity, result discarded.
   // Stage 1 (LIVE): unconditional, decisionOs appended to response for the first league.
   const isLive = shouldRunLineupLive(process.env)
+  const liveStart = Date.now()
   let decisionOs: { decisionId: string; card: LineupTodayCard; confidence: number; leagueId: string } | null = null
 
   if (isLive) {
@@ -43,8 +45,12 @@ export async function GET() {
           confidence: decision.confidence,
           leagueId: first.leagueId,
         }
+        emitLiveTelemetry('lineup.set', { enriched: true, latency_ms: Date.now() - liveStart, leagueId: first.leagueId, source: first.source }, decision.decision_id)
+      } else {
+        emitLiveTelemetry('lineup.set', { enriched: false, reason: 'shadow_no_result', latency_ms: Date.now() - liveStart })
       }
     } catch {
+      emitLiveTelemetry('lineup.set', { enriched: false, reason: 'exception', latency_ms: Date.now() - liveStart })
       // live path must never fail the lineup route
     }
   } else {
