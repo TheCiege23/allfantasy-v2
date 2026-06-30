@@ -20,6 +20,16 @@ export function shouldRunWaiverShadow(
   return shouldRunShadow('DECISION_OS_WAIVER_SHADOW', env, scope)
 }
 
+/**
+ * Stage 1 kill switch: when DECISION_OS_WAIVER_LIVE=true, decisionOs is appended to the waiver
+ * engine response unconditionally (no scope filter). Instant rollback by unsetting the env var.
+ */
+export function shouldRunWaiverLive(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return String(env['DECISION_OS_WAIVER_LIVE'] ?? '').trim().toLowerCase() === 'true'
+}
+
 export interface WaiverShadowResult {
   ran: boolean
   leagueId: string
