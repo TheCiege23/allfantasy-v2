@@ -138,6 +138,35 @@ export type {
   InjuryContextPort,
   InjuryEnrichedWorldDeps,
 } from './injuryEnrichedWorld'
+// F2.4 — Canonical Enrichment: ADP / market-value derived VIEW (read-only, additive). See ADR_F2_4_ADP_MARKET_VALUE.md.
+export {
+  deriveAdpFormat,
+  deriveAdpScoring,
+  selectBestAdpRow,
+  projectAdpFreshness,
+  projectMarketValueFreshness,
+  projectAdpContext,
+  projectMarketValueContext,
+  projectAdpEnrichedWorld,
+  resolveAdpContext,
+  resolveAdpEnrichedCanonicalWorld,
+  defaultAdpPort,
+  defaultAdpEnrichedWorldDeps,
+} from './adpEnrichedWorld'
+export type {
+  AdpFreshness,
+  AdpContext,
+  MarketValueFreshness,
+  MarketValueContext,
+  AdpMarketContext,
+  AdpEnrichedPlayer,
+  AdpEnrichedRosterFacts,
+  AdpEnrichmentSummary,
+  AdpEnrichedCanonicalWorld,
+  AdpContextResult,
+  AdpPort,
+  AdpEnrichedWorldDeps,
+} from './adpEnrichedWorld'
 // Phase E.1 — the reusable Canonical Asset contract + pure Resolution-layer resolver/adapters.
 export {
   resolveCanonicalAssets,

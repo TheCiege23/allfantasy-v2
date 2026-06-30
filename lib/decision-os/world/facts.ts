@@ -136,6 +136,57 @@ export interface RawInjuryContextRow {
 }
 
 /**
+ * Raw ADP row for the F2.4 ADP/market-value enrichment seam. Decoupled from Prisma and sourced
+ * from the already-persisted `AdpDataRecord` table — the SAME table Phase E trade enrichment reads
+ * via `lib/decision-os/trade/loader.ts`. Format/scoring are carried as provenance (the projector
+ * selects the best match for the league context). Business logic consumes normalized ADP facts
+ * only; provider and format details live as provenance, never as decision inputs.
+ *
+ * Freshness note: `AdpDataRecord` has `createdAt` only (no `expiresAt`). Staleness is estimated
+ * from age (>7 days → stale) rather than an explicit expiry contract — see ADR_F2_4 §4.1.
+ */
+export interface RawAdpRow {
+  playerId: string
+  adp: number
+  adpChange: number | null
+  adpSpread: number | null
+  confidenceScore: number | null
+  providerCount: number | null
+  /** Format dimension: 'redraft' | 'dynasty' */
+  format: string
+  /** Scoring dimension: 'standard' | 'ppr' | 'half-ppr' | '2qb' | 'superflex' */
+  scoring: string
+  season: number
+  week: number
+  /** Import source / provider label (provenance only). */
+  source: string
+  /** When this row was inserted — only freshness signal available. */
+  createdAt: Date
+}
+
+/**
+ * Raw market-value row for the F2.4 market-value enrichment seam. Decoupled from Prisma and
+ * sourced from `AllFantasyMarketPlayerValue` (published=true rows only). Keyed by
+ * [sport, leagueConcept, playerId] — currently leagueConcept='redraft' is the only value written
+ * (see ADR_F2_4 §2.2). Carries freshness via generatedAt + updatedAt.
+ */
+export interface RawMarketValueRow {
+  playerId: string
+  marketValue: number
+  baseValue: number
+  adjustmentPercent: number
+  confidence: number
+  sampleSize: number
+  /** Trending direction: 'up' | 'down' | 'stable' */
+  direction: string
+  /** League concept context (provenance; currently always 'redraft'). */
+  leagueConcept: string
+  scoringFormat: string | null
+  generatedAt: Date
+  updatedAt: Date
+}
+
+/**
  * Raw season-schedule row for the F2.2 schedule/bye enrichment seam. Decoupled from Prisma and sourced
  * from already-persisted schedule caches only (`FantasyScheduleGame` first, `GameSchedule` fallback).
  * Provider/source survive ONLY as provenance/freshness metadata; business logic consumes normalized team

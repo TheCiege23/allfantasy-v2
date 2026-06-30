@@ -9,8 +9,10 @@
  */
 import { prisma } from '@/lib/prisma'
 import type {
+  RawAdpRow,
   RawInjuryContextRow,
   RawLeagueRow,
+  RawMarketValueRow,
   RawPerformanceRow,
   RawPlayerMetadataRow,
   RawRosterRow,
@@ -476,4 +478,129 @@ export async function loadInjuryContextRows(
       updatedAt: row.updatedAt ?? null,
     }),
   )
+}
+
+/**
+ * READ-ONLY ADP read for the F2.4 ADP/market-value enrichment seam.
+ *
+ * Reads `AdpDataRecord` — the SAME table Phase E trade enrichment reads via
+ * `lib/decision-os/trade/loader.ts`, but selects richer fields (format, scoring, adpChange,
+ * adpSpread, confidenceScore, providerCount, week, season, createdAt) for the world layer. Returns
+ * ALL matching rows (all format/scoring variants) ordered by `createdAt desc` — format selection
+ * happens in the projector (`selectBestAdpRow`), not here, so port stays format-agnostic.
+ *
+ * Slice limit: 200 unique ids max (same as other enrichment ports).
+ * NO writes, NO live provider calls, NO cache warming.
+ */
+export async function loadAdpRows(
+  sport: string,
+  ids: string[],
+): Promise<RawAdpRow[]> {
+  const clean = Array.from(new Set(ids.filter((x) => typeof x === 'string' && x.length > 0))).slice(0, 200)
+  if (clean.length === 0) return []
+  const rows = await prisma.adpDataRecord.findMany({
+    where: { playerId: { in: clean }, sport },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      playerId: true,
+      adp: true,
+      adpChange: true,
+      adpSpread: true,
+      confidenceScore: true,
+      providerCount: true,
+      format: true,
+      scoring: true,
+      season: true,
+      week: true,
+      source: true,
+      createdAt: true,
+    },
+  })
+  return rows.map((row: {
+    playerId: string
+    adp: number
+    adpChange: number | null
+    adpSpread: number | null
+    confidenceScore: number | null
+    providerCount: number | null
+    format: string
+    scoring: string
+    season: number
+    week: number
+    source: string
+    createdAt: Date
+  }) => ({
+    playerId: row.playerId,
+    adp: row.adp,
+    adpChange: row.adpChange ?? null,
+    adpSpread: row.adpSpread ?? null,
+    confidenceScore: row.confidenceScore ?? null,
+    providerCount: row.providerCount ?? null,
+    format: row.format,
+    scoring: row.scoring,
+    season: row.season,
+    week: row.week,
+    source: row.source,
+    createdAt: row.createdAt,
+  }))
+}
+
+/**
+ * READ-ONLY market-value read for the F2.4 ADP/market-value enrichment seam.
+ *
+ * Reads `AllFantasyMarketPlayerValue` filtered by `sport + published:true`. Returns one row per
+ * player (freshest by `generatedAt desc`). Currently `leagueConcept` is always 'redraft' in the
+ * database (see ADR_F2_4 §2.2) — no concept filter applied so new concepts land automatically.
+ *
+ * NO writes, NO live API calls. If the ID space doesn't match canonical roster IDs, the miss
+ * is surfaced as `market_value_unavailable` (P2 honest degrade — never fabricated).
+ */
+export async function loadMarketValueRows(
+  sport: string,
+  ids: string[],
+): Promise<RawMarketValueRow[]> {
+  const clean = Array.from(new Set(ids.filter((x) => typeof x === 'string' && x.length > 0))).slice(0, 200)
+  if (clean.length === 0) return []
+  const rows = await prisma.allFantasyMarketPlayerValue.findMany({
+    where: { playerId: { in: clean }, sport, published: true },
+    orderBy: { generatedAt: 'desc' },
+    select: {
+      playerId: true,
+      marketValue: true,
+      baseValue: true,
+      adjustmentPercent: true,
+      confidence: true,
+      sampleSize: true,
+      direction: true,
+      leagueConcept: true,
+      scoringFormat: true,
+      generatedAt: true,
+      updatedAt: true,
+    },
+  })
+  return rows.map((row: {
+    playerId: string
+    marketValue: number
+    baseValue: number
+    adjustmentPercent: number
+    confidence: number
+    sampleSize: number
+    direction: string
+    leagueConcept: string
+    scoringFormat: string | null
+    generatedAt: Date
+    updatedAt: Date
+  }) => ({
+    playerId: row.playerId,
+    marketValue: row.marketValue,
+    baseValue: row.baseValue,
+    adjustmentPercent: row.adjustmentPercent,
+    confidence: row.confidence,
+    sampleSize: row.sampleSize,
+    direction: row.direction,
+    leagueConcept: row.leagueConcept,
+    scoringFormat: row.scoringFormat ?? null,
+    generatedAt: row.generatedAt,
+    updatedAt: row.updatedAt,
+  }))
 }
