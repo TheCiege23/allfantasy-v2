@@ -221,7 +221,17 @@ describe('mountReactIframeChildBridge — refresh request handling', () => {
 // ── Theme update ───────────────────────────────────────────────────────────────
 
 describe('mountReactIframeChildBridge — theme update handling', () => {
-  it('a theme_update from the parent updates the container\'s data-theme-mode attribute', async () => {
+  it('the init payload\'s theme (light) is applied to the initial render', async () => {
+    const harness = makeHarness()
+    await mountAndDeliverInit(harness)
+    await waitFor(() => expect(within(harness.container).getByText('82')).toBeInTheDocument())
+
+    const el = harness.container.querySelector('[data-widget-state="ready"]') as HTMLElement
+    // DEFAULT_COLOR_HEX_LIGHT.surface — makeInitPayload() carries theme: resolveSDKTheme('light').
+    expect(el.style.background).toBe('rgba(15, 23, 42, 0.04)')
+  })
+
+  it('a theme_update from the parent re-renders with the new theme\'s palette', async () => {
     const harness = makeHarness()
     await mountAndDeliverInit(harness)
     await waitFor(() => expect(within(harness.container).getByText('82')).toBeInTheDocument())
@@ -231,9 +241,29 @@ describe('mountReactIframeChildBridge — theme update handling', () => {
     })
 
     await waitFor(() => {
-      const el = harness.container.querySelector('[data-theme-mode]')
-      expect(el?.getAttribute('data-theme-mode')).toBe('dark')
+      const el = harness.container.querySelector('[data-widget-state="ready"]') as HTMLElement
+      // DEFAULT_COLOR_HEX_DARK.surface — distinct from the light palette's surface value above.
+      expect(el.style.background).toBe('rgba(255, 255, 255, 0.06)')
     })
+  })
+
+  it('a partner_override theme_update applies the partner\'s color overrides and surfaces partnerBrandId', async () => {
+    const harness = makeHarness()
+    await mountAndDeliverInit(harness)
+    await waitFor(() => expect(within(harness.container).getByText('82')).toBeInTheDocument())
+
+    const base = resolveSDKTheme('partner_override', {}, 'partner_acme')
+    const partnerTheme = { ...base, tokens: { ...base.tokens, colorTokenMap: { surface: '#101010' } } }
+
+    await act(async () => {
+      deliverToOwn(harness.ownWindow, buildParentToChildMessage('theme_update', WIDGET_ID, NONCE, { theme: partnerTheme }))
+    })
+
+    await waitFor(() => {
+      const el = harness.container.querySelector('[data-widget-state="ready"]') as HTMLElement
+      expect(el.style.background).toBe('rgb(16, 16, 16)')
+    })
+    expect(harness.container.querySelector('[data-partner-brand-id="partner_acme"]')).not.toBeNull()
   })
 })
 

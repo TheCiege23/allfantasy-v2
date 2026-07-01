@@ -2,6 +2,11 @@
 
 /**
  * Decision OS — Phase 7.15 Iframe Child React Renderer Bridge.
+ * Phase 7.18 — full SDKTheme (not just `.mode`) threaded through to
+ * `WidgetRenderBoundary`'s `theme` prop, so partner_override/
+ * enterprise_branding color overrides delivered via the init payload or a
+ * theme_update message actually render, not just a `data-theme-mode`
+ * attribute.
  *
  * Wires the Phase 7.8 React adapter into the Phase 7.13/7.14 iframe child
  * facade: creates the client from URL params, waits for the host's 'init'
@@ -17,6 +22,7 @@ import { createRoot } from 'react-dom/client'
 import type { Root } from 'react-dom/client'
 import { useAllFantasyWidget, WidgetRenderBoundary } from '../../../react/src/index'
 import { SDK_VERSION } from '../../../../lib/decision-os/sdk/index'
+import type { SDKTheme } from '../../../../lib/decision-os/sdk/types'
 import type { WidgetConfig } from '../../../../lib/decision-os/presentation/widget-contracts'
 import { createAllFantasyWidgetIframeClientFromUrl } from '../facade/index'
 import type { AllFantasyWidgetIframeClient } from '../facade/index'
@@ -30,10 +36,10 @@ interface RenderedWidgetProps {
   bridgeConfig: ReactIframeChildBridgeConfig
   client: AllFantasyWidgetIframeClient
   refreshRef: React.MutableRefObject<(() => Promise<void>) | null>
-  themeModeOverride: string | null
+  theme: SDKTheme
 }
 
-function RenderedWidget({ initPayload, bridgeConfig, client, refreshRef, themeModeOverride }: RenderedWidgetProps) {
+function RenderedWidget({ initPayload, bridgeConfig, client, refreshRef, theme }: RenderedWidgetProps) {
   const widgetConfig: WidgetConfig = useMemo(
     () => ({
       mode: initPayload.widgetMode,
@@ -80,8 +86,8 @@ function RenderedWidget({ initPayload, bridgeConfig, client, refreshRef, themeMo
   }, [result.refresh])
 
   return (
-    <div ref={containerRef} data-theme-mode={themeModeOverride ?? 'default'}>
-      <WidgetRenderBoundary result={{ ...result, refresh: handleRefreshWithInteraction }} />
+    <div ref={containerRef}>
+      <WidgetRenderBoundary result={{ ...result, refresh: handleRefreshWithInteraction }} theme={theme} />
     </div>
   )
 }
@@ -95,7 +101,7 @@ interface IframeChildWidgetContentProps {
 
 function IframeChildWidgetContent({ bridgeConfig, onDisposed }: IframeChildWidgetContentProps) {
   const [initPayload, setInitPayload] = useState<IframeInitPayload | null>(null)
-  const [themeModeOverride, setThemeModeOverride] = useState<string | null>(null)
+  const [theme, setTheme] = useState<SDKTheme | null>(null)
   const clientRef = useRef<AllFantasyWidgetIframeClient | null>(null)
   const refreshRef = useRef<(() => Promise<void>) | null>(null)
 
@@ -105,9 +111,15 @@ function IframeChildWidgetContent({ bridgeConfig, onDisposed }: IframeChildWidge
       ownWindow: bridgeConfig.ownWindow,
       parentWindow: bridgeConfig.parentWindow,
       generateTimestamp: bridgeConfig.generateTimestamp,
-      onInit: (payload) => setInitPayload(payload),
+      onInit: (payload) => {
+        setInitPayload(payload)
+        // The init payload already carries the host's initial SDKTheme
+        // (Phase 7.9's buildInitPayloadFromSdkConfig) — use it immediately
+        // rather than waiting for a separate theme_update message.
+        setTheme(payload.theme)
+      },
       onRefreshRequest: () => { void refreshRef.current?.() },
-      onThemeUpdate: (theme) => setThemeModeOverride(theme.mode),
+      onThemeUpdate: (updatedTheme) => setTheme(updatedTheme),
       onProtocolRejection: bridgeConfig.onProtocolRejection,
       onDisposed,
     })
@@ -131,7 +143,7 @@ function IframeChildWidgetContent({ bridgeConfig, onDisposed }: IframeChildWidge
       bridgeConfig={bridgeConfig}
       client={clientRef.current}
       refreshRef={refreshRef}
-      themeModeOverride={themeModeOverride}
+      theme={theme ?? initPayload.theme}
     />
   )
 }

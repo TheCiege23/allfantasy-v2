@@ -3,7 +3,8 @@ import { act, waitFor, within } from '@testing-library/react'
 import { AllFantasyWidgetElement } from '../../../sdk-runtime/web-component/src/AllFantasyWidgetElement'
 import { defineAllFantasyWidgetElement } from '../../../sdk-runtime/web-component/src/register'
 import type { RuntimeClock, RuntimeFetch, RuntimeFetchResponse, RuntimeTimerHandle } from '../../../sdk-runtime/core/src/index'
-import type { SDKAuth } from '../../../lib/decision-os/sdk/types'
+import { resolveSDKTheme } from '../../../lib/decision-os/sdk/theme'
+import type { SDKAuth, SDKTheme } from '../../../lib/decision-os/sdk/types'
 
 const SECRET_API_KEY = 'ak_web_component_test_secret_leak_check'
 const SECRET_CREDENTIAL = 'tok_web_component_test_secret_leak_check'
@@ -270,16 +271,20 @@ describe('AllFantasyWidgetElement — lifecycle (attributeChangedCallback)', () 
     await waitFor(() => expect(callCount()).toBe(2))
   })
 
-  it('does not refetch when a non-identity attribute (theme-mode) changes, but does re-render', async () => {
+  it('does not refetch when a non-identity attribute (theme-mode) changes, but does re-render with the new palette', async () => {
     const { el, callCount } = makeElement()
     await connect(el)
     await waitFor(() => within(shadow(el)).getByText('82'))
     expect(callCount()).toBe(1)
 
+    // No theme-mode attribute set → defaults to 'light' (attributes.ts).
+    const before = shadow(el).querySelector('[data-widget-state="ready"]') as HTMLElement
+    expect(before.style.background).toBe('rgba(15, 23, 42, 0.04)')
+
     await setAttr(el, 'theme-mode', 'dark')
     await waitFor(() => {
-      const themed = shadow(el).querySelector('[data-theme-mode="dark"]')
-      expect(themed).not.toBeNull()
+      const after = shadow(el).querySelector('[data-widget-state="ready"]') as HTMLElement
+      expect(after.style.background).toBe('rgba(255, 255, 255, 0.06)')
     })
     expect(callCount()).toBe(1)
   })
@@ -388,6 +393,58 @@ describe('AllFantasyWidgetElement — no credential leakage', () => {
     // has no credential-shaped entry, so no attribute mutation could ever
     // populate these getters.
     expect(AllFantasyWidgetElement.observedAttributes.some((n) => n.toLowerCase().includes('key'))).toBe(false)
+  })
+})
+
+describe('AllFantasyWidgetElement — theme (Phase 7.18)', () => {
+  function makePartnerTheme(overrides: SDKTheme['tokens']['colorTokenMap']): SDKTheme {
+    const base = resolveSDKTheme('partner_override', {}, 'partner_acme')
+    return { ...base, tokens: { ...base.tokens, colorTokenMap: overrides } }
+  }
+
+  it('setting the theme property before connecting renders with the partner override', async () => {
+    const { el } = makeElement()
+    el.theme = makePartnerTheme({ surface: '#101010' })
+    await connect(el)
+    await waitFor(() => within(shadow(el)).getByText('82'))
+
+    const ready = shadow(el).querySelector('[data-widget-state="ready"]') as HTMLElement
+    expect(ready.style.background).toBe('rgb(16, 16, 16)')
+  })
+
+  it('setting the theme property after connecting triggers a re-render with the override, without a refetch', async () => {
+    const { el, callCount } = makeElement()
+    await connect(el)
+    await waitFor(() => within(shadow(el)).getByText('82'))
+    expect(callCount()).toBe(1)
+
+    await act(async () => {
+      el.theme = makePartnerTheme({ surface: '#202020' })
+    })
+
+    await waitFor(() => {
+      const ready = shadow(el).querySelector('[data-widget-state="ready"]') as HTMLElement
+      expect(ready.style.background).toBe('rgb(32, 32, 32)')
+    })
+    expect(callCount()).toBe(1)
+  })
+
+  it('the theme getter returns exactly what was set', async () => {
+    const { el } = makeElement()
+    const theme = makePartnerTheme({ accent: '#0a84ff' })
+    el.theme = theme
+    expect(el.theme).toBe(theme)
+  })
+
+  it('an invalid theme-mode attribute falls back to the light default rather than throwing', async () => {
+    const { el, callCount } = makeElement({ attrs: { 'theme-mode': 'not-a-real-mode' } })
+    await connect(el)
+    await waitFor(() => within(shadow(el)).getByText('82'))
+    expect(callCount()).toBe(1)
+
+    const ready = shadow(el).querySelector('[data-widget-state="ready"]') as HTMLElement
+    // DEFAULT_COLOR_HEX_LIGHT.surface, jsdom-normalized.
+    expect(ready.style.background).toBe('rgba(15, 23, 42, 0.04)')
   })
 })
 

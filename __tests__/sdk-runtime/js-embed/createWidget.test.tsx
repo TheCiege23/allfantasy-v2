@@ -4,7 +4,8 @@ import { createAllFantasyWidget } from '../../../sdk-runtime/js-embed/src/create
 import type { CreateWidgetOptions } from '../../../sdk-runtime/js-embed/src/types'
 import type { JsEmbedWidgetConfig } from '../../../sdk-runtime/js-embed/src/types'
 import type { RuntimeClock, RuntimeFetch, RuntimeFetchResponse, RuntimeTimerHandle } from '../../../sdk-runtime/core/src/index'
-import type { SDKAuth } from '../../../lib/decision-os/sdk/types'
+import { resolveSDKTheme } from '../../../lib/decision-os/sdk/theme'
+import type { SDKAuth, SDKTheme } from '../../../lib/decision-os/sdk/types'
 
 const SECRET_API_KEY = 'ak_js_embed_test_secret_leak_check'
 const SECRET_CREDENTIAL = 'tok_js_embed_test_secret_leak_check'
@@ -423,5 +424,64 @@ describe('createAllFantasyWidget — default runtime deps', () => {
     } finally {
       globalThis.fetch = originalFetch
     }
+  })
+})
+
+describe('createAllFantasyWidget — theme (Phase 7.18)', () => {
+  function makePartnerTheme(overrides: SDKTheme['tokens']['colorTokenMap']): SDKTheme {
+    const base = resolveSDKTheme('partner_override', {}, 'partner_acme')
+    return { ...base, tokens: { ...base.tokens, colorTokenMap: overrides } }
+  }
+
+  it('renders the default (dark) palette when no theme option is supplied', async () => {
+    const container = makeContainer()
+    const { options } = makeOptions(container)
+    await createAsync(options)
+    await waitFor(() => within(container).getByText('82'))
+
+    const ready = container.querySelector('[data-widget-state="ready"]') as HTMLElement
+    expect(ready.style.background).toBe('rgba(255, 255, 255, 0.06)')
+  })
+
+  it('renders with a partner_override theme\'s color overrides applied', async () => {
+    const container = makeContainer()
+    const theme = makePartnerTheme({ surface: '#101010', accent: '#0a84ff' })
+    const { options } = makeOptions(container, { theme })
+    await createAsync(options)
+    await waitFor(() => within(container).getByText('82'))
+
+    const ready = container.querySelector('[data-widget-state="ready"]') as HTMLElement
+    expect(ready.style.background).toBe('rgb(16, 16, 16)')
+  })
+
+  it('surfaces theme.partnerBrandId as a data attribute on the rendered wrapper', async () => {
+    const container = makeContainer()
+    const theme = makePartnerTheme({ accent: '#0a84ff' })
+    const { options } = makeOptions(container, { theme })
+    await createAsync(options)
+    await waitFor(() => within(container).getByText('82'))
+
+    expect(container.querySelector('[data-partner-brand-id="partner_acme"]')).not.toBeNull()
+  })
+
+  it('gracefully falls back to the default for a token missing from the partner override', async () => {
+    const container = makeContainer()
+    const theme = makePartnerTheme({ accent: '#0a84ff' }) // no override for 'surface'
+    const { options } = makeOptions(container, { theme })
+    await createAsync(options)
+    await waitFor(() => within(container).getByText('82'))
+
+    const ready = container.querySelector('[data-widget-state="ready"]') as HTMLElement
+    expect(ready.style.background).toBe('rgba(255, 255, 255, 0.06)')
+  })
+
+  it('never leaks internal terminology through a theme override value', async () => {
+    const container = makeContainer()
+    const theme = makePartnerTheme({ accent: 'decision-os-internal-token' })
+    const { options } = makeOptions(container, { theme })
+    await createAsync(options)
+    await waitFor(() => within(container).getByText('82'))
+
+    expect(container.textContent).not.toContain('decision-os-internal-token')
   })
 })

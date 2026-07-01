@@ -23,6 +23,14 @@
  * (this target has no iframe boundary to cross — host communication uses
  * native `CustomEvent`s instead, and every event payload below is built
  * from `SDKError`'s own fields, which are structurally credential-free).
+ *
+ * Phase 7.18 — theming: the `theme-mode` attribute picks a light/dark
+ * default palette via the frozen `resolveSDKTheme`; the richer settable
+ * `theme` property (a full SDKTheme, never an attribute — a colorTokenMap
+ * object doesn't serialize cleanly into one) takes precedence when set,
+ * enabling full partner_override/enterprise_branding control. Both are
+ * forwarded to `WidgetRenderBoundary`'s `theme` prop — no theme resolution
+ * happens in this file beyond picking which of the two to use.
  */
 
 import { useEffect } from 'react'
@@ -31,8 +39,9 @@ import type { Root } from 'react-dom/client'
 import { useAllFantasyWidget, WidgetRenderBoundary } from '../../react/src/index'
 import type { UseAllFantasyWidgetResult } from '../../react/src/index'
 import { buildSDKError } from '../../../lib/decision-os/sdk/errors'
+import { resolveSDKTheme, VALID_THEME_MODES } from '../../../lib/decision-os/sdk/theme'
 import type { WidgetConfig } from '../../../lib/decision-os/presentation/widget-contracts'
-import type { SDKAuth, SDKError } from '../../../lib/decision-os/sdk/types'
+import type { SDKAuth, SDKError, SDKTheme, SDKThemeMode } from '../../../lib/decision-os/sdk/types'
 import type { RuntimeClock, RuntimeFetch } from '../../core/src/index'
 import { OBSERVED_ATTRIBUTES, parseElementAttributes } from './attributes'
 import { buildWidgetConfigFromAttributes, validateElementConfig } from './config'
@@ -49,7 +58,7 @@ interface ElementWidgetContentProps {
   baseUrl: string
   fetchImpl: RuntimeFetch
   clock: RuntimeClock
-  themeMode: string
+  theme: SDKTheme
   onStateChange: (result: UseAllFantasyWidgetResult) => void
 }
 
@@ -59,7 +68,7 @@ function ElementWidgetContent({
   baseUrl,
   fetchImpl,
   clock,
-  themeMode,
+  theme,
   onStateChange,
 }: ElementWidgetContentProps) {
   const result = useAllFantasyWidget({ config, auth, baseUrl, fetchImpl, clock })
@@ -69,11 +78,7 @@ function ElementWidgetContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onStateChange is a stable per-render-cycle callback from the host class
   }, [result.renderState, result.data, result.degraded, result.error])
 
-  return (
-    <div data-theme-mode={themeMode}>
-      <WidgetRenderBoundary result={result} />
-    </div>
-  )
+  return <WidgetRenderBoundary result={result} theme={theme} />
 }
 
 function ConfigErrorFallback({ errors }: { errors: string[] }) {
@@ -97,6 +102,10 @@ function ConfigErrorFallback({ errors }: { errors: string[] }) {
       </ul>
     </div>
   )
+}
+
+function isValidThemeMode(mode: string): mode is SDKThemeMode {
+  return (VALID_THEME_MODES as readonly string[]).includes(mode)
 }
 
 // ── Custom element ────────────────────────────────────────────────────────────
@@ -124,6 +133,25 @@ export class AllFantasyWidgetElement extends HTMLElement {
   #refreshFn: (() => Promise<void>) | null = null
   #lastRenderState: string | null = null
   #configErrors: readonly string[] = []
+  #themeOverride: SDKTheme | null = null
+
+  /**
+   * Full theme override (Phase 7.4 SDKTheme) — takes precedence over the
+   * `theme-mode` attribute when set. Not credential-shaped, so a plain
+   * private field is sufficient privacy (no WeakMap needed, unlike
+   * `setCredentials`). Safe to set before OR after connecting; setting it
+   * while connected triggers an immediate re-render.
+   */
+  get theme(): SDKTheme | null {
+    return this.#themeOverride
+  }
+
+  set theme(value: SDKTheme | null) {
+    this.#themeOverride = value
+    if (this.#connected && this.#root) {
+      this.#renderCurrentConfig()
+    }
+  }
 
   /**
    * Sets the fetch credential (Phase 7.4 SDKAuth) and widget-contract
@@ -217,6 +245,8 @@ export class AllFantasyWidgetElement extends HTMLElement {
     this.#configErrors = []
     const fetchImpl = this.fetchImpl ?? defaultFetchImpl
     const clock = this.clock ?? defaultClock
+    const themeModeAttr = attributeResult.parsed.themeMode
+    const theme = this.#themeOverride ?? resolveSDKTheme(isValidThemeMode(themeModeAttr) ? themeModeAttr : 'light')
 
     this.#root.render(
       <ElementWidgetContent
@@ -225,7 +255,7 @@ export class AllFantasyWidgetElement extends HTMLElement {
         baseUrl={attributeResult.parsed.baseUrl}
         fetchImpl={fetchImpl}
         clock={clock}
-        themeMode={attributeResult.parsed.themeMode}
+        theme={theme}
         onStateChange={(result) => this.#handleStateChange(result)}
       />,
     )

@@ -77,6 +77,7 @@ export function createAllFantasyWidget(options: CreateWidgetOptions): AllFantasy
       fetchImpl: options.fetchImpl ?? defaultFetchImpl,
       clock: options.clock ?? defaultClock,
       refreshStrategyOverrides: options.refreshStrategyOverrides,
+      theme: options.theme,
       onStateChange: handleStateChange,
       onInteraction: options.onInteraction,
     })

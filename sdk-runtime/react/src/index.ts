@@ -26,7 +26,15 @@ export type { WidgetHeadline } from './presentationHelpers'
 export { extractHeadline } from './presentationHelpers'
 
 // ── Theme tokens ──────────────────────────────────────────────────────────────
-export { DEFAULT_COLOR_HEX, resolveColorTokenHex } from './tokens'
+export {
+  DEFAULT_COLOR_HEX,
+  DEFAULT_COLOR_HEX_DARK,
+  DEFAULT_COLOR_HEX_LIGHT,
+  resolveColorTokenHex,
+  resolveThemedColorTokenHex,
+  resolveWidgetChromeHex,
+} from './tokens'
+export type { WidgetChromeHex } from './tokens'
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 export { useAllFantasyWidget } from './useAllFantasyWidget'
@@ -35,3 +43,4 @@ export { useAllFantasyWidget } from './useAllFantasyWidget'
 export { WidgetRenderBoundary } from './WidgetRenderBoundary'
 export type { WidgetRenderBoundaryProps } from './WidgetRenderBoundary'
 export { AllFantasyWidget } from './AllFantasyWidget'
+export type { AllFantasyWidgetProps } from './AllFantasyWidget'

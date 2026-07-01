@@ -23,7 +23,7 @@
  */
 
 import type { WidgetMode, WidgetFeatureFlags, WidgetConfig } from '../../../lib/decision-os/presentation/widget-contracts'
-import type { SDKAuth, SDKError } from '../../../lib/decision-os/sdk/types'
+import type { SDKAuth, SDKError, SDKTheme } from '../../../lib/decision-os/sdk/types'
 import type { RuntimeClock, RuntimeFetch, RefreshStrategyOverrides } from '../../core/src/index'
 import type { WidgetRenderState } from '../../react/src/index'
 
@@ -63,6 +63,13 @@ export interface CreateWidgetOptions extends CreateWidgetLifecycleCallbacks {
   /** Injectable for tests; defaults to real timers when unset. */
   clock?: RuntimeClock
   refreshStrategyOverrides?: RefreshStrategyOverrides
+  /**
+   * White-label theme (Phase 7.4). A one-time constructor input, like
+   * `config`/`auth` — this adapter has no live-reconfigure story for any
+   * option, theme included. Omit for the default palette (a graceful
+   * fallback, never required) — forwarded as-is to `WidgetRenderBoundary`.
+   */
+  theme?: SDKTheme | null
 }
 
 export interface AllFantasyWidgetInstance {

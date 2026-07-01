@@ -20,7 +20,7 @@ import type { Root } from 'react-dom/client'
 import { useAllFantasyWidget, WidgetRenderBoundary } from '../../react/src/index'
 import type { UseAllFantasyWidgetResult } from '../../react/src/index'
 import type { WidgetConfig } from '../../../lib/decision-os/presentation/widget-contracts'
-import type { SDKAuth } from '../../../lib/decision-os/sdk/types'
+import type { SDKAuth, SDKTheme } from '../../../lib/decision-os/sdk/types'
 import type { RuntimeClock, RuntimeFetch, RefreshStrategyOverrides } from '../../core/src/index'
 
 export interface EmbedWidgetContentProps {
@@ -30,6 +30,7 @@ export interface EmbedWidgetContentProps {
   fetchImpl: RuntimeFetch
   clock: RuntimeClock
   refreshStrategyOverrides?: RefreshStrategyOverrides
+  theme?: SDKTheme | null
   onStateChange: (result: UseAllFantasyWidgetResult) => void
   onInteraction?: (target: string) => void
 }
@@ -41,6 +42,7 @@ function EmbedWidgetContent({
   fetchImpl,
   clock,
   refreshStrategyOverrides,
+  theme,
   onStateChange,
   onInteraction,
 }: EmbedWidgetContentProps) {
@@ -57,7 +59,7 @@ function EmbedWidgetContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps -- onInteraction is a stable per-instance callback owned by createWidget.ts
   }, [result.refresh])
 
-  return <WidgetRenderBoundary result={{ ...result, refresh: handleRefresh }} />
+  return <WidgetRenderBoundary result={{ ...result, refresh: handleRefresh }} theme={theme} />
 }
 
 function ConfigErrorFallback({ errors }: { errors: string[] }) {
