@@ -33,6 +33,28 @@ export type {
   BehavioralPatternResult,
 } from './patterns/types'
 
+// 6.2 — Manager DNA / Identity Layer
+export { assembleManagerDna, MANAGER_DNA_VERSION } from './dna/dna'
+export type {
+  ManagerDnaInput,
+  ManagerDnaResult,
+  ManagerDnaProfile,
+  ManagerIdentityLabel,
+  DecisionStyle,
+  TransactionStyle,
+  RiskTendency,
+  EngagementReliability,
+  ManagerTrait,
+  ManagerEngagementTier,
+  ManagerActivityRatesInput,
+  ManagerSignalInput,
+  ManagerLeagueContextInput,
+  ManagerPatternGroupInput,
+  DetectedPatternInput,
+  EvidenceWindowInput,
+  PatternConfidenceInput,
+} from './dna/types'
+
 // 6.5 — Platform Benchmarking
 export { assemblePlatformBenchmark, BENCHMARK_VERSION } from './benchmark/benchmark'
 export type {
