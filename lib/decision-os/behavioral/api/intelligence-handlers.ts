@@ -8,10 +8,13 @@
  *   1. checkIntelligenceGate  → tier + requestId (or error response)
  *   2. hasScope               → 403 FORBIDDEN if tier lacks required scope
  *   3. param validation       → 400 INVALID_REQUEST if required params missing
- *   4. dataProvider.get*(…)  → 503 INTELLIGENCE_UNAVAILABLE if null (Phase 5.7 stub)
- *   5. resolve*(intel, …)    → IntelligenceApiResponse<T> via Phase 5.6 resolvers
+ *   4. view param validation  → 400 INVALID_REQUEST if view is an unknown value
+ *   5. dataProvider.get*(…)  → 503 INTELLIGENCE_UNAVAILABLE if null (Phase 5.7 stub)
+ *   6. view=presentation      → IPM presentation response (Phase 7.2)
+ *      view=raw / omitted     → IntelligenceApiResponse<T> via Phase 5.6 resolvers (unchanged)
  *
  * ADR: ADR_F5_7_INTELLIGENCE_API_ROUTES.md
+ * ADR: ADR_F7_2_PRESENTATION_VIEW_MODE.md
  */
 
 import type { ManagerBehavioralIntelligence } from '../manager-intelligence'
@@ -23,11 +26,18 @@ import {
   resolvePlatformIntelligenceBasic,
   resolvePlatformIntelligenceFull,
 } from './resolvers'
+import {
+  adaptLeagueBehavioralToPresentation,
+  adaptManagerBehavioralToPresentation,
+  adaptPlatformBehavioralToPresentation,
+  PRESENTATION_VERSION,
+} from './presentation-adapters'
 import type {
   IntelligenceApiError,
   IntelligenceApiErrorCode,
   IntelligenceApiScope,
   IntelligenceTier,
+  IntelligenceApiMeta,
 } from './contracts'
 import { TIER_SCOPE_MAP } from './contracts'
 import { checkIntelligenceGate } from './gate'
@@ -73,6 +83,73 @@ export const stubDataProvider: IntelligenceDataProvider = {
   getPlatformIntelligence: async () => null,
 }
 
+// ── View param ────────────────────────────────────────────────────────────────
+
+/** Valid values for the `?view=` query parameter. */
+export type IntelligenceViewParam = 'raw' | 'presentation'
+
+const VALID_VIEW_VALUES: ReadonlySet<string> = new Set<IntelligenceViewParam>(['raw', 'presentation'])
+
+/**
+ * Parses and validates the `view` query parameter.
+ * Returns `{ ok: true, view }` or `{ ok: false }` when the value is invalid.
+ * Omitted view param is treated as `'raw'`.
+ */
+function parseViewParam(
+  searchParams: URLSearchParams,
+  requestId: string,
+): { ok: true; view: IntelligenceViewParam } | { ok: false; result: IntelligenceHandlerResult } {
+  const raw = searchParams.get('view')
+  if (raw === null || raw === '') {
+    return { ok: true, view: 'raw' }
+  }
+  if (VALID_VIEW_VALUES.has(raw)) {
+    return { ok: true, view: raw as IntelligenceViewParam }
+  }
+  return {
+    ok: false,
+    result: errorResult(
+      400,
+      'INVALID_REQUEST',
+      "Unknown view parameter value. Use 'presentation' or 'raw'.",
+      requestId,
+    ),
+  }
+}
+
+// ── Presentation meta ──────────────────────────────────────────────────────────
+
+/**
+ * Extended meta block returned when view=presentation.
+ * Extends IntelligenceApiMeta with presentation-layer version stamp.
+ */
+export interface PresentationApiMeta extends IntelligenceApiMeta {
+  view: 'presentation'
+  presentationVersion: string
+}
+
+export interface PresentationApiResponse<T> {
+  data: T
+  meta: PresentationApiMeta
+}
+
+function buildPresentationMeta(
+  derivedAt: string,
+  completeness: number,
+  tier: IntelligenceTier,
+  requestId: string,
+): PresentationApiMeta {
+  return {
+    requestId,
+    derivedAt,
+    completeness,
+    version: 'v1',
+    tier,
+    view: 'presentation',
+    presentationVersion: PRESENTATION_VERSION,
+  }
+}
+
 // ── Internal helpers ──────────────────────────────────────────────────────────
 
 function errorResult(
@@ -101,6 +178,8 @@ function dataUnavailable(requestId: string): IntelligenceHandlerResult {
  * Required scope: `intelligence:platform:basic` (all tiers pass).
  * Platform-tier callers additionally have `intelligence:platform:full` → full response.
  * All other tiers → basic aggregate-only response.
+ *
+ * view=presentation → PlatformApiPresentation (IPM shape)
  */
 export async function platformIntelligenceHandler(
   ctx:          IntelligenceApiContext,
@@ -114,8 +193,18 @@ export async function platformIntelligenceHandler(
     return errorResult(403, 'FORBIDDEN', 'API key does not have platform intelligence scope.', requestId)
   }
 
+  const viewResult = parseViewParam(ctx.searchParams, requestId)
+  if (!viewResult.ok) return viewResult.result
+  const { view } = viewResult
+
   const intel = await dataProvider.getPlatformIntelligence()
   if (!intel) return dataUnavailable(requestId)
+
+  if (view === 'presentation') {
+    const data = adaptPlatformBehavioralToPresentation(intel)
+    const meta = buildPresentationMeta(intel.derivedAt, intel.completeness, tier, requestId)
+    return { status: 200, body: { data, meta } satisfies PresentationApiResponse<typeof data> }
+  }
 
   const resolved = hasScope(tier, 'intelligence:platform:full')
     ? resolvePlatformIntelligenceFull(intel, requestId)
@@ -130,6 +219,8 @@ export async function platformIntelligenceHandler(
  * GET /api/v1/intelligence/league?leagueId={id}
  *
  * Required scope: `intelligence:league:read` (commissioner + platform tiers).
+ *
+ * view=presentation → LeagueApiPresentation (IPM shape)
  */
 export async function leagueIntelligenceHandler(
   ctx:          IntelligenceApiContext,
@@ -148,8 +239,18 @@ export async function leagueIntelligenceHandler(
     return errorResult(400, 'INVALID_REQUEST', 'Missing required query parameter: leagueId.', requestId)
   }
 
+  const viewResult = parseViewParam(ctx.searchParams, requestId)
+  if (!viewResult.ok) return viewResult.result
+  const { view } = viewResult
+
   const intel = await dataProvider.getLeagueIntelligence(leagueId)
   if (!intel) return dataUnavailable(requestId)
+
+  if (view === 'presentation') {
+    const data = adaptLeagueBehavioralToPresentation(intel)
+    const meta = buildPresentationMeta(intel.derivedAt, intel.completeness, tier, requestId)
+    return { status: 200, body: { data, meta } satisfies PresentationApiResponse<typeof data> }
+  }
 
   return { status: 200, body: resolveLeagueIntelligence(intel, requestId, tier) }
 }
@@ -160,6 +261,8 @@ export async function leagueIntelligenceHandler(
  * GET /api/v1/intelligence/manager?leagueId={id}&managerId={id}
  *
  * Required scope: `intelligence:manager:read` (manager + platform tiers).
+ *
+ * view=presentation → ManagerApiPresentation (IPM shape)
  */
 export async function managerIntelligenceHandler(
   ctx:          IntelligenceApiContext,
@@ -183,8 +286,18 @@ export async function managerIntelligenceHandler(
     return errorResult(400, 'INVALID_REQUEST', 'Missing required query parameter: managerId.', requestId)
   }
 
+  const viewResult = parseViewParam(ctx.searchParams, requestId)
+  if (!viewResult.ok) return viewResult.result
+  const { view } = viewResult
+
   const intel = await dataProvider.getManagerIntelligence(managerId, leagueId)
   if (!intel) return dataUnavailable(requestId)
+
+  if (view === 'presentation') {
+    const data = adaptManagerBehavioralToPresentation(intel)
+    const meta = buildPresentationMeta(intel.derivedAt, intel.completeness, tier, requestId)
+    return { status: 200, body: { data, meta } satisfies PresentationApiResponse<typeof data> }
+  }
 
   return { status: 200, body: resolveManagerIntelligence(intel, requestId, tier) }
 }
