@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   Crown,
@@ -27,10 +27,12 @@ import {
 } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
 import CommissionerShowcasePanel from '@/components/redraft/CommissionerShowcasePanel'
+import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
 } from '@/lib/commissioner-hub/commissionerHubHealth'
+import { buildCommissionerLeaguePulse } from '@/lib/decision-os/league-pulse'
 
 // ─── Copy constants (future i18n wiring) ───────────────────────────────────
 const COPY = {
@@ -39,7 +41,7 @@ const COPY = {
     trustBadge: 'No gambling. Pure fantasy.',
     headline1: 'Run better leagues.',
     headline2: 'Build your legacy.',
-    sub: 'Built for commissioners. Loved by managers. Every tool you need to create, grow, and manage your fantasy empire — all in one place.',
+    sub: 'Built for commissioners. Loved by managers. Every tool you need to create, grow, and manage your fantasy empire - all in one place.',
     sub2: 'Draft smarter. Keep members engaged. Move entire leagues onto AllFantasy.',
     ctaCreate: 'Create a League',
     ctaImport: 'Import League',
@@ -72,7 +74,7 @@ const COPY = {
     activeLabel: 'Active',
     legacyLabel: 'Legacy',
     comingSoonLabel: 'Coming Soon',
-    importCta: 'Import →',
+    importCta: 'Import ->',
   },
   memberLeagues: {
     sectionLabel: 'Leagues I Play In',
@@ -80,7 +82,7 @@ const COPY = {
   trust: {
     heading: 'Transparent. Strategy-first. No gambling.',
     body1:
-      'AllFantasy is built for fantasy sports strategy — not sportsbook predictions or gambling. Every recommendation from our AI tools is grounded in public data and fantasy scoring logic.',
+      'AllFantasy is built for fantasy sports strategy - not sportsbook predictions or gambling. Every recommendation from our AI tools is grounded in public data and fantasy scoring logic.',
     body2:
       'Chimmy gives recommendations, not guarantees. Fantasy sports involve real uncertainty. Use our tools to make smarter decisions, not to replace your own judgment.',
   },
@@ -125,11 +127,24 @@ const ACTION_VARIANT_CLASSES: Record<NextAction['variant'], string> = {
   emerald:
     'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300 hover:bg-emerald-500/15',
   muted:
-    'border-white/10 bg-white/[0.03] text-white/50 hover:bg-white/[0.06]',
+    'border-subtle bg-surface-muted text-muted hover:bg-surface-hover',
 }
 
 function buildLoginHref(path: string): string {
   return `/login?callbackUrl=${encodeURIComponent(path)}`
+}
+
+function disablePrefetchForAuthSensitiveHref(href: string): boolean {
+  const pathname = href.split('?')[0] ?? href
+  if (pathname === '/create-league' || pathname === '/import') return true
+  if (pathname !== '/login') return false
+  try {
+    const params = new URLSearchParams(href.split('?')[1] ?? '')
+    const callbackUrl = params.get('callbackUrl') ?? ''
+    return callbackUrl === '/create-league' || callbackUrl === '/import'
+  } catch {
+    return false
+  }
 }
 
 function resolveSetupStatus(league: UserLeague): SetupStatus {
@@ -162,8 +177,8 @@ function resolveSetupStatus(league: UserLeague): SetupStatus {
   if (state === 'completed' || state === 'offseason')
     return {
       label: 'Offseason',
-      dotClass: 'bg-white/25',
-      badgeClass: 'border-white/10 bg-white/[0.03] text-white/40',
+      dotClass: 'bg-surface-hover',
+      badgeClass: 'border-subtle bg-surface-muted text-muted',
     }
   return {
     label: 'Active',
@@ -275,8 +290,8 @@ function buildMissionQueue(commLeagues: UserLeague[]): QueueCard[] {
       href: commLeagues[0] ? `/league/${commLeagues[0].id}` : '/dashboard',
       priority: 7,
       cardClass:
-        'border-white/[0.08] bg-gradient-to-br from-white/[0.02] to-transparent hover:border-white/[0.14]',
-      iconClass: 'border-white/10 bg-white/[0.04] text-white/50',
+        'border-subtle bg-surface-muted hover:bg-surface-hover',
+      iconClass: 'border-subtle bg-surface-hover text-muted',
     },
   ]
 
@@ -318,7 +333,7 @@ const AI_PROMPT_CARDS = [
     key: 'dispute',
     icon: MessageSquare,
     title: 'Resolve Dispute',
-    desc: 'Describe a trade dispute or rule question — Chimmy gives a fair, evidence-based ruling.',
+    desc: 'Describe a trade dispute or rule question - Chimmy gives a fair, evidence-based ruling.',
     href: '/ai-chat',
   },
   {
@@ -343,36 +358,36 @@ const MIGRATION_PLATFORMS: {
     key: 'sleeper',
     name: 'Sleeper',
     status: 'active',
-    href: '/import',
-    desc: 'Full import — rosters, history, and settings.',
+    href: '/import?provider=sleeper',
+    desc: 'Full import - rosters, history, and settings.',
   },
   {
     key: 'espn',
     name: 'ESPN',
     status: 'active',
-    href: '/import',
-    desc: 'Full import — rosters, history, and settings.',
+    href: '/import?provider=espn',
+    desc: 'Full import - rosters, history, and settings.',
   },
   {
     key: 'yahoo',
     name: 'Yahoo',
     status: 'active',
-    href: '/import',
-    desc: 'Full import — rosters, history, and settings.',
+    href: '/import?provider=yahoo',
+    desc: 'Full import - rosters, history, and settings.',
   },
   {
     key: 'mfl',
     name: 'MFL',
     status: 'active',
-    href: '/import',
-    desc: 'Full import — rosters, history, and settings.',
+    href: '/import?provider=mfl',
+    desc: 'Full import - rosters, history, and settings.',
   },
   {
     key: 'fantrax',
     name: 'Fantrax',
     status: 'legacy',
-    href: '/import',
-    desc: 'Legacy import — basic roster data only.',
+    href: '/import?provider=fantrax',
+    desc: 'Legacy import - basic roster data only.',
   },
   {
     key: 'csv',
@@ -393,8 +408,8 @@ const MIGRATION_STATUS_CLASSES: Record<string, { badge: string; dot: string }> =
     dot: 'bg-amber-400',
   },
   coming_soon: {
-    badge: 'border-white/10 bg-white/[0.03] text-white/35',
-    dot: 'bg-white/20',
+    badge: 'border-subtle bg-surface-muted text-muted',
+    dot: 'bg-surface-hover',
   },
 }
 
@@ -402,8 +417,8 @@ const MIGRATION_STATUS_CLASSES: Record<string, { badge: string; dot: string }> =
 function SectionHeader({ label, hint }: { label: string; hint?: string }) {
   return (
     <div className="mb-4 flex flex-wrap items-baseline gap-2">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-white/40">{label}</p>
-      {hint && <p className="text-[11px] text-white/25">{hint}</p>}
+      <p className="text-[11px] font-bold uppercase tracking-widest text-muted">{label}</p>
+      {hint && <p className="text-[11px] text-muted">{hint}</p>}
     </div>
   )
 }
@@ -433,7 +448,7 @@ function StatCard({
           <AlertCircle className="h-4 w-4 text-amber-400" aria-hidden />
         )}
       </div>
-      <p className="text-[11px] text-white/45">{label}</p>
+      <p className="text-[11px] text-muted">{label}</p>
     </div>
   )
 }
@@ -447,7 +462,7 @@ const HEALTH_STATUS_CLASSES: Record<string, string> = {
 }
 
 const ACTION_TONE_CLASSES: Record<CommissionerHealthAction['tone'], string> = {
-  standard: 'border-white/10 bg-white/[0.03] text-white/60 hover:border-white/20 hover:bg-white/[0.06]',
+  standard: 'border-subtle bg-surface-muted text-secondary hover:bg-surface-hover',
   warning: 'border-amber-500/25 bg-amber-500/[0.08] text-amber-300 hover:bg-amber-500/[0.13]',
   danger: 'border-rose-500/25 bg-rose-500/[0.08] text-rose-300 hover:bg-rose-500/[0.13]',
 }
@@ -487,11 +502,11 @@ function MetricTile({
       ? 'border-emerald-500/[0.16] bg-emerald-500/[0.04] text-emerald-300'
       : tone === 'warn'
         ? 'border-amber-500/[0.18] bg-amber-500/[0.05] text-amber-300'
-        : 'border-white/[0.08] bg-white/[0.02] text-white/75'
+        : 'border-subtle bg-surface-muted text-secondary'
   return (
     <div className={`flex min-h-[78px] flex-col justify-between rounded-2xl border p-3 ${toneClass}`}>
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-white/35">{label}</p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</p>
         <Icon className="h-3.5 w-3.5 text-current opacity-70" aria-hidden />
       </div>
       <p className="mt-2 text-[24px] font-black leading-none text-current">{value}</p>
@@ -502,7 +517,7 @@ function MetricTile({
 function CommissionerActionLink({ action }: { action: CommissionerHealthAction }) {
   const className = action.enabled
     ? ACTION_TONE_CLASSES[action.tone]
-    : 'cursor-not-allowed border-white/[0.06] bg-white/[0.015] text-white/25'
+    : 'cursor-not-allowed border-subtle bg-surface-muted text-muted'
 
   if (!action.enabled) {
     return (
@@ -519,6 +534,7 @@ function CommissionerActionLink({ action }: { action: CommissionerHealthAction }
   return (
     <Link
       href={action.href}
+      prefetch={disablePrefetchForAuthSensitiveHref(action.href) ? false : undefined}
       className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${className}`}
       title={action.requiresConfirmation ? 'Requires commissioner confirmation' : undefined}
     >
@@ -558,7 +574,7 @@ function LeagueHealthDashboard({
           <button
             type="button"
             onClick={() => setShowAll((value) => !value)}
-            className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-[11px] font-semibold text-white/70 transition hover:border-white/20 hover:bg-white/[0.07]"
+            className="inline-flex items-center gap-1.5 rounded-full border border-subtle bg-surface-muted px-3 py-1.5 text-[11px] font-semibold text-secondary transition hover:bg-surface-hover"
           >
             {showAll ? 'Show fewer leagues' : `View all ${snapshots.length} leagues`}
           </button>
@@ -598,17 +614,17 @@ function LeagueHealthDashboard({
         {visibleSnapshots.map((snapshot) => {
           const statusClass =
             HEALTH_STATUS_CLASSES[snapshot.overallStatus] ??
-            'border-white/10 bg-white/[0.03] text-white/50'
+            'border-subtle bg-surface-muted text-muted'
           return (
             <article
               key={snapshot.leagueId}
-              className="rounded-2xl border border-white/[0.08] bg-white/[0.025] p-4"
+              className="rounded-2xl border border-subtle bg-surface p-4"
             >
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-[14px] font-bold text-white/90">{snapshot.leagueName}</p>
-                  <p className="mt-0.5 text-[11px] text-white/38">
-                    {snapshot.sport} {snapshot.leagueType} · Week {snapshot.currentWeek} · {snapshot.teamCount} teams
+                  <p className="truncate text-[14px] font-bold text-primary">{snapshot.leagueName}</p>
+                  <p className="mt-0.5 text-[11px] text-muted">
+                    {snapshot.sport} {snapshot.leagueType} / Week {snapshot.currentWeek} / {snapshot.teamCount} teams
                   </p>
                 </div>
                 <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase ${statusClass}`}>
@@ -617,29 +633,29 @@ function LeagueHealthDashboard({
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-5">
-                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
-                  <p className="text-[10px] text-white/35">Lineups</p>
-                  <p className="text-[13px] font-bold text-white/80">{formatPercent(snapshot.metrics.lineupSubmissionRate)}</p>
+                <div className="rounded-xl border border-subtle bg-surface-muted p-2">
+                  <p className="text-[10px] text-muted">Lineups</p>
+                  <p className="text-[13px] font-bold text-secondary">{formatPercent(snapshot.metrics.lineupSubmissionRate)}</p>
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
-                  <p className="text-[10px] text-white/35">Pending Waivers</p>
-                  <p className="text-[13px] font-bold text-white/80">{snapshot.metrics.pendingWaiverClaims}</p>
+                <div className="rounded-xl border border-subtle bg-surface-muted p-2">
+                  <p className="text-[10px] text-muted">Pending Waivers</p>
+                  <p className="text-[13px] font-bold text-secondary">{snapshot.metrics.pendingWaiverClaims}</p>
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
-                  <p className="text-[10px] text-white/35">Pending Trades</p>
-                  <p className="text-[13px] font-bold text-white/80">{snapshot.metrics.pendingTrades}</p>
+                <div className="rounded-xl border border-subtle bg-surface-muted p-2">
+                  <p className="text-[10px] text-muted">Pending Trades</p>
+                  <p className="text-[13px] font-bold text-secondary">{snapshot.metrics.pendingTrades}</p>
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
-                  <p className="text-[10px] text-white/35">Open AI Alerts</p>
-                  <p className="text-[13px] font-bold text-white/80">{snapshot.metrics.openAiAlerts}</p>
+                <div className="rounded-xl border border-subtle bg-surface-muted p-2">
+                  <p className="text-[10px] text-muted">Open AI Alerts</p>
+                  <p className="text-[13px] font-bold text-secondary">{snapshot.metrics.openAiAlerts}</p>
                 </div>
-                <div className="rounded-xl border border-white/[0.06] bg-black/10 p-2">
-                  <p className="text-[10px] text-white/35">Projection Coverage</p>
-                  <p className="text-[13px] font-bold text-white/80">{snapshot.metrics.projectionCoveragePct}%</p>
+                <div className="rounded-xl border border-subtle bg-surface-muted p-2">
+                  <p className="text-[10px] text-muted">Projection Coverage</p>
+                  <p className="text-[13px] font-bold text-secondary">{snapshot.metrics.projectionCoveragePct}%</p>
                 </div>
               </div>
 
-              <p className="mt-3 text-[12px] leading-relaxed text-white/48">{snapshot.summary}</p>
+              <p className="mt-3 text-[12px] leading-relaxed text-muted">{snapshot.summary}</p>
 
               {snapshot.alerts.length > 0 && (
                 <div className="mt-3 space-y-1.5">
@@ -652,7 +668,7 @@ function LeagueHealthDashboard({
               )}
 
               <div className="mt-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-white/35">Commissioner Actions</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Commissioner Actions</p>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {snapshot.actions.map((action) => (
                     <CommissionerActionLink key={action.key} action={action} />
@@ -672,8 +688,8 @@ function LeagueHealthDashboard({
                       <div className="flex items-start gap-2">
                         <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300/70" aria-hidden />
                         <div className="min-w-0">
-                          <p className="text-[11px] font-bold text-white/72 group-hover:text-white/90">{question.label}</p>
-                          <p className="mt-0.5 text-[11px] leading-snug text-white/38">{question.answer}</p>
+                          <p className="text-[11px] font-bold text-secondary group-hover:text-primary">{question.label}</p>
+                          <p className="mt-0.5 text-[11px] leading-snug text-muted">{question.answer}</p>
                         </div>
                       </div>
                     </Link>
@@ -681,7 +697,7 @@ function LeagueHealthDashboard({
                 </div>
               </div>
 
-              <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-white/25">
+              <div className="mt-3 flex items-center justify-between gap-2 text-[10px] text-muted">
                 <span>Source: {snapshot.source === 'database' ? 'Database' : 'Dashboard fallback'}</span>
                 <span>Confidence: {snapshot.dataConfidence}</span>
               </div>
@@ -691,12 +707,12 @@ function LeagueHealthDashboard({
       </div>
 
       {!showAll && snapshots.length > visibleSnapshots.length ? (
-        <p className="mt-3 text-[11px] text-white/30">
+        <p className="mt-3 text-[11px] text-muted">
           Showing {visibleSnapshots.length} of {snapshots.length} managed leagues for presentation flow.
         </p>
       ) : null}
 
-      <p className="mt-3 text-[11px] text-white/30">
+      <p className="mt-3 text-[11px] text-muted">
         Average lineup submission across managed leagues: {formatPercent(averageLineupRate)}.
       </p>
     </section>
@@ -724,12 +740,16 @@ export default function CommissionerHubPageClient({
   const managedHealthSnapshots = commissionerLeagues
     .map((league) => healthByLeagueId.get(league.id))
     .filter((snapshot): snapshot is CommissionerLeagueHealthSnapshot => Boolean(snapshot))
+  const leaguePulse = useMemo(
+    () => buildCommissionerLeaguePulse({ snapshots: managedHealthSnapshots }),
+    [managedHealthSnapshots]
+  )
   const showDemoMode = demoMode || leagues.length === 0
-  const primaryHeroHref = isAuthenticated ? '/create-league' : buildLoginHref('/commissioner-hub')
+  const primaryHeroHref = isAuthenticated ? '/create-league' : buildLoginHref('/create-league')
   const primaryHeroLabel = isAuthenticated ? COPY.hero.ctaCreate : 'Sign In'
   const secondaryHeroHref = isAuthenticated ? '/import' : buildLoginHref('/import')
   const secondaryHeroLabel = isAuthenticated ? COPY.hero.ctaImport : 'Sign In to Import'
-  const emptyPrimaryHref = isAuthenticated ? '/create-league' : buildLoginHref('/commissioner-hub')
+  const emptyPrimaryHref = isAuthenticated ? '/create-league' : buildLoginHref('/create-league')
   const emptyPrimaryLabel = isAuthenticated ? COPY.empty.ctaCreate : 'Sign In'
   const emptySecondaryHref = isAuthenticated ? '/import' : buildLoginHref('/import')
   const emptySecondaryLabel = isAuthenticated ? COPY.empty.ctaImport : 'Sign In to Import'
@@ -756,11 +776,11 @@ export default function CommissionerHubPageClient({
   ).length
 
   return (
-    <div className="min-h-screen" style={{ background: 'var(--bg, #060814)' }}>
+    <div className="min-h-screen bg-app text-primary">
       <div className="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:px-6 sm:py-12">
 
         {/* ── Hero ── */}
-        <section className="relative overflow-hidden rounded-3xl border border-amber-500/[0.15] bg-gradient-to-br from-amber-500/[0.07] via-[#050814] to-cyan-500/[0.04] p-6 sm:p-8">
+        <section className="relative overflow-hidden rounded-3xl border border-amber-500/[0.15] bg-gradient-to-br from-amber-500/[0.07] via-[color:var(--surface)] to-cyan-500/[0.04] p-6 sm:p-8">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-x-0 top-0 h-48 opacity-60"
@@ -781,16 +801,16 @@ export default function CommissionerHubPageClient({
               </span>
             </div>
 
-            <h1 className="text-[28px] font-black leading-tight tracking-tight text-white sm:text-[36px]">
+            <h1 className="text-[28px] font-black leading-tight tracking-tight text-primary sm:text-[36px]">
               {COPY.hero.headline1}{' '}
               <span className="bg-gradient-to-r from-amber-300 to-cyan-300 bg-clip-text text-transparent">
                 {COPY.hero.headline2}
               </span>
             </h1>
-            <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-white/60">
+            <p className="mt-3 max-w-xl text-[14px] leading-relaxed text-secondary">
               {COPY.hero.sub}
             </p>
-            <p className="mt-1.5 max-w-lg text-[13px] leading-relaxed text-white/38">
+            <p className="mt-1.5 max-w-lg text-[13px] leading-relaxed text-muted">
               {COPY.hero.sub2}
             </p>
             {showDemoMode && (
@@ -808,14 +828,16 @@ export default function CommissionerHubPageClient({
             <div className="mt-6 flex flex-wrap gap-2.5">
               <Link
                 href={primaryHeroHref}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-[14px] font-bold text-black shadow-[0_0_20px_rgba(245,158,11,0.25)] transition hover:from-amber-300 hover:to-amber-400 active:opacity-90"
+                prefetch={disablePrefetchForAuthSensitiveHref(primaryHeroHref) ? false : undefined}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-[14px] font-bold text-content-inverse shadow-[0_0_20px_rgba(245,158,11,0.25)] transition hover:from-amber-300 hover:to-amber-400 active:opacity-90"
               >
                 <Plus className="h-4 w-4" aria-hidden />
                 {primaryHeroLabel}
               </Link>
               <Link
                 href={secondaryHeroHref}
-                className="inline-flex items-center gap-2 rounded-xl border border-white/20 bg-white/[0.04] px-5 py-2.5 text-[14px] font-semibold text-white/90 transition hover:border-white/35 hover:bg-white/[0.06]"
+                prefetch={disablePrefetchForAuthSensitiveHref(secondaryHeroHref) ? false : undefined}
+                className="inline-flex items-center gap-2 rounded-xl border border-subtle bg-surface-muted px-5 py-2.5 text-[14px] font-semibold text-primary transition hover:bg-surface-hover"
               >
                 <ArrowDownToLine className="h-4 w-4" aria-hidden />
                 {secondaryHeroLabel}
@@ -838,33 +860,33 @@ export default function CommissionerHubPageClient({
               <StatCard
                 value={needsSetupCount}
                 label={COPY.ops.needsSetup}
-                accentClass={needsSetupCount > 0 ? 'text-amber-400' : 'text-white/40'}
+                accentClass={needsSetupCount > 0 ? 'text-amber-400' : 'text-muted'}
                 borderClass={
                   needsSetupCount > 0
                     ? 'border-amber-500/20 bg-amber-500/[0.05]'
-                    : 'border-white/[0.07] bg-white/[0.02]'
+                    : 'border-subtle bg-surface-muted'
                 }
                 alert={needsSetupCount > 0}
               />
               <StatCard
                 value={missingDraftDateCount}
                 label={COPY.ops.missingDraft}
-                accentClass={missingDraftDateCount > 0 ? 'text-amber-400' : 'text-white/40'}
+                accentClass={missingDraftDateCount > 0 ? 'text-amber-400' : 'text-muted'}
                 borderClass={
                   missingDraftDateCount > 0
                     ? 'border-amber-500/20 bg-amber-500/[0.05]'
-                    : 'border-white/[0.07] bg-white/[0.02]'
+                    : 'border-subtle bg-surface-muted'
                 }
                 alert={missingDraftDateCount > 0}
               />
               <StatCard
                 value={activeCount}
                 label={COPY.ops.active}
-                accentClass={activeCount > 0 ? 'text-emerald-400' : 'text-white/40'}
+                accentClass={activeCount > 0 ? 'text-emerald-400' : 'text-muted'}
                 borderClass={
                   activeCount > 0
                     ? 'border-emerald-500/[0.14] bg-emerald-500/[0.03]'
-                    : 'border-white/[0.07] bg-white/[0.02]'
+                    : 'border-subtle bg-surface-muted'
                 }
               />
             </div>
@@ -876,6 +898,8 @@ export default function CommissionerHubPageClient({
           healthSnapshots={managedHealthSnapshots}
           demoMode={showDemoMode}
         />
+
+        <LeaguePulseCard pulse={leaguePulse} variant="commissioner" />
 
         <LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />
 
@@ -892,6 +916,7 @@ export default function CommissionerHubPageClient({
               </p>
               <Link
                 href="/create-league"
+                prefetch={false}
                 className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-amber-400/60 transition hover:text-amber-300"
               >
                 <Plus className="h-3 w-3" aria-hidden />
@@ -909,13 +934,13 @@ export default function CommissionerHubPageClient({
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14px] font-bold text-white/90">
+                        <p className="truncate text-[14px] font-bold text-primary">
                           {league.name}
                         </p>
-                        <p className="mt-0.5 text-[11px] text-white/40">
+                        <p className="mt-0.5 text-[11px] text-muted">
                           {league.sport}
-                          {league.teamCount ? ` · ${league.teamCount}-team` : ''}
-                          {league.scoring ? ` · ${league.scoring}` : ''}
+                          {league.teamCount ? ` / ${league.teamCount}-team` : ''}
+                          {league.scoring ? ` / ${league.scoring}` : ''}
                         </p>
                       </div>
                       <span
@@ -926,10 +951,10 @@ export default function CommissionerHubPageClient({
                       </span>
                     </div>
 
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-white/35">
+                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
                       <span className="flex items-center gap-1">
                         <Users className="h-3 w-3" aria-hidden />
-                        {league.teamCount ?? '—'} {COPY.health.membersLabel}
+                        {league.teamCount ?? '-'} {COPY.health.membersLabel}
                       </span>
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" aria-hidden />
@@ -951,6 +976,7 @@ export default function CommissionerHubPageClient({
                     <div className="flex items-center gap-2">
                       <Link
                         href={nextAction.href}
+                        prefetch={disablePrefetchForAuthSensitiveHref(nextAction.href) ? false : undefined}
                         className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition ${ACTION_VARIANT_CLASSES[nextAction.variant]}`}
                       >
                         {nextAction.label}
@@ -958,7 +984,7 @@ export default function CommissionerHubPageClient({
                       </Link>
                       <Link
                         href={`/league/${league.id}`}
-                        className="ml-auto text-[11px] text-white/30 transition hover:text-white/55"
+                        className="ml-auto text-[11px] text-muted transition hover:text-secondary"
                       >
                         {COPY.health.viewLeague}
                         <ChevronRight className="inline h-3 w-3" aria-hidden />
@@ -973,13 +999,14 @@ export default function CommissionerHubPageClient({
 
         {/* ── Empty state ── */}
         {leagues.length === 0 && (
-          <section className="rounded-2xl border border-white/[0.07] bg-white/[0.02] p-8 text-center">
+          <section className="rounded-2xl border border-subtle bg-surface-muted p-8 text-center">
             <Crown className="mx-auto mb-3 h-8 w-8 text-amber-400/40" aria-hidden />
-            <p className="text-[14px] font-semibold text-white/60">{emptyHeading}</p>
-            <p className="mt-1 text-[12px] text-white/35">{emptySub}</p>
+            <p className="text-[14px] font-semibold text-secondary">{emptyHeading}</p>
+            <p className="mt-1 text-[12px] text-muted">{emptySub}</p>
             <div className="mt-4 flex justify-center gap-3">
               <Link
                 href={emptyPrimaryHref}
+                prefetch={disablePrefetchForAuthSensitiveHref(emptyPrimaryHref) ? false : undefined}
                 className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-semibold text-amber-300 transition hover:bg-amber-500/20"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden />
@@ -987,7 +1014,8 @@ export default function CommissionerHubPageClient({
               </Link>
               <Link
                 href={emptySecondaryHref}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 px-4 py-2 text-[13px] font-semibold text-white/70 transition hover:border-white/25 hover:bg-white/[0.04]"
+                prefetch={disablePrefetchForAuthSensitiveHref(emptySecondaryHref) ? false : undefined}
+                className="inline-flex items-center gap-1.5 rounded-xl border border-subtle bg-surface-muted px-4 py-2 text-[13px] font-semibold text-secondary transition hover:bg-surface-hover"
               >
                 <ArrowDownToLine className="h-3.5 w-3.5" aria-hidden />
                 {emptySecondaryLabel}
@@ -1006,6 +1034,7 @@ export default function CommissionerHubPageClient({
                 <Link
                   key={card.key}
                   href={isAuthenticated ? card.href : buildLoginHref(card.href)}
+                  prefetch={disablePrefetchForAuthSensitiveHref(isAuthenticated ? card.href : buildLoginHref(card.href)) ? false : undefined}
                   className={`group relative flex flex-col gap-3 rounded-2xl border px-4 py-4 transition-all ${card.cardClass}`}
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -1015,19 +1044,19 @@ export default function CommissionerHubPageClient({
                       <Icon className="h-4 w-4" aria-hidden />
                     </span>
                     {card.badge && (
-                      <span className="rounded-full border border-white/15 bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/50">
+                      <span className="rounded-full border border-subtle bg-surface-hover px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted">
                         {card.badge}
                       </span>
                     )}
                   </div>
                   <div>
-                    <p className="text-[14px] font-bold text-white/90 group-hover:text-white">
+                    <p className="text-[14px] font-bold text-primary group-hover:text-primary">
                       {card.title}
                     </p>
-                    <p className="mt-1 text-[12px] leading-snug text-white/45">{card.desc}</p>
+                    <p className="mt-1 text-[12px] leading-snug text-muted">{card.desc}</p>
                   </div>
                   <ArrowRight
-                    className="h-4 w-4 text-white/20 transition group-hover:text-white/50"
+                    className="h-4 w-4 text-muted transition group-hover:text-secondary"
                     aria-hidden
                   />
                 </Link>
@@ -1046,6 +1075,7 @@ export default function CommissionerHubPageClient({
                 <Link
                   key={card.key}
                   href={isAuthenticated ? card.href : buildLoginHref(card.href)}
+                  prefetch={disablePrefetchForAuthSensitiveHref(isAuthenticated ? card.href : buildLoginHref(card.href)) ? false : undefined}
                   className="group flex flex-col gap-2.5 rounded-2xl border border-violet-500/[0.14] bg-gradient-to-br from-violet-500/[0.06] to-transparent px-4 py-4 transition-all hover:border-violet-500/25 hover:from-violet-500/[0.09]"
                 >
                   <div className="flex items-start justify-between gap-2">
@@ -1053,16 +1083,16 @@ export default function CommissionerHubPageClient({
                       <Icon className="h-3.5 w-3.5" aria-hidden />
                     </span>
                     {card.badge && (
-                      <span className="rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/35">
+                      <span className="rounded-full border border-subtle bg-surface-muted px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted">
                         {card.badge}
                       </span>
                     )}
                   </div>
                   <div>
-                    <p className="text-[13px] font-bold text-white/85 group-hover:text-white">
+                    <p className="text-[13px] font-bold text-primary group-hover:text-primary">
                       {card.title}
                     </p>
-                    <p className="mt-0.5 text-[11px] leading-snug text-white/40">{card.desc}</p>
+                    <p className="mt-0.5 text-[11px] leading-snug text-muted">{card.desc}</p>
                   </div>
                   <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-400/60 group-hover:text-violet-300">
                     <Sparkles className="h-3 w-3" aria-hidden />
@@ -1090,7 +1120,7 @@ export default function CommissionerHubPageClient({
               const inner = (
                 <>
                   <div className="flex items-center justify-between gap-2">
-                    <p className="text-[14px] font-bold text-white/85">{platform.name}</p>
+                    <p className="text-[14px] font-bold text-primary">{platform.name}</p>
                     <span
                       className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide ${styles.badge}`}
                     >
@@ -1098,7 +1128,7 @@ export default function CommissionerHubPageClient({
                       {statusLabel}
                     </span>
                   </div>
-                  <p className="text-[11px] text-white/38">{platform.desc}</p>
+                  <p className="text-[11px] text-muted">{platform.desc}</p>
                   {platform.status !== 'coming_soon' && (
                     <p className="text-[11px] font-semibold text-emerald-400/70 transition group-hover:text-emerald-300">
                       {COPY.migration.importCta}
@@ -1111,14 +1141,15 @@ export default function CommissionerHubPageClient({
                 <Link
                   key={platform.key}
                   href={isAuthenticated ? platform.href : buildLoginHref(platform.href)}
-                  className="group flex flex-col gap-2 rounded-2xl border border-white/[0.07] bg-white/[0.02] px-4 py-4 transition hover:border-emerald-500/20 hover:bg-emerald-500/[0.03]"
+                  prefetch={disablePrefetchForAuthSensitiveHref(isAuthenticated ? platform.href : buildLoginHref(platform.href)) ? false : undefined}
+                  className="group flex flex-col gap-2 rounded-2xl border border-subtle bg-surface-muted px-4 py-4 transition hover:border-emerald-500/20 hover:bg-emerald-500/[0.03]"
                 >
                   {inner}
                 </Link>
               ) : (
                 <div
                   key={platform.key}
-                  className="flex flex-col gap-2 rounded-2xl border border-white/[0.05] bg-white/[0.01] px-4 py-4 opacity-60"
+                  className="flex flex-col gap-2 rounded-2xl border border-subtle bg-surface-muted px-4 py-4 opacity-60"
                 >
                   {inner}
                 </div>
@@ -1134,7 +1165,7 @@ export default function CommissionerHubPageClient({
               <Trophy className="h-4 w-4 text-cyan-400" aria-hidden />
               <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/70">
                 {COPY.memberLeagues.sectionLabel}
-                <span className="ml-2 rounded-full border border-white/15 bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-bold text-white/45">
+                <span className="ml-2 rounded-full border border-subtle bg-surface-muted px-1.5 py-0.5 text-[9px] font-bold text-muted">
                   {memberLeagues.length}
                 </span>
               </p>
@@ -1144,22 +1175,22 @@ export default function CommissionerHubPageClient({
                 <Link
                   key={league.id}
                   href={`/league/${league.id}`}
-                  className="group flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 transition hover:border-cyan-500/20 hover:bg-white/[0.04]"
+                  className="group flex items-center gap-3 rounded-2xl border border-subtle bg-surface-muted p-4 transition hover:border-cyan-500/20 hover:bg-surface-hover"
                 >
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-subtle bg-surface-muted">
                     <Trophy className="h-4 w-4 text-cyan-400/50" aria-hidden />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-[14px] font-semibold text-white/80 group-hover:text-white/95">
+                    <p className="truncate text-[14px] font-semibold text-secondary group-hover:text-primary">
                       {league.name}
                     </p>
-                    <p className="mt-0.5 text-[11px] text-white/35">
+                    <p className="mt-0.5 text-[11px] text-muted">
                       {league.sport}
-                      {league.teamCount ? ` · ${league.teamCount}-team` : ''}
+                      {league.teamCount ? ` / ${league.teamCount}-team` : ''}
                     </p>
                   </div>
                   <ChevronRight
-                    className="h-4 w-4 shrink-0 text-white/20 group-hover:text-white/45"
+                    className="h-4 w-4 shrink-0 text-muted group-hover:text-muted"
                     aria-hidden
                   />
                 </Link>
@@ -1174,8 +1205,8 @@ export default function CommissionerHubPageClient({
             <Shield className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400/70" aria-hidden />
             <div>
               <p className="text-[13px] font-bold text-emerald-300/80">{COPY.trust.heading}</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-white/40">{COPY.trust.body1}</p>
-              <p className="mt-2 text-[12px] leading-relaxed text-white/30">{COPY.trust.body2}</p>
+              <p className="mt-1 text-[12px] leading-relaxed text-muted">{COPY.trust.body1}</p>
+              <p className="mt-2 text-[12px] leading-relaxed text-muted">{COPY.trust.body2}</p>
             </div>
           </div>
         </section>
