@@ -100,3 +100,35 @@ export type {
   RecommendationEngineInput,
   RecommendationEngineResult,
 } from './recommendations/types'
+
+// 6.6 — Company Intelligence Foundation
+export { assembleCompanyIntelligence, COMPANY_INTELLIGENCE_VERSION } from './company/company-intelligence'
+export type {
+  CompanyIntelligenceInput,
+  CompanyIntelligenceResult,
+  PlatformBenchmarkSummarySlice,
+  ArchetypeDistributionSlice,
+  RecommendationAggregateSlice,
+  LeagueSignalAggregateSlice,
+  PatternAggregateSlice,
+  RetentionDriverInsight,
+  ChurnRiskFactor,
+  FeatureAdoptionOpportunity,
+  CommissionerBehaviorInsight,
+  LeagueFormatEffectiveness,
+  EngagementHealthSummary,
+  CohortRecommendation,
+  MonetizationSignal,
+  DataQualityReport,
+  DataQualityDimensionCompleteness,
+  DriverStrength,
+  ChurnRiskLevel,
+  AdoptionGap,
+  CommissionerPrevalence,
+  HealthCorrelation,
+  EngagementSignal,
+  RetentionSignal,
+  CohortPriority,
+  MonetizationPotential,
+  HealthTier,
+} from './company/types'
