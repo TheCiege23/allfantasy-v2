@@ -1,8 +1,8 @@
 /**
  * Source-invariant tests for CommissionerIntelligencePreview.
  *
- * Checks the key customer-facing strings and structural contracts in
- * the component source — same pattern as import-page-provider-flow.test.ts.
+ * Verifies structural contracts, IPM builder usage, customer-facing language,
+ * and architecture rules (no local intelligence computation in the component).
  * Does not require a JSDOM environment.
  */
 
@@ -19,6 +19,8 @@ const flowSrc = fs.readFileSync(
   path.resolve(root, 'components/unified-import-ui/LeagueImportFlow.tsx'),
   'utf8',
 )
+
+// ── Structural exports ────────────────────────────────────────────────────────
 
 describe('CommissionerIntelligencePreview — component structure', () => {
   it('exports the component and payload type', () => {
@@ -40,18 +42,106 @@ describe('CommissionerIntelligencePreview — component structure', () => {
   })
 })
 
-describe('CommissionerIntelligencePreview — health score', () => {
-  it('displays a League Health Score with bar', () => {
+// ── IPM builder usage ─────────────────────────────────────────────────────────
+
+describe('CommissionerIntelligencePreview — IPM builder integration', () => {
+  it('imports buildHealthCard from the IPM presentation layer', () => {
+    expect(componentSrc).toContain('buildHealthCard')
+    expect(componentSrc).toContain("from '../../lib/decision-os/presentation/index'")
+  })
+
+  it('imports buildRetentionCard from the IPM presentation layer', () => {
+    expect(componentSrc).toContain('buildRetentionCard')
+  })
+
+  it('imports buildCommissionerCard from the IPM presentation layer', () => {
+    expect(componentSrc).toContain('buildCommissionerCard')
+  })
+
+  it('imports buildRecommendationPresentation and buildRecommendationPresentationSet', () => {
+    expect(componentSrc).toContain('buildRecommendationPresentation')
+    expect(componentSrc).toContain('buildRecommendationPresentationSet')
+  })
+
+  it('imports buildEngagementMetric and buildRetentionMetric', () => {
+    expect(componentSrc).toContain('buildEngagementMetric')
+    expect(componentSrc).toContain('buildRetentionMetric')
+  })
+
+  it('imports scoreToColorToken for health color resolution', () => {
+    expect(componentSrc).toContain('scoreToColorToken')
+  })
+
+  it('calls buildHealthCard with health score and tier label', () => {
+    expect(componentSrc).toContain('buildHealthCard(')
+    expect(componentSrc).toContain('healthCard.healthScore')
+    expect(componentSrc).toContain('healthCard.healthTier')
+  })
+
+  it('calls buildRetentionCard and renders from retentionCard', () => {
+    expect(componentSrc).toContain('buildRetentionCard(')
+    expect(componentSrc).toContain('retentionCard')
+  })
+
+  it('calls buildCommissionerCard and renders from commissionerCard', () => {
+    expect(componentSrc).toContain('buildCommissionerCard(')
+    expect(componentSrc).toContain('commissionerCard.workloadLevel')
+    expect(componentSrc).toContain('commissionerCard.workloadItems')
+  })
+
+  it('renders recommendations from IPM presentationSet.items', () => {
+    expect(componentSrc).toContain('recommendationSet.items.map(')
+    expect(componentSrc).toContain('rec.title')
+    expect(componentSrc).toContain('rec.recommendationId')
+  })
+
+  it('renders MetricCard instances from MetricPresentation IPM shapes', () => {
+    expect(componentSrc).toContain('metric.label')
+    expect(componentSrc).toContain('metric.displayValue')
+    expect(componentSrc).toContain('metric.colorToken')
+    expect(componentSrc).toContain('metric.subtext')
+  })
+})
+
+// ── No local intelligence computation ────────────────────────────────────────
+
+describe('CommissionerIntelligencePreview — no local score/severity derivation', () => {
+  it('does not contain a local deriveIntelligence() function', () => {
+    expect(componentSrc).not.toContain('function deriveIntelligence(')
+  })
+
+  it('does not define a local TIER_COLORS map', () => {
+    expect(componentSrc).not.toContain('TIER_COLORS')
+  })
+
+  it('does not define a local SENTIMENT_TEXT or SENTIMENT_DOT map', () => {
+    expect(componentSrc).not.toContain('SENTIMENT_TEXT')
+    expect(componentSrc).not.toContain('SENTIMENT_DOT')
+  })
+
+  it('does not define local Intelligence type with local health derivation', () => {
+    expect(componentSrc).not.toContain('type Intelligence = {')
+  })
+
+  it('does not compute severity inline in JSX (no ternary color chains in component body)', () => {
+    expect(componentSrc).not.toContain("healthScore >= 80 ? 'strong'")
+    expect(componentSrc).not.toContain("retentionRisk === 'Low' ? 'good'")
+    expect(componentSrc).not.toContain("managerActivity === 'Active' ? 'good'")
+  })
+
+  it('all intelligence derivation is encapsulated in the adapter (buildPreviewIpm)', () => {
+    expect(componentSrc).toContain('function buildPreviewIpm(')
+    expect(componentSrc).toContain('buildPreviewIpm(payload)')
+  })
+})
+
+// ── Health score section ──────────────────────────────────────────────────────
+
+describe('CommissionerIntelligencePreview — health score section', () => {
+  it('displays League Health Score heading with health bar testid', () => {
     expect(componentSrc).toContain('League Health Score')
     expect(componentSrc).toContain('data-testid="health-bar"')
     expect(componentSrc).toContain('/ 100')
-  })
-
-  it('maps health tier to human-readable labels', () => {
-    expect(componentSrc).toContain("strong: 'Strong'")
-    expect(componentSrc).toContain("good: 'Good'")
-    expect(componentSrc).toContain("fair: 'Fair'")
-    expect(componentSrc).toContain("poor: 'Needs work'")
   })
 
   it('derives health score with penalties for empty rosters and review required', () => {
@@ -59,10 +149,33 @@ describe('CommissionerIntelligencePreview — health score', () => {
     expect(componentSrc).toContain('canonical.reviewRequired')
     expect(componentSrc).toContain('healthScore -= 10')
   })
+
+  it('maps health score ranges to tier labels in the adapter', () => {
+    expect(componentSrc).toContain("'Strong'")
+    expect(componentSrc).toContain("'Good'")
+    expect(componentSrc).toContain("'Fair'")
+    expect(componentSrc).toContain("'Needs work'")
+  })
+
+  it('resolves health bar color from IPM scoreToColorToken, not a local tier map', () => {
+    expect(componentSrc).toContain('scoreToColorToken(healthCard.healthScore)')
+    expect(componentSrc).not.toContain('TIER_COLORS[')
+  })
 })
 
+// ── Metrics grid ──────────────────────────────────────────────────────────────
+
 describe('CommissionerIntelligencePreview — metrics grid', () => {
-  it('renders all six required metric cards', () => {
+  it('renders all six metric cards via MetricPresentation shapes', () => {
+    expect(componentSrc).toContain('retentionMetric')
+    expect(componentSrc).toContain('activityMetric')
+    expect(componentSrc).toContain('rosterMetric')
+    expect(componentSrc).toContain('tradeMetric')
+    expect(componentSrc).toContain('waiverMetric')
+    expect(componentSrc).toContain('engagementMetric')
+  })
+
+  it('metric card labels are present in the adapter', () => {
     expect(componentSrc).toContain('Retention Risk')
     expect(componentSrc).toContain('Manager Activity')
     expect(componentSrc).toContain('Roster Completeness')
@@ -81,16 +194,29 @@ describe('CommissionerIntelligencePreview — metrics grid', () => {
     expect(componentSrc).toContain('More insights unlock after league activity')
   })
 
-  it('renders progress bars for roster completeness and engagement', () => {
-    expect(componentSrc).toContain('progress={intel.rosterCoverage}')
-    expect(componentSrc).toContain('progress={intel.engagementScore}')
+  it('renders progress bar from metric.progressValue (not raw intel field)', () => {
+    expect(componentSrc).toContain('metric.progressValue')
+    expect(componentSrc).not.toContain('progress={intel.rosterCoverage}')
+    expect(componentSrc).not.toContain('progress={intel.engagementScore}')
+  })
+
+  it('MetricCard resolves colors from colorToken, not local sentiment map', () => {
+    expect(componentSrc).toContain('TOKEN_TEXT[colorToken]')
+    expect(componentSrc).toContain('TOKEN_DOT[colorToken]')
+    expect(componentSrc).not.toContain('SENTIMENT_BAR[sentiment]')
   })
 })
 
+// ── Workload and recommendations ──────────────────────────────────────────────
+
 describe('CommissionerIntelligencePreview — workload and recommendations', () => {
-  it('renders Commissioner Workload section', () => {
+  it('renders Commissioner Workload section from commissionerCard', () => {
     expect(componentSrc).toContain('Commissioner Workload')
-    expect(componentSrc).toContain('workloadLevel')
+    expect(componentSrc).toContain('commissionerCard.workloadLevel')
+    expect(componentSrc).toContain('commissionerCard.workloadItems')
+  })
+
+  it('has workload level display labels', () => {
     expect(componentSrc).toContain("'Light'")
     expect(componentSrc).toContain("'Moderate'")
     expect(componentSrc).toContain("'Heavy'")
@@ -100,12 +226,21 @@ describe('CommissionerIntelligencePreview — workload and recommendations', () 
     expect(componentSrc).toContain('No immediate action required — league is in good shape')
   })
 
-  it('renders Recommended Actions section with numbered items', () => {
+  it('renders Recommended Actions section from IPM recommendationSet', () => {
     expect(componentSrc).toContain('Recommended Actions')
-    expect(componentSrc).toContain('intel.recommendations.map')
-    expect(componentSrc).toContain('Post a weekly recap to keep managers engaged')
+    expect(componentSrc).toContain('recommendationSet.items.map(')
+  })
+
+  it('includes weekly_recap recommendation category in adapter', () => {
+    expect(componentSrc).toContain('weekly_recap')
+  })
+
+  it('includes retention_intervention recommendation category for at-risk managers', () => {
+    expect(componentSrc).toContain('retention_intervention')
   })
 })
+
+// ── CTAs and graceful degradation ─────────────────────────────────────────────
 
 describe('CommissionerIntelligencePreview — CTAs and graceful degradation', () => {
   it('has Continue to import and Back buttons', () => {
@@ -120,7 +255,7 @@ describe('CommissionerIntelligencePreview — CTAs and graceful degradation', ()
     expect(componentSrc).toContain('More insights unlock after league activity is available.')
   })
 
-  it('uses no backend/internal terminology', () => {
+  it('uses no backend or internal architecture terminology', () => {
     expect(componentSrc).not.toContain('Canonical World')
     expect(componentSrc).not.toContain('Decision OS')
     expect(componentSrc).not.toContain('shadow')
@@ -129,6 +264,28 @@ describe('CommissionerIntelligencePreview — CTAs and graceful degradation', ()
     expect(componentSrc).not.toContain('canonicalBridge')
   })
 })
+
+// ── Color token resolution ────────────────────────────────────────────────────
+
+describe('CommissionerIntelligencePreview — color token resolution', () => {
+  it('has a TOKEN_TEXT map resolving ColorTokens to Tailwind text classes', () => {
+    expect(componentSrc).toContain('TOKEN_TEXT')
+    expect(componentSrc).toContain("text-emerald-400")
+    expect(componentSrc).toContain("text-amber-400")
+    expect(componentSrc).toContain("text-red-400")
+  })
+
+  it('has a TOKEN_DOT and TOKEN_PROGRESS map for indicator colors', () => {
+    expect(componentSrc).toContain('TOKEN_DOT')
+    expect(componentSrc).toContain('TOKEN_PROGRESS')
+  })
+
+  it('has a WORKLOAD_DISPLAY lookup for workload level labels', () => {
+    expect(componentSrc).toContain('WORKLOAD_DISPLAY')
+  })
+})
+
+// ── LeagueImportFlow integration ──────────────────────────────────────────────
 
 describe('LeagueImportFlow — intelligence modal integration', () => {
   it('imports CommissionerIntelligencePreview', () => {
