@@ -119,3 +119,43 @@ export {
   buildEnterpriseExtension,
 } from './config'
 export type { SDKConfigValidationResult } from './config'
+
+// ── Partner onboarding (Phase 7.19) ────────────────────────────────────────────
+export { PARTNER_ONBOARDING_VERSION, ALL_PARTNER_STATUSES } from './partner-types'
+export type {
+  PartnerStatus,
+  PartnerProfile,
+  PartnerAllowedOrigins,
+  PartnerApiKeyEnvironment,
+  PartnerApiKeyStatus,
+  PartnerApiKeyMetadata,
+  PartnerEmbedPermissions,
+  PartnerPrivacyPreferences,
+  PartnerBrandingConfig,
+  PartnerTenantConfig,
+} from './partner-types'
+
+export {
+  isValidPartnerOriginFormat,
+  isValidApiKeyPrefixFormat,
+  validatePartnerProfile,
+  validateApiKeyMetadata,
+  validatePartnerTenantConfig,
+} from './partner-validation'
+export type { PartnerValidationResult } from './partner-validation'
+
+export {
+  WIDGET_MODE_MIN_TIER,
+  isWidgetModeAllowedForTier,
+  isWidgetModeAllowedForPartner,
+  isEmbedTargetAllowedForPartner,
+  resolveDefaultWidgetCatalog,
+  RATE_LIMIT_PER_MINUTE_BY_TIER,
+  resolveRateLimitPerMinute,
+  resolveEffectivePartnerPrivacySettings,
+} from './partner-permissions'
+
+export { normalizePartnerBranding } from './partner-theme'
+export type { PartnerThemeNormalizationResult } from './partner-theme'
+
+export { SANDBOX_PARTNER_TENANT_CONFIG, ENTERPRISE_PARTNER_TENANT_CONFIG } from './partner-fixtures'
