@@ -136,6 +136,7 @@ export type {
 } from './partner-types'
 
 export {
+  ALL_LICENSE_TIERS,
   isValidPartnerOriginFormat,
   isValidApiKeyPrefixFormat,
   validatePartnerProfile,

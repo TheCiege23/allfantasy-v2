@@ -10,7 +10,8 @@ import type { SDKLicenseTier } from './types'
 import { ALL_PARTNER_STATUSES } from './partner-types'
 import type { PartnerApiKeyMetadata, PartnerProfile, PartnerTenantConfig } from './partner-types'
 
-const VALID_LICENSE_TIERS: readonly SDKLicenseTier[] = ['standard', 'premium', 'enterprise']
+export const ALL_LICENSE_TIERS: readonly SDKLicenseTier[] = ['standard', 'premium', 'enterprise']
+const VALID_LICENSE_TIERS = ALL_LICENSE_TIERS
 
 export interface PartnerValidationResult {
   valid: boolean
