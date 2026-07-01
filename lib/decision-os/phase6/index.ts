@@ -21,6 +21,18 @@ export type {
   CommissionerWorkloadInput,
 } from './archetypes/types'
 
+// 6.1 — Behavioral Patterns
+export { detectBehavioralPatterns, PATTERN_VERSION } from './patterns/patterns'
+export type {
+  BehavioralPatternLabel,
+  PatternConfidence,
+  EvidenceWindow,
+  DetectedPattern,
+  ManagerPatternGroup,
+  BehavioralPatternInput,
+  BehavioralPatternResult,
+} from './patterns/types'
+
 // 6.5 — Platform Benchmarking
 export { assemblePlatformBenchmark, BENCHMARK_VERSION } from './benchmark/benchmark'
 export type {
