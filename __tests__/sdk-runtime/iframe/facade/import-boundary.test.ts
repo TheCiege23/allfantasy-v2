@@ -6,18 +6,21 @@ import { hasInternalLeakage } from '../../../../lib/decision-os/sdk/privacy'
 /**
  * Architecture regression suite for `sdk-runtime/iframe/src/facade`.
  *
- * Same posture as the browser layer (DOM access expected here — this is the
- * layer that CALLS mountIframeWidget), with the same non-negotiables:
+ * Covers both the host facade (Phase 7.12) and the child facade
+ * (Phase 7.13). Same posture as the browser layer (DOM access expected here
+ * — this is the layer that calls mountIframeWidget / createBrowserWindowBridge),
+ * with the same non-negotiables:
  *   - allowed imports: local modules, sibling files one level up (the
  *     Phase 7.9/7.10 contract/bootstrap layer + the Phase 7.11 browser
  *     bridge), lib/decision-os/sdk, lib/decision-os/presentation
  *   - forbidden: lib/decision-os/behavioral/*, lib/decision-os/world/*,
  *     Prisma, sdk-runtime/react (adapters never depend on other adapters —
- *     "Keeps React adapter independent" is an explicit Phase 7.12 requirement)
+ *     "Keeps React adapter independent" is an explicit Phase 7.12/7.13
+ *     requirement)
  *   - no internal Decision OS terminology outside of import paths
  *   - no database write operations
- *   - never reads sdkConfig.auth directly in the facade (must always route
- *     credential-bearing config through buildInitPayloadFromSdkConfig)
+ *   - never reads sdkConfig.auth directly in the host facade (must always
+ *     route credential-bearing config through buildInitPayloadFromSdkConfig)
  */
 
 const stripComments = (src: string) =>
@@ -28,6 +31,8 @@ const read = (rel: string) => stripComments(readFileSync(resolve(process.cwd(), 
 const FACADE_FILES = [
   'sdk-runtime/iframe/src/facade/types.ts',
   'sdk-runtime/iframe/src/facade/widgetHost.ts',
+  'sdk-runtime/iframe/src/facade/iframeClientTypes.ts',
+  'sdk-runtime/iframe/src/facade/widgetIframeClient.ts',
   'sdk-runtime/iframe/src/facade/index.ts',
 ].map((p) => [p, read(p)] as const)
 
