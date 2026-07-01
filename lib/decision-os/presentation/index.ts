@@ -226,3 +226,33 @@ export {
   getWhiteLabelConfig,
   isSectionVisible,
 } from './white-label'
+
+// ── Widget contract foundation (Phase 7.3) ────────────────────────────────────
+export { WIDGET_CONTRACT_VERSION } from './widget-contracts'
+export type {
+  WidgetMode,
+  WidgetSection,
+  WidgetApiEndpoint,
+  WidgetBreakpoint,
+  WidgetLayoutHints,
+  WidgetPrivacyRestrictions,
+  WidgetFeatureFlags,
+  WidgetTenantConfig,
+  WidgetConfig,
+  WidgetApiCall,
+  WidgetValidationResult,
+  WidgetTelemetryEventType,
+  WidgetTelemetryEvent,
+  WidgetDegradedReason,
+  WidgetDegradedState,
+} from './widget-contracts'
+export {
+  validateWidgetConfig,
+  mapWidgetModeToApiCall,
+  resolveAllowedSections,
+  filterSectionsByTier,
+  resolveWidgetLayoutHints,
+  resolveWidgetPrivacyRestrictions,
+  buildWidgetDegradedState,
+  buildWidgetTelemetryEvent,
+} from './widget-contracts'
