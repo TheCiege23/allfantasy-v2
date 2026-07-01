@@ -1,12 +1,11 @@
 /**
- * Decision OS — Phase 7.9 Widget Runtime Iframe Adapter.
+ * Decision OS — Widget Runtime Iframe Adapter.
  *
- * A versioned postMessage contract for embedding an AllFantasy intelligence
- * widget via iframe — types, config validation, message builders/validators,
- * origin checks, and sandbox/CSP recommendations. Contract only: no
- * `window.postMessage`, no `window.addEventListener`, no real `<iframe>`
- * element (a future runtime ticket implements the actual bootstrap using
- * these contracts).
+ * A versioned postMessage contract (Phase 7.9) for embedding an AllFantasy
+ * intelligence widget via iframe, plus the DOM-wiring runtime (Phase 7.10)
+ * that uses it — host/client bootstraps, validated message listeners, and a
+ * safe postMessage wrapper. No global `window`/`document` reference anywhere
+ * in this package; every function/class takes an injected `WindowLike`.
  */
 
 // ── Types ─────────────────────────────────────────────────────────────────────
@@ -74,3 +73,19 @@ export {
 
 // ── Lifecycle / error mapping ─────────────────────────────────────────────────
 export { mapLifecycleToIframeState, mapErrorToIframePayload } from './lifecycleMapping'
+
+// ── Window-like contracts (Phase 7.10) ────────────────────────────────────────
+export type { MessageEventLike, WindowMessageListener, WindowLike } from './windowLike'
+
+// ── Safe postMessage wrapper (Phase 7.10) ─────────────────────────────────────
+export { safePostMessage } from './postMessageSafety'
+
+// ── Validated message listeners (Phase 7.10) ──────────────────────────────────
+export type { MessageRejectionReason, MessageListenerConfig } from './messageListener'
+export { createMessageListener, createParentWindowListener, createChildWindowListener } from './messageListener'
+
+// ── Host / client bootstraps (Phase 7.10) ─────────────────────────────────────
+export type { IframeHostDeps } from './iframeHost'
+export { IframeHostBootstrap } from './iframeHost'
+export type { IframeClientDeps } from './iframeClient'
+export { IframeClientBootstrap } from './iframeClient'

@@ -6,7 +6,7 @@ import { hasInternalLeakage } from '../../../lib/decision-os/sdk/privacy'
 /**
  * Architecture regression suite for `sdk-runtime/iframe`.
  *
- * Enforces the Phase 7.9 ticket's boundaries STRUCTURALLY:
+ * Enforces the Phase 7.9/7.10 boundaries STRUCTURALLY:
  *   - allowed imports: local modules, the frozen lib/decision-os/sdk and
  *     lib/decision-os/presentation contract layers
  *   - forbidden: lib/decision-os/behavioral/* (Phase 5/6 internals),
@@ -14,8 +14,10 @@ import { hasInternalLeakage } from '../../../lib/decision-os/sdk/privacy'
  *     never depend on other adapters
  *     (PHASE_7_5_WIDGET_RUNTIME_BOUNDARY_ADR.md decision D2)
  *   - no internal Decision OS terminology outside of import paths
- *   - no bare `window`/`document`/`postMessage` calls — this ticket is
- *     contract-only, no runtime DOM wiring yet
+ *   - no unguarded global `window`/`document` reference anywhere — every
+ *     Phase 7.10 send/listen path takes an injected WindowLike instead
+ *   - every outbound send in iframeHost.ts/iframeClient.ts routes through
+ *     the safePostMessage wrapper — never a raw `.postMessage()` call
  */
 
 const stripComments = (src: string) =>
@@ -30,6 +32,11 @@ const IFRAME_FILES = [
   'sdk-runtime/iframe/src/lifecycleMapping.ts',
   'sdk-runtime/iframe/src/protocol.ts',
   'sdk-runtime/iframe/src/config.ts',
+  'sdk-runtime/iframe/src/windowLike.ts',
+  'sdk-runtime/iframe/src/postMessageSafety.ts',
+  'sdk-runtime/iframe/src/messageListener.ts',
+  'sdk-runtime/iframe/src/iframeHost.ts',
+  'sdk-runtime/iframe/src/iframeClient.ts',
   'sdk-runtime/iframe/src/index.ts',
 ].map((p) => [p, read(p)] as const)
 
@@ -144,6 +151,30 @@ describe('architecture: sdk-runtime/iframe import boundary', () => {
     for (const [path, src] of IFRAME_FILES) {
       expect(`${path}: window reference = ${/\bwindow\./.test(src)}`).toBe(`${path}: window reference = false`)
       expect(`${path}: document reference = ${/\bdocument\./.test(src)}`).toBe(`${path}: document reference = false`)
+    }
+  })
+
+  it('iframeHost.ts and iframeClient.ts never call .postMessage() directly — only through the safePostMessage wrapper', () => {
+    const directMethodCall = /\.postMessage\(/
+    const files = IFRAME_FILES.filter(([p]) => p.endsWith('iframeHost.ts') || p.endsWith('iframeClient.ts'))
+    expect(files).toHaveLength(2)
+    for (const [path, src] of files) {
+      expect(`${path}: direct .postMessage() call present = ${directMethodCall.test(src)}`).toBe(
+        `${path}: direct .postMessage() call present = false`,
+      )
+      expect(`${path}: uses safePostMessage = ${/safePostMessage\(/.test(src)}`).toBe(
+        `${path}: uses safePostMessage = true`,
+      )
+    }
+  })
+
+  it('postMessageSafety.ts is the only file that calls .postMessage() directly', () => {
+    const directMethodCall = /\.postMessage\(/
+    for (const [path, src] of IFRAME_FILES) {
+      const isTheWrapperItself = path.endsWith('postMessageSafety.ts')
+      expect(`${path}: direct call = ${directMethodCall.test(src)}, isWrapper = ${isTheWrapperItself}`).toBe(
+        `${path}: direct call = ${isTheWrapperItself}, isWrapper = ${isTheWrapperItself}`,
+      )
     }
   })
 })
