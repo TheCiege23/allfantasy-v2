@@ -66,7 +66,7 @@ export function buildParentToChildMessage<T extends ParentToChildMessageType>(
   nonce: string,
   payload: ParentToChildPayloadMap[T],
   opts: { timestamp?: string } = {},
-): ParentToChildMessage<T> {
+): Extract<ParentToChildMessage, { type: T }> {
   return {
     direction: 'parent_to_child',
     type,
@@ -75,7 +75,7 @@ export function buildParentToChildMessage<T extends ParentToChildMessageType>(
     widgetId,
     timestamp: opts.timestamp ?? new Date().toISOString(),
     payload,
-  }
+  } as Extract<ParentToChildMessage, { type: T }>
 }
 
 export function buildChildToParentMessage<T extends ChildToParentMessageType>(
@@ -84,7 +84,7 @@ export function buildChildToParentMessage<T extends ChildToParentMessageType>(
   nonce: string,
   payload: ChildToParentPayloadMap[T],
   opts: { timestamp?: string } = {},
-): ChildToParentMessage<T> {
+): Extract<ChildToParentMessage, { type: T }> {
   return {
     direction: 'child_to_parent',
     type,
@@ -93,7 +93,7 @@ export function buildChildToParentMessage<T extends ChildToParentMessageType>(
     widgetId,
     timestamp: opts.timestamp ?? new Date().toISOString(),
     payload,
-  }
+  } as Extract<ChildToParentMessage, { type: T }>
 }
 
 // ── Structural payload checks (per message type) ──────────────────────────────

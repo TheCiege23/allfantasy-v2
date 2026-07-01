@@ -134,7 +134,7 @@ describe('end-to-end: host ↔ client', () => {
     client.sendResize(640)
     await flush()
 
-    expect((receivedByHost[0] as ChildToParentMessage<'resize'>).payload.heightPx).toBe(640)
+    expect((receivedByHost[0] as Extract<ChildToParentMessage, { type: 'resize' }>).payload.heightPx).toBe(640)
 
     host.dispose()
     client.dispose()
@@ -151,7 +151,7 @@ describe('end-to-end: host ↔ client', () => {
     client.sendInteraction('cta_upgrade')
     await flush()
 
-    expect((receivedByHost[0] as ChildToParentMessage<'interaction'>).payload.target).toBe('cta_upgrade')
+    expect((receivedByHost[0] as Extract<ChildToParentMessage, { type: 'interaction' }>).payload.target).toBe('cta_upgrade')
 
     host.dispose()
     client.dispose()
@@ -168,7 +168,7 @@ describe('end-to-end: host ↔ client', () => {
     client.sendError(buildSDKError('RATE_LIMITED'))
     await flush()
 
-    const payload = (receivedByHost[0] as ChildToParentMessage<'error'>).payload
+    const payload = (receivedByHost[0] as Extract<ChildToParentMessage, { type: 'error' }>).payload
     expect(payload.code).toBe('RATE_LIMITED')
     expect(payload.retryable).toBe(true)
 

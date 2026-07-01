@@ -116,12 +116,19 @@ export type ParentToChildPayloadMap = {
   dispose: IframeDisposePayload
 }
 
-export interface ParentToChildMessage<T extends ParentToChildMessageType = ParentToChildMessageType>
-  extends MessageEnvelopeBase {
-  direction: 'parent_to_child'
-  type: T
-  payload: ParentToChildPayloadMap[T]
-}
+/**
+ * A genuine discriminated union (not a generic interface with a default type
+ * param) — built by distributing over ParentToChildMessageType so that
+ * narrowing on `.type` in a switch/if correctly narrows `.payload` too. Use
+ * `Extract<ParentToChildMessage, { type: 'init' }>` to select one variant.
+ */
+export type ParentToChildMessage = {
+  [K in ParentToChildMessageType]: MessageEnvelopeBase & {
+    direction: 'parent_to_child'
+    type: K
+    payload: ParentToChildPayloadMap[K]
+  }
+}[ParentToChildMessageType]
 
 // ── Child → Parent (iframe → host page) ───────────────────────────────────────
 
@@ -172,12 +179,19 @@ export type ChildToParentPayloadMap = {
   resize: IframeResizePayload
 }
 
-export interface ChildToParentMessage<T extends ChildToParentMessageType = ChildToParentMessageType>
-  extends MessageEnvelopeBase {
-  direction: 'child_to_parent'
-  type: T
-  payload: ChildToParentPayloadMap[T]
-}
+/**
+ * A genuine discriminated union (not a generic interface with a default type
+ * param) — built by distributing over ChildToParentMessageType so that
+ * narrowing on `.type` in a switch/if correctly narrows `.payload` too. Use
+ * `Extract<ChildToParentMessage, { type: 'ready' }>` to select one variant.
+ */
+export type ChildToParentMessage = {
+  [K in ChildToParentMessageType]: MessageEnvelopeBase & {
+    direction: 'child_to_parent'
+    type: K
+    payload: ChildToParentPayloadMap[K]
+  }
+}[ChildToParentMessageType]
 
 export type IframeMessage = ParentToChildMessage | ChildToParentMessage
 

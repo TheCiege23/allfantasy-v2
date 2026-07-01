@@ -117,7 +117,7 @@ describe('IframeHostBootstrap — receives (onChildMessage)', () => {
     const message = buildChildToParentMessage('resize', WIDGET_ID, NONCE, { heightPx: 480 })
     parent.listeners[0]({ data: message, origin: CHILD_ORIGIN })
     expect(received[0].type).toBe('resize')
-    expect((received[0] as ChildToParentMessage<'resize'>).payload.heightPx).toBe(480)
+    expect((received[0] as Extract<ChildToParentMessage, { type: 'resize' }>).payload.heightPx).toBe(480)
   })
 
   it('interaction event is deliverable end-to-end via onChildMessage', () => {
