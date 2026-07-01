@@ -1,7 +1,7 @@
 /**
  * Decision OS — Phase 6: Decision Intelligence Layer.
  *
- * Entry point for all Phase 6 exports. Sub-phases 6.5, 6.1, 6.2, 6.4, 6.6
+ * Entry point for all Phase 6 exports. Sub-phases 6.1, 6.2, 6.4, 6.6
  * will add their exports here as they are built.
  */
 
@@ -20,3 +20,19 @@ export type {
   RetentionRiskInput,
   CommissionerWorkloadInput,
 } from './archetypes/types'
+
+// 6.5 — Platform Benchmarking
+export { assemblePlatformBenchmark, BENCHMARK_VERSION } from './benchmark/benchmark'
+export type {
+  LeagueSignalInput,
+  TaggedArchetypeResult,
+  DimensionPercentileRank,
+  LeagueBenchmarkResult,
+  ArchetypeCohortStats,
+  PlatformRankSignal,
+  PlatformBenchmarkStats,
+  PlatformBenchmarkResult,
+  BenchmarkRiskLevel,
+  BenchmarkWorkloadLevel,
+  BenchmarkActivityInput,
+} from './benchmark/types'
