@@ -37,6 +37,7 @@ const IFRAME_FILES = [
   'sdk-runtime/iframe/src/messageListener.ts',
   'sdk-runtime/iframe/src/iframeHost.ts',
   'sdk-runtime/iframe/src/iframeClient.ts',
+  'sdk-runtime/iframe/src/urlHandshake.ts',
   'sdk-runtime/iframe/src/index.ts',
 ].map((p) => [p, read(p)] as const)
 

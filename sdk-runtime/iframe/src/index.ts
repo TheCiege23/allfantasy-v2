@@ -89,3 +89,16 @@ export type { IframeHostDeps } from './iframeHost'
 export { IframeHostBootstrap } from './iframeHost'
 export type { IframeClientDeps } from './iframeClient'
 export { IframeClientBootstrap } from './iframeClient'
+
+// ── URL handshake (Phase 7.14) ────────────────────────────────────────────────
+export type {
+  IframeWidgetUrlParams,
+  BuildIframeWidgetUrlOptions,
+  ParseIframeWidgetUrlParamsResult,
+} from './urlHandshake'
+export {
+  URL_HANDSHAKE_PARAM_NAMES,
+  isValidWidgetIdFormat,
+  buildIframeWidgetUrl,
+  parseIframeWidgetUrlParams,
+} from './urlHandshake'

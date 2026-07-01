@@ -33,6 +33,7 @@ const FACADE_FILES = [
   'sdk-runtime/iframe/src/facade/widgetHost.ts',
   'sdk-runtime/iframe/src/facade/iframeClientTypes.ts',
   'sdk-runtime/iframe/src/facade/widgetIframeClient.ts',
+  'sdk-runtime/iframe/src/facade/widgetIframeClientFromUrl.ts',
   'sdk-runtime/iframe/src/facade/index.ts',
 ].map((p) => [p, read(p)] as const)
 

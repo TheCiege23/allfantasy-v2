@@ -34,8 +34,14 @@ export interface AllFantasyWidgetHostConfig extends AllFantasyWidgetHostCallback
   iframeOrigin: string
   /** Explicit allowlist of partner origins permitted to embed this widget instance. */
   allowedOrigins: readonly string[]
-  /** The iframe's src URL — its origin must exactly equal `iframeOrigin`. Never carries a raw API key; a short-lived signed token, if needed, is the caller's concern when building this URL. */
-  src: string
+  /**
+   * The iframe content's own base URL, WITHOUT the handshake query params —
+   * its origin must exactly equal `iframeOrigin`. Never carries a raw API
+   * key; a short-lived signed token, if needed, is the caller's concern
+   * when building this URL. `mount()` appends the widgetId/nonce/parentOrigin
+   * handshake params (Phase 7.14, `buildIframeWidgetUrl`) on top of this.
+   */
+  baseSrc: string
   /** Injectable for tests; defaults to the real global `document`. */
   document?: DocumentSource
   /** Injectable for tests; defaults to the real global `window`. */

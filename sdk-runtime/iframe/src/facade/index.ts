@@ -26,3 +26,6 @@ export type {
 } from './iframeClientTypes'
 
 export { createAllFantasyWidgetIframeClient } from './widgetIframeClient'
+
+export type { AllFantasyWidgetIframeClientFromUrlConfig } from './widgetIframeClientFromUrl'
+export { createAllFantasyWidgetIframeClientFromUrl } from './widgetIframeClientFromUrl'

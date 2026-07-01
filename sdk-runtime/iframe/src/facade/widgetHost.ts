@@ -14,6 +14,7 @@ import { mountIframeWidget } from '../browser/mount'
 import type { MountedIframeWidget } from '../browser/mount'
 import { generateNonce } from '../browser/nonce'
 import { buildInitPayloadFromSdkConfig } from '../protocol'
+import { buildIframeWidgetUrl } from '../urlHandshake'
 import type { ChildToParentMessage } from '../types'
 import type { AllFantasyWidgetHost, AllFantasyWidgetHostConfig } from './types'
 
@@ -72,9 +73,20 @@ export function createAllFantasyWidgetHost(config: AllFantasyWidgetHostConfig): 
       }
 
       const nonce = generateNonce(config.randomSource)
+      // Phase 7.14: the handshake params travel to the child via the
+      // iframe's own src URL — the child facade parses them back out once
+      // it starts running. Appending them here doesn't change the URL's
+      // origin, so mountIframeWidget's own origin check still applies to
+      // config.baseSrc's origin correctly.
+      const finalSrc = buildIframeWidgetUrl({
+        baseSrc: config.baseSrc,
+        widgetId,
+        nonce,
+        parentOrigin: config.sdkConfig.hostOrigin,
+      })
       mounted = mountIframeWidget({
         container,
-        src: config.src,
+        src: finalSrc,
         childOrigin: config.iframeOrigin,
         widgetId,
         nonce,

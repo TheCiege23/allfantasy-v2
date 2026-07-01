@@ -5,14 +5,14 @@ import type { DocumentSource } from '../../../../sdk-runtime/iframe/src/browser/
 import type { BrowserWindowSource } from '../../../../sdk-runtime/iframe/src/browser/windowBridge'
 import { generateNonce } from '../../../../sdk-runtime/iframe/src/browser/nonce'
 import type { RandomSource } from '../../../../sdk-runtime/iframe/src/browser/nonce'
-import { buildChildToParentMessage, IFRAME_SANDBOX_ATTRIBUTE } from '../../../../sdk-runtime/iframe/src/index'
+import { buildChildToParentMessage, IFRAME_SANDBOX_ATTRIBUTE, parseIframeWidgetUrlParams } from '../../../../sdk-runtime/iframe/src/index'
 import type { MessageRejectionReason } from '../../../../sdk-runtime/iframe/src/index'
 import { resolveSDKTheme, resolveRefreshStrategy, SDK_VERSION } from '../../../../lib/decision-os/sdk/index'
 import type { SDKConfig } from '../../../../lib/decision-os/sdk/types'
 
 const CHILD_ORIGIN = 'https://widgets.allfantasy.app'
 const HOST_ORIGIN = 'https://partner.example.com'
-const SRC = 'https://widgets.allfantasy.app/embed?widget=league_001'
+const SRC = 'https://widgets.allfantasy.app/embed'
 const SECRET = 'tok_facade_test_secret_leak_check'
 const WIDGET_ID = 'widget_league_001_commissioner'
 
@@ -100,7 +100,7 @@ function makeConfig(overrides: Partial<AllFantasyWidgetHostConfig> = {}): AllFan
     sdkConfig: makeSdkConfig(),
     iframeOrigin: CHILD_ORIGIN,
     allowedOrigins: [HOST_ORIGIN],
-    src: SRC,
+    baseSrc: SRC,
     randomSource: makeFixedRandomSource(7),
     ...overrides,
   }
@@ -141,11 +141,30 @@ function deliverToChild(parentWindowMock: ReturnType<typeof makeMockContentWindo
 // ── Mount ─────────────────────────────────────────────────────────────────────
 
 describe('createAllFantasyWidgetHost — mount', () => {
-  it('creates an iframe with the correct src and sandbox attribute, appended to the container', () => {
-    const { element, attrs, container } = mountedHost()
-    expect(element.src).toBe(SRC)
+  it('creates an iframe whose src is baseSrc plus the Phase 7.14 handshake params, with the sandbox attribute, appended to the container', () => {
+    const { element, attrs, container, nonce } = mountedHost()
+
+    expect(element.src.startsWith(`${SRC}?`)).toBe(true)
+    const query = element.src.slice(SRC.length + 1)
+    const parsed = parseIframeWidgetUrlParams(query)
+    expect(parsed.ok).toBe(true)
+    if (parsed.ok) {
+      expect(parsed.params.widgetId).toBe(WIDGET_ID)
+      expect(parsed.params.nonce).toBe(nonce)
+      expect(parsed.params.parentOrigin).toBe(HOST_ORIGIN)
+    }
+
     expect(attrs.get('sandbox')).toBe(IFRAME_SANDBOX_ATTRIBUTE)
     expect(container.children).toEqual([element])
+  })
+
+  it('appends handshake params with "&" when baseSrc already has a query string', () => {
+    const baseSrcWithQuery = `${SRC}?theme=dark`
+    const { element } = mountedHost({ baseSrc: baseSrcWithQuery })
+
+    expect(element.src.startsWith(`${baseSrcWithQuery}&`)).toBe(true)
+    const query = element.src.slice(baseSrcWithQuery.length + 1)
+    expect(parseIframeWidgetUrlParams(query).ok).toBe(true)
   })
 
   it('isMounted is false before mount and true after', () => {
@@ -207,12 +226,12 @@ describe('createAllFantasyWidgetHost — invalid config', () => {
 // ── Origin mismatch ────────────────────────────────────────────────────────────
 
 describe('createAllFantasyWidgetHost — origin mismatch', () => {
-  it('mount() throws when src origin does not match iframeOrigin', () => {
+  it('mount() throws when baseSrc origin does not match iframeOrigin', () => {
     const contentWindow = makeMockContentWindow()
     const { element } = makeMockIframeElement(contentWindow.source)
     const doc = makeMockDocument(element)
     const widgetHost = createAllFantasyWidgetHost(makeConfig({
-      src: 'https://evil.example.com/embed', document: doc, parentWindow: makeMockParentWindow(),
+      baseSrc: 'https://evil.example.com/embed', document: doc, parentWindow: makeMockParentWindow(),
     }))
     expect(() => widgetHost.mount(makeMockContainer())).toThrow(/does not match expected childOrigin/)
   })
