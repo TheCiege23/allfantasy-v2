@@ -23,6 +23,7 @@ const CORE_FILES = [
   'sdk-runtime/core/src/authPreCheck.ts',
   'sdk-runtime/core/src/lifecycleController.ts',
   'sdk-runtime/core/src/errorMapper.ts',
+  'sdk-runtime/core/src/refreshEngine.ts',
   'sdk-runtime/core/src/index.ts',
 ].map((p) => [p, read(p)] as const)
 
@@ -107,6 +108,34 @@ describe('architecture: sdk-runtime/core import boundary', () => {
     }
   })
 
+  it('no file calls a bare global setTimeout()/setInterval() — all timers go through the injected RuntimeClock', () => {
+    // types.ts is excluded: it only DECLARES the RuntimeClock interface's
+    // `setTimeout(...)` method signature (the contract implementors fulfill),
+    // never CALLS a global timer — a legitimate declaration, not a violation.
+    const bareSetTimeout = /(?<![\w.])setTimeout\(/
+    const bareSetInterval = /(?<![\w.])setInterval\(/
+    for (const [path, src] of CORE_FILES) {
+      if (path.endsWith('types.ts')) continue
+      expect(`${path}: bare setTimeout() call present = ${bareSetTimeout.test(src)}`).toBe(
+        `${path}: bare setTimeout() call present = false`,
+      )
+      expect(`${path}: bare setInterval() call present = ${bareSetInterval.test(src)}`).toBe(
+        `${path}: bare setInterval() call present = false`,
+      )
+    }
+  })
+
+  it('the bare-timer guard actually catches a violation but allows clock.setTimeout (positive control)', () => {
+    const bareSetTimeout = /(?<![\w.])setTimeout\(/
+    const bareSetInterval = /(?<![\w.])setInterval\(/
+    const offendingTimeout = 'const handle = setTimeout(callback, 1000)'
+    const offendingInterval = 'const handle = setInterval(callback, 1000)'
+    const allowed = 'const handle = this.deps.clock.setTimeout(callback, delayMs)'
+    expect(bareSetTimeout.test(offendingTimeout)).toBe(true)
+    expect(bareSetInterval.test(offendingInterval)).toBe(true)
+    expect(bareSetTimeout.test(allowed)).toBe(false)
+  })
+
   it('no file references DOM globals (window, document)', () => {
     for (const [path, src] of CORE_FILES) {
       expect(`${path}: window reference = ${/\bwindow\./.test(src)}`).toBe(`${path}: window reference = false`)
@@ -132,8 +161,12 @@ describe('architecture: sdk-runtime/core import boundary', () => {
     expect(bareFetchCall.test(allowed)).toBe(false)
   })
 
-  it('no file performs a write operation (create/update/upsert/delete)', () => {
-    const writeOp = /\.(create|update|upsert|delete|createMany|updateMany|deleteMany)\(/
+  it('no file performs a database write operation (create/update/upsert/createMany/updateMany/deleteMany)', () => {
+    // Bare "delete" is deliberately excluded: Map/Set.delete() is a legitimate
+    // built-in used by refreshEngine.ts's timer bookkeeping and collides with
+    // the token; the Prisma-flavored variants below are distinctive enough
+    // not to collide with standard-library collection methods.
+    const writeOp = /\.(create|update|upsert|createMany|updateMany|deleteMany)\(/
     for (const [path, src] of CORE_FILES) {
       expect(`${path}: write op present = ${writeOp.test(src)}`).toBe(`${path}: write op present = false`)
     }

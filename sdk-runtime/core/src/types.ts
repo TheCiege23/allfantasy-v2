@@ -103,3 +103,18 @@ export interface AuthPreCheckFailure {
 }
 
 export type AuthPreCheckResult = AuthPreCheckSuccess | AuthPreCheckFailure
+
+// ── Injected clock (Phase 7.7 refresh engine) ──────────────────────────────────
+// Core never calls global `setTimeout`/`setInterval`/`Date.now` directly — every
+// timer and every "current time" read goes through this injected abstraction,
+// so refresh behavior is deterministic and testable with a fake clock.
+
+/** Opaque handle returned by RuntimeClock.setTimeout; core never inspects it. */
+export type RuntimeTimerHandle = unknown
+
+export interface RuntimeClock {
+  /** Current time in epoch milliseconds. */
+  now(): number
+  setTimeout(callback: () => void, delayMs: number): RuntimeTimerHandle
+  clearTimeout(handle: RuntimeTimerHandle): void
+}
