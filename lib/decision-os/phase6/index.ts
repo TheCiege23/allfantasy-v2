@@ -70,3 +70,33 @@ export type {
   BenchmarkWorkloadLevel,
   BenchmarkActivityInput,
 } from './benchmark/types'
+
+// 6.4 — Recommendation Engine
+export {
+  assembleManagerRecommendations,
+  assembleCommissionerRecommendations,
+  assemblePlatformRecommendations,
+  assembleRecommendations,
+  RECOMMENDATION_VERSION,
+} from './recommendations/recommendations'
+export type {
+  RecommendationTier,
+  RecommendationCategory,
+  RecommendationPriority,
+  RecommendationSeverity,
+  RecommendationConfidence,
+  RecommendedAction,
+  Recommendation,
+  RecommendationSet,
+  DetectedPatternSlice,
+  BenchmarkDimensionSlice,
+  LeagueBenchmarkSlice,
+  ManagerIdentitySlice,
+  ManagerRecommendationInput,
+  LeagueArchetypeSlice,
+  LeagueSignalsSlice,
+  CommissionerRecommendationInput,
+  PlatformRecommendationInput,
+  RecommendationEngineInput,
+  RecommendationEngineResult,
+} from './recommendations/types'
