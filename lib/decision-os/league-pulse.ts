@@ -78,6 +78,13 @@ export type LeaguePulseTeamInput = {
 type BuildDashboardLeaguePulseInput = {
   connectedLeagues: LeaguePulseLeagueInput[]
   entryCount?: number
+  /**
+   * Optional real Phase 6.2 Manager DNA for the selected league (Phase 8.3
+   * dashboard unification). Surfaced as an extra evidence row only — never
+   * re-derived. Omitted or null preserves the exact prior evidence/derivation
+   * output (same additive pattern as buildLeagueHomePulse/buildCommissionerLeaguePulse).
+   */
+  managerDna?: ManagerDnaProfile | null
   now?: Date
 }
 
@@ -166,6 +173,7 @@ function emptyPulse(now: Date, title: string, nextHref: string): LeaguePulseView
 export function buildDashboardLeaguePulse({
   connectedLeagues,
   entryCount = 0,
+  managerDna = null,
   now = DEFAULT_NOW(),
 }: BuildDashboardLeaguePulseInput): LeaguePulseViewModel {
   if (connectedLeagues.length === 0) {
@@ -190,13 +198,23 @@ export function buildDashboardLeaguePulse({
       missingDraftDates.length * 8,
   )
   const status = statusFromScore(score)
-  const evidence = [
+  const evidence: LeaguePulseEvidence[] = [
     { label: 'Connected leagues', value: String(connectedLeagues.length) },
     { label: 'Commissioner leagues', value: String(commissionerLeagues.length) },
     { label: 'Sports represented', value: String(sports.size || 1) },
     { label: 'Tracked entries', value: String(entryCount) },
   ]
+  // Confidence is computed from the base evidence set BEFORE the optional Manager DNA row is
+  // appended below, so adding real intelligence never changes this deterministic score.
   const confidence = clamp(56 + evidence.length * 7 + Math.min(10, connectedLeagues.length * 2))
+  const hasRealManagerDna = Boolean(managerDna && managerDna.primaryIdentity !== 'unknown' && managerDna.confidence > 0)
+  if (hasRealManagerDna && managerDna) {
+    evidence.push({
+      label: 'Manager engagement',
+      value: `${Math.round(managerDna.confidence * 100)}% confidence`,
+      detail: `Decision Intelligence identity: ${managerDna.primaryIdentity.replace(/_/g, ' ')}`,
+    })
+  }
 
   return {
     id: 'league-pulse-dashboard',
@@ -222,6 +240,7 @@ export function buildDashboardLeaguePulse({
       'Counted connected leagues and commissioner-owned leagues',
       'Checked lifecycle states for active and pre-draft setup signals',
       'Avoided activity claims that are not present in dashboard data',
+      ...(hasRealManagerDna ? ['Included the real Phase 6 Manager DNA signal already resolved for this viewer'] : []),
     ],
     metrics: [
       { label: 'Health', value: `${score}%`, tone: score >= 75 ? 'positive' : 'warning' },

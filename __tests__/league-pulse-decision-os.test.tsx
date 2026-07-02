@@ -78,6 +78,55 @@ describe('League Pulse Decision OS premium experience', () => {
     expect(pulse.nextAction.label).toBe('Connect a league')
   })
 
+  it('Phase 8.3 — dashboard League Pulse surfaces real Manager DNA deterministically, same pattern as League Home/Commissioner Hub', () => {
+    const baseInput = {
+      now,
+      connectedLeagues: [
+        { id: 'league-1', name: 'Family League', sport: 'NFL', lifecycleState: 'in_season' },
+      ],
+      entryCount: 1,
+    }
+    const withoutDna = buildDashboardLeaguePulse(baseInput)
+
+    const realDna: ManagerDnaProfile = {
+      managerId: 'user-1',
+      leagueId: 'league-1',
+      primaryIdentity: 'serial_trader',
+      confidence: 0.66,
+      decisionStyle: 'reactive',
+      transactionStyle: 'trade_dominant',
+      riskTendency: 'risk_taking',
+      engagementReliability: 'reliable',
+      traits: [],
+      derivation: ['trade spike pattern'],
+      warnings: [],
+      completeness: 80,
+    }
+    const withDna = buildDashboardLeaguePulse({ ...baseInput, managerDna: realDna })
+
+    expect(withoutDna.evidence).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ label: 'Manager engagement' })]),
+    )
+    expect(withDna.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Manager engagement', value: '66% confidence' }),
+      ]),
+    )
+    expect(withDna.derivation).toContain(
+      'Included the real Phase 6 Manager DNA signal already resolved for this viewer',
+    )
+    // Deterministic: confidence is computed from the base evidence set, unaffected by the extra row.
+    expect(withDna.confidence).toBe(withoutDna.confidence)
+    expect(withDna.headline).toBe(withoutDna.headline)
+    expect(withDna.status).toBe(withoutDna.status)
+
+    const unknownDna: ManagerDnaProfile = { ...realDna, primaryIdentity: 'unknown', confidence: 0 }
+    const withUnknownDna = buildDashboardLeaguePulse({ ...baseInput, managerDna: unknownDna })
+    expect(withUnknownDna.evidence).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ label: 'Manager engagement' })]),
+    )
+  })
+
   it('derives league-home risk from team ownership and standings evidence', () => {
     const pulse = buildLeagueHomePulse({
       now,
