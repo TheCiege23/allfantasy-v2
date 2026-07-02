@@ -1581,7 +1581,7 @@ export function LeagueShell({
                 rel="noopener noreferrer"
                 className="mt-4 inline-flex text-[13px] font-semibold text-cyan-400 hover:text-cyan-300"
               >
-                Open league in Sleeper â†’
+                Open league in Sleeper {'->'}
               </a>
             ) : null}
             <button
@@ -2246,7 +2246,7 @@ function LeagueHeader({
                   <span className="flex items-center bg-violet-600/45 px-2 text-violet-50">
                     {c2cSportPairShort(c2cConfig.sportPair).left}
                   </span>
-                  <span className="flex items-center px-1 text-white/50">â†”</span>
+                  <span className="flex items-center px-1 text-white/50">{'<->'}</span>
                   <span className="flex items-center bg-blue-600/45 px-2 text-blue-50">
                     {c2cSportPairShort(c2cConfig.sportPair).right}
                   </span>
