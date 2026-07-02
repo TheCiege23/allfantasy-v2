@@ -15,7 +15,11 @@ import type { OnboardingChecklistState, RetentionNudge } from '@/lib/onboarding-
 import { getSportSectionLabel } from '@/lib/dashboard'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
+import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
+import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
 import { buildDashboardLeaguePulse } from '@/lib/decision-os/league-pulse'
+import { buildManagerDnaViewModel, extractManagerDnaSource } from '@/lib/decision-os/manager-dna'
+import { buildDecisionRecommendationsViewModel, extractRecommendationsSource } from '@/lib/decision-os/recommendations'
 import type { DashboardConnectedLeague } from './types'
 
 export interface DashboardOverviewProps {
@@ -257,6 +261,7 @@ export default function DashboardContent({
   entries,
   connectedLeagues = [],
   userCareerTier,
+  initialDashboardPayload,
 }: DashboardOverviewProps) {
   const displayName = getDisplayName(user)
   const checklistSteps = useMemo(
@@ -266,6 +271,14 @@ export default function DashboardContent({
   const leaguePulse = useMemo(
     () => buildDashboardLeaguePulse({ connectedLeagues, entryCount: entries.length }),
     [connectedLeagues, entries.length]
+  )
+  const managerDna = useMemo(
+    () => buildManagerDnaViewModel({ source: extractManagerDnaSource(initialDashboardPayload) }),
+    [initialDashboardPayload]
+  )
+  const recommendations = useMemo(
+    () => buildDecisionRecommendationsViewModel({ source: extractRecommendationsSource(initialDashboardPayload) }),
+    [initialDashboardPayload]
   )
   const tierHeadline = formatTierHeadline(userCareerTier)
 
@@ -360,6 +373,11 @@ export default function DashboardContent({
         </section>
 
         <LeaguePulseCard pulse={leaguePulse} variant="dashboard" />
+
+        <section className="grid gap-4 xl:grid-cols-2" aria-label="Manager intelligence">
+          <ManagerDnaCard profile={managerDna} variant="dashboard" compact />
+          <DecisionRecommendationsCard model={recommendations} variant="dashboard" compact />
+        </section>
 
         <GetStartedChecklist steps={checklistSteps} />
 

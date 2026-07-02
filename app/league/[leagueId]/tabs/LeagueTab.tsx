@@ -21,6 +21,10 @@ import type { LeagueActivityItem, LeagueActivityLine } from '@/components/league
 import { useLeagueRealtimeRefresh } from '@/hooks/useLeagueRealtimeRefresh'
 import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
 import { buildLeagueHomePulse } from '@/lib/decision-os/league-pulse'
+import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
+import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
+import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
+import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
 
 export type LeagueTabProps = {
   league: UserLeague
@@ -597,6 +601,8 @@ export function LeagueTab({
     () => buildLeagueHomePulse({ league, teams, isCommissioner: Boolean(isCommissioner) }),
     [isCommissioner, league, teams]
   )
+  const managerDna = useMemo(() => buildManagerDnaViewModel({ source: null }), [])
+  const recommendations = useMemo(() => buildDecisionRecommendationsViewModel({ source: null }), [])
 
   return (
     <div className="space-y-4 p-5">
@@ -630,6 +636,10 @@ export function LeagueTab({
         </>
       ) : null}
       <LeaguePulseCard pulse={leaguePulse} variant="league" compact />
+      <section className="grid gap-4 xl:grid-cols-2" aria-label="Manager guidance">
+        <ManagerDnaCard profile={managerDna} variant="league" compact />
+        <DecisionRecommendationsCard model={recommendations} variant="league" compact />
+      </section>
       <LeagueScoringPreviews leagueId={league.id} season={previewSeason} week={previewWeek} />
       {showSpecialtyAutomationStrip(league) ? (
         <SpecialtyLeagueAutomationSection

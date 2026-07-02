@@ -28,11 +28,15 @@ import {
 import type { UserLeague } from '@/app/dashboard/types'
 import CommissionerShowcasePanel from '@/components/redraft/CommissionerShowcasePanel'
 import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
+import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
+import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
 } from '@/lib/commissioner-hub/commissionerHubHealth'
 import { buildCommissionerLeaguePulse } from '@/lib/decision-os/league-pulse'
+import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
+import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
 
 // ─── Copy constants (future i18n wiring) ───────────────────────────────────
 const COPY = {
@@ -744,6 +748,8 @@ export default function CommissionerHubPageClient({
     () => buildCommissionerLeaguePulse({ snapshots: managedHealthSnapshots }),
     [managedHealthSnapshots]
   )
+  const managerDna = useMemo(() => buildManagerDnaViewModel({ source: null }), [])
+  const recommendations = useMemo(() => buildDecisionRecommendationsViewModel({ source: null }), [])
   const showDemoMode = demoMode || leagues.length === 0
   const primaryHeroHref = isAuthenticated ? '/create-league' : buildLoginHref('/create-league')
   const primaryHeroLabel = isAuthenticated ? COPY.hero.ctaCreate : 'Sign In'
@@ -900,6 +906,11 @@ export default function CommissionerHubPageClient({
         />
 
         <LeaguePulseCard pulse={leaguePulse} variant="commissioner" />
+
+        <section className="grid gap-4 xl:grid-cols-2" aria-label="Commissioner guidance">
+          <ManagerDnaCard profile={managerDna} variant="commissioner" compact />
+          <DecisionRecommendationsCard model={recommendations} variant="commissioner" compact />
+        </section>
 
         <LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />
 
