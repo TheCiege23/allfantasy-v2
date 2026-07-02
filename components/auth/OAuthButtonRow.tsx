@@ -96,29 +96,36 @@ export default function OAuthButtonRow({ callbackUrl }: OAuthButtonRowProps) {
       </div>
 
       {/*
-        Apple is intentionally hardcoded disabled and never wired through
-        isSocialProviderEnabled/signIn — lib/auth.ts only registers
-        AppleProvider when APPLE_CLIENT_ID+APPLE_CLIENT_SECRET are set, which
-        they are not anywhere today. The pre-existing SocialLoginButtons.tsx
-        (used by /login) calls signIn('apple') unconditionally regardless of
-        that, which is a latent bug there — do not copy that behavior here.
+        Apple renders separately per the product spec, but is driven by the
+        same isSocialProviderEnabled('apple') check as every other provider —
+        no hardcoded bypass. lib/auth.ts only registers AppleProvider when
+        APPLE_CLIENT_ID+APPLE_CLIENT_SECRET are set, and the resolver checks
+        that same condition, so this stays disabled until Apple is actually
+        configured and re-enables automatically the moment it is, with no
+        further code change needed here or on /login.
       */}
       <button
         type="button"
-        disabled
-        aria-disabled="true"
-        aria-label={`${t("signup.oauth.apple")} — ${t("signup.oauth.comingSoon")}`}
-        className="flex w-full cursor-not-allowed items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium opacity-60"
+        onClick={() => void handleProviderClick("apple")}
+        disabled={!isSocialProviderEnabled("apple") || loadingProvider !== null}
+        aria-disabled={!isSocialProviderEnabled("apple")}
+        aria-label={
+          isSocialProviderEnabled("apple")
+            ? `Continue with ${t("signup.oauth.apple")}`
+            : `${t("signup.oauth.apple")} — ${t("signup.oauth.comingSoon")}`
+        }
+        className="flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60"
         style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}
       >
-        <span></span>
-        <span>{t("signup.oauth.apple")}</span>
-        <span
-          className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
-          style={{ background: "color-mix(in srgb, var(--muted2) 18%, transparent)", color: "var(--muted2)" }}
-        >
-          {t("signup.oauth.comingSoon")}
-        </span>
+        <span>{loadingProvider === "apple" ? t("signup.oauth.opening") : t("signup.oauth.apple")}</span>
+        {!isSocialProviderEnabled("apple") && (
+          <span
+            className="rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            style={{ background: "color-mix(in srgb, var(--muted2) 18%, transparent)", color: "var(--muted2)" }}
+          >
+            {t("signup.oauth.comingSoon")}
+          </span>
+        )}
       </button>
     </div>
   )

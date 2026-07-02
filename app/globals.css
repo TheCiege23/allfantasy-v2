@@ -1273,6 +1273,11 @@ html[data-mode="legacy"] {
   border-color: var(--alert-info-border);
   color: var(--alert-info-text);
 }
+.badge-soon {
+  background: var(--badge-soon-bg);
+  border-color: var(--badge-soon-border);
+  color: var(--badge-soon-text);
+}
 
 /* ─── Adaptive link colour ────────────────────────────────────────────────── */
 .link-themed {
