@@ -8,6 +8,7 @@ import {
   buildLeagueHomePulse,
 } from '@/lib/decision-os/league-pulse'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
+import type { ManagerDnaProfile } from '@/lib/decision-os/phase6/dna/types'
 
 const now = new Date('2026-07-01T16:00:00.000Z')
 
@@ -107,6 +108,66 @@ describe('League Pulse Decision OS premium experience', () => {
     expect(pulse.confidence).toBeGreaterThanOrEqual(70)
   })
 
+  it('Phase 8.1 — surfaces real Manager DNA as an extra evidence row when provided, without changing anything else', () => {
+    const baseInput = {
+      now,
+      isCommissioner: true,
+      league: {
+        id: 'league-1',
+        name: 'Family League',
+        sport: 'NFL',
+        teamCount: 4,
+        lifecycleState: 'in_season',
+      },
+      teams: [
+        { id: 'team-1', teamName: 'Alpha', claimedByUserId: 'user-1', pointsFor: 600 },
+        { id: 'team-2', teamName: 'Bravo', claimedByUserId: 'user-2', pointsFor: 455 },
+        { id: 'team-3', teamName: 'Charlie', claimedByUserId: 'user-3', pointsFor: 410 },
+        { id: 'team-4', teamName: 'Open Team', isOrphan: true, pointsFor: 390 },
+      ],
+    }
+
+    const withoutDna = buildLeagueHomePulse(baseInput)
+
+    const realDna: ManagerDnaProfile = {
+      managerId: 'user-1',
+      leagueId: 'league-1',
+      primaryIdentity: 'committed_grinder',
+      confidence: 0.82,
+      decisionStyle: 'decisive',
+      transactionStyle: 'balanced',
+      riskTendency: 'neutral',
+      engagementReliability: 'reliable',
+      traits: [],
+      derivation: ['high engagement, no negative patterns'],
+      warnings: [],
+      completeness: 90,
+    }
+    const withDna = buildLeagueHomePulse({ ...baseInput, managerDna: realDna })
+
+    // Omitted managerDna → byte-identical to before this ticket (no regression).
+    expect(withoutDna.evidence).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ label: 'Manager engagement' })]),
+    )
+    // Real managerDna → one additional, real evidence row — nothing else recomputed.
+    expect(withDna.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Manager engagement', value: '82% confidence' }),
+      ]),
+    )
+    expect(withDna.derivation).toContain('Included the real Phase 6 Manager DNA signal already resolved for this viewer')
+    // The core deterministic score/status/headline are UNCHANGED by adding the evidence row.
+    expect(withDna.headline).toBe(withoutDna.headline)
+    expect(withDna.status).toBe(withoutDna.status)
+
+    // An 'unknown' identity (insufficient real data) must NOT be surfaced as evidence — no fabrication.
+    const unknownDna: ManagerDnaProfile = { ...realDna, primaryIdentity: 'unknown', confidence: 0 }
+    const withUnknownDna = buildLeagueHomePulse({ ...baseInput, managerDna: unknownDna })
+    expect(withUnknownDna.evidence).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ label: 'Manager engagement' })]),
+    )
+  })
+
   it('aggregates commissioner health snapshots into one action-oriented pulse', () => {
     const pulse = buildCommissionerLeaguePulse({
       now,
@@ -138,7 +199,7 @@ describe('League Pulse Decision OS premium experience', () => {
     expect(pulse.derivation.join(' ')).toContain('deterministic commissioner health scores')
   })
 
-  it('renders confidence, evidence, derivation, and next action without raw backend ids', () => {
+  it('renders confidence, evidence, decision path, and next action without raw backend ids', () => {
     const pulse = buildCommissionerLeaguePulse({ now, snapshots: [snapshot()] })
 
     render(<LeaguePulseCard pulse={pulse} variant="commissioner" />)
@@ -147,7 +208,8 @@ describe('League Pulse Decision OS premium experience', () => {
     expect(within(card).getByText('League Pulse')).toBeInTheDocument()
     expect(within(card).getByText(`${pulse.confidenceLabel} confidence`)).toBeInTheDocument()
     expect(within(card).getByText('Based on')).toBeInTheDocument()
-    expect(within(card).getByText('Derivation chain')).toBeInTheDocument()
+    expect(within(card).getByText('Why am I seeing this?')).toBeInTheDocument()
+    expect(within(card).getByText('Decision path')).toBeInTheDocument()
     expect(within(card).getByText('Next action')).toBeInTheDocument()
     expect(card.textContent).not.toContain('league-1')
   })

@@ -1,4 +1,5 @@
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
+import type { ManagerDnaProfile } from '@/lib/decision-os/phase6/dna/types'
 
 export type LeaguePulseStatus = 'healthy' | 'watch' | 'at-risk' | 'insufficient-data'
 export type LeaguePulseTone = 'positive' | 'warning' | 'danger' | 'neutral'
@@ -84,6 +85,14 @@ type BuildLeagueHomePulseInput = {
   league: LeaguePulseLeagueInput
   teams: LeaguePulseTeamInput[]
   isCommissioner?: boolean
+  /**
+   * Optional real Phase 6.2 Manager DNA for the viewing manager, when already
+   * resolved elsewhere (Phase 8.1 pipeline unification). League Pulse SURFACES
+   * this as an extra evidence row rather than re-deriving manager behavior
+   * itself — no duplicated calculation. Omitted or null preserves the exact
+   * prior evidence/derivation output (backward compatible, deterministic).
+   */
+  managerDna?: ManagerDnaProfile | null
   now?: Date
 }
 
@@ -130,7 +139,7 @@ function emptyPulse(now: Date, title: string, nextHref: string): LeaguePulseView
     derivation: ['Checked available league inputs', 'Stopped before making unsupported claims'],
     metrics: [
       { label: 'Evidence', value: '0 sources', tone: 'neutral' },
-      { label: 'AI claims', value: 'None', tone: 'positive' },
+      { label: 'Unsupported claims', value: 'None', tone: 'positive' },
       { label: 'Actionability', value: 'Setup required', tone: 'warning' },
     ],
     nextAction: {
@@ -236,6 +245,7 @@ export function buildLeagueHomePulse({
   league,
   teams,
   isCommissioner = false,
+  managerDna = null,
   now = DEFAULT_NOW(),
 }: BuildLeagueHomePulseInput): LeaguePulseViewModel {
   if (!league.id || teams.length === 0) {
@@ -273,6 +283,14 @@ export function buildLeagueHomePulse({
   if (pointSpread != null) {
     evidence.push({ label: 'Points spread', value: pointSpread.toFixed(1), detail: 'Based on current points-for range' })
   }
+  const hasRealManagerDna = Boolean(managerDna && managerDna.primaryIdentity !== 'unknown' && managerDna.confidence > 0)
+  if (hasRealManagerDna && managerDna) {
+    evidence.push({
+      label: 'Manager engagement',
+      value: `${Math.round(managerDna.confidence * 100)}% confidence`,
+      detail: `Decision Intelligence identity: ${managerDna.primaryIdentity.replace(/_/g, ' ')}`,
+    })
+  }
 
   return {
     id: `league-pulse-${league.id}`,
@@ -300,6 +318,7 @@ export function buildLeagueHomePulse({
       'Compared expected team count to loaded teams',
       'Flagged unclaimed and orphan team slots',
       'Used points-for spread only when enough standings data exists',
+      ...(hasRealManagerDna ? ['Included the real Phase 6 Manager DNA signal already resolved for this viewer'] : []),
     ],
     metrics: [
       { label: 'Health', value: `${score}%`, tone: score >= 75 ? 'positive' : 'warning' },

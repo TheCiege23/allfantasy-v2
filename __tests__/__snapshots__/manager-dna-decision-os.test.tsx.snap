@@ -3,7 +3,7 @@
 exports[`Manager DNA premium card > has an accessible card label and stable snapshot 1`] = `
 <section
   aria-label="Manager DNA: Waiver Hawk"
-  class="card-premium overflow-hidden p-0"
+  class="card-premium overflow-hidden p-0 transition duration-200 hover:border-brand-primary/25 hover:shadow-popover motion-reduce:transition-none"
   data-testid="manager-dna-card-team"
 >
   <div
@@ -13,11 +13,11 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
       class="flex flex-wrap items-center gap-2"
     >
       <span
-        class="inline-flex items-center gap-1.5 rounded-full border border-brand-primary/25 bg-brand-primary/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em] text-brand-primary"
+        class="inline-flex min-h-7 items-center gap-1.5 rounded-full border border-brand-primary/25 bg-brand-primary/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-brand-primary"
       >
         <svg
           aria-hidden="true"
-          class="lucide lucide-brain h-3.5 w-3.5"
+          class="lucide lucide-brain h-3.5 w-3.5 shrink-0"
           fill="none"
           height="24"
           stroke="currentColor"
@@ -53,14 +53,18 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
             d="M6.003 5.125a4 4 0 0 0-2.526 5.77"
           />
         </svg>
-        Manager DNA
+        <span>
+          Manager DNA
+        </span>
       </span>
       <span
-        class="inline-flex items-center gap-1.5 rounded-full border border-subtle bg-surface px-2.5 py-1 text-[11px] font-semibold text-secondary"
+        aria-label="High confidence. Based on available evidence, not a guaranteed outcome."
+        class="inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold border-status-success/25 bg-status-success/10 text-status-success"
+        title="Confidence reflects available evidence coverage, not a guaranteed outcome."
       >
         <svg
           aria-hidden="true"
-          class="lucide lucide-circle-check h-3.5 w-3.5 text-brand-primary"
+          class="lucide lucide-circle-check h-3.5 w-3.5 shrink-0"
           fill="none"
           height="24"
           stroke="currentColor"
@@ -84,11 +88,11 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
          confidence
       </span>
       <span
-        class="ml-auto inline-flex items-center gap-1.5 text-[11px] font-medium text-muted"
+        class="ml-auto inline-flex min-h-7 items-center gap-1.5 text-[11px] font-medium text-muted"
       >
         <svg
           aria-hidden="true"
-          class="lucide lucide-clock3 lucide-clock-3 h-3.5 w-3.5"
+          class="lucide lucide-clock3 lucide-clock-3 h-3.5 w-3.5 shrink-0"
           fill="none"
           height="24"
           stroke="currentColor"
@@ -130,12 +134,39 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
         >
           A plain-language read on how this manager tends to decide, transact, take risk, and stay engaged.
         </p>
+        <div
+          class="mt-3 flex items-start gap-2 rounded-xl border border-subtle bg-surface/80 px-3 py-2 text-xs leading-5 text-secondary"
+        >
+          <svg
+            aria-hidden="true"
+            class="lucide lucide-shield-check mt-0.5 h-4 w-4 shrink-0 text-status-success"
+            fill="none"
+            height="24"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="2"
+            viewBox="0 0 24 24"
+            width="24"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"
+            />
+            <path
+              d="m9 12 2 2 4-4"
+            />
+          </svg>
+          <p>
+            This profile is descriptive, not a judgment. It is based on available behavior evidence and stays limited when history is thin.
+          </p>
+        </div>
       </div>
       <div
         class="grid grid-cols-2 gap-2 lg:min-w-[320px]"
       >
         <div
-          class="rounded-2xl border border-subtle bg-surface px-3 py-2"
+          class="min-w-0 rounded-xl border border-subtle bg-surface px-3 py-2"
         >
           <p
             class="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted"
@@ -143,13 +174,13 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
             Decision
           </p>
           <p
-            class="mt-1 text-sm font-black text-primary"
+            class="mt-1 break-words text-sm font-black text-primary"
           >
             Methodical
           </p>
         </div>
         <div
-          class="rounded-2xl border border-subtle bg-surface px-3 py-2"
+          class="min-w-0 rounded-xl border border-subtle bg-surface px-3 py-2"
         >
           <p
             class="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted"
@@ -157,13 +188,13 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
             Transactions
           </p>
           <p
-            class="mt-1 text-sm font-black text-primary"
+            class="mt-1 break-words text-sm font-black text-primary"
           >
             Waiver Dominant
           </p>
         </div>
         <div
-          class="rounded-2xl border border-subtle bg-surface px-3 py-2"
+          class="min-w-0 rounded-xl border border-subtle bg-surface px-3 py-2"
         >
           <p
             class="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted"
@@ -171,13 +202,13 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
             Risk
           </p>
           <p
-            class="mt-1 text-sm font-black text-primary"
+            class="mt-1 break-words text-sm font-black text-primary"
           >
             Risk Taking
           </p>
         </div>
         <div
-          class="rounded-2xl border border-subtle bg-surface px-3 py-2"
+          class="min-w-0 rounded-xl border border-subtle bg-surface px-3 py-2"
         >
           <p
             class="text-[10px] font-semibold uppercase tracking-[0.14em] text-muted"
@@ -185,7 +216,7 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
             Reliability
           </p>
           <p
-            class="mt-1 text-sm font-black text-primary"
+            class="mt-1 break-words text-sm font-black text-primary"
           >
             Reliable
           </p>
@@ -194,16 +225,30 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
     </div>
   </div>
   <div
-    class="grid gap-4 p-5 lg:grid-cols-[1.1fr_0.9fr]"
+    class="grid gap-4 p-5 xl:grid-cols-[1.1fr_0.9fr]"
   >
     <div
       class="space-y-4"
     >
       <div
-        class="rounded-2xl border border-subtle bg-surface p-4"
+        class="rounded-xl border border-subtle p-4 bg-surface-muted"
       >
         <p
-          class="text-xs font-bold uppercase tracking-[0.16em] text-muted"
+          class="text-xs font-bold uppercase tracking-[0.14em] text-muted"
+        >
+          Why am I seeing this?
+        </p>
+        <p
+          class="mt-2 text-sm leading-6 text-primary"
+        >
+          Shown because the available behavior history supports a Waiver Hawk profile with high evidence confidence.
+        </p>
+      </div>
+      <div
+        class="rounded-xl border border-subtle bg-surface p-4"
+      >
+        <p
+          class="text-xs font-bold uppercase tracking-[0.14em] text-muted"
         >
           Supporting evidence
         </p>
@@ -211,43 +256,43 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
           class="mt-3 grid gap-2 sm:grid-cols-3"
         >
           <div
-            class="rounded-xl border border-subtle bg-surface-muted px-3 py-2"
+            class="min-w-0 rounded-xl border border-subtle bg-surface-muted px-3 py-2"
           >
             <p
-              class="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
+              class="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted"
             >
               Profile confidence
             </p>
             <p
-              class="mt-1 text-sm font-bold text-primary"
+              class="mt-1 break-words text-sm font-bold text-primary"
             >
               86%
             </p>
           </div>
           <div
-            class="rounded-xl border border-subtle bg-surface-muted px-3 py-2"
+            class="min-w-0 rounded-xl border border-subtle bg-surface-muted px-3 py-2"
           >
             <p
-              class="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
+              class="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted"
             >
               Data completeness
             </p>
             <p
-              class="mt-1 text-sm font-bold text-primary"
+              class="mt-1 break-words text-sm font-bold text-primary"
             >
               91%
             </p>
           </div>
           <div
-            class="rounded-xl border border-subtle bg-surface-muted px-3 py-2"
+            class="min-w-0 rounded-xl border border-subtle bg-surface-muted px-3 py-2"
           >
             <p
-              class="text-[11px] font-semibold uppercase tracking-[0.12em] text-muted"
+              class="text-[11px] font-semibold uppercase tracking-[0.1em] text-muted"
             >
               Signals reviewed
             </p>
             <p
-              class="mt-1 text-sm font-bold text-primary"
+              class="mt-1 break-words text-sm font-bold text-primary"
             >
               2
             </p>
@@ -255,10 +300,10 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
         </div>
       </div>
       <div
-        class="rounded-2xl border border-subtle bg-surface-muted p-4"
+        class="rounded-xl border border-subtle p-4 bg-surface-muted"
       >
         <p
-          class="text-xs font-bold uppercase tracking-[0.16em] text-muted"
+          class="text-xs font-bold uppercase tracking-[0.14em] text-muted"
         >
           Top traits
         </p>
@@ -283,7 +328,7 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
       </div>
     </div>
     <aside
-      class="rounded-2xl border border-brand-primary/20 bg-brand-primary/10 p-4"
+      class="rounded-xl border border-brand-primary/20 bg-brand-primary/10 p-4"
     >
       <p
         class="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-brand-primary"
@@ -327,7 +372,7 @@ exports[`Manager DNA premium card > has an accessible card label and stable snap
       <p
         class="mt-4 text-xs leading-5 text-muted"
       >
-        This profile is descriptive, not a judgment. Use it to make fantasy feel easier, clearer, and more fun.
+        Use this as a conversation aid, not a label. It should make fantasy easier, clearer, and more fun.
       </p>
     </aside>
   </div>

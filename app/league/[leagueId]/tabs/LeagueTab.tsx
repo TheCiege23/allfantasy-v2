@@ -25,6 +25,7 @@ import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
 import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
 import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
 import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
+import type { ManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
 
 export type LeagueTabProps = {
   league: UserLeague
@@ -597,12 +598,42 @@ export function LeagueTab({
     (league as { leagueType?: string | null }).leagueType ?? null,
     (league as { leagueVariant?: string | null }).leagueVariant ?? null
   )
+  const [managerIntelligence, setManagerIntelligence] = useState<ManagerIntelligencePayload | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void fetch(`/api/decision-os/manager-intelligence?leagueId=${encodeURIComponent(league.id)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<ManagerIntelligencePayload>) : null))
+      .then((data) => {
+        if (!cancelled) setManagerIntelligence(data)
+      })
+      .catch(() => {
+        if (!cancelled) setManagerIntelligence(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [league.id])
   const leaguePulse = useMemo(
-    () => buildLeagueHomePulse({ league, teams, isCommissioner: Boolean(isCommissioner) }),
-    [isCommissioner, league, teams]
+    () =>
+      buildLeagueHomePulse({
+        league,
+        teams,
+        isCommissioner: Boolean(isCommissioner),
+        managerDna: managerIntelligence?.managerDna ?? null,
+      }),
+    [isCommissioner, league, teams, managerIntelligence]
   )
-  const managerDna = useMemo(() => buildManagerDnaViewModel({ source: null }), [])
-  const recommendations = useMemo(() => buildDecisionRecommendationsViewModel({ source: null }), [])
+  const managerDna = useMemo(
+    () => buildManagerDnaViewModel({ source: managerIntelligence?.managerDna ?? null }),
+    [managerIntelligence],
+  )
+  const recommendations = useMemo(
+    () => buildDecisionRecommendationsViewModel({ source: managerIntelligence?.recommendations ?? null }),
+    [managerIntelligence],
+  )
 
   return (
     <div className="space-y-4 p-5">
