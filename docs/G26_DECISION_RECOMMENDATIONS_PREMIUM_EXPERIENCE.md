@@ -65,13 +65,13 @@ It displays:
 
 ## Screenshots Checklist
 
-Browser screenshot proof is still dependent on local Playwright server readiness.
+G26B restored local Playwright readiness on port 3101 and browser-proved the dashboard surface.
 
-- Dashboard Recommended Moves card
-- League Home Recommended Moves card
-- Commissioner Hub Recommended Moves card
-- Mobile stacked layout
-- Light mode and dark mode readability
+- Dashboard Recommended Moves card: verified by `e2e/unified-dashboard-click-audit.spec.ts`
+- League Home Recommended Moves card: integrated, but no always-on League Home browser spec currently asserts this card
+- Commissioner Hub Recommended Moves card: integrated, but no always-on Commissioner Hub browser spec currently asserts this card
+- Mobile stacked layout: dashboard smoke verified no horizontal overflow
+- Light mode and dark mode readability: covered by theme tokens and existing readability tests
 
 ## Test Coverage
 
@@ -80,13 +80,27 @@ Passed:
 - `npx vitest run __tests__/manager-dna-decision-os.test.tsx __tests__/decision-recommendations-premium.test.tsx`
   - 2 files passed
   - 6 tests passed
+- `npx playwright test e2e/unified-dashboard-click-audit.spec.ts --project=chromium --reporter=line --workers=1`
+  - 1 test passed
+  - Verified `decision-recommendations-card-dashboard`, evidence/confidence rendering, layout stability, and no raw internal IDs on the dashboard
+- `npx playwright test e2e/landing-page-click-audit.spec.ts e2e/draft-room-click-audit.spec.ts --project=chromium --reporter=line --workers=1`
+  - 10 tests passed
+  - Confirmed no landing or draft-room browser harness regression
 - Targeted parse checks for the G25/G26 adapters, cards, tests, and touched surfaces.
 
-Browser proof:
+## G26B Runtime Readiness Fix
 
-- Dashboard smoke was extended to assert `decision-recommendations-card-dashboard`.
-- Playwright was not rerun because `http://127.0.0.1:3101/api/auth/csrf` was not reachable, matching the prior local server-readiness blocker.
+Root cause:
+
+- Playwright was invoking `npx next dev` directly from `playwright.config.ts`.
+- That bypassed the repo's Next dev cache cleaner and left the browser harness vulnerable to stale `.next-playwright-3101` cache/process state, which made `http://127.0.0.1:3101/api/auth/csrf` unavailable before tests reached the dashboard.
+
+Fix:
+
+- Playwright now starts through `scripts/playwright-dev-server.cjs`.
+- The helper sets explicit port/auth/dist-dir runtime values, runs `scripts/clean-next-dev.cjs`, and starts the local Next binary with the active Node runtime.
 
 ## Known Blockers
 
-The local Playwright web server remains unavailable on port 3101 in this shell. This should not be treated as a recommendation-card regression unless a future healthy browser run reaches the dashboard and the card assertion fails.
+- No general always-on League Home or Commissioner Hub browser spec currently verifies the Recommended Moves card. Existing integrations remain unit-tested and parse-checked.
+- Meta CAPI placeholder and teardown socket logs appeared during browser runs, but they did not fail the smoke suite.

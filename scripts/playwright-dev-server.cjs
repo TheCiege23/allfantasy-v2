@@ -77,9 +77,15 @@ function resolvePort() {
 const port = resolvePort()
 const envDb = resolveDatabaseUrl()
 const normalizedDb = normalizeSupabaseSessionPooler(envDb)
+const distDir = process.env.AF_NEXT_DIST_DIR || process.env.PLAYWRIGHT_DIST_DIR || `.next-playwright-${port}`
 const childEnv = {
   ...process.env,
   ...(normalizedDb ? { DATABASE_URL: normalizedDb } : {}),
+  AF_NEXT_DIST_DIR: distDir,
+  AUTH_TRUST_HOST: process.env.AUTH_TRUST_HOST || "true",
+  NEXTAUTH_URL: process.env.NEXTAUTH_URL || `http://127.0.0.1:${port}`,
+  NODE_OPTIONS: process.env.NODE_OPTIONS || "--max-old-space-size=4096",
+  PORT: port,
 }
 
 /**
@@ -87,13 +93,23 @@ const childEnv = {
  * `/_next/static/chunks/*.js` URL — not only `/` — before tests run.
  */
 
-const child = spawn("npm", ["run", "dev", "--", "-p", port], {
+const cleaner = spawn(process.execPath, ["scripts/clean-next-dev.cjs"], {
   stdio: "inherit",
   env: childEnv,
-  shell: true,
 })
 
-child.on("exit", (code, signal) => {
+cleaner.on("exit", (code, signal) => {
   if (signal) process.kill(process.pid, signal)
-  process.exit(code == null ? 1 : code)
+  if (code !== 0) process.exit(code == null ? 1 : code)
+
+  const nextBin = path.resolve(process.cwd(), "node_modules", "next", "dist", "bin", "next")
+  const child = spawn(process.execPath, [nextBin, "dev", "-p", port, "--hostname", "127.0.0.1"], {
+    stdio: "inherit",
+    env: childEnv,
+  })
+
+  child.on("exit", (childCode, childSignal) => {
+    if (childSignal) process.kill(process.pid, childSignal)
+    process.exit(childCode == null ? 1 : childCode)
+  })
 })
