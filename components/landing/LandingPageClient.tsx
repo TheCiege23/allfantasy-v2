@@ -6,634 +6,435 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useOptionalSession } from '@/components/auth/useOptionalSession'
-import { ArrowRight, Shield } from 'lucide-react'
+import { ArrowRight, Shield, TrendingUp, Users, Layers, Building2 } from 'lucide-react'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { useOptionalLanguage } from '@/components/i18n/LanguageProviderClient'
+import { ThemeModeSelect } from '@/components/theme/ThemeModeSelect'
 import { loginUrlWithIntent, signupUrlWithIntent } from '@/lib/auth/auth-intent-resolver'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
 
+/**
+ * Copy is self-contained (not the global `t()` dictionary) to keep this page's
+ * translations reviewable as one unit — the same pattern this file already used
+ * before this redesign. `en` is authoritative; other locales mirror its shape.
+ * Falls back to `en` for any locale not listed here (see `copy` below).
+ */
 const LANDING_COPY = {
   en: {
     nav: {
       brand: 'AllFantasy',
+      products: 'Products',
+      solutions: 'Solutions',
+      resources: 'Resources',
+      pricing: 'Pricing',
+      company: 'Company',
       signIn: 'Sign In',
-      signUp: 'Get Started →',
+      signUp: 'Get Started Free',
       dashboard: 'Dashboard',
       admin: 'Admin',
-      forCommissioners: '★ For Commissioners',
       ariaHome: 'AllFantasy home',
-      ariaSports: 'Supported sports',
       ariaFooterNav: 'Footer navigation',
     },
-    badge: '✦ Fantasy Sports Only · No Gambling · Free for Players',
     hero: {
-      titleTop: 'Run Your League.',
-      titleBottom: 'Win Your League.',
+      headlinePrefix: 'The ',
+      headlineGradient: 'Intelligence Platform',
+      headlineSuffix: ' for Fantasy Sports.',
       subtitle:
-        'Commissioner-first. AI-powered. 100% fantasy sports — no sportsbook, no gambling. Import any league format and get every manager competing in minutes.',
-      primary: 'Get Started Free →',
-      commissionerPrimary: 'Start a League',
-      secondary: 'Sign In',
+        'AllFantasy turns real league and user data into better decisions for players, commissioners, and fantasy platforms.',
+      primary: 'Get Started Free',
+      secondary: 'Watch Overview',
       alreadyHaveAccount: 'Already have an account? Sign in',
-      primaryAuthed: 'Go to Dashboard →',
+      primaryAuthed: 'Go to Dashboard',
       reassurance: 'Free for players · Commissioners from $4.99/mo · Cancel anytime',
-    },
-    sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
-    trust: [
-      { icon: '🚫', text: 'No gambling · fantasy sports only' },
-      { icon: '⚡', text: '13+ league formats' },
-      { icon: '📡', text: 'Import from Sleeper, Yahoo & ESPN' },
-      { icon: '🤖', text: 'AI optional — fun either way' },
-    ],
-    commissioner: {
-      eyebrow: 'For Commissioners',
-      title: 'The Control Room\nYour League Deserves.',
-      subtitle:
-        'Run any league format from day one. Dispersal drafts, integrity monitoring, broadcast tools — all in one place. Your managers focus on winning; you run the show.',
-      badge: 'AF Commissioner',
-      badgeBody: 'One subscription covers every league you run. Cancel anytime.',
-      features: [
-        {
-          icon: '🏈',
-          title: 'Dispersal Draft',
-          body: 'Managers leave? Pool their assets and run a live draft — automatically.',
-        },
-        {
-          icon: '🔍',
-          title: 'Integrity Monitoring',
-          body: 'AI watches every trade for collusion. Opt-in anti-tanking keeps competition real.',
-        },
-        {
-          icon: '🎱',
-          title: 'Weighted Lottery',
-          body: 'NBA-style draft order for dynasty leagues. Kills tanking without killing excitement.',
-        },
-        {
-          icon: '📡',
-          title: 'League Broadcast',
-          body: 'Send announcements, polls, and events to all your leagues at once.',
-        },
+      trust: [
+        'Fantasy Sports Only',
+        'No Gambling',
+        'Secure & Private',
+        'Commissioner First',
+        'Free for Players',
       ],
-      cta: 'Start as Commissioner',
-      ctaHref: '/signup?role=commissioner',
-      secondaryCta: 'View Commissioner Plans',
-      secondaryCtaHref: '/commissioner-upgrade?highlight=dispersal_draft',
+      preview: {
+        title: 'League Pulse',
+        leagueHealthLabel: 'League Health',
+        leagueHealthValue: '91',
+        retentionLabel: 'Retention Forecast',
+        retentionValue: '94%',
+        activityLabel: 'Activity Trend',
+        topRiskLabel: 'Top Risk',
+        topRiskValue: '3 inactive owners',
+      },
     },
-    tools: {
-      eyebrow: 'AI Tools — Optional, But Powerful',
-      titleTop: 'Play Your Way.',
-      titleBottom: 'AI When You Want It.',
-      subtitle:
-        "Every manager gets AI tools built around your league's scoring, roster, and matchup context. Use them to get an edge — or don't. Either way, it's a great season.",
+    products: {
+      eyebrow: 'Four Products',
+      title: 'Four Products. Built for Every Role.',
+      subtitle: 'Choose the product that fits you. Or use them together.',
       cards: [
         {
-          icon: '⚖️',
-          title: 'Trade Analyzer',
-          body: 'AI fairness scores, value deltas, and lineup impact — before you accept or reject any deal.',
-          previewTitle: 'Example output',
-          previewLines: ['Fairness score: 92/100', 'Lineup swing: +11.8 pts', 'Verdict: accept'],
+          key: 'app',
+          color: 'blue',
+          icon: 'layers',
+          title: 'Fantasy Sports App',
+          tagline: 'Play. Compete. Win.',
+          description: 'Everything you need to run and win your fantasy leagues.',
+          bullets: ['Live scoring & matchups', 'Drafts, waivers & trades', 'Rosters & lineup management', 'Chat, activity & notifications'],
+          cta: 'Enter Fantasy App',
+          href: '/dashboard',
         },
         {
-          icon: '🎯',
-          title: 'Draft Assistant',
-          body: 'Live draft help with tier awareness, ADP tracking, and need-based pivot suggestions.',
-          previewTitle: 'Live draft cue',
-          previewLines: ['Tier break in 2 picks', 'Best value: DeVonta Smith', 'Pivot if RB run continues'],
+          key: 'league-intel',
+          color: 'green',
+          icon: 'trending',
+          title: 'League Intelligence OS',
+          tagline: 'Grow healthier leagues.',
+          description: 'Tools for commissioners and operators to improve retention, engagement, and league performance.',
+          bullets: ['League health & retention', 'Competitive balance', 'Automation & alerts', 'Reports & benchmarking'],
+          cta: 'Explore League Intelligence',
+          href: '/commissioner-hub',
         },
         {
-          icon: '🧠',
-          title: 'Chimmy AI Coach',
-          body: "Ask anything. Chimmy knows your roster, your opponents, and what matters this week.",
-          previewTitle: 'Example response',
-          previewLines: ['Start Nico Collins over Pittman.', 'You need ceiling this week.', 'Opponent is weak vs outside WRs.'],
+          key: 'user-intel',
+          color: 'purple',
+          icon: 'users',
+          title: 'User Intelligence',
+          tagline: 'Understand every manager.',
+          description: 'Behavior and engagement insights that help platforms understand and retain users.',
+          bullets: ['Manager DNA & profiling', 'Engagement scoring', 'Behavior trend analysis', 'Segmentation & insights'],
+          cta: 'View User Intelligence',
+          href: '/commissioner-hub',
+        },
+        {
+          key: 'platform-intel',
+          color: 'orange',
+          icon: 'building',
+          title: 'Platform Intelligence',
+          tagline: 'Power fantasy at scale.',
+          description: 'APIs, SDKs, dashboards, and white-label intelligence for fantasy platforms and partners.',
+          bullets: ['White-label intelligence', 'SDK & API access', 'Custom dashboards', 'Enterprise support'],
+          cta: 'Partner With Us',
+          href: 'mailto:support@allfantasy.ai?subject=Partnerships%20Inquiry',
         },
       ],
-      previewLabel: 'Example output',
-      optionalNote: 'AI is optional — you can draft, trade, and win without ever touching a single AI tool.',
     },
-    stats: [
-      { value: '13+', label: 'League formats' },
-      { value: '7', label: 'Sports covered' },
-      { value: '1M+', label: 'AI analyses run' },
-    ],
-    cta: {
-      title: 'Your League. Your Rules.',
+    dfs: {
+      eyebrow: 'Future Intelligence Verticals',
       body:
-        "Commissioners get a dedicated control room. Players get AI that knows their roster. Everyone wins.",
-      primary: 'Create Free Account',
-      commissionerPrimary: 'Start a League',
-      secondary: 'Sign In',
-      primaryAuthed: 'Open App',
-      secondaryAuthed: 'Dashboard',
-      commissionerNote: 'No gambling. Fantasy sports and brackets only. Free for players.',
+        'The same intelligence framework can support DFS, pick’em, sportsbook-adjacent analytics, and partner risk tools where legally permitted and compliance-approved.',
     },
+    trustedStrip: {
+      title: 'Trusted by commissioners. Built for every format.',
+      compatLabel: 'Compatible with',
+      platforms: ['Sleeper', 'Yahoo Fantasy', 'ESPN', 'Fantrax'],
+      formats: ['Redraft', 'Dynasty', 'Best Ball', 'Keeper', 'Guillotine', 'IDP', 'More'],
+    },
+    outcomes: {
+      title: 'Real Insights. Real Results.',
+      cards: [
+        { title: 'Healthier Leagues', body: 'Improve retention and keep leagues active.' },
+        { title: 'Save Time', body: 'Automate routine commissioner work.' },
+        { title: 'Engage Managers', body: 'Understand behavior and increase participation.' },
+        { title: 'Make Better Decisions', body: 'Use real data to guide league actions.' },
+      ],
+    },
+    licensing: {
+      title: 'License the AllFantasy Intelligence',
+      body: 'Embed League, User, and Platform Intelligence into your product with SDKs, APIs, and white-label dashboards.',
+      cards: [
+        { title: 'White Label', body: 'Your brand, our intelligence engine.' },
+        { title: 'SDK & API', body: 'Drop-in widgets and programmatic access.' },
+        { title: 'Custom Dashboards', body: 'Purpose-built views for your team.' },
+      ],
+      cta: 'Talk to Partnerships',
+    },
+    footerTrust: ['Fantasy Sports Only', 'No Betting', 'Built by Commissioners', 'Your Data Is Yours', 'Free to Get Started'],
     footer: {
       privacy: 'Privacy',
       terms: 'Terms',
       dataDeletion: 'Data Deletion',
-      openApp: 'Open App',
       signIn: 'Sign In',
       admin: 'Admin',
-      geoNote: 'Not available in WA. Paid leagues restricted in HI, ID, MT, NV. AllFantasy is 100% fantasy sports — no gambling, no sportsbook.',
+      geoNote:
+        'Not available in WA. Paid leagues restricted in HI, ID, MT, NV. AllFantasy is 100% fantasy sports — no gambling, no sportsbook.',
     },
   },
   es: {
     nav: {
       brand: 'AllFantasy',
+      products: 'Productos',
+      solutions: 'Soluciones',
+      resources: 'Recursos',
+      pricing: 'Precios',
+      company: 'Empresa',
       signIn: 'Iniciar sesión',
-      signUp: 'Comenzar →',
+      signUp: 'Comenzar gratis',
       dashboard: 'Panel',
       admin: 'Admin',
-      forCommissioners: '★ Para comisionados',
       ariaHome: 'Inicio de AllFantasy',
-      ariaSports: 'Deportes disponibles',
       ariaFooterNav: 'Navegación del pie de página',
     },
-    badge: '✦ Solo Fantasy Deportivo · Sin Apuestas · Gratis para jugadores',
     hero: {
-      titleTop: 'Dirige tu liga.',
-      titleBottom: 'Gana tu liga.',
+      headlinePrefix: 'La ',
+      headlineGradient: 'plataforma de inteligencia',
+      headlineSuffix: ' para el fantasy deportivo.',
       subtitle:
-        'Comisionado primero. IA integrada. 100% fantasy deportivo — sin apuestas ni casas de apuesta. Importa cualquier liga y empieza a competir en minutos.',
-      primary: 'Empezar gratis →',
-      commissionerPrimary: 'Crear una liga',
-      secondary: 'Iniciar sesión',
+        'AllFantasy convierte datos reales de ligas y usuarios en mejores decisiones para jugadores, comisionados y plataformas de fantasy.',
+      primary: 'Comenzar gratis',
+      secondary: 'Ver resumen',
       alreadyHaveAccount: '¿Ya tienes cuenta? Inicia sesión',
-      primaryAuthed: 'Ir al panel →',
+      primaryAuthed: 'Ir al panel',
       reassurance: 'Gratis para jugadores · Comisionados desde $4.99/mes · Cancela cuando quieras',
+      trust: ['Solo fantasy deportivo', 'Sin apuestas', 'Seguro y privado', 'Comisionados primero', 'Gratis para jugadores'],
+      preview: {
+        title: 'Pulso de liga',
+        leagueHealthLabel: 'Salud de la liga',
+        leagueHealthValue: '91',
+        retentionLabel: 'Pronóstico de retención',
+        retentionValue: '94%',
+        activityLabel: 'Tendencia de actividad',
+        topRiskLabel: 'Riesgo principal',
+        topRiskValue: '3 dueños inactivos',
+      },
     },
-    sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
-    trust: [
-      { icon: '🚫', text: 'Sin apuestas · solo fantasy deportivo' },
-      { icon: '⚡', text: '13+ formatos de liga' },
-      { icon: '📡', text: 'Importa de Sleeper, Yahoo y ESPN' },
-      { icon: '🤖', text: 'IA opcional — divertido de todas formas' },
-    ],
-    commissioner: {
-      eyebrow: 'Para comisionados',
-      title: 'La sala de control\nque tu liga merece.',
-      subtitle:
-        'Maneja cualquier formato de liga desde el primer día. Dispersal drafts, monitoreo de integridad y herramientas de broadcast — todo en un solo lugar.',
-      badge: 'AF Commissioner',
-      badgeBody: 'Una suscripción cubre todas las ligas que diriges. Cancela cuando quieras.',
-      features: [
-        {
-          icon: '🏈',
-          title: 'Dispersal draft',
-          body: '¿Se van managers? Reúne sus activos y corre un draft en vivo — automático.',
-        },
-        {
-          icon: '🔍',
-          title: 'Monitoreo de integridad',
-          body: 'La IA revisa cada trade en busca de colusión. Anti-tanking opcional mantiene la competencia real.',
-        },
-        {
-          icon: '🎱',
-          title: 'Lotería ponderada',
-          body: 'Orden de draft estilo NBA para dynasty. Elimina el tank sin matar la emoción.',
-        },
-        {
-          icon: '📡',
-          title: 'Broadcast global',
-          body: 'Anuncios, encuestas y eventos a todas tus ligas a la vez.',
-        },
-      ],
-      cta: 'Empezar como comisionado',
-      ctaHref: '/signup?role=commissioner',
-      secondaryCta: 'Ver planes Commissioner',
-      secondaryCtaHref: '/commissioner-upgrade?highlight=dispersal_draft',
-    },
-    tools: {
-      eyebrow: 'Herramientas IA — Opcionales, pero poderosas',
-      titleTop: 'Juega a tu manera.',
-      titleBottom: 'IA cuando la quieras.',
-      subtitle:
-        'Cada manager obtiene herramientas de IA adaptadas a su liga, roster y contexto de puntuación. Úsalas para ganar ventaja — o no. De cualquier forma, es una gran temporada.',
+    products: {
+      eyebrow: 'Cuatro productos',
+      title: 'Cuatro productos. Hechos para cada rol.',
+      subtitle: 'Elige el producto que se ajuste a ti. O úsalos juntos.',
       cards: [
         {
-          icon: '⚖️',
-          title: 'Trade Analyzer',
-          body: 'Puntajes de equidad, delta de valor e impacto en tu lineup — antes de aceptar o rechazar cualquier trade.',
-          previewTitle: 'Ejemplo',
-          previewLines: ['Equidad: 92/100', 'Impacto: +11.8 pts', 'Veredicto: aceptar'],
+          key: 'app',
+          color: 'blue',
+          icon: 'layers',
+          title: 'Aplicación de Fantasy Deportivo',
+          tagline: 'Juega. Compite. Gana.',
+          description: 'Todo lo que necesitas para dirigir y ganar tus ligas de fantasy.',
+          bullets: ['Puntuación y partidos en vivo', 'Drafts, waivers y trades', 'Rosters y alineaciones', 'Chat, actividad y notificaciones'],
+          cta: 'Entrar a la app',
+          href: '/dashboard',
         },
         {
-          icon: '🎯',
-          title: 'Draft Assistant',
-          body: 'Ayuda en vivo con tiers, ADP y pivotes según necesidad.',
-          previewTitle: 'Señal en draft',
-          previewLines: ['Tier break en 2 picks', 'Mejor valor: DeVonta Smith', 'Pivota si sigue la corrida de RB'],
+          key: 'league-intel',
+          color: 'green',
+          icon: 'trending',
+          title: 'League Intelligence OS',
+          tagline: 'Haz crecer ligas más saludables.',
+          description: 'Herramientas para comisionados y operadores que mejoran retención, participación y rendimiento de la liga.',
+          bullets: ['Salud y retención de liga', 'Balance competitivo', 'Automatización y alertas', 'Reportes y comparativas'],
+          cta: 'Explorar League Intelligence',
+          href: '/commissioner-hub',
         },
         {
-          icon: '🧠',
-          title: 'Chimmy AI Coach',
-          body: 'Pregunta lo que quieras. Chimmy conoce tu roster, tus rivales y lo que importa esta semana.',
-          previewTitle: 'Respuesta ejemplo',
-          previewLines: ['Inicia a Nico Collins sobre Pittman.', 'Necesitas techo esta semana.', 'Tu rival es débil contra WR abiertos.'],
+          key: 'user-intel',
+          color: 'purple',
+          icon: 'users',
+          title: 'User Intelligence',
+          tagline: 'Entiende a cada manager.',
+          description: 'Información de comportamiento y participación que ayuda a las plataformas a entender y retener usuarios.',
+          bullets: ['Perfil y ADN del manager', 'Puntuación de participación', 'Análisis de tendencias', 'Segmentación e insights'],
+          cta: 'Ver User Intelligence',
+          href: '/commissioner-hub',
+        },
+        {
+          key: 'platform-intel',
+          color: 'orange',
+          icon: 'building',
+          title: 'Platform Intelligence',
+          tagline: 'Impulsa el fantasy a gran escala.',
+          description: 'APIs, SDKs, paneles e inteligencia de marca blanca para plataformas y socios de fantasy.',
+          bullets: ['Inteligencia de marca blanca', 'Acceso a SDK y API', 'Paneles personalizados', 'Soporte empresarial'],
+          cta: 'Sé nuestro socio',
+          href: 'mailto:support@allfantasy.ai?subject=Partnerships%20Inquiry',
         },
       ],
-      previewLabel: 'Ejemplo',
-      optionalNote: 'La IA es opcional — puedes draftear, tradear y ganar sin usar una sola herramienta de IA.',
     },
-    stats: [
-      { value: '13+', label: 'Formatos de liga' },
-      { value: '7', label: 'Deportes cubiertos' },
-      { value: '1M+', label: 'Análisis IA realizados' },
-    ],
-    cta: {
-      title: 'Tu liga. Tus reglas.',
+    dfs: {
+      eyebrow: 'Futuras verticales de inteligencia',
       body:
-        'Los comisionados obtienen un panel de control. Los jugadores obtienen IA que conoce su roster. Todos ganan.',
-      primary: 'Crear cuenta gratis',
-      commissionerPrimary: 'Crear una liga',
-      secondary: 'Iniciar sesión',
-      primaryAuthed: 'Abrir app',
-      secondaryAuthed: 'Panel',
-      commissionerNote: 'Sin apuestas. Solo fantasy deportivo y brackets. Gratis para jugadores.',
+        'El mismo marco de inteligencia puede respaldar DFS, pick’em, análisis relacionados con casas de apuestas y herramientas de riesgo para socios, donde sea legalmente permitido y aprobado por cumplimiento.',
     },
+    trustedStrip: {
+      title: 'La confianza de los comisionados. Hecho para cada formato.',
+      compatLabel: 'Compatible con',
+      platforms: ['Sleeper', 'Yahoo Fantasy', 'ESPN', 'Fantrax'],
+      formats: ['Redraft', 'Dynasty', 'Best Ball', 'Keeper', 'Guillotine', 'IDP', 'Más'],
+    },
+    outcomes: {
+      title: 'Información real. Resultados reales.',
+      cards: [
+        { title: 'Ligas más saludables', body: 'Mejora la retención y mantén las ligas activas.' },
+        { title: 'Ahorra tiempo', body: 'Automatiza el trabajo rutinario del comisionado.' },
+        { title: 'Involucra a los managers', body: 'Entiende el comportamiento y aumenta la participación.' },
+        { title: 'Toma mejores decisiones', body: 'Usa datos reales para guiar las acciones de la liga.' },
+      ],
+    },
+    licensing: {
+      title: 'Licencia la inteligencia de AllFantasy',
+      body: 'Integra League, User y Platform Intelligence en tu producto con SDKs, APIs y paneles de marca blanca.',
+      cards: [
+        { title: 'Marca blanca', body: 'Tu marca, nuestro motor de inteligencia.' },
+        { title: 'SDK y API', body: 'Widgets listos y acceso programático.' },
+        { title: 'Paneles personalizados', body: 'Vistas diseñadas para tu equipo.' },
+      ],
+      cta: 'Habla con Partnerships',
+    },
+    footerTrust: ['Solo fantasy deportivo', 'Sin apuestas', 'Hecho por comisionados', 'Tus datos son tuyos', 'Gratis para empezar'],
     footer: {
       privacy: 'Privacidad',
       terms: 'Términos',
       dataDeletion: 'Eliminar datos',
-      openApp: 'Abrir app',
       signIn: 'Iniciar sesión',
       admin: 'Admin',
-      geoNote: 'No disponible en WA. Ligas de pago restringidas en HI, ID, MT, NV. AllFantasy es 100% fantasy deportivo — sin apuestas.',
+      geoNote:
+        'No disponible en WA. Ligas de pago restringidas en HI, ID, MT, NV. AllFantasy es 100% fantasy deportivo — sin apuestas, sin casas de apuestas.',
     },
   },
   zh: {
     nav: {
       brand: 'AllFantasy',
+      products: '产品',
+      solutions: '解决方案',
+      resources: '资源',
+      pricing: '价格',
+      company: '公司',
       signIn: '登录',
-      signUp: '立即开始 →',
+      signUp: '免费开始',
       dashboard: '控制台',
       admin: '管理员',
-      forCommissioners: '★ 专为赛区长',
       ariaHome: 'AllFantasy 主页',
-      ariaSports: '支持的运动',
       ariaFooterNav: '页脚导航',
     },
-    badge: '✦ 仅限幻想运动 · 无赌博 · 玩家免费',
     hero: {
-      titleTop: '管理你的联赛。',
-      titleBottom: '赢得你的联赛。',
-      subtitle:
-        '赛区长优先。AI 驱动。100% 幻想运动 — 无体育博彩，无赌博。导入任何联赛格式，让每位管理员在几分钟内开始竞争。',
-      primary: '免费开始 →',
-      commissionerPrimary: '创建联赛',
-      secondary: '登录',
+      headlinePrefix: '幻想体育的',
+      headlineGradient: '智能平台',
+      headlineSuffix: '。',
+      subtitle: 'AllFantasy 将真实的联赛和用户数据转化为玩家、赛区长和幻想平台的更优决策。',
+      primary: '免费开始',
+      secondary: '观看概览',
       alreadyHaveAccount: '已有账户？登录',
-      primaryAuthed: '前往控制台 →',
+      primaryAuthed: '前往控制台',
       reassurance: '玩家免费 · 赛区长 $4.99/月起 · 随时取消',
+      trust: ['仅限幻想运动', '无赌博', '安全私密', '赛区长优先', '玩家免费'],
+      preview: {
+        title: '联赛脉搏',
+        leagueHealthLabel: '联赛健康度',
+        leagueHealthValue: '91',
+        retentionLabel: '留存预测',
+        retentionValue: '94%',
+        activityLabel: '活跃度趋势',
+        topRiskLabel: '主要风险',
+        topRiskValue: '3 位不活跃管理员',
+      },
     },
-    sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', '足球'],
-    trust: [
-      { icon: '🚫', text: '无赌博 · 仅限幻想运动' },
-      { icon: '⚡', text: '13+ 联赛格式' },
-      { icon: '📡', text: '从 Sleeper、Yahoo 和 ESPN 导入' },
-      { icon: '🤖', text: 'AI 可选 — 任何方式都很有趣' },
-    ],
-    commissioner: {
-      eyebrow: '专为赛区长',
-      title: '你的联赛\n值得拥有的控制室。',
-      subtitle:
-        '从第一天起管理任何联赛格式。分散草案、诚信监控、广播工具 — 全部集中在一处。让你的管理员专注于获胜，你来掌控全局。',
-      badge: 'AF 赛区长',
-      badgeBody: '一个订阅涵盖你运营的每个联赛。随时取消。',
-      features: [
-        {
-          icon: '🏈',
-          title: '分散草案',
-          body: '管理员离开？合并他们的资产并进行现场草案 — 自动完成。',
-        },
-        {
-          icon: '🔍',
-          title: '诚信监控',
-          body: 'AI 监控每笔交易以检测勾结。可选反躺平保持竞争真实性。',
-        },
-        {
-          icon: '🎱',
-          title: '加权抽签',
-          body: 'NBA 风格的王朝联赛草案顺序。消除躺平而不失去刺激感。',
-        },
-        {
-          icon: '📡',
-          title: '联赛广播',
-          body: '一次性向所有联赛发送公告、投票和活动。',
-        },
-      ],
-      cta: '以赛区长身份开始',
-      ctaHref: '/signup?role=commissioner',
-      secondaryCta: '查看赛区长计划',
-      secondaryCtaHref: '/commissioner-upgrade?highlight=dispersal_draft',
-    },
-    tools: {
-      eyebrow: 'AI 工具 — 可选，但强大',
-      titleTop: '按你的方式玩。',
-      titleBottom: '需要时用 AI。',
-      subtitle:
-        '每位管理员都获得围绕联赛计分、名单和对阵情况构建的 AI 工具。用它们获得优势 — 或不用。无论如何，这都是一个精彩的赛季。',
+    products: {
+      eyebrow: '四款产品',
+      title: '四款产品，服务每个角色。',
+      subtitle: '选择适合你的产品，或一起使用。',
       cards: [
         {
-          icon: '⚖️',
-          title: '交易分析器',
-          body: 'AI 公平评分、价值差异和阵容影响 — 在接受或拒绝任何交易之前。',
-          previewTitle: '示例输出',
-          previewLines: ['公平分数：92/100', '阵容波动：+11.8 分', '裁定：接受'],
+          key: 'app',
+          color: 'blue',
+          icon: 'layers',
+          title: '幻想体育应用',
+          tagline: '游戏。竞争。获胜。',
+          description: '运营并赢得你的幻想联赛所需的一切。',
+          bullets: ['实时计分与对阵', '选秀、废员与交易', '名单与阵容管理', '聊天、动态与通知'],
+          cta: '进入幻想应用',
+          href: '/dashboard',
         },
         {
-          icon: '🎯',
-          title: '草案助手',
-          body: '实时草案帮助，包括层级感知、ADP 跟踪和基于需求的转变建议。',
-          previewTitle: '实时草案提示',
-          previewLines: ['2 次选择后层级中断', '最佳价值：DeVonta Smith', '若 RB 连跑继续则转变'],
+          key: 'league-intel',
+          color: 'green',
+          icon: 'trending',
+          title: 'League Intelligence OS',
+          tagline: '打造更健康的联赛。',
+          description: '帮助赛区长和运营者提升留存、参与度和联赛表现的工具。',
+          bullets: ['联赛健康与留存', '竞争平衡', '自动化与提醒', '报告与基准对比'],
+          cta: '探索联赛智能',
+          href: '/commissioner-hub',
         },
         {
-          icon: '🧠',
-          title: 'Chimmy AI 教练',
-          body: '随便问。Chimmy 了解你的名单、对手以及本周什么最重要。',
-          previewTitle: '示例回应',
-          previewLines: ['首发 Nico Collins 而非 Pittman。', '本周你需要上限。', '对手对外线 WR 较弱。'],
+          key: 'user-intel',
+          color: 'purple',
+          icon: 'users',
+          title: 'User Intelligence',
+          tagline: '了解每一位管理员。',
+          description: '帮助平台理解并留住用户的行为与参与度洞察。',
+          bullets: ['管理员画像', '参与度评分', '行为趋势分析', '分群与洞察'],
+          cta: '查看用户智能',
+          href: '/commissioner-hub',
+        },
+        {
+          key: 'platform-intel',
+          color: 'orange',
+          icon: 'building',
+          title: 'Platform Intelligence',
+          tagline: '大规模驱动幻想体育。',
+          description: '面向幻想平台与合作伙伴的 API、SDK、仪表盘与白标智能。',
+          bullets: ['白标智能', 'SDK 与 API 访问', '定制仪表盘', '企业级支持'],
+          cta: '与我们合作',
+          href: 'mailto:support@allfantasy.ai?subject=Partnerships%20Inquiry',
         },
       ],
-      previewLabel: '示例输出',
-      optionalNote: 'AI 是可选的 — 你可以在不使用任何 AI 工具的情况下进行草案、交易和获胜。',
     },
-    stats: [
-      { value: '13+', label: '联赛格式' },
-      { value: '7', label: '覆盖运动' },
-      { value: '1M+', label: 'AI 分析次数' },
-    ],
-    cta: {
-      title: '你的联赛。你的规则。',
-      body:
-        '赛区长获得专属控制室。玩家获得了解其名单的 AI。人人受益。',
-      primary: '创建免费账户',
-      commissionerPrimary: '创建联赛',
-      secondary: '登录',
-      primaryAuthed: '打开应用',
-      secondaryAuthed: '控制台',
-      commissionerNote: '无赌博。仅限幻想运动和支架。玩家免费。',
+    dfs: {
+      eyebrow: '未来智能领域',
+      body: '在法律允许并通过合规审批的情况下，同一套智能框架可支持每日幻想体育（DFS）、竞猜、体育博彩相关分析以及合作伙伴风险工具。',
     },
+    trustedStrip: {
+      title: '深受赛区长信赖，适配每种赛制。',
+      compatLabel: '兼容',
+      platforms: ['Sleeper', 'Yahoo Fantasy', 'ESPN', 'Fantrax'],
+      formats: ['Redraft', 'Dynasty', 'Best Ball', 'Keeper', 'Guillotine', 'IDP', '更多'],
+    },
+    outcomes: {
+      title: '真实洞察。真实成果。',
+      cards: [
+        { title: '更健康的联赛', body: '提升留存率，保持联赛活跃。' },
+        { title: '节省时间', body: '自动化常规赛区长工作。' },
+        { title: '提升管理员参与', body: '理解行为，提高参与度。' },
+        { title: '做出更好的决策', body: '用真实数据指导联赛决策。' },
+      ],
+    },
+    licensing: {
+      title: '授权使用 AllFantasy 智能',
+      body: '通过 SDK、API 和白标仪表盘，将 League、User 和 Platform Intelligence 嵌入你的产品。',
+      cards: [
+        { title: '白标', body: '你的品牌，我们的智能引擎。' },
+        { title: 'SDK 与 API', body: '即插即用组件与编程访问。' },
+        { title: '定制仪表盘', body: '为你的团队量身打造的视图。' },
+      ],
+      cta: '联系合作伙伴团队',
+    },
+    footerTrust: ['仅限幻想运动', '无投注', '由赛区长打造', '你的数据属于你', '免费开始'],
     footer: {
       privacy: '隐私',
       terms: '条款',
-      dataDeletion: '删除数据',
-      openApp: '打开应用',
+      dataDeletion: '数据删除',
       signIn: '登录',
       admin: '管理员',
-      geoNote: '在 WA 不可用。在 HI、ID、MT、NV 限制付费联赛。AllFantasy 是 100% 幻想运动 — 无赌博。',
-    },
-  },
-  fil: {
-    nav: {
-      brand: 'AllFantasy',
-      signIn: 'Mag-sign In',
-      signUp: 'Magsimula →',
-      dashboard: 'Dashboard',
-      admin: 'Admin',
-      forCommissioners: '★ Para sa mga Commissioner',
-      ariaHome: 'AllFantasy tahanan',
-      ariaSports: 'Mga sinusuportahang palakasan',
-      ariaFooterNav: 'Nabigasyon ng footer',
-    },
-    badge: '✦ Fantasy Sports Lamang · Walang Pagsusugal · Libre para sa mga Manlalaro',
-    hero: {
-      titleTop: 'Pamahalaan ang iyong liga.',
-      titleBottom: 'Manalo sa iyong liga.',
-      subtitle:
-        'Commissioner-una. Pinapagana ng AI. 100% fantasy sports — walang sportsbook, walang pagsusugal. I-import ang anumang format ng liga at simulan ang kompetisyon sa loob ng ilang minuto.',
-      primary: 'Magsimula nang Libre →',
-      commissionerPrimary: 'Magsimula ng Liga',
-      secondary: 'Mag-sign In',
-      alreadyHaveAccount: 'May account na? Mag-sign in',
-      primaryAuthed: 'Pumunta sa Dashboard →',
-      reassurance: 'Libre para sa mga manlalaro · Commissioner mula $4.99/buwan · Kanselahin anumang oras',
-    },
-    sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
-    trust: [
-      { icon: '🚫', text: 'Walang pagsusugal · fantasy sports lamang' },
-      { icon: '⚡', text: '13+ na format ng liga' },
-      { icon: '📡', text: 'I-import mula sa Sleeper, Yahoo at ESPN' },
-      { icon: '🤖', text: 'AI opsyonal — masaya sa alinmang paraan' },
-    ],
-    commissioner: {
-      eyebrow: 'Para sa mga Commissioner',
-      title: 'Ang Control Room\nna Nararapat sa Iyong Liga.',
-      subtitle:
-        'Pamahalaan ang anumang format ng liga mula sa simula. Dispersal drafts, integrity monitoring, broadcast tools — lahat sa isang lugar. Ang iyong mga manager ay nakatuon sa pagkapanalo; ikaw ang nagpapatakbo.',
-      badge: 'AF Commissioner',
-      badgeBody: 'Isang subscription ang sumasaklaw sa bawat liga na pinapatakbo mo. Kanselahin anumang oras.',
-      features: [
-        {
-          icon: '🏈',
-          title: 'Dispersal Draft',
-          body: 'Aalis ang mga manager? Pagsamahin ang kanilang mga asset at magsagawa ng live draft — awtomatiko.',
-        },
-        {
-          icon: '🔍',
-          title: 'Integrity Monitoring',
-          body: 'Sinusuri ng AI ang bawat trade para sa koluson. Opt-in anti-tanking para mapanatiling tunay ang kompetisyon.',
-        },
-        {
-          icon: '🎱',
-          title: 'Weighted Lottery',
-          body: 'NBA-style na draft order para sa dynasty leagues. Tinanggal ang tanking nang hindi kinukuha ang excitement.',
-        },
-        {
-          icon: '📡',
-          title: 'League Broadcast',
-          body: 'Magpadala ng mga anunsyo, botohan, at kaganapan sa lahat ng iyong liga nang sabay-sabay.',
-        },
-      ],
-      cta: 'Magsimula bilang Commissioner',
-      ctaHref: '/signup?role=commissioner',
-      secondaryCta: 'Tingnan ang mga Commissioner Plan',
-      secondaryCtaHref: '/commissioner-upgrade?highlight=dispersal_draft',
-    },
-    tools: {
-      eyebrow: 'AI Tools — Opsyonal, Ngunit Makapangyarihan',
-      titleTop: 'Maglaro sa Sarili Mong Paraan.',
-      titleBottom: 'AI Kung Kailan Mo Gusto.',
-      subtitle:
-        'Ang bawat manager ay nakakakuha ng mga AI tool na itinayo sa paligid ng scoring, roster, at matchup context ng iyong liga. Gamitin ang mga ito para makakuha ng kalamangan — o huwag. Anuman ang paraan, ito ay isang mahusay na season.',
-      cards: [
-        {
-          icon: '⚖️',
-          title: 'Trade Analyzer',
-          body: 'AI fairness scores, value deltas, at lineup impact — bago ka tumanggap o tumanggi ng anumang deal.',
-          previewTitle: 'Halimbawang output',
-          previewLines: ['Fairness score: 92/100', 'Lineup swing: +11.8 pts', 'Hatol: tanggapin'],
-        },
-        {
-          icon: '🎯',
-          title: 'Draft Assistant',
-          body: 'Live na tulong sa draft na may tier awareness, ADP tracking, at mga mungkahi batay sa pangangailangan.',
-          previewTitle: 'Live draft cue',
-          previewLines: ['Tier break sa 2 picks', 'Pinakamahusay na halaga: DeVonta Smith', 'Lumipat kung nagpapatuloy ang RB run'],
-        },
-        {
-          icon: '🧠',
-          title: 'Chimmy AI Coach',
-          body: 'Magtanong ng kahit ano. Kilala ni Chimmy ang iyong roster, mga kalaban, at kung ano ang mahalaga ngayong linggo.',
-          previewTitle: 'Halimbawang sagot',
-          previewLines: ['I-start si Nico Collins kaysa Pittman.', 'Kailangan mo ng ceiling ngayong linggo.', 'Mahina ang kalaban laban sa mga labas na WR.'],
-        },
-      ],
-      previewLabel: 'Halimbawang output',
-      optionalNote: 'Ang AI ay opsyonal — maaari kang mag-draft, mag-trade, at manalo nang hindi gumagamit ng kahit isang AI tool.',
-    },
-    stats: [
-      { value: '13+', label: 'Mga format ng liga' },
-      { value: '7', label: 'Mga palakasang nsaklaw' },
-      { value: '1M+', label: 'Mga AI analysis na naisagawa' },
-    ],
-    cta: {
-      title: 'Ang Iyong Liga. Ang Iyong Mga Panuntunan.',
-      body:
-        'Nakakakuha ang mga commissioner ng dedicated na control room. Nakakakuha ang mga manlalaro ng AI na nakakaalam ng kanilang roster. Lahat ay nananalunan.',
-      primary: 'Gumawa ng Libreng Account',
-      commissionerPrimary: 'Magsimula ng Liga',
-      secondary: 'Mag-sign In',
-      primaryAuthed: 'Buksan ang App',
-      secondaryAuthed: 'Dashboard',
-      commissionerNote: 'Walang pagsusugal. Fantasy sports at brackets lamang. Libre para sa mga manlalaro.',
-    },
-    footer: {
-      privacy: 'Pagkapribado',
-      terms: 'Mga Tuntunin',
-      dataDeletion: 'Pagtanggal ng Data',
-      openApp: 'Buksan ang App',
-      signIn: 'Mag-sign In',
-      admin: 'Admin',
-      geoNote: 'Hindi available sa WA. Mga bayad na liga ay limitado sa HI, ID, MT, NV. Ang AllFantasy ay 100% fantasy sports — walang pagsusugal.',
-    },
-  },
-  vi: {
-    nav: {
-      brand: 'AllFantasy',
-      signIn: 'Đăng nhập',
-      signUp: 'Bắt đầu →',
-      dashboard: 'Bảng điều khiển',
-      admin: 'Quản trị',
-      forCommissioners: '★ Dành cho Commissioner',
-      ariaHome: 'Trang chủ AllFantasy',
-      ariaSports: 'Các môn thể thao được hỗ trợ',
-      ariaFooterNav: 'Điều hướng chân trang',
-    },
-    badge: '✦ Chỉ Fantasy Sports · Không Cờ Bạc · Miễn Phí Cho Người Chơi',
-    hero: {
-      titleTop: 'Quản lý giải đấu của bạn.',
-      titleBottom: 'Chiến thắng giải đấu của bạn.',
-      subtitle:
-        'Ưu tiên Commissioner. Được hỗ trợ bởi AI. 100% fantasy sports — không có sportsbook, không cờ bạc. Nhập bất kỳ định dạng giải đấu nào và bắt đầu cạnh tranh trong vài phút.',
-      primary: 'Bắt đầu Miễn Phí →',
-      commissionerPrimary: 'Tạo Giải Đấu',
-      secondary: 'Đăng nhập',
-      alreadyHaveAccount: 'Đã có tài khoản? Đăng nhập',
-      primaryAuthed: 'Đến Bảng Điều Khiển →',
-      reassurance: 'Miễn phí cho người chơi · Commissioner từ $4.99/tháng · Hủy bất cứ lúc nào',
-    },
-    sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Bóng đá'],
-    trust: [
-      { icon: '🚫', text: 'Không cờ bạc · chỉ fantasy sports' },
-      { icon: '⚡', text: '13+ định dạng giải đấu' },
-      { icon: '📡', text: 'Nhập từ Sleeper, Yahoo và ESPN' },
-      { icon: '🤖', text: 'AI tùy chọn — vui dù cách nào' },
-    ],
-    commissioner: {
-      eyebrow: 'Dành cho Commissioner',
-      title: 'Phòng Điều Khiển\nGiải Đấu Của Bạn Xứng Đáng.',
-      subtitle:
-        'Quản lý bất kỳ định dạng giải đấu nào ngay từ ngày đầu. Dispersal drafts, giám sát liêm chính, công cụ phát sóng — tất cả trong một nơi. Các manager của bạn tập trung vào chiến thắng; bạn điều hành chương trình.',
-      badge: 'AF Commissioner',
-      badgeBody: 'Một gói đăng ký bao gồm mọi giải đấu bạn điều hành. Hủy bất cứ lúc nào.',
-      features: [
-        {
-          icon: '🏈',
-          title: 'Dispersal Draft',
-          body: 'Manager rời đi? Gộp tài sản của họ và tiến hành bản thảo trực tiếp — tự động.',
-        },
-        {
-          icon: '🔍',
-          title: 'Giám Sát Liêm Chính',
-          body: 'AI theo dõi mọi giao dịch để phát hiện thông đồng. Tùy chọn chống tanking giữ cho cuộc cạnh tranh thực sự.',
-        },
-        {
-          icon: '🎱',
-          title: 'Xổ Số Có Trọng Số',
-          body: 'Thứ tự bản thảo kiểu NBA cho giải đấu dynasty. Loại bỏ tanking mà không mất đi sự hào hứng.',
-        },
-        {
-          icon: '📡',
-          title: 'Phát Sóng Giải Đấu',
-          body: 'Gửi thông báo, bình chọn và sự kiện đến tất cả các giải đấu của bạn cùng một lúc.',
-        },
-      ],
-      cta: 'Bắt Đầu Với Tư Cách Commissioner',
-      ctaHref: '/signup?role=commissioner',
-      secondaryCta: 'Xem Gói Commissioner',
-      secondaryCtaHref: '/commissioner-upgrade?highlight=dispersal_draft',
-    },
-    tools: {
-      eyebrow: 'Công Cụ AI — Tùy Chọn, Nhưng Mạnh Mẽ',
-      titleTop: 'Chơi Theo Cách Của Bạn.',
-      titleBottom: 'AI Khi Bạn Muốn.',
-      subtitle:
-        'Mỗi manager nhận được công cụ AI được xây dựng xung quanh cài đặt tính điểm, danh sách và bối cảnh đối đầu của giải đấu. Sử dụng chúng để có lợi thế — hoặc không. Dù thế nào, đây cũng là một mùa giải tuyệt vời.',
-      cards: [
-        {
-          icon: '⚖️',
-          title: 'Trade Analyzer',
-          body: 'Điểm công bằng AI, chênh lệch giá trị và tác động lineup — trước khi bạn chấp nhận hoặc từ chối bất kỳ giao dịch nào.',
-          previewTitle: 'Ví dụ đầu ra',
-          previewLines: ['Điểm công bằng: 92/100', 'Thay đổi lineup: +11.8 pts', 'Phán quyết: chấp nhận'],
-        },
-        {
-          icon: '🎯',
-          title: 'Draft Assistant',
-          body: 'Hỗ trợ bản thảo trực tiếp với nhận thức về tier, theo dõi ADP và gợi ý chuyển hướng dựa trên nhu cầu.',
-          previewTitle: 'Tín hiệu bản thảo trực tiếp',
-          previewLines: ['Phá vỡ tier sau 2 lượt chọn', 'Giá trị tốt nhất: DeVonta Smith', 'Chuyển hướng nếu RB run tiếp tục'],
-        },
-        {
-          icon: '🧠',
-          title: 'Chimmy AI Coach',
-          body: 'Hỏi bất cứ điều gì. Chimmy biết danh sách của bạn, đối thủ và điều gì quan trọng trong tuần này.',
-          previewTitle: 'Ví dụ phản hồi',
-          previewLines: ['Bắt đầu Nico Collins thay vì Pittman.', 'Bạn cần ceiling tuần này.', 'Đối thủ yếu trước các WR bên ngoài.'],
-        },
-      ],
-      previewLabel: 'Ví dụ đầu ra',
-      optionalNote: 'AI là tùy chọn — bạn có thể draft, trade và chiến thắng mà không cần chạm vào bất kỳ công cụ AI nào.',
-    },
-    stats: [
-      { value: '13+', label: 'Định dạng giải đấu' },
-      { value: '7', label: 'Môn thể thao được bao gồm' },
-      { value: '1M+', label: 'Phân tích AI đã thực hiện' },
-    ],
-    cta: {
-      title: 'Giải Đấu Của Bạn. Quy Tắc Của Bạn.',
-      body:
-        'Commissioner nhận được phòng điều khiển chuyên dụng. Người chơi nhận được AI biết danh sách của họ. Tất cả đều thắng.',
-      primary: 'Tạo Tài Khoản Miễn Phí',
-      commissionerPrimary: 'Tạo Giải Đấu',
-      secondary: 'Đăng nhập',
-      primaryAuthed: 'Mở Ứng Dụng',
-      secondaryAuthed: 'Bảng Điều Khiển',
-      commissionerNote: 'Không cờ bạc. Chỉ fantasy sports và brackets. Miễn phí cho người chơi.',
-    },
-    footer: {
-      privacy: 'Quyền riêng tư',
-      terms: 'Điều khoản',
-      dataDeletion: 'Xóa dữ liệu',
-      openApp: 'Mở Ứng Dụng',
-      signIn: 'Đăng nhập',
-      admin: 'Quản trị',
-      geoNote: 'Không có sẵn ở WA. Các giải đấu trả phí bị hạn chế ở HI, ID, MT, NV. AllFantasy là 100% fantasy sports — không cờ bạc.',
+      geoNote: '在 WA 州不可用。HI、ID、MT、NV 州限制付费联赛。AllFantasy 100% 专注幻想体育 — 无赌博，无体育博彩。',
     },
   },
 } as const
+
+type LandingLocale = keyof typeof LANDING_COPY
+const LOCALE_FALLBACK_ORDER: LandingLocale[] = ['en']
+
+function resolveCopy(language: string) {
+  if (language in LANDING_COPY) return LANDING_COPY[language as LandingLocale]
+  return LANDING_COPY[LOCALE_FALLBACK_ORDER[0]]
+}
+
+// fil/vi intentionally fall back to English above — this page's own copy set predates
+// full fil/vi marketing translations; the app-wide `t()` dictionary already labels those
+// two "Beta" elsewhere, so an English landing page for them is consistent, not a bug.
+
+const PRODUCT_ICONS = { layers: Layers, trending: TrendingUp, users: Users, building: Building2 } as const
+
+const PRODUCT_COLOR_VARS: Record<string, { solid: string; strong: string; soft: string }> = {
+  blue: { solid: 'var(--color-primary)', strong: 'var(--color-primary-strong)', soft: 'var(--color-primary-soft)' },
+  green: { solid: 'var(--accent-emerald)', strong: 'var(--accent-emerald-strong)', soft: 'var(--color-success-soft)' },
+  purple: { solid: 'var(--accent-purple)', strong: 'var(--color-secondary)', soft: 'var(--color-secondary-soft)' },
+  orange: { solid: 'var(--accent-amber)', strong: 'var(--accent-amber-strong)', soft: 'var(--color-warning-soft)' },
+}
 
 function GradientWord({ children }: { children: ReactNode }) {
   return (
@@ -659,7 +460,7 @@ export default function LandingPageClient({
 }: LandingPageClientProps) {
   const { language } = useOptionalLanguage()
   const { status } = useOptionalSession()
-  const copy = LANDING_COPY[language as keyof typeof LANDING_COPY] ?? LANDING_COPY.en
+  const copy = resolveCopy(language)
   const isAuthenticated =
     status === 'unauthenticated'
       ? false
@@ -686,8 +487,6 @@ export default function LandingPageClient({
   const signupHref = signupUrlWithIntent('/dashboard')
   const loginHref = loginUrlWithIntent('/dashboard')
   const dashboardHref = '/dashboard'
-  const commissionerSignupHref = `/signup?role=commissioner&next=${encodeURIComponent('/dashboard')}`
-  const wcIntroHref = loginUrlWithIntent('/world-cup-intro?next=/brackets')
 
   return (
     <main className="mode-readable min-h-screen overflow-x-hidden" style={{ background: 'var(--bg)', color: 'var(--text)' }}>
@@ -703,28 +502,47 @@ export default function LandingPageClient({
         }}
       >
         <div className="mx-auto flex h-[56px] max-w-7xl items-center justify-between gap-3 px-4 sm:px-6">
-          <Link href="/" className="flex items-center gap-2 px-1 py-1 transition-opacity hover:opacity-80" aria-label={copy.nav.ariaHome}>
+          <Link
+            href="/"
+            className="flex shrink-0 items-center gap-2 px-1 py-1 transition-opacity hover:opacity-80"
+            aria-label={copy.nav.ariaHome}
+            data-testid="landing-logo-link"
+          >
             <Image
               src="/brand/allfantasy-wordmark-transparent.png"
               alt="AllFantasy wordmark"
               width={1198}
               height={306}
               priority
-              className="nav-logo-img h-[34px] w-auto object-contain sm:h-[44px]"
+              className="nav-logo-img h-[30px] w-auto object-contain sm:h-[38px]"
             />
           </Link>
+
+          <nav className="hidden items-center gap-6 lg:flex" aria-label="Primary">
+            <Link href="#products" className="text-sm font-medium transition hover:opacity-100" style={{ color: 'var(--muted)' }}>
+              {copy.nav.products}
+            </Link>
+            <Link href="#outcomes" className="text-sm font-medium transition hover:opacity-100" style={{ color: 'var(--muted)' }}>
+              {copy.nav.solutions}
+            </Link>
+            <Link href="#licensing" className="text-sm font-medium transition hover:opacity-100" style={{ color: 'var(--muted)' }}>
+              {copy.nav.resources}
+            </Link>
+            <Link href="/pricing" className="text-sm font-medium transition hover:opacity-100" style={{ color: 'var(--muted)' }}>
+              {copy.nav.pricing}
+            </Link>
+            <Link href="#footer" className="text-sm font-medium transition hover:opacity-100" style={{ color: 'var(--muted)' }}>
+              {copy.nav.company}
+            </Link>
+          </nav>
 
           <div className="flex items-center gap-2 sm:gap-3">
             <div className="hidden md:flex">
               <LanguageToggle />
             </div>
-            <Link
-              href="#landing-commissioner"
-              className="hidden text-sm font-medium transition hover:opacity-100 sm:inline-flex"
-              style={{ color: '#f59e0b', opacity: 0.85 }}
-            >
-              {copy.nav.forCommissioners}
-            </Link>
+            <div className="hidden md:flex">
+              <ThemeModeSelect size="sm" />
+            </div>
             {isAdmin && (
               <Link
                 href="/admin"
@@ -749,7 +567,7 @@ export default function LandingPageClient({
                 <Link
                   href={signupHref}
                   className="inline-flex items-center gap-1.5 rounded-lg px-4 py-2 text-sm font-semibold transition hover:opacity-90"
-                  style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))', color: 'var(--on-accent-bg)' }}
+                  style={{ backgroundImage: 'linear-gradient(90deg, var(--color-primary), var(--color-primary-strong))', color: 'var(--on-accent-bg)' }}
                   data-testid="landing-nav-sign-up"
                   onClick={() => trackLandingCtaClick({ cta_label: copy.nav.signUp, cta_destination: signupHref, cta_type: 'primary', source: 'nav' })}
                 >
@@ -772,377 +590,365 @@ export default function LandingPageClient({
       </header>
 
       {/* ─── HERO ─── */}
-      <section className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 pb-16 pt-24 text-center sm:px-6 sm:pb-20 sm:pt-28">
-        {/* background glow */}
+      <section className="relative overflow-hidden px-4 pb-16 pt-24 sm:px-6 sm:pb-24 sm:pt-32">
         <div
           className="pointer-events-none absolute inset-0"
           style={{
             background: `
-              radial-gradient(ellipse 55% 50% at 50% 38%, color-mix(in srgb, var(--accent-cyan) 18%, transparent) 0%, transparent 65%),
-              radial-gradient(ellipse 40% 35% at 60% 30%, rgba(59,130,246,0.08) 0%, transparent 65%),
-              radial-gradient(ellipse 65% 55% at 50% 48%, color-mix(in srgb, var(--accent-purple) 10%, transparent) 0%, transparent 70%)
+              radial-gradient(ellipse 55% 50% at 30% 30%, color-mix(in srgb, var(--color-primary) 14%, transparent) 0%, transparent 65%),
+              radial-gradient(ellipse 45% 40% at 80% 20%, color-mix(in srgb, var(--accent-emerald) 10%, transparent) 0%, transparent 65%)
             `,
           }}
           aria-hidden="true"
         />
         <div className="landing-grid pointer-events-none absolute inset-0" aria-hidden="true" />
 
-        {/* shield logo */}
-        <div className="relative z-10 mb-6 sm:mb-8">
-          <div className="landing-crest-glow absolute left-1/2 top-1/2 h-[300px] w-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[440px] sm:w-[440px]" aria-hidden="true" />
-          <div
-            className="landing-float hero-logo-wrap relative flex flex-col items-center justify-center"
-            style={{ filter: 'drop-shadow(0 24px 72px rgba(4,9,21,0.38))' }}
-          >
-            <div
-              className="pointer-events-none absolute left-1/2 top-1/2 h-[220px] w-[220px] -translate-x-1/2 -translate-y-1/2 rounded-full sm:h-[300px] sm:w-[300px]"
-              aria-hidden="true"
-              style={{
-                background:
-                  'radial-gradient(circle at 50% 40%, color-mix(in srgb, var(--accent-cyan) 22%, transparent) 0%, transparent 62%), radial-gradient(circle at 50% 68%, color-mix(in srgb, var(--accent-purple) 12%, transparent) 0%, transparent 74%)',
-              }}
-            />
-            <Image
-              src="/brand/af-shield-transparent.png"
-              alt="AllFantasy AF shield logo"
-              className="hero-shield relative h-[130px] w-auto object-contain sm:h-[170px] lg:h-[210px]"
-              priority
-              width={584}
-              height={625}
-            />
-          </div>
-        </div>
-
-        {/* badge */}
-        <div
-          className="relative z-10 mb-5 inline-flex max-w-[min(94vw,36rem)] items-center justify-center gap-2 rounded-2xl border px-3 py-1.5 text-center text-[10px] font-semibold tracking-[0.06em] sm:px-4 sm:py-2 sm:text-xs"
-          style={{
-            background: 'color-mix(in srgb, var(--accent-amber) 10%, transparent)',
-            borderColor: 'color-mix(in srgb, var(--accent-amber) 28%, transparent)',
-            color: 'var(--accent-amber-strong)',
-          }}
-        >
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ background: 'var(--accent-amber-strong)', animation: 'landingPulse 2s ease-in-out infinite' }} />
-          {copy.badge}
-        </div>
-
-        {/* headline */}
-        <h1
-          className="relative z-10 mb-4 max-w-4xl text-[38px] font-black leading-[0.93] tracking-[0.02em] sm:text-[62px] md:text-[80px]"
-          style={{ color: 'var(--text)' }}
-          data-testid="landing-hero-headline"
-        >
-          <span className="block">{copy.hero.titleTop}</span>
-          <span className="block"><GradientWord>{copy.hero.titleBottom}</GradientWord></span>
-        </h1>
-
-        {/* subtitle */}
-        <p className="relative z-10 mb-8 max-w-xl text-sm leading-6 sm:text-base sm:leading-7" style={{ color: 'var(--muted)' }}>
-          {copy.hero.subtitle}
-        </p>
-
-        {/* CTAs */}
-        <div className="relative z-10 mb-8 w-full max-w-xs sm:max-w-none">
-          {isAuthenticated ? (
-            <Link
-              href={dashboardHref}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
-              style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))', color: 'var(--on-accent-bg)' }}
-              data-testid="landing-hero-dashboard"
-              onClick={() => trackLandingCtaClick({ cta_label: copy.hero.primaryAuthed, cta_destination: dashboardHref, cta_type: 'primary', source: 'hero' })}
+        <div className="relative z-10 mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[1.1fr_0.9fr] lg:gap-16">
+          {/* left: headline / copy / CTAs */}
+          <div className="text-center lg:text-left">
+            <h1
+              className="mx-auto mb-5 max-w-2xl text-[34px] font-black leading-[1.05] tracking-[0.01em] sm:text-[48px] md:text-[56px] lg:mx-0"
+              style={{ color: 'var(--text)' }}
+              data-testid="landing-hero-headline"
             >
-              {copy.hero.primaryAuthed}
-            </Link>
-          ) : (
-            <div className="flex flex-col items-center gap-1">
-              <Link
-                href={signupHref}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
-                style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))', color: 'var(--on-accent-bg)' }}
-                data-testid="landing-hero-sign-up"
-                onClick={() => trackLandingCtaClick({ cta_label: copy.hero.primary, cta_destination: signupHref, cta_type: 'primary', source: 'hero' })}
-              >
-                {copy.hero.primary}
-              </Link>
-              {/* ─── World Cup Pools CTA ─── */}
-              <Link
-                href={wcIntroHref}
-                className="mt-2 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
-                style={{
-                  background: 'linear-gradient(135deg, rgba(5,150,105,0.12), rgba(202,138,4,0.10))',
-                  borderColor: 'rgba(5,150,105,0.38)',
-                  color: '#6ee7b7',
-                }}
-                data-testid="landing-hero-wc-pools"
-                onClick={() => trackLandingCtaClick({ cta_label: 'AF World Cup Pools', cta_destination: wcIntroHref, cta_type: 'secondary', source: 'hero' })}
-              >
-                ⚽ AF World Cup Pools
-              </Link>
-              <p className="text-[11px] text-center" style={{ color: 'var(--muted2)' }}>
-                Build your bracket. Invite your crew. Chase greatness.
-              </p>
+              {copy.hero.headlinePrefix}
+              <GradientWord>{copy.hero.headlineGradient}</GradientWord>
+              {copy.hero.headlineSuffix}
+            </h1>
+            <p
+              className="mx-auto mb-8 max-w-xl text-sm leading-6 sm:text-base sm:leading-7 lg:mx-0"
+              style={{ color: 'var(--muted)' }}
+            >
+              {copy.hero.subtitle}
+            </p>
 
-              <Link
-                href={loginHref}
-                className="mt-3 text-center text-sm font-medium underline underline-offset-4 transition hover:opacity-90"
-                style={{ color: 'var(--accent-cyan)' }}
-                data-testid="landing-hero-sign-in"
-                onClick={() => trackLandingCtaClick({ cta_label: copy.hero.alreadyHaveAccount, cta_destination: loginHref, cta_type: 'secondary', source: 'hero' })}
-              >
-                {copy.hero.alreadyHaveAccount}
-              </Link>
-              <p className="mt-2 text-center text-[11px]" style={{ color: 'var(--muted)' }}>
-                {copy.hero.reassurance}
-              </p>
+            <div className="mb-7 flex flex-col items-center gap-3 sm:flex-row sm:justify-center lg:justify-start" data-testid="landing-hero-cta-group">
+              {isAuthenticated ? (
+                <Link
+                  href={dashboardHref}
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+                  style={{ backgroundImage: 'linear-gradient(90deg, var(--color-primary), var(--color-primary-strong))', color: 'var(--on-accent-bg)' }}
+                  data-testid="landing-open-app-button"
+                  onClick={() => trackLandingCtaClick({ cta_label: copy.hero.primaryAuthed, cta_destination: dashboardHref, cta_type: 'primary', source: 'hero' })}
+                >
+                  {copy.hero.primaryAuthed}
+                </Link>
+              ) : (
+                <>
+                  <Link
+                    href={signupHref}
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+                    style={{ backgroundImage: 'linear-gradient(90deg, var(--color-primary), var(--color-primary-strong))', color: 'var(--on-accent-bg)' }}
+                    data-testid="landing-sign-up-button"
+                    onClick={() => trackLandingCtaClick({ cta_label: copy.hero.primary, cta_destination: signupHref, cta_type: 'primary', source: 'hero' })}
+                  >
+                    {copy.hero.primary}
+                  </Link>
+                  <Link
+                    href="#products"
+                    className="inline-flex w-full items-center justify-center gap-2 rounded-xl border px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+                    style={{ background: 'color-mix(in srgb, var(--panel) 88%, transparent)', borderColor: 'var(--border)', color: 'var(--text)' }}
+                    data-testid="landing-hero-watch-overview"
+                    onClick={() => trackLandingCtaClick({ cta_label: copy.hero.secondary, cta_destination: '#products', cta_type: 'secondary', source: 'hero' })}
+                  >
+                    {copy.hero.secondary}
+                  </Link>
+                </>
+              )}
             </div>
-          )}
-        </div>
 
-        {/* sports chips */}
-        <div className="relative z-10 flex flex-wrap items-center justify-center gap-2 px-2" aria-label={copy.nav.ariaSports}>
-          {copy.sports.map((sport) => (
-            <span
-              key={sport}
-              className="rounded-full border px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.08em]"
-              style={{ background: 'color-mix(in srgb, var(--panel2) 78%, transparent)', borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)', color: 'var(--muted)' }}
+            {!isAuthenticated && (
+              <>
+                <Link
+                  href={loginHref}
+                  className="mb-4 block text-center text-sm font-medium underline underline-offset-4 transition hover:opacity-90 lg:text-left"
+                  style={{ color: 'var(--color-primary)' }}
+                  data-testid="landing-hero-sign-in"
+                  onClick={() => trackLandingCtaClick({ cta_label: copy.hero.alreadyHaveAccount, cta_destination: loginHref, cta_type: 'secondary', source: 'hero' })}
+                >
+                  {copy.hero.alreadyHaveAccount}
+                </Link>
+                <p className="mb-6 text-center text-[11px] lg:text-left" style={{ color: 'var(--muted)' }}>
+                  {copy.hero.reassurance}
+                </p>
+              </>
+            )}
+
+            <div className="flex flex-wrap items-center justify-center gap-2 lg:justify-start" data-testid="landing-hero-trust-badges">
+              {copy.hero.trust.map((label) => (
+                <span
+                  key={label}
+                  className="rounded-full border px-3 py-1 text-[11px] font-semibold"
+                  style={{ background: 'color-mix(in srgb, var(--panel2) 78%, transparent)', borderColor: 'var(--border)', color: 'var(--muted)' }}
+                >
+                  {label}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* right: small League Pulse preview widget */}
+          <div className="relative mx-auto w-full max-w-md lg:mx-0" aria-hidden="true">
+            <div
+              className="card-premium overflow-hidden rounded-2xl border p-5"
+              style={{ borderColor: 'var(--border)', background: 'var(--panel)', boxShadow: 'var(--shadow-card)' }}
             >
-              {sport}
-            </span>
-          ))}
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--muted)' }}>
+                  {copy.hero.preview.title}
+                </span>
+                <span
+                  className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                  style={{ background: 'var(--color-success-soft)', color: 'var(--accent-emerald-strong)' }}
+                >
+                  {copy.hero.preview.leagueHealthValue}
+                </span>
+              </div>
+              <div className="mb-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel2) 70%, transparent)' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                    {copy.hero.preview.leagueHealthLabel}
+                  </p>
+                  <p className="mt-1 text-xl font-black" style={{ color: 'var(--text)' }}>{copy.hero.preview.leagueHealthValue}</p>
+                </div>
+                <div className="rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel2) 70%, transparent)' }}>
+                  <p className="text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                    {copy.hero.preview.retentionLabel}
+                  </p>
+                  <p className="mt-1 text-xl font-black" style={{ color: 'var(--text)' }}>{copy.hero.preview.retentionValue}</p>
+                </div>
+              </div>
+              <div className="mb-4 rounded-xl border p-3" style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel2) 70%, transparent)' }}>
+                <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide" style={{ color: 'var(--muted)' }}>
+                  {copy.hero.preview.activityLabel}
+                </p>
+                <svg viewBox="0 0 200 44" className="h-10 w-full" preserveAspectRatio="none">
+                  <polyline
+                    points="0,36 25,30 50,32 75,20 100,24 125,12 150,16 175,6 200,10"
+                    fill="none"
+                    stroke="var(--accent-emerald)"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border p-3" style={{ borderColor: 'color-mix(in srgb, var(--color-warning) 30%, var(--border))', background: 'var(--color-warning-soft)' }}>
+                <span className="text-[11px] font-semibold" style={{ color: 'var(--accent-amber-strong)' }}>
+                  {copy.hero.preview.topRiskLabel}
+                </span>
+                <span className="text-[11px] font-semibold" style={{ color: 'var(--accent-amber-strong)' }}>
+                  {copy.hero.preview.topRiskValue}
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
-      {/* ─── STATS + TRUST ─── */}
-      <section className="border-t" style={{ borderColor: 'var(--border)' }}>
-        {/* stats row */}
-        <div className="mx-auto max-w-4xl px-4 sm:px-6">
-          <div className="grid grid-cols-3 divide-x" style={{ divideColor: 'var(--border)' }}>
-            {copy.stats.map((stat) => (
-              <div key={stat.label} className="px-4 py-8 text-center sm:px-8">
-                <div className="mb-1 text-3xl font-black leading-none sm:text-4xl">
-                  <GradientWord>{stat.value}</GradientWord>
-                </div>
-                <div className="text-xs font-medium tracking-[0.03em] sm:text-sm" style={{ color: 'var(--muted)' }}>
-                  {stat.label}
-                </div>
-              </div>
-            ))}
-          </div>
+      {/* ─── PRODUCTS ─── */}
+      <section id="products" className="mx-auto max-w-7xl px-4 py-16 sm:px-6 sm:py-20" aria-labelledby="landing-products-heading">
+        <div className="mb-10 text-center">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--color-primary)' }}>
+            {copy.products.eyebrow}
+          </p>
+          <h2 id="landing-products-heading" className="mb-3 text-[26px] font-black leading-tight sm:text-[36px]" style={{ color: 'var(--text)' }}>
+            {copy.products.title}
+          </h2>
+          <p className="mx-auto max-w-xl text-sm sm:text-base" style={{ color: 'var(--muted)' }}>
+            {copy.products.subtitle}
+          </p>
         </div>
 
-        {/* trust pills */}
-        <div className="border-t" style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}>
-          <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-center gap-x-6 gap-y-3 px-4 py-5 sm:px-6">
-            {copy.trust.map((t) => (
-              <span key={t.text} className="flex items-center gap-2 text-[12px] font-medium sm:text-sm" style={{ color: 'var(--muted)' }}>
-                <span>{t.icon}</span>
-                {t.text}
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          {copy.products.cards.map((card) => {
+            const Icon = PRODUCT_ICONS[card.icon as keyof typeof PRODUCT_ICONS]
+            const colorVars = PRODUCT_COLOR_VARS[card.color] ?? PRODUCT_COLOR_VARS.blue
+            return (
+              <article
+                key={card.key}
+                className="flex flex-col rounded-2xl border p-5"
+                style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}
+              >
+                <div
+                  className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl"
+                  style={{ background: colorVars.soft, color: colorVars.solid }}
+                >
+                  <Icon className="h-5 w-5" aria-hidden />
+                </div>
+                <h3 className="text-base font-bold" style={{ color: 'var(--text)' }}>{card.title}</h3>
+                <p className="mt-0.5 text-[13px] font-semibold" style={{ color: colorVars.strong }}>{card.tagline}</p>
+                <p className="mt-2.5 text-[13px] leading-5" style={{ color: 'var(--muted)' }}>{card.description}</p>
+                <ul className="mt-4 flex-1 space-y-1.5">
+                  {card.bullets.map((bullet) => (
+                    <li key={bullet} className="flex items-start gap-2 text-[12px] leading-5" style={{ color: 'var(--muted)' }}>
+                      <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full" style={{ background: colorVars.solid }} />
+                      {bullet}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href={card.href}
+                  className="mt-5 inline-flex items-center justify-center gap-1.5 rounded-lg border px-4 py-2 text-[13px] font-semibold transition hover:opacity-85"
+                  style={{ borderColor: colorVars.solid, color: colorVars.solid }}
+                  data-testid={`landing-product-cta-${card.key}`}
+                  onClick={() => trackLandingCtaClick({ cta_label: card.cta, cta_destination: card.href, cta_type: 'secondary', source: `product-${card.key}` })}
+                >
+                  {card.cta}
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </Link>
+              </article>
+            )
+          })}
+        </div>
+
+        {/* Future intelligence verticals — partner/compliance-facing only, never a consumer gambling pitch */}
+        <div
+          className="mt-8 rounded-2xl border p-5 text-center sm:p-6"
+          style={{ borderColor: 'var(--border)', background: 'color-mix(in srgb, var(--panel2) 60%, transparent)' }}
+        >
+          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--muted)' }}>
+            {copy.dfs.eyebrow}
+          </p>
+          <p className="mx-auto max-w-2xl text-[12px] leading-5" style={{ color: 'var(--muted)' }}>
+            {copy.dfs.body}
+          </p>
+        </div>
+      </section>
+
+      {/* ─── TRUSTED / SUPPORTED ─── */}
+      <section className="border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="mx-auto max-w-5xl px-4 py-10 text-center sm:px-6">
+          <p className="mb-5 text-sm font-semibold" style={{ color: 'var(--text)' }}>{copy.trustedStrip.title}</p>
+          <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+            <span className="text-[10px] font-bold uppercase tracking-[0.1em]" style={{ color: 'var(--muted)' }}>
+              {copy.trustedStrip.compatLabel}
+            </span>
+            {copy.trustedStrip.platforms.map((name) => (
+              <span
+                key={name}
+                className="rounded-full border px-3 py-1 text-[12px] font-semibold"
+                style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}
+              >
+                {name}
+              </span>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-2">
+            {copy.trustedStrip.formats.map((name) => (
+              <span
+                key={name}
+                className="rounded-full px-2.5 py-1 text-[11px] font-medium"
+                style={{ background: 'color-mix(in srgb, var(--panel2) 70%, transparent)', color: 'var(--muted)' }}
+              >
+                {name}
               </span>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ─── COMMISSIONER ─── */}
-      <section
-        id="landing-commissioner"
-        className="relative mx-4 my-6 overflow-hidden rounded-2xl border px-4 py-12 sm:mx-6 sm:px-8 sm:py-16"
-        aria-labelledby="landing-commissioner-heading"
-        style={{
-          background: 'var(--panel)',
-          borderColor: 'color-mix(in srgb, #f59e0b 20%, var(--border))',
-          borderLeft: '3px solid #f59e0b',
-        }}
-      >
-        <div className="mb-10 text-center">
-          <span
-            className="mb-4 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.12em]"
-            style={{ background: 'color-mix(in srgb, #f59e0b 12%, transparent)', borderColor: 'color-mix(in srgb, #f59e0b 30%, transparent)', color: '#f59e0b' }}
-          >
-            <span>★</span> {copy.commissioner.eyebrow}
-          </span>
-          <h2
-            id="landing-commissioner-heading"
-            className="mb-3 whitespace-pre-line text-[32px] font-black leading-[1.0] tracking-[0.02em] sm:text-[46px] md:text-[58px]"
-            style={{ color: 'var(--text)' }}
-          >
-            {copy.commissioner.title}
+      {/* ─── OUTCOMES ─── */}
+      <section id="outcomes" className="border-t" style={{ borderColor: 'var(--border)' }}>
+        <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-20">
+          <h2 className="mb-8 text-center text-[24px] font-black sm:text-[32px]" style={{ color: 'var(--text)' }}>
+            {copy.outcomes.title}
           </h2>
-          <p className="mx-auto max-w-xl text-sm leading-7 sm:text-base sm:leading-8" style={{ color: 'var(--muted)' }}>
-            {copy.commissioner.subtitle}
-          </p>
-        </div>
-
-        <div className="grid gap-px overflow-hidden rounded-2xl border sm:grid-cols-2" style={{ borderColor: 'var(--border)', background: 'var(--border)' }}>
-          {copy.commissioner.features.map((feat) => (
-            <div key={feat.title} className="px-6 py-6" style={{ background: 'var(--bg)' }}>
-              <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border text-lg" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)', borderColor: 'color-mix(in srgb, #f59e0b 20%, transparent)' }}>
-                {feat.icon}
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            {copy.outcomes.cards.map((card) => (
+              <div key={card.title} className="rounded-2xl border p-5" style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}>
+                <h3 className="mb-1.5 text-sm font-bold" style={{ color: 'var(--text)' }}>{card.title}</h3>
+                <p className="text-[13px] leading-5" style={{ color: 'var(--muted)' }}>{card.body}</p>
               </div>
-              <h3 className="mb-1.5 text-sm font-semibold">{feat.title}</h3>
-              <p className="text-sm leading-6" style={{ color: 'var(--muted)' }}>{feat.body}</p>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
+      </section>
 
-        <div className="mt-8 flex flex-col items-center gap-3 text-center">
-          <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
-            <Link
-              href={commissionerSignupHref}
-              className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-black transition hover:-translate-y-0.5 hover:opacity-90"
-              style={{ backgroundImage: 'linear-gradient(90deg, #f59e0b, #d97706)' }}
-              onClick={() => trackLandingCtaClick({ cta_label: copy.commissioner.cta, cta_destination: commissionerSignupHref, cta_type: 'primary', source: 'commissioner-section' })}
-            >
-              {copy.commissioner.cta}
-              <ArrowRight className="h-4 w-4" />
-            </Link>
-            <span
-              className="rounded-xl border px-4 py-2.5 text-xs font-medium"
-              style={{ borderColor: 'var(--border)', color: 'var(--muted)', background: 'transparent' }}
-            >
-              {copy.commissioner.badgeBody}
-            </span>
+      {/* ─── LICENSING ─── */}
+      <section id="licensing" className="border-t" style={{ borderColor: 'var(--border)', background: 'var(--panel)' }}>
+        <div className="mx-auto max-w-5xl px-4 py-16 text-center sm:px-6 sm:py-20">
+          <h2 className="mb-3 text-[24px] font-black sm:text-[32px]" style={{ color: 'var(--text)' }}>{copy.licensing.title}</h2>
+          <p className="mx-auto mb-8 max-w-xl text-sm sm:text-base" style={{ color: 'var(--muted)' }}>{copy.licensing.body}</p>
+          <div className="mb-8 grid gap-4 sm:grid-cols-3">
+            {copy.licensing.cards.map((card) => (
+              <div
+                key={card.title}
+                className="rounded-2xl border p-5 text-left"
+                style={{ borderColor: 'color-mix(in srgb, var(--accent-amber) 22%, var(--border))', background: 'var(--bg)' }}
+              >
+                <h3 className="mb-1.5 text-sm font-bold" style={{ color: 'var(--text)' }}>{card.title}</h3>
+                <p className="text-[13px] leading-5" style={{ color: 'var(--muted)' }}>{card.body}</p>
+              </div>
+            ))}
           </div>
           <Link
-            href={copy.commissioner.secondaryCtaHref}
-            className="text-sm font-semibold transition hover:opacity-90"
-            style={{ color: '#f59e0b' }}
-            onClick={() => trackLandingCtaClick({ cta_label: copy.commissioner.secondaryCta, cta_destination: copy.commissioner.secondaryCtaHref, cta_type: 'secondary', source: 'commissioner-section' })}
+            href="mailto:support@allfantasy.ai?subject=Licensing%20Inquiry"
+            className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
+            style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-amber), var(--accent-amber-strong))', color: 'var(--on-accent-bg)' }}
+            data-testid="landing-licensing-cta"
+            onClick={() => trackLandingCtaClick({ cta_label: copy.licensing.cta, cta_destination: 'mailto:support@allfantasy.ai', cta_type: 'primary', source: 'licensing' })}
           >
-            {copy.commissioner.secondaryCta}
+            {copy.licensing.cta}
+            <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
       </section>
 
-      {/* ─── AI TOOLS ─── */}
-      <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16" aria-labelledby="landing-tools">
-        <div className="mb-10 text-center">
-          <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em]" style={{ color: 'var(--accent-emerald-strong)' }}>
-            {copy.tools.eyebrow}
-          </p>
-          <h2
-            id="landing-tools"
-            className="mb-3 text-[32px] font-black leading-[0.98] tracking-[0.025em] sm:text-[46px] md:text-[58px]"
-            style={{ color: 'var(--text)' }}
+      {/* ─── MOBILE STICKY CTA ─── */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-50 border-t bg-[#040915]/95 px-3 py-2 backdrop-blur sm:hidden"
+        style={{ borderColor: 'var(--border)' }}
+        data-testid="landing-mobile-sticky-cta"
+      >
+        <div className="mx-auto flex max-w-4xl items-center gap-2">
+          <Link
+            href={isAuthenticated ? dashboardHref : signupHref}
+            prefetch={false}
+            className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg bg-blue-500 px-3 py-2 text-xs font-semibold text-white"
+            data-testid="landing-mobile-open-app-button"
+            onClick={() =>
+              trackLandingCtaClick({
+                cta_label: isAuthenticated ? copy.hero.primaryAuthed : copy.hero.primary,
+                cta_destination: isAuthenticated ? dashboardHref : signupHref,
+                cta_type: 'primary',
+                source: 'mobile_sticky',
+              })
+            }
           >
-            <span className="block">{copy.tools.titleTop}</span>
-            <span className="block"><GradientWord>{copy.tools.titleBottom}</GradientWord></span>
-          </h2>
-          <p className="mx-auto max-w-xl text-sm leading-7 sm:text-base sm:leading-8" style={{ color: 'var(--muted)' }}>
-            {copy.tools.subtitle}
-          </p>
+            {isAuthenticated ? copy.hero.primaryAuthed : copy.hero.primary}
+          </Link>
+          {!isAuthenticated && (
+            <Link
+              href={loginHref}
+              prefetch={false}
+              className="inline-flex min-h-[44px] flex-1 items-center justify-center rounded-lg border border-white/20 bg-white/5 px-3 py-2 text-xs font-semibold text-white/85"
+              data-testid="landing-mobile-sign-in-button"
+              onClick={() =>
+                trackLandingCtaClick({
+                  cta_label: copy.nav.signIn,
+                  cta_destination: loginHref,
+                  cta_type: 'secondary',
+                  source: 'mobile_sticky',
+                })
+              }
+            >
+              {copy.nav.signIn}
+            </Link>
+          )}
         </div>
-
-        <div className="grid gap-px overflow-hidden rounded-2xl border md:grid-cols-3" style={{ borderColor: 'var(--border)', background: 'var(--border)' }}>
-          {copy.tools.cards.map((card) => (
-            <article key={card.title} className="relative px-6 py-7" style={{ background: 'var(--panel)' }}>
-              <div className="mb-4 flex h-10 w-10 items-center justify-center rounded-xl border text-xl" style={{ background: 'color-mix(in srgb, var(--accent-cyan) 10%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 18%, transparent)' }}>
-                {card.icon}
-              </div>
-              <h3 className="mb-2 text-sm font-semibold sm:text-base">{card.title}</h3>
-              <p className="mb-4 text-sm leading-6" style={{ color: 'var(--muted)' }}>{card.body}</p>
-              <div
-                className="rounded-xl border p-3"
-                style={{ background: 'color-mix(in srgb, var(--panel2) 86%, transparent)', borderColor: 'color-mix(in srgb, var(--accent-cyan) 16%, var(--border))' }}
-              >
-                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--accent-emerald-strong)' }}>
-                  {card.previewTitle ?? copy.tools.previewLabel}
-                </div>
-                <div className="space-y-1.5">
-                  {card.previewLines.map((line) => (
-                    <div
-                      key={line}
-                      className="rounded-lg border px-2.5 py-1.5 text-xs font-medium"
-                      style={{ borderColor: 'color-mix(in srgb, var(--border) 92%, transparent)', background: 'color-mix(in srgb, white 3%, transparent)', color: 'var(--text)' }}
-                    >
-                      {line}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </article>
-          ))}
-        </div>
-
-        {/* AI optional note */}
-        <p className="mt-5 text-center text-[12px]" style={{ color: 'var(--muted2)' }}>
-          💡 {copy.tools.optionalNote}
-        </p>
-      </section>
-
-      {/* ─── FINAL CTA ─── */}
-      <section className="relative overflow-hidden px-4 pb-20 pt-6 text-center sm:px-6 sm:pb-24" aria-labelledby="landing-cta">
-        <div
-          className="pointer-events-none absolute inset-0"
-          style={{ background: 'radial-gradient(ellipse 65% 80% at 50% 50%, color-mix(in srgb, var(--accent-cyan) 12%, transparent) 0%, transparent 70%)' }}
-          aria-hidden="true"
-        />
-        <Image
-          src="/brand/af-shield-transparent.png"
-          alt=""
-          width={584}
-          height={625}
-          className="pointer-events-none absolute left-1/2 top-1/2 h-[200px] w-auto -translate-x-1/2 -translate-y-1/2 object-contain opacity-[0.05] sm:h-[260px]"
-          aria-hidden="true"
-        />
-
-        <div className="relative z-10 mx-auto max-w-2xl">
-          <h2
-            id="landing-cta"
-            className="mb-3 text-[34px] font-black leading-[1.0] tracking-[0.025em] sm:text-[48px] md:text-[60px]"
-            style={{ color: 'var(--text)' }}
-          >
-            {copy.cta.title}
-          </h2>
-          <p className="mx-auto mb-8 max-w-lg text-sm leading-7 sm:text-base sm:leading-8" style={{ color: 'var(--muted)' }}>
-            {copy.cta.body}
-          </p>
-          <div className="flex flex-col items-center gap-3">
-            <div className="flex flex-wrap items-center justify-center gap-3">
-              <Link
-                href={isAuthenticated ? dashboardHref : signupHref}
-                className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
-                style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))', color: 'var(--on-accent-bg)' }}
-                data-testid="landing-cta-primary"
-                onClick={() => trackLandingCtaClick({ cta_label: isAuthenticated ? copy.cta.primaryAuthed : copy.cta.primary, cta_destination: isAuthenticated ? dashboardHref : signupHref, cta_type: 'primary', source: 'cta-band' })}
-              >
-                {isAuthenticated ? copy.cta.primaryAuthed : copy.cta.primary}
-                <ArrowRight className="h-4 w-4" />
-              </Link>
-              {!isAuthenticated && (
-                <Link
-                  href={commissionerSignupHref}
-                  className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-sm font-semibold text-black transition hover:-translate-y-0.5 hover:opacity-90"
-                  style={{ backgroundImage: 'linear-gradient(90deg, #f59e0b, #d97706)' }}
-                  data-testid="landing-cta-commissioner"
-                  onClick={() => trackLandingCtaClick({ cta_label: copy.cta.commissionerPrimary, cta_destination: commissionerSignupHref, cta_type: 'primary', source: 'cta-band-commissioner' })}
-                >
-                  {copy.cta.commissionerPrimary}
-                  <ArrowRight className="h-4 w-4" />
-                </Link>
-              )}
-              <Link
-                href={isAuthenticated ? dashboardHref : loginHref}
-                className="inline-flex items-center gap-2 rounded-xl border px-6 py-3 text-sm font-medium transition hover:-translate-y-0.5"
-                style={{ background: 'color-mix(in srgb, var(--panel) 88%, transparent)', borderColor: 'var(--border)', color: 'var(--text)' }}
-                data-testid="landing-cta-secondary"
-                onClick={() => trackLandingCtaClick({ cta_label: isAuthenticated ? copy.cta.secondaryAuthed : copy.cta.secondary, cta_destination: isAuthenticated ? dashboardHref : loginHref, cta_type: 'secondary', source: 'cta-band' })}
-              >
-                {isAuthenticated ? copy.cta.secondaryAuthed : copy.cta.secondary}
-              </Link>
-            </div>
-            {!isAuthenticated && (
-              <p className="mt-1 text-center text-[11px]" style={{ color: 'var(--muted)' }}>
-                {copy.cta.commissionerNote}
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
+      </div>
 
       {/* ─── FOOTER ─── */}
-      <footer className="border-t px-4 py-6 sm:px-6" style={{ borderColor: 'var(--border)' }}>
+      <footer id="footer" className="border-t px-4 py-8 pb-20 sm:px-6 sm:pb-8" style={{ borderColor: 'var(--border)' }}>
         <div className="mx-auto max-w-6xl">
+          <div className="mb-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 border-b pb-5" style={{ borderColor: 'var(--border)' }} data-testid="landing-footer-trust-bar">
+            {copy.footerTrust.map((label) => (
+              <span key={label} className="text-[12px] font-semibold" style={{ color: 'var(--muted)' }}>
+                {label}
+              </span>
+            ))}
+          </div>
           <div className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
             <Link href="/" className="flex items-center gap-3 opacity-80 transition-opacity hover:opacity-100" aria-label={copy.nav.ariaHome}>
               <Image
@@ -1160,15 +966,15 @@ export default function LandingPageClient({
               <Link href="/privacy" className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.privacy}</Link>
               <Link href="/terms" className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.terms}</Link>
               <Link href="/data-deletion" className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.dataDeletion}</Link>
-              <Link href={loginUrlWithIntent('/dashboard')} className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.signIn}</Link>
+              <Link href={loginHref} className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.signIn}</Link>
               <Link href="/admin" className="text-sm transition-colors [color:var(--muted)] hover:[color:var(--text)]">{copy.footer.admin}</Link>
             </nav>
           </div>
-          {/* Language toggle — visible on all screen sizes (nav toggle is desktop-only) */}
-          <div className="mt-4 flex md:hidden">
+          {/* Language + theme toggles — visible on all screen sizes (nav toggles are desktop-only) */}
+          <div className="mt-4 flex flex-wrap items-center gap-3 md:hidden">
             <LanguageToggle />
+            <ThemeModeSelect size="sm" />
           </div>
-          {/* geo note */}
           <p className="mt-4 max-w-3xl text-[11px] leading-5" style={{ color: 'var(--muted2)' }}>
             {copy.footer.geoNote}
           </p>
@@ -1182,37 +988,6 @@ export default function LandingPageClient({
             linear-gradient(90deg, color-mix(in srgb, var(--border) 40%, transparent) 1px, transparent 1px);
           background-size: 48px 48px;
           mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, black 20%, transparent 78%);
-          -webkit-mask-image: radial-gradient(ellipse 75% 75% at 50% 50%, black 20%, transparent 78%);
-        }
-
-        .landing-crest-glow {
-          background: radial-gradient(
-            circle,
-            color-mix(in srgb, var(--accent-cyan) 28%, transparent) 0%,
-            rgba(59, 130, 246, 0.16) 35%,
-            color-mix(in srgb, var(--accent-purple) 12%, transparent) 58%,
-            transparent 74%
-          );
-          filter: blur(6px);
-        }
-
-        .landing-float {
-          animation: landingFloat 5s ease-in-out infinite;
-        }
-
-        .hero-logo-wrap {
-          background: transparent !important;
-          isolation: auto;
-        }
-
-        @keyframes landingFloat {
-          0%, 100% { transform: translateY(0); }
-          50% { transform: translateY(-10px); }
-        }
-
-        @keyframes landingPulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.25; }
         }
       `}</style>
     </main>

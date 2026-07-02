@@ -29,22 +29,23 @@ import {
 } from '@/lib/seo'
 
 export const metadata: Metadata = buildSeoMeta({
-  title: 'AllFantasy.ai — AI-Powered Fantasy Sports | NFL, NBA, NHL, MLB & More',
+  title: 'AllFantasy.ai — The Intelligence Platform for Fantasy Sports | NFL, NBA, NHL, MLB & More',
   description:
-    'AllFantasy.ai is the AI-powered fantasy sports platform for serious managers. Analyze trades, dominate waivers, draft smarter, and win your league across NFL, NBA, NHL, MLB, NCAA, and Soccer.',
+    'AllFantasy.ai turns real league and user data into better decisions for players, commissioners, and fantasy platforms. League intelligence, trade analysis, waiver tools, and draft help across NFL, NBA, NHL, MLB, NCAA, and Soccer.',
   canonicalPath: '/',
-  openGraphTitle: 'AllFantasy.ai — Fantasy Sports With AI Superpowers',
+  openGraphTitle: 'AllFantasy.ai — The Intelligence Platform for Fantasy Sports',
   openGraphDescription:
-    'The AI-powered fantasy sports platform for serious managers. Trade analysis, waiver AI, draft assistant, dynasty tools, and more.',
-  twitterTitle: 'AllFantasy.ai — Fantasy Sports With AI Superpowers',
-  twitterDescription: 'The AI-powered fantasy sports platform for serious managers.',
+    'Real league and user data, turned into better decisions. League health, trade analysis, waiver tools, and draft help for serious managers and commissioners.',
+  twitterTitle: 'AllFantasy.ai — The Intelligence Platform for Fantasy Sports',
+  twitterDescription: 'Real data. Better decisions. Healthier fantasy leagues.',
   imagePath: '/af-crest.png',
   keywords: [
-    'AI fantasy sports',
-    'fantasy football AI',
+    'fantasy sports intelligence',
+    'fantasy football',
     'fantasy basketball',
-    'trade analyzer AI',
-    'waiver wire AI',
+    'league intelligence',
+    'trade analyzer',
+    'waiver wire tools',
     'draft assistant',
     'dynasty fantasy',
     'devy fantasy',
@@ -55,14 +56,14 @@ export const metadata: Metadata = buildSeoMeta({
 const HOME_WEBPAGE_SCHEMA = getWebPageSchema({
   name: 'AllFantasy.ai',
   description:
-    'AI-powered fantasy sports platform for NFL, NBA, NHL, MLB, NCAA, and Soccer with trade analysis, waiver tools, draft help, and league management.',
+    'The intelligence platform for fantasy sports — NFL, NBA, NHL, MLB, NCAA, and Soccer — with league intelligence, trade analysis, waiver tools, and commissioner tools.',
   url: '/',
 })
 
 const HOME_SOFTWARE_APP_SCHEMA = getSoftwareApplicationSchema({
   name: 'AllFantasy.ai',
   description:
-    'AI-powered fantasy sports platform for serious managers with trade analyzer, waiver wire AI, draft assistant, and Chimmy AI coaching.',
+    'The intelligence platform for fantasy sports. League intelligence, trade analyzer, waiver tools, and draft assistant for serious managers and commissioners.',
   url: 'https://allfantasy.ai/',
   applicationCategory: 'SportsApplication',
 })
