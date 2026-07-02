@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import {
   Crown,
@@ -37,6 +37,7 @@ import type {
 import { buildCommissionerLeaguePulse } from '@/lib/decision-os/league-pulse'
 import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
 import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
+import type { ManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
 
 // ─── Copy constants (future i18n wiring) ───────────────────────────────────
 const COPY = {
@@ -744,12 +745,47 @@ export default function CommissionerHubPageClient({
   const managedHealthSnapshots = commissionerLeagues
     .map((league) => healthByLeagueId.get(league.id))
     .filter((snapshot): snapshot is CommissionerLeagueHealthSnapshot => Boolean(snapshot))
+  // Representative league for the commissioner's own manager-tier intelligence — the same
+  // "first commissioner league" anchor buildMissionQueue already uses above, not a new heuristic.
+  const representativeLeagueId = commissionerLeagues[0]?.id ?? null
+  const [managerIntelligence, setManagerIntelligence] = useState<ManagerIntelligencePayload | null>(null)
+  useEffect(() => {
+    if (!representativeLeagueId) {
+      setManagerIntelligence(null)
+      return
+    }
+    let cancelled = false
+    void fetch(`/api/decision-os/manager-intelligence?leagueId=${encodeURIComponent(representativeLeagueId)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<ManagerIntelligencePayload>) : null))
+      .then((data) => {
+        if (!cancelled) setManagerIntelligence(data)
+      })
+      .catch(() => {
+        if (!cancelled) setManagerIntelligence(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [representativeLeagueId])
   const leaguePulse = useMemo(
-    () => buildCommissionerLeaguePulse({ snapshots: managedHealthSnapshots }),
-    [managedHealthSnapshots]
+    () =>
+      buildCommissionerLeaguePulse({
+        snapshots: managedHealthSnapshots,
+        managerDna: managerIntelligence?.managerDna ?? null,
+      }),
+    [managedHealthSnapshots, managerIntelligence]
   )
-  const managerDna = useMemo(() => buildManagerDnaViewModel({ source: null }), [])
-  const recommendations = useMemo(() => buildDecisionRecommendationsViewModel({ source: null }), [])
+  const managerDna = useMemo(
+    () => buildManagerDnaViewModel({ source: managerIntelligence?.managerDna ?? null }),
+    [managerIntelligence],
+  )
+  const recommendations = useMemo(
+    () => buildDecisionRecommendationsViewModel({ source: managerIntelligence?.recommendations ?? null }),
+    [managerIntelligence],
+  )
   const showDemoMode = demoMode || leagues.length === 0
   const primaryHeroHref = isAuthenticated ? '/create-league' : buildLoginHref('/create-league')
   const primaryHeroLabel = isAuthenticated ? COPY.hero.ctaCreate : 'Sign In'

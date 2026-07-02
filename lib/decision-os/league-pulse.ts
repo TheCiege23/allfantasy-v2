@@ -98,6 +98,13 @@ type BuildLeagueHomePulseInput = {
 
 type BuildCommissionerLeaguePulseInput = {
   snapshots: CommissionerLeagueHealthSnapshot[]
+  /**
+   * Optional real Phase 6.2 Manager DNA for the commissioner's own manager
+   * profile in their representative league (Phase 8.2 pipeline unification).
+   * Surfaced as an extra evidence row only — never re-derived. Omitted or
+   * null preserves the exact prior evidence/derivation output.
+   */
+  managerDna?: ManagerDnaProfile | null
   now?: Date
 }
 
@@ -353,6 +360,7 @@ export function buildLeagueHomePulse({
 
 export function buildCommissionerLeaguePulse({
   snapshots,
+  managerDna = null,
   now = DEFAULT_NOW(),
 }: BuildCommissionerLeaguePulseInput): LeaguePulseViewModel {
   if (snapshots.length === 0) {
@@ -375,6 +383,20 @@ export function buildCommissionerLeaguePulse({
   const confidencePenalty = snapshots.some((snapshot) => snapshot.dataConfidence === 'low') ? 18 : 0
   const confidence = clamp(70 + Math.min(12, snapshots.length * 3) - confidencePenalty)
   const riskCount = inactiveTeams + missedLineups + alertCount
+  const hasRealManagerDna = Boolean(managerDna && managerDna.primaryIdentity !== 'unknown' && managerDna.confidence > 0)
+  const evidence: LeaguePulseEvidence[] = [
+    { label: 'Managed leagues', value: String(snapshots.length) },
+    { label: 'Inactive teams', value: String(inactiveTeams) },
+    { label: 'Missed lineups', value: String(missedLineups) },
+    { label: 'Open alerts', value: String(alertCount) },
+  ]
+  if (hasRealManagerDna && managerDna) {
+    evidence.push({
+      label: 'Manager engagement',
+      value: `${Math.round(managerDna.confidence * 100)}% confidence`,
+      detail: `Decision Intelligence identity: ${managerDna.primaryIdentity.replace(/_/g, ' ')}`,
+    })
+  }
 
   return {
     id: 'league-pulse-commissioner',
@@ -393,16 +415,12 @@ export function buildCommissionerLeaguePulse({
         : 'Current deterministic health snapshots do not show urgent commissioner intervention needs.',
     confidence,
     confidenceLabel: confidenceLabel(confidence),
-    evidence: [
-      { label: 'Managed leagues', value: String(snapshots.length) },
-      { label: 'Inactive teams', value: String(inactiveTeams) },
-      { label: 'Missed lineups', value: String(missedLineups) },
-      { label: 'Open alerts', value: String(alertCount) },
-    ],
+    evidence,
     derivation: [
       'Averaged deterministic commissioner health scores',
       'Summed inactive teams, missed lineups, pending waivers, pending trades, and alerts',
       'Selected the first enabled commissioner action as the safest next step',
+      ...(hasRealManagerDna ? ['Included the real Phase 6 Manager DNA signal already resolved for this commissioner'] : []),
     ],
     metrics: [
       { label: 'Health', value: `${healthScore}%`, tone: healthScore >= 75 ? 'positive' : 'warning' },

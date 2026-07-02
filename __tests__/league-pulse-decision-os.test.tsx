@@ -199,6 +199,52 @@ describe('League Pulse Decision OS premium experience', () => {
     expect(pulse.derivation.join(' ')).toContain('deterministic commissioner health scores')
   })
 
+  it('Phase 8.2 — commissioner League Pulse surfaces real Manager DNA the same way League Home does, deterministically', () => {
+    const baseInput = { now, snapshots: [snapshot()] }
+    const withoutDna = buildCommissionerLeaguePulse(baseInput)
+
+    const realDna: ManagerDnaProfile = {
+      managerId: 'user-1',
+      leagueId: 'league-1',
+      primaryIdentity: 'waiver_hawk',
+      confidence: 0.74,
+      decisionStyle: 'methodical',
+      transactionStyle: 'waiver_dominant',
+      riskTendency: 'neutral',
+      engagementReliability: 'reliable',
+      traits: [],
+      derivation: ['waiver aggression streak'],
+      warnings: [],
+      completeness: 85,
+    }
+    const withDna = buildCommissionerLeaguePulse({ ...baseInput, managerDna: realDna })
+
+    // Omitted managerDna → byte-identical to before this ticket (no regression).
+    expect(withoutDna.evidence).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ label: 'Manager engagement' })]),
+    )
+    // Real managerDna → one additional, real evidence row — nothing else recomputed.
+    expect(withDna.evidence).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Manager engagement', value: '74% confidence' }),
+      ]),
+    )
+    expect(withDna.derivation).toContain(
+      'Included the real Phase 6 Manager DNA signal already resolved for this commissioner',
+    )
+    // Deterministic: the aggregate health score, status, and headline are unchanged by adding the evidence row.
+    expect(withDna.headline).toBe(withoutDna.headline)
+    expect(withDna.status).toBe(withoutDna.status)
+    expect(withDna.metrics).toEqual(withoutDna.metrics)
+
+    // An 'unknown' identity (insufficient real data) must NOT be surfaced as evidence — no fabrication.
+    const unknownDna: ManagerDnaProfile = { ...realDna, primaryIdentity: 'unknown', confidence: 0 }
+    const withUnknownDna = buildCommissionerLeaguePulse({ ...baseInput, managerDna: unknownDna })
+    expect(withUnknownDna.evidence).toEqual(
+      expect.not.arrayContaining([expect.objectContaining({ label: 'Manager engagement' })]),
+    )
+  })
+
   it('renders confidence, evidence, decision path, and next action without raw backend ids', () => {
     const pulse = buildCommissionerLeaguePulse({ now, snapshots: [snapshot()] })
 
