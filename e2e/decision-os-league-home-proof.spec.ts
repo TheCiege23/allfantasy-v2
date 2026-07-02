@@ -22,39 +22,58 @@ async function cleanupSeeded(request: APIRequestContext): Promise<void> {
   seeded = null
 }
 
-async function setMode(page: Page, mode: 'light' | 'dark'): Promise<void> {
-  if (page.url().startsWith('about:')) {
-    await page.context().addCookies([
-      {
-        name: 'af_mode',
-        value: mode,
-        url: 'http://127.0.0.1',
-        sameSite: 'Lax',
-      },
-    ])
-    await page.addInitScript((nextMode) => {
-      window.localStorage.setItem('af_mode', nextMode)
-      document.cookie = `af_mode=${nextMode}; path=/; max-age=31536000; samesite=lax`
-    }, mode)
-    return
+function currentOrigin(page: Page): string {
+  if (!page.url().startsWith('about:')) {
+    return new URL(page.url()).origin
+  }
+  return process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${process.env.PLAYWRIGHT_PORT ?? '3101'}`
+}
+
+async function setSsrMode(page: Page, mode: 'light' | 'dark'): Promise<void> {
+  const origin = currentOrigin(page)
+  if (!page.url().startsWith('about:')) {
+    const profileResponse = await page.request.patch('/api/user/profile', {
+      data: { themePreference: mode },
+    })
+    expect(profileResponse.ok(), `Theme profile sync failed (${profileResponse.status()})`).toBeTruthy()
   }
   await page.context().addCookies([
     {
       name: 'af_mode',
       value: mode,
-      url: new URL(page.url()).origin,
+      url: origin,
       sameSite: 'Lax',
     },
   ])
+  if (page.url().startsWith('about:')) return
   await page.evaluate((nextMode) => {
     window.localStorage.setItem('af_mode', nextMode)
     document.cookie = `af_mode=${nextMode}; path=/; max-age=31536000; samesite=lax`
-    document.documentElement.setAttribute('data-mode', nextMode)
   }, mode)
 }
 
-async function openLeagueHome(page: Page, leagueId: string, browserEvents: string[]): Promise<void> {
-  await page.goto(`/league/${leagueId}?view=league`, { waitUntil: 'domcontentloaded' })
+async function expectSsrModeNavigation(
+  page: Page,
+  path: string,
+  mode: 'light' | 'dark',
+): Promise<void> {
+  const response = await page.goto(path, { waitUntil: 'domcontentloaded' })
+  expect(response, `${path} should return a document response`).toBeTruthy()
+  expect(response?.ok(), `${path} should load successfully (${response?.status()})`).toBeTruthy()
+  const html = await response!.text()
+  expect(html, `${path} SSR document should carry data-mode=${mode}`).toMatch(
+    new RegExp(`<html[^>]*data-mode="${mode}"`),
+  )
+  await expect(page.locator('html')).toHaveAttribute('data-mode', mode)
+}
+
+async function openLeagueHome(
+  page: Page,
+  leagueId: string,
+  browserEvents: string[],
+  mode: 'light' | 'dark',
+): Promise<void> {
+  await expectSsrModeNavigation(page, `/league/${leagueId}?view=league`, mode)
   const leagueTab = page.getByTestId('league-tab-league')
   const visible = await leagueTab.isVisible({ timeout: 45_000 }).catch(() => false)
   if (!visible) {
@@ -65,6 +84,15 @@ async function openLeagueHome(page: Page, leagueId: string, browserEvents: strin
   }
   await page.getByTestId('league-tab-league').click()
   await expect(page.getByTestId('league-pulse-card-league')).toBeVisible({ timeout: 45_000 })
+}
+
+function expectNoRootRuntimeCrashes(browserEvents: string[]): void {
+  const rootCrashes = browserEvents.filter((event) =>
+    /pageerror|hydration|HierarchyRequestError|NotFoundError|insertBefore|appendChild|Minified React error #(?:418|423)|root layout/i.test(
+      event,
+    ),
+  )
+  expect(rootCrashes).toEqual([])
 }
 
 async function expectNoHorizontalOverflow(page: Page): Promise<void> {
@@ -98,7 +126,7 @@ async function expectDecisionOsCards(page: Page, variant: 'league' | 'commission
   await expect(moves.getByText('Evidence checked')).toBeVisible()
 }
 
-test.describe('G28 Decision OS authenticated League Home proof', () => {
+test.describe('G29 Decision OS authenticated theme SSR proof', () => {
   test.describe.configure({ mode: 'serial', timeout: 480_000 })
 
   test.afterAll(async ({ request }) => {
@@ -125,11 +153,6 @@ test.describe('G28 Decision OS authenticated League Home proof', () => {
       }
     })
 
-    await page.addInitScript(() => {
-      window.localStorage.setItem('af_mode', 'light')
-      document.cookie = 'af_mode=light; path=/; max-age=31536000; samesite=lax'
-    })
-
     await registerAndLoginTo(page, null)
 
     const seedResponse = await page.request.post('/api/e2e/decision-os-proof-league', {
@@ -145,8 +168,8 @@ test.describe('G28 Decision OS authenticated League Home proof', () => {
     }
     expect(seeded.leagueId).toBeTruthy()
 
-    await openLeagueHome(page, seeded.leagueId, browserEvents)
-    await expect(page.locator('html')).toHaveAttribute('data-mode', 'light')
+    await setSsrMode(page, 'light')
+    await openLeagueHome(page, seeded.leagueId, browserEvents, 'light')
     await expectDecisionOsCards(page, 'league')
 
     const intelligenceResponse = await page.request.get(
@@ -160,17 +183,19 @@ test.describe('G28 Decision OS authenticated League Home proof', () => {
     expect(intelligence).toHaveProperty('managerDna')
     expect(intelligence).toHaveProperty('recommendations')
 
-    await setMode(page, 'dark')
-    await openLeagueHome(page, seeded.leagueId, browserEvents)
-    await setMode(page, 'dark')
-    await expect(page.locator('html')).toHaveAttribute('data-mode', 'dark')
+    await setSsrMode(page, 'dark')
+    await openLeagueHome(page, seeded.leagueId, browserEvents, 'dark')
     await expectDecisionOsCards(page, 'league')
 
     await page.setViewportSize({ width: 390, height: 844 })
     await expectDecisionOsCards(page, 'league')
     await expectNoHorizontalOverflow(page)
 
-    await page.goto('/commissioner-hub', { waitUntil: 'domcontentloaded' })
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await expectSsrModeNavigation(page, '/dashboard', 'dark')
+    await expect(page.getByTestId('dashboard-right-create-league')).toBeVisible({ timeout: 45_000 })
+
+    await expectSsrModeNavigation(page, '/commissioner-hub', 'dark')
     await expectDecisionOsCards(page, 'commissioner')
     await expect(page.getByTestId('manager-dna-card-commissioner').getByText('Commissioner use')).toBeVisible()
     await expect(
@@ -179,5 +204,6 @@ test.describe('G28 Decision OS authenticated League Home proof', () => {
       }),
     ).toBeVisible()
     await expectNoHorizontalOverflow(page)
+    expectNoRootRuntimeCrashes(browserEvents)
   })
 })
