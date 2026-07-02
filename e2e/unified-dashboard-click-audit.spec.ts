@@ -10,7 +10,7 @@ test.describe("@dashboard unified dashboard click audit", () => {
     await expect(page.getByText("Soccer Dashboard Harness League")).toBeVisible()
     await expect(page.getByTestId("league-pulse-card-dashboard")).toBeVisible()
     await expect(page.getByTestId("league-pulse-card-dashboard").getByText("League Pulse")).toBeVisible()
-    await expect(page.getByText("Connected leagues", { exact: true })).toBeVisible()
+    await expect(page.getByTestId("dashboard-connected-leagues-heading")).toBeVisible()
     await expect(page.getByText("AI and strategy shortcuts")).toBeVisible()
     await expect(page.getByText("Profile and account")).toBeVisible()
 

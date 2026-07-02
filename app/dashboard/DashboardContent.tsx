@@ -337,7 +337,12 @@ export default function DashboardContent({
             </div>
 
             <div className="rounded-2xl border border-subtle bg-surface-muted p-4">
-              <p className="text-xs uppercase tracking-[0.16em] text-muted">Connected leagues</p>
+              <p
+                className="text-xs uppercase tracking-[0.16em] text-muted"
+                data-testid="dashboard-connected-leagues-heading"
+              >
+                Connected leagues
+              </p>
               <p className="mt-2 text-3xl font-black text-primary">{connectedLeagues.length}</p>
               <p className="mt-1 text-sm text-secondary">
                 League hub is ready for every imported league with a unified record.
