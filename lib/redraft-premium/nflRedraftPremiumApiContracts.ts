@@ -14,6 +14,11 @@ import type {
   NflRedraftPremiumEvidenceCounts,
   NflRedraftPremiumEvidenceResolverStatus,
 } from '@/lib/redraft-premium/nflRedraftPremiumEvidenceResolver'
+import type {
+  NflRedraftPremiumBackfillStatus,
+  NflRedraftPremiumDiagnostics,
+  NflRedraftPremiumEvidenceHealth,
+} from '@/lib/redraft-premium/nflRedraftPremiumObservability'
 
 export const NFL_REDRAFT_PREMIUM_API_CONTRACT_MODEL_VERSION = 'nfl-redraft-premium-api-contract-v1' as const
 
@@ -106,6 +111,12 @@ export type NflRedraftPremiumProductPacket = {
   unavailableDataMessages: string[]
   resolverStatus: NflRedraftPremiumEvidenceResolverStatus
   evidenceCounts: NflRedraftPremiumEvidenceCounts
+  diagnostics?: NflRedraftPremiumDiagnostics
+  evidenceSnapshotId?: string | null
+  generatedAt?: string
+  resolverDurationMs?: number
+  evidenceHealth?: NflRedraftPremiumEvidenceHealth
+  backfillStatus?: NflRedraftPremiumBackfillStatus
   factsOnly: true
   deterministic: true
   generatedAtIso: string
@@ -128,6 +139,7 @@ export type NflRedraftPremiumProductError = {
     message: string
     fields: string[]
   }
+  diagnostics?: NflRedraftPremiumDiagnostics
 }
 
 export type NflRedraftPremiumProductContractResult =
@@ -138,6 +150,11 @@ export type NflRedraftPremiumProductContractDependencies = {
   evidencePackets?: NflRedraftProviderEvidencePacket[]
   resolverStatus?: NflRedraftPremiumEvidenceResolverStatus | null
   evidenceCounts?: NflRedraftPremiumEvidenceCounts | null
+  diagnostics?: NflRedraftPremiumDiagnostics | null
+  evidenceSnapshotId?: string | null
+  resolverDurationMs?: number | null
+  evidenceHealth?: NflRedraftPremiumEvidenceHealth | null
+  backfillStatus?: NflRedraftPremiumBackfillStatus | null
   generatedAtIso?: string | null
 }
 
@@ -239,11 +256,13 @@ function error(
   code: NflRedraftPremiumProductError['error']['code'],
   message: string,
   fields: string[],
+  diagnostics?: NflRedraftPremiumDiagnostics | null,
 ): NflRedraftPremiumProductError {
   return {
     modelVersion: NFL_REDRAFT_PREMIUM_API_CONTRACT_MODEL_VERSION,
     ok: false,
     error: { code, message, fields },
+    ...(diagnostics ? { diagnostics } : {}),
   }
 }
 
@@ -251,8 +270,9 @@ export function buildNflRedraftPremiumProductError(
   code: NflRedraftPremiumProductError['error']['code'],
   message: string,
   fields: string[],
+  diagnostics?: NflRedraftPremiumDiagnostics | null,
 ): NflRedraftPremiumProductError {
-  return error(code, message, fields)
+  return error(code, message, fields, diagnostics)
 }
 
 export function resolveNflRedraftPremiumTierFromEntitlement(input: {
@@ -444,6 +464,12 @@ export function buildNflRedraftPremiumProductContract(
     }),
     resolverStatus,
     evidenceCounts,
+    ...(dependencies.diagnostics ? { diagnostics: dependencies.diagnostics } : {}),
+    ...(dependencies.evidenceSnapshotId !== undefined ? { evidenceSnapshotId: dependencies.evidenceSnapshotId } : {}),
+    ...(dependencies.generatedAtIso ?? request.generatedAtIso ? { generatedAt: summary.generatedAtIso } : {}),
+    ...(dependencies.resolverDurationMs != null ? { resolverDurationMs: dependencies.resolverDurationMs } : {}),
+    ...(dependencies.evidenceHealth ? { evidenceHealth: dependencies.evidenceHealth } : {}),
+    ...(dependencies.backfillStatus ? { backfillStatus: dependencies.backfillStatus } : {}),
     factsOnly: true,
     deterministic: true,
     generatedAtIso: summary.generatedAtIso,
