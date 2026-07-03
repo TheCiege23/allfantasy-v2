@@ -254,10 +254,28 @@ export interface LeagueRecommendationV1 {
 }
 
 /**
+ * Phase 3.3 — the "future AI layer" fields this file's own original comment
+ * anticipated exposing later. Already computed by `deriveLeagueBehavioralIntelligence`
+ * (`LeagueHealthNarrativeInputs`); this is a straight pass-through of those same
+ * 3 structured fields, not a new derivation. Structured on purpose (3 typed
+ * fields, not one freeform paragraph) rather than presentation-ready text —
+ * matching how the rest of this API separates facts from presentation.
+ */
+export interface LeagueHealthNarrativeV1 {
+  /** Structured summary of manager participation. */
+  engagementSummary: string
+  /** Most urgent signal for the commissioner to address. Null when no concerns. */
+  topConcern: string | null
+  /** Most positive signal to highlight. Null when no standout signals. */
+  standoutSignal: string | null
+}
+
+/**
  * League Intelligence API response (v1).
  *
  * Field selection rationale:
- * - `healthNarrativeInputs` excluded: internal; structured strings for future AI layer.
+ * - `healthNarrative` (Phase 3.3, additive): the `healthNarrativeInputs` this file's
+ *   own comment originally flagged as "for future AI layer" — now exposed.
  * - `commissionerWorkloadItems` excluded: internal implementation strings.
  * - `retentionRiskReasons` excluded: internal; callers receive `retentionRisk` tier only.
  * - `tradeActivity.count` excluded: raw counts without context invite misuse.
@@ -293,9 +311,100 @@ export interface LeagueIntelligenceV1 {
   // ── Recommendations ─────────────────────────────────────────────────────
   recommendations: LeagueRecommendationV1[]
 
+  // ── Narrative driver signals (Phase 3.3, additive) ──────────────────────
+  healthNarrative: LeagueHealthNarrativeV1
+
   // ── Data quality ────────────────────────────────────────────────────────
   completeness: number
   derivedAt:    string
+}
+
+/**
+ * Phase 3.3 — public manager listing (`GET /v1/intelligence/league/managers`).
+ * Deliberately lighter than `ManagerIntelligenceV1` (the single-manager
+ * endpoint): this is a list payload for an overview/highlights use case,
+ * not a per-manager deep dive, so per-dimension engagement breakdowns and
+ * nudges are left to the single-manager endpoint. No `managerName` —
+ * Decision OS's behavioral layer is deliberately identity-light (keyed by
+ * an opaque `managerId` only, consistent with `ManagerBehavioralIntelligence`
+ * everywhere else in this API); resolving a display name is the caller's
+ * own concern (e.g. via whatever roster/user store it already has).
+ */
+export interface ManagerSummaryV1 {
+  managerId:              string
+  participationTier:      'elite' | 'active' | 'moderate' | 'passive' | 'inactive'
+  retentionRisk:          'low' | 'medium' | 'high' | 'critical'
+  retentionRiskReasons:   string[]
+  overallEngagementScore: number
+  daysSinceLastActivity:  number | null
+  isInactive:             boolean
+  inactivityWarning:      string | null
+  completeness:           number
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENDPOINT 5: League Trend (Phase 3.3)
+// GET /v1/intelligence/league/trend
+// Required scope: intelligence:league:read
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Real comparison between the 2 most recent `intelligence_league_snapshot_history`
+ * rows. `available: false` is the honest, expected state until a league has
+ * accumulated at least 2 captures — never fabricated.
+ */
+export type LeagueTrendV1 =
+  | {
+      available: true
+      direction: 'up' | 'down' | 'flat'
+      magnitude: number
+      scoreDelta: number
+      previousScore: number
+      currentScore: number
+      capturedAt: string
+      comparedToCapturedAt: string
+    }
+  | {
+      available: false
+      reason: 'insufficient_historical_data'
+      snapshotCount: number
+    }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ENDPOINT 6: League Deadlines (Phase 3.3)
+// GET /v1/intelligence/league/deadlines
+// Required scope: intelligence:league:read
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface WeekMilestoneV1 {
+  label: 'trade_deadline' | 'playoffs_start'
+  week: number
+  weeksAway: number
+  hasPassed: boolean
+}
+
+export interface TimeMilestoneV1 {
+  label: 'draft' | 'next_waiver_processing'
+  at: string
+  hasPassed: boolean
+}
+
+/**
+ * Deterministic league scheduling facts — no placeholder dates. Every field
+ * traces to a real stored value (`League.tradeDeadlineWeek`/`playoffStartWeek`,
+ * `LeagueSettings.draftDateUtc`, `League.waiverProcessTime`) compared against
+ * the league's real current week (reusing this app's own existing
+ * `resolveCurrentWeek`, not a new derivation).
+ */
+export interface LeagueDeadlineV1 {
+  leagueId: string
+  season: number
+  currentWeek: number
+  tradeDeadline: WeekMilestoneV1 | null
+  playoffsStart: WeekMilestoneV1 | null
+  draft: TimeMilestoneV1 | null
+  nextWaiverProcessing: TimeMilestoneV1 | null
+  nextActionableEvent: (WeekMilestoneV1 | TimeMilestoneV1) | null
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

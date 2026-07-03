@@ -167,6 +167,21 @@ export function createRealDataProvider(
       }
     },
 
+    async getLeagueManagerIntelligences(leagueId) {
+      try {
+        const lookback = lookbackDays()
+        const since    = sinceDate(lookback)
+        const events   = await loadAllLeagueEvents(leagueId, since, d)
+        // Reuses the same buildLeaguePipeline getLeagueIntelligence already calls —
+        // this is the managerIntelligences half of that pipeline's result, previously
+        // computed and discarded. No new derivation, no second computation.
+        const { managerIntelligences } = buildLeaguePipeline(leagueId, events, lookback)
+        return managerIntelligences
+      } catch {
+        return null
+      }
+    },
+
     async getPlatformIntelligence() {
       try {
         const lookback    = lookbackDays()

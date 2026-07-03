@@ -277,6 +277,55 @@ describe('getLeagueIntelligence', () => {
   })
 })
 
+// ── League manager intelligences (Phase 3.3) ──────────────────────────────────
+
+describe('getLeagueManagerIntelligences', () => {
+  afterEach(() => vi.unstubAllEnvs())
+
+  it('surfaces one ManagerBehavioralIntelligence per distinct active manager — the same set getLeagueIntelligence used to derive its aggregate, not a fresh computation', async () => {
+    const deps = makeDeps({
+      loadWaiverClaimRows: vi.fn().mockResolvedValue([
+        makeWaiverRow({ userId: 'mgr-a' }),
+        makeWaiverRow({ id: 'wc-2', userId: 'mgr-b' }),
+      ]),
+    })
+    const provider = createRealDataProvider(deps)
+    const result = await provider.getLeagueManagerIntelligences(LG)
+
+    expect(result).not.toBeNull()
+    expect(result!.map((m) => m.managerId).sort()).toEqual(['mgr-a', 'mgr-b'])
+  })
+
+  it('returns an empty array (not null) when the league exists but has zero events — a real, valid answer, not an error', async () => {
+    const deps = makeDeps()
+    const provider = createRealDataProvider(deps)
+    const result = await provider.getLeagueManagerIntelligences(LG)
+
+    expect(result).toEqual([])
+  })
+
+  it('returns null when a port throws — same catastrophic-failure contract as every other method', async () => {
+    const deps = makeDeps({
+      loadLeagueTradeRows: vi.fn().mockRejectedValue(new Error('connection refused')),
+    })
+    const provider = createRealDataProvider(deps)
+    const result = await provider.getLeagueManagerIntelligences(LG)
+
+    expect(result).toBeNull()
+  })
+
+  it('calls the same 4 loaders with the same args as getLeagueIntelligence — proof of shared computation, not a duplicate pipeline', async () => {
+    const deps = makeDeps()
+    const provider = createRealDataProvider(deps)
+    await provider.getLeagueManagerIntelligences(LG)
+
+    expect(deps.loadWaiverClaimRows).toHaveBeenCalledWith(LG, expect.any(Date))
+    expect(deps.loadLeagueTradeRows).toHaveBeenCalledWith(LG, expect.any(Date))
+    expect(deps.loadRosterMoveRows).toHaveBeenCalledWith(LG, expect.any(Date))
+    expect(deps.loadDraftRows).toHaveBeenCalledWith(LG)
+  })
+})
+
 // ── Platform intelligence ─────────────────────────────────────────────────────
 
 describe('getPlatformIntelligence', () => {

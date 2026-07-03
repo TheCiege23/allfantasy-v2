@@ -13356,6 +13356,28 @@ model IntelligenceProcessedEvent {
   @@map("intelligence_processed_event")
 }
 
+/// Phase 3.3 — rolling historical ledger for trend calculation. Unlike
+/// IntelligenceLeagueSnapshot (one row per league, upserted in place — a
+/// "current state" cache), this is INSERT-only: one new row per capture,
+/// so two points in time can actually be compared. DISPOSABLE (rebuildable
+/// from domain_events + IntelligenceLeagueSnapshot history is not itself
+/// the source of truth). No FK, matching every other read model here.
+model IntelligenceLeagueSnapshotHistory {
+  id                    String   @id @default(cuid())
+  leagueId              String
+  tenantId              String   @default("allfantasy")
+  capturedAt            DateTime @default(now())
+  leagueEngagementScore Int
+  leagueEngagementTier  String
+  tradeActivityRate     Float
+  waiverActivityRate    Float
+  draftActivityRate     Float
+
+  @@index([leagueId, capturedAt])
+  @@index([tenantId, capturedAt])
+  @@map("intelligence_league_snapshot_history")
+}
+
 /// T8: native trade block — a manager publicly signals a player they will move (+ what they want
 /// back). League-visible. No FK (signal survives roster churn). Internal ids only.
 model RedraftTradeBlockItem {

@@ -150,6 +150,7 @@ function makeProvider(overrides: Partial<IntelligenceDataProvider> = {}): Intell
     getManagerIntelligence:  async () => makeManagerIntel(),
     getLeagueIntelligence:   async () => makeLeagueIntel(),
     getPlatformIntelligence: async () => makePlatformIntel(),
+    getLeagueManagerIntelligences: async () => [makeManagerIntel()],
     ...overrides,
   }
 }
@@ -580,6 +581,13 @@ describe('successful call — league resolver (commissioner tier)', () => {
     const r = await leagueIntelligenceHandler(makeCtx(TEST_KEY_COMMISSIONER, params), makeProvider())
     const data = (r.body as { data: Record<string, unknown> }).data
     expect('warnings' in data).toBe(false)
+  })
+
+  it('Phase 3.3: data has healthNarrative — the same real, already-computed healthNarrativeInputs, no longer stripped', async () => {
+    enableApi()
+    const r = await leagueIntelligenceHandler(makeCtx(TEST_KEY_COMMISSIONER, params), makeProvider())
+    const data = (r.body as { data: { healthNarrative: { engagementSummary: string; topConcern: string | null; standoutSignal: string | null } } }).data
+    expect(data.healthNarrative).toEqual({ engagementSummary: 'ok', topConcern: null, standoutSignal: null })
   })
 })
 

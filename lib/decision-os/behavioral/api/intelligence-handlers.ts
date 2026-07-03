@@ -23,9 +23,13 @@ import type { PlatformBehavioralIntelligence } from '../platform-intelligence'
 import {
   resolveManagerIntelligence,
   resolveLeagueIntelligence,
+  resolveLeagueManagerSummaries,
   resolvePlatformIntelligenceBasic,
   resolvePlatformIntelligenceFull,
 } from './resolvers'
+import { getRecentLeagueSnapshots } from '../history/snapshots'
+import { computeLeagueTrend } from '../history/trend'
+import { deriveLeagueDeadlineIntelligence } from '../deadlines/deadlineIntelligence'
 import {
   adaptLeagueBehavioralToPresentation,
   adaptManagerBehavioralToPresentation,
@@ -38,6 +42,8 @@ import type {
   IntelligenceApiScope,
   IntelligenceTier,
   IntelligenceApiMeta,
+  LeagueTrendV1,
+  LeagueDeadlineV1,
 } from './contracts'
 import { TIER_SCOPE_MAP } from './contracts'
 import { checkIntelligenceGate } from './gate'
@@ -66,6 +72,12 @@ export interface IntelligenceHandlerResult {
  * Data source abstraction. Phase 5.7 ships `stubDataProvider` (returns null → 503).
  * Phase 5.8 replaces it with a real behavioral intelligence pipeline without changing
  * any route file or handler core.
+ *
+ * `getLeagueManagerIntelligences` (Phase 3.3) is additive — it does not change
+ * either existing method's signature. It exists because `getLeagueIntelligence`'s
+ * own real implementation already computes a per-manager array internally
+ * (to derive the league aggregate) but never returned it; this method reuses
+ * that same computation rather than deriving anything new.
  */
 export interface IntelligenceDataProvider {
   getManagerIntelligence(
@@ -74,6 +86,7 @@ export interface IntelligenceDataProvider {
   ): Promise<ManagerBehavioralIntelligence | null>
   getLeagueIntelligence(leagueId: string): Promise<LeagueBehavioralIntelligence | null>
   getPlatformIntelligence():               Promise<PlatformBehavioralIntelligence | null>
+  getLeagueManagerIntelligences(leagueId: string): Promise<ManagerBehavioralIntelligence[] | null>
 }
 
 /** Phase 5.7 stub — all methods return null; live requests return 503 until Phase 5.8. */
@@ -81,6 +94,7 @@ export const stubDataProvider: IntelligenceDataProvider = {
   getManagerIntelligence:  async () => null,
   getLeagueIntelligence:   async () => null,
   getPlatformIntelligence: async () => null,
+  getLeagueManagerIntelligences: async () => null,
 }
 
 // ── View param ────────────────────────────────────────────────────────────────
@@ -253,6 +267,129 @@ export async function leagueIntelligenceHandler(
   }
 
   return { status: 200, body: resolveLeagueIntelligence(intel, requestId, tier) }
+}
+
+// ── League managers handler (Phase 3.3) ───────────────────────────────────────
+
+/**
+ * GET /api/v1/intelligence/league/managers?leagueId={id}
+ *
+ * Required scope: `intelligence:league:read` (commissioner + platform tiers) —
+ * same tier as the league route itself; this is manager data scoped to one
+ * league, not a new permission concept. No `view=presentation` — this is a
+ * new, narrower capability (a public listing that never existed before), not
+ * an extension of the existing raw/presentation duality.
+ */
+export async function leagueManagersIntelligenceHandler(
+  ctx:          IntelligenceApiContext,
+  dataProvider: IntelligenceDataProvider,
+): Promise<IntelligenceHandlerResult> {
+  const gate = checkIntelligenceGate(ctx.headers)
+  if (!gate.ok) return { status: gate.status, body: gate.error }
+
+  const { tier, requestId } = gate
+  if (!hasScope(tier, 'intelligence:league:read')) {
+    return errorResult(403, 'FORBIDDEN', 'API key does not have league intelligence scope.', requestId)
+  }
+
+  const leagueId = ctx.searchParams.get('leagueId')?.trim() ?? ''
+  if (!leagueId) {
+    return errorResult(400, 'INVALID_REQUEST', 'Missing required query parameter: leagueId.', requestId)
+  }
+
+  const managerIntelligences = await dataProvider.getLeagueManagerIntelligences(leagueId)
+  if (!managerIntelligences) return dataUnavailable(requestId)
+
+  return { status: 200, body: resolveLeagueManagerSummaries(managerIntelligences, requestId, tier) }
+}
+
+// ── League trend handler (Phase 3.3) ──────────────────────────────────────────
+
+/**
+ * GET /api/v1/intelligence/league/trend?leagueId={id}
+ *
+ * Required scope: `intelligence:league:read`. Does not go through
+ * `IntelligenceDataProvider` — trend is a comparison of stored historical
+ * snapshots (`intelligence_league_snapshot_history`), not event-derived
+ * behavioral intelligence, so there is no stub/real swap the same way; the
+ * honest "insufficient_historical_data" state occurs naturally whenever
+ * fewer than 2 snapshots exist, in every environment, without a separate
+ * stub path.
+ */
+export async function leagueTrendIntelligenceHandler(
+  ctx: IntelligenceApiContext,
+): Promise<IntelligenceHandlerResult> {
+  const gate = checkIntelligenceGate(ctx.headers)
+  if (!gate.ok) return { status: gate.status, body: gate.error }
+
+  const { tier, requestId } = gate
+  if (!hasScope(tier, 'intelligence:league:read')) {
+    return errorResult(403, 'FORBIDDEN', 'API key does not have league intelligence scope.', requestId)
+  }
+
+  const leagueId = ctx.searchParams.get('leagueId')?.trim() ?? ''
+  if (!leagueId) {
+    return errorResult(400, 'INVALID_REQUEST', 'Missing required query parameter: leagueId.', requestId)
+  }
+
+  const points = await getRecentLeagueSnapshots(leagueId, 2)
+  const result = computeLeagueTrend(points)
+  const data: LeagueTrendV1 = result.available
+    ? { available: true, ...result.trend }
+    : { available: false, reason: result.reason, snapshotCount: result.snapshotCount }
+  const completeness = result.available ? 100 : 0
+  const derivedAt = result.available ? result.trend.capturedAt : new Date().toISOString()
+
+  return {
+    status: 200,
+    body: { data, meta: { requestId, derivedAt, completeness, version: 'v1', tier } satisfies IntelligenceApiMeta },
+  }
+}
+
+// ── League deadlines handler (Phase 3.3) ──────────────────────────────────────
+
+/**
+ * GET /api/v1/intelligence/league/deadlines?leagueId={id}
+ *
+ * Required scope: `intelligence:league:read`. Also bypasses
+ * `IntelligenceDataProvider` — deadlines come from `League`/`LeagueSettings`
+ * configuration + the app's own existing `resolveCurrentWeek`, not from the
+ * behavioral-events pipeline.
+ */
+export async function leagueDeadlineIntelligenceHandler(
+  ctx: IntelligenceApiContext,
+): Promise<IntelligenceHandlerResult> {
+  const gate = checkIntelligenceGate(ctx.headers)
+  if (!gate.ok) return { status: gate.status, body: gate.error }
+
+  const { tier, requestId } = gate
+  if (!hasScope(tier, 'intelligence:league:read')) {
+    return errorResult(403, 'FORBIDDEN', 'API key does not have league intelligence scope.', requestId)
+  }
+
+  const leagueId = ctx.searchParams.get('leagueId')?.trim() ?? ''
+  if (!leagueId) {
+    return errorResult(400, 'INVALID_REQUEST', 'Missing required query parameter: leagueId.', requestId)
+  }
+
+  const intel = await deriveLeagueDeadlineIntelligence(leagueId)
+  if (!intel) return dataUnavailable(requestId)
+
+  const data: LeagueDeadlineV1 = {
+    leagueId: intel.leagueId,
+    season: intel.season,
+    currentWeek: intel.currentWeek,
+    tradeDeadline: intel.tradeDeadline,
+    playoffsStart: intel.playoffsStart,
+    draft: intel.draft,
+    nextWaiverProcessing: intel.nextWaiverProcessing,
+    nextActionableEvent: intel.nextActionableEvent,
+  }
+
+  return {
+    status: 200,
+    body: { data, meta: { requestId, derivedAt: intel.derivedAt, completeness: 100, version: 'v1', tier } satisfies IntelligenceApiMeta },
+  }
 }
 
 // ── Manager handler ───────────────────────────────────────────────────────────

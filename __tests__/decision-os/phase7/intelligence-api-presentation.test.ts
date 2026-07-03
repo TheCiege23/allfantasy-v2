@@ -147,6 +147,7 @@ function makeProvider(overrides: Partial<IntelligenceDataProvider> = {}): Intell
     getManagerIntelligence:  async () => makeManagerIntel(),
     getLeagueIntelligence:   async () => makeLeagueIntel(),
     getPlatformIntelligence: async () => makePlatformIntel(),
+    getLeagueManagerIntelligences: async () => [makeManagerIntel()],
     ...overrides,
   }
 }
