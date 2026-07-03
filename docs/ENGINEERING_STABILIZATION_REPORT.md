@@ -621,3 +621,176 @@ Generated/unrelated artifacts:
   - workers and sports-os imports
 - Keep World Cup and tournament cleanup separate unless those modules block NFL Redraft release gates.
 - Investigate production build timeout after TypeScript errors are reduced further.
+
+## Stabilization Pass 4
+
+Date: 2026-07-03
+
+Scope:
+
+- Resolve the highest-priority NFL-adjacent draft route diagnostics identified in Pass 3.
+- Investigate the generated `.next/types/app/mock-draft/page.ts` diagnostic without committing generated output.
+- Reclassify remaining full typecheck/build blockers after the draft route cleanup.
+- Avoid Decision OS, AI reasoning, product feature work, broad refactors, generated artifacts, and unrelated dirty worktree files.
+
+### Diagnostic Baseline
+
+Initial full typecheck:
+
+```text
+cmd /c npm run typecheck
+```
+
+Result:
+
+- A short 5-minute attempt timed out before diagnostics.
+- A longer run completed in about 2 minutes and exited non-zero with real diagnostics.
+
+Pass 4 target diagnostics at baseline:
+
+```text
+.next/types/app/mock-draft/page.ts(28,29): Type 'MockDraftPageProps | undefined' does not satisfy the constraint 'PageProps'.
+app/api/leagues/[leagueId]/draft/import/validate/route.ts(54,36): Prisma DraftSession findUnique used select and include together.
+app/api/leagues/[leagueId]/draft/live-sync/route.ts(16,54): withTimedRoute context expected Promise<Record<string, string>>.
+app/api/leagues/[leagueId]/draft/pick/route.ts(35,50): withTimedRoute context expected Promise<Record<string, string>>.
+```
+
+Remaining baseline diagnostics were grouped outside the Pass 4 edit scope:
+
+- non-redraft legacy route and service Prisma JSON/input typing issues
+- World Cup route/component/service typing issues
+- tournament route/service typing issues
+- dashboard/settings strict-null and prop typing issues
+- worker and sports-os import/persistence typing issues
+- subscription/Stripe webhook narrow typing issues
+
+### Errors Fixed
+
+Fixed NFL-adjacent draft route blockers:
+
+- Moved `DraftSession.picks` into the Prisma `select` block in `app/api/leagues/[leagueId]/draft/import/validate/route.ts`, removing the invalid `select` plus `include` combination.
+- Aligned `app/api/leagues/[leagueId]/draft/live-sync/route.ts` with `withTimedRoute` by accepting `ctx.params` as `Promise<Record<string, string>>` and keeping the existing runtime `leagueId` validation.
+- Aligned `app/api/leagues/[leagueId]/draft/pick/route.ts` with `withTimedRoute` by accepting `ctx.params` as `Promise<Record<string, string>>` and keeping the existing runtime `leagueId` validation.
+
+Generated `.next/types` decision:
+
+- The `.next/types/app/mock-draft/page.ts` error was traced to source typing in `app/mock-draft/page.tsx`, not to a generated-only stale artifact.
+- The page default parameter made the first argument type `MockDraftPageProps | undefined`, which Next's generated page contract rejects.
+- Fixed the source function signature and preserved the existing empty-search-params behavior via the existing internal fallback.
+- No `.next` files were edited or committed.
+- `tsconfig.json` was left unchanged so real Next-generated page contract diagnostics are not broadly hidden.
+
+### Diagnostic Slices Checked
+
+Passed with normal resolver after fixes:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs "app/api/leagues/[leagueId]/draft/import/validate/route.ts"
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs "app/api/leagues/[leagueId]/draft/live-sync/route.ts" "app/api/leagues/[leagueId]/draft/pick/route.ts"
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/mock-draft/page.tsx
+```
+
+Results:
+
+- Draft import validation route: 4 roots, 0 diagnostics.
+- Draft live-sync and pick routes: 5 roots, 0 diagnostics.
+- Mock draft page: 4 roots, 0 diagnostics.
+
+### Verification Results
+
+Full typecheck after fixes:
+
+```text
+cmd /c npm run typecheck
+```
+
+Result:
+
+- Completed in about 98 seconds.
+- Still exits non-zero.
+- The Pass 4 target diagnostics are no longer present:
+  - no `draft/import/validate` select/include diagnostic
+  - no `draft/live-sync` route context diagnostic
+  - no `draft/pick` route context diagnostic
+  - no `.next/types/app/mock-draft/page.ts` diagnostic
+
+Production build:
+
+```text
+cmd /c npm run build
+```
+
+Result:
+
+- Timed out after about 704 seconds.
+- No new actionable build diagnostic was emitted before timeout.
+
+Targeted tests:
+
+```text
+cmd /c npx vitest run __tests__/g50a-nfl-redraft-production-verification.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+cmd /c npx vitest run __tests__/g50b-nfl-redraft-release-candidate.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+cmd /c npx vitest run __tests__/draft/nfl-redraft-draft-room-smoke.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+cmd /c npx vitest run __tests__/redraft/draft-finalize-contract.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+cmd /c npx vitest run __tests__/redraft/draft-finalize-schedule.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+cmd /c npx vitest run __tests__/g47b-nfl-redraft-live-stats-scoring-refresh.test.ts __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Results:
+
+- G50A: 6 tests passed.
+- G50B: 4 tests passed.
+- NFL redraft draft-room smoke: 21 tests passed.
+- Draft finalize contract: 5 tests passed.
+- Draft finalize schedule: 4 tests passed.
+- G47B/G49F provider-premium runtime bundle: 12 tests passed.
+
+Notes:
+
+- Batched Vitest runs initially hit the existing worker startup timeout instability. The same suites passed when retried individually or in smaller batches with a single worker.
+- Draft finalize tests still emit existing best-effort lifecycle event mock warnings, but assertions pass.
+
+Targeted ESLint passed:
+
+```text
+cmd /c npx eslint "app/api/leagues/[leagueId]/draft/import/validate/route.ts" "app/api/leagues/[leagueId]/draft/live-sync/route.ts" "app/api/leagues/[leagueId]/draft/pick/route.ts" app/mock-draft/page.tsx
+```
+
+### Remaining Blockers
+
+NFL Redraft required:
+
+- No remaining diagnostics were observed in the Pass 4 NFL-adjacent draft route target files.
+- Full production build still cannot be certified because it times out before completion.
+
+Generated artifact:
+
+- The mock-draft generated Next diagnostic was fixed at the source.
+- Existing dirty/generated `.next-*`, `.next`, and Playwright artifacts remain outside this stabilization commit.
+
+Non-redraft legacy:
+
+- World Cup routes/components/services still have strict-null, stale-export, provider contract, and audit type diagnostics.
+- Tournament routes/services still have Prisma JSON/input diagnostics.
+- Commissioner/bestball/dynasty/league-transfer/user/share/zombie routes still have Prisma JSON/input and session shape diagnostics.
+- Dashboard/settings/playoff bracket UI still has strict-null, prop, and duplicate object-key diagnostics.
+- Sports OS/import workers and generic scoring/reputation/social services still have Prisma JSON/input or predicate diagnostics.
+
+Environment/scale:
+
+- `npm run build` still times out after a long run without a final diagnostic.
+- Vitest batched execution can still hit worker startup timeouts in this workspace, though isolated target suites pass.
+
+### Recommended Pass 5 Scope
+
+- Continue reducing the full typecheck backlog by ownership band, starting with high-impact Prisma JSON/input boundaries:
+  - mock-draft API persistence routes
+  - commissioner league settings routes
+  - league transfer and user/share routes
+  - workers and sports-os import services
+- Fix small app-shell UI blockers that are likely low-risk:
+  - dashboard strict-null search params
+  - settings icon prop mismatch
+  - bracket duplicate object key
+- Keep World Cup and tournament cleanup in separate non-redraft stabilization slices unless they are required for repository-wide build certification.
+- Reattempt production build only after the full TypeScript diagnostic count is materially lower, then investigate any remaining timeout with build profiling.

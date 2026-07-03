@@ -34,7 +34,7 @@ export const dynamic = 'force-dynamic'
 
 export const POST = withTimedRoute('draft_pick', async (
   req: NextRequest,
-  ctx: { params: Promise<{ leagueId: string }> }
+  ctx: { params: Promise<Record<string, string>> }
 ) => {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
