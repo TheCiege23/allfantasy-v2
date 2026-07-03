@@ -3,6 +3,10 @@
  */
 
 import type { UnifiedPlayerWireDto } from '@/lib/player-data/serializeUnifiedPlayerForApi'
+import {
+  buildNflRedraftPlayerMetadataFromWire,
+  type NflRedraftPlayerDisplayMetadata,
+} from '@/lib/player-data/nflRedraftPlayerMetadata'
 
 export type TradePlayerEvidenceSlice = {
   playerId: string
@@ -12,6 +16,7 @@ export type TradePlayerEvidenceSlice = {
   sport: string
   headshotUrl: string | null
   teamLogoUrl: string | null
+  canonicalPlayerMetadata: NflRedraftPlayerDisplayMetadata | null
   injuryStatus: string | null
   adp: number | null
   aiAdp: number | null
@@ -35,8 +40,9 @@ export type TradePlayerEvidenceSlice = {
 
 export function tradeEvidenceFromUnifiedWire(row: UnifiedPlayerWireDto): TradePlayerEvidenceSlice {
   const canonical = row.nflRedraft ?? null
+  const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   const missing: string[] = []
-  if (!canonical?.media.headshot.url && !row.headshotUrl) missing.push('image')
+  if (!metadata?.headshot.url && !canonical?.media.headshot.url && !row.headshotUrl) missing.push('image')
   if ((canonical?.injury.designation ?? row.injuryStatus) == null || String(canonical?.injury.designation ?? row.injuryStatus).trim() === '') missing.push('injury')
   if (!row.normalizedStats || Object.keys(row.normalizedStats).length <= 2) missing.push('stats')
   for (const field of canonical?.dataFreshness.missingFields ?? []) {
@@ -54,12 +60,13 @@ export function tradeEvidenceFromUnifiedWire(row: UnifiedPlayerWireDto): TradePl
   const injuryPresent = (canonical?.injury.designation ?? row.injuryStatus) != null && String(canonical?.injury.designation ?? row.injuryStatus).trim() !== ''
   return {
     playerId: row.id,
-    name: row.name,
-    position: row.position,
-    team: row.team,
+    name: metadata?.displayName ?? row.name,
+    position: metadata?.position ?? row.position,
+    team: metadata?.teamAbbr ?? row.team,
     sport: row.sport,
-    headshotUrl: canonical?.media.headshot.url ?? row.headshotUrl,
-    teamLogoUrl: canonical?.media.teamLogo.url ?? row.teamLogoUrl,
+    headshotUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? row.headshotUrl,
+    teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? row.teamLogoUrl,
+    canonicalPlayerMetadata: metadata,
     injuryStatus: canonical?.injury.designation ?? row.injuryStatus,
     adp: row.adp,
     aiAdp: row.aiAdp,

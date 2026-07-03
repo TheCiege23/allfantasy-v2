@@ -15,6 +15,11 @@ import {
 import { buildPlayerFallbackDiagnostics } from '@/lib/player-data/providerFallbackDiagnostics'
 import type { ProviderFallbackDiagnostics } from '@/lib/player-data/providerFallbackDiagnostics'
 import type { RollingInsightsSoccerLeagueCode } from '@/lib/providers/rollingInsightsSoccerLeague'
+import {
+  buildNflRedraftPlayerMetadataFromCanonicalPlayer,
+  type NflRedraftPlayerDisplayMetadata,
+} from '@/lib/player-data/nflRedraftPlayerMetadata'
+import { buildNflRedraftCanonicalPlayer } from '@/lib/player-data/nflRedraftCanonicalPlayer'
 
 export type MapDraftPoolPlayerOptions = {
   draftUISettings?: { aiAdpEnabled?: boolean } | null
@@ -30,6 +35,7 @@ export type MapDraftPoolPlayerOptions = {
 
 export type DraftRoomPlayerRow = PlayerEntry & {
   unifiedProductView?: UnifiedPlayerProductView
+  canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   providerFallbackDiagnostics?: ProviderFallbackDiagnostics
 }
 
@@ -58,6 +64,10 @@ export function mapNormalizedDraftEntryToPlayerEntry(
     opts.includeProviderFallbackDiagnostics && unifiedProductView
       ? buildPlayerFallbackDiagnostics(unifiedProductView, 'draft')
       : undefined
+  const canonicalNflRedraft = unifiedProductView ? buildNflRedraftCanonicalPlayer(unifiedProductView) : null
+  const canonicalPlayerMetadata = canonicalNflRedraft
+    ? buildNflRedraftPlayerMetadataFromCanonicalPlayer(canonicalNflRedraft)
+    : null
 
   const row: DraftRoomPlayerRow = {
     id: e.playerId ?? e.display?.playerId ?? name,
@@ -86,6 +96,7 @@ export function mapNormalizedDraftEntryToPlayerEntry(
     yearsExp,
     isRookie: isRookieComputed,
     ...(unifiedProductView ? { unifiedProductView } : {}),
+    ...(canonicalPlayerMetadata ? { canonicalPlayerMetadata } : {}),
     ...(providerFallbackDiagnostics ? { providerFallbackDiagnostics } : {}),
   }
 

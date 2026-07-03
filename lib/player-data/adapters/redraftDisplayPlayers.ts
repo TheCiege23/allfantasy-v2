@@ -1,6 +1,10 @@
 import type { PlayerMap, SlimPlayer } from '@/lib/hooks/useSleeperPlayers'
 import type { UnifiedPlayerWireDto } from '@/lib/player-data/serializeUnifiedPlayerForApi'
 import type { NflRedraftCanonicalPlayer } from '@/lib/player-data/nflRedraftCanonicalPlayer'
+import {
+  buildNflRedraftPlayerMetadataFromWire,
+  type NflRedraftPlayerDisplayMetadata,
+} from '@/lib/player-data/nflRedraftPlayerMetadata'
 import { teamDefenseDisplayNameFromId } from '@/lib/redraft/teamDefenseIdentity'
 
 export type DisplayPlayerRecord = SlimPlayer & {
@@ -17,26 +21,28 @@ export type DisplayPlayerRecord = SlimPlayer & {
   activeStatus?: string | null
   playerDataWarnings?: string[]
   canonicalNflRedraft?: NflRedraftCanonicalPlayer | null
+  canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
 }
 
 export type DisplayPlayerMap = Record<string, DisplayPlayerRecord>
 
 export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayPlayerRecord {
   const canonical = row.nflRedraft ?? null
+  const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   return {
     id: row.id,
-    name: row.name,
-    position: canonical?.fantasyPosition ?? row.position ?? '',
-    team: canonical?.teamAbbr ?? row.team ?? 'FA',
+    name: metadata?.displayName ?? row.name,
+    position: metadata?.position ?? canonical?.fantasyPosition ?? row.position ?? '',
+    team: metadata?.teamAbbr ?? canonical?.teamAbbr ?? row.team ?? 'FA',
     years_exp:
       canonical?.experience.years != null && Number.isFinite(Number(canonical.experience.years))
         ? Number(canonical.experience.years)
         : row.product?.yearsExp != null && Number.isFinite(Number(row.product.yearsExp))
           ? Number(row.product.yearsExp)
           : undefined,
-    headshotUrl: canonical?.media.headshot.url ?? row.headshotUrl ?? null,
-    imageUrl: canonical?.media.headshot.url ?? row.imageUrl ?? row.headshotUrl ?? null,
-    teamLogoUrl: canonical?.media.teamLogo.url ?? row.teamLogoUrl ?? null,
+    headshotUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? row.headshotUrl ?? null,
+    imageUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? row.imageUrl ?? row.headshotUrl ?? null,
+    teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? row.teamLogoUrl ?? null,
     injuryStatus: canonical?.injury.designation ?? row.injuryStatus ?? null,
     projectedPoints:
       canonical?.currentProjection.weeklyProjectedPoints != null &&
@@ -52,10 +58,11 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
     profileSource: row.profileSource ?? null,
     statsSource: row.statsSource ?? null,
     projectionsSource: row.projectionsSource ?? null,
-    byeWeek: canonical?.byeWeek ?? row.product?.byeWeek ?? null,
-    activeStatus: canonical?.activeStatus ?? null,
-    playerDataWarnings: canonical?.dataFreshness.staleWarnings ?? [],
+    byeWeek: metadata?.byeWeek ?? canonical?.byeWeek ?? row.product?.byeWeek ?? null,
+    activeStatus: metadata?.activeStatus ?? canonical?.activeStatus ?? null,
+    playerDataWarnings: metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
     canonicalNflRedraft: canonical,
+    canonicalPlayerMetadata: metadata,
   }
 }
 

@@ -11,6 +11,10 @@ import {
   buildNflRedraftCanonicalPlayer,
   type NflRedraftCanonicalPlayer,
 } from '@/lib/player-data/nflRedraftCanonicalPlayer'
+import {
+  buildNflRedraftPlayerMetadataFromCanonicalPlayer,
+  type NflRedraftPlayerDisplayMetadata,
+} from '@/lib/player-data/nflRedraftPlayerMetadata'
 
 export type UnifiedPlayerWireDto = {
   id: string
@@ -41,6 +45,8 @@ export type UnifiedPlayerWireDto = {
   normalizedProjections: Record<string, unknown>
   /** Canonical NFL redraft player snapshot for draft, roster, waiver, trade, and matchup projections. */
   nflRedraft?: NflRedraftCanonicalPlayer | null
+  /** Display-safe NFL redraft media/metadata snapshot with no provider-specific ids or payloads. */
+  nflRedraftPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   /** Nested snapshot for AI / advanced clients */
   product: {
     unified: UnifiedPlayerProductView['unified']
@@ -63,9 +69,12 @@ export function serializeUnifiedPlayerForApi(entry: UnifiedPlayerProductView): U
   const teamLogoUrl =
     displayAssets?.teamLogoUrl ?? getTeamLogo(u.teamAbbr ?? u.team, String(u.sport))
   const nflRedraft = buildNflRedraftCanonicalPlayer(entry, { teamLogoUrl })
-  const diag =
+  const nflRedraftPlayerMetadata = nflRedraft
+    ? buildNflRedraftPlayerMetadataFromCanonicalPlayer(nflRedraft)
+    : null
+  const diag: ProviderFallbackDiagnostics | undefined =
     'providerFallbackDiagnostics' in entry && entry.providerFallbackDiagnostics
-      ? entry.providerFallbackDiagnostics
+      ? (entry.providerFallbackDiagnostics as ProviderFallbackDiagnostics)
       : undefined
   return {
     id: u.playerId,
@@ -97,6 +106,7 @@ export function serializeUnifiedPlayerForApi(entry: UnifiedPlayerProductView): U
     normalizedStats: u.normalizedStats,
     normalizedProjections: u.normalizedProjections,
     ...(nflRedraft ? { nflRedraft } : {}),
+    ...(nflRedraftPlayerMetadata ? { nflRedraftPlayerMetadata } : {}),
     product: {
       unified: u,
       yearsExp: entry.yearsExp ?? null,

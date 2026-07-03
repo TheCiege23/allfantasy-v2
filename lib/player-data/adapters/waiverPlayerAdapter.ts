@@ -4,6 +4,10 @@
 
 import type { UnifiedPlayerWireDto } from '@/lib/player-data/serializeUnifiedPlayerForApi'
 import type { PlayerDataAdapterFlags } from '@/lib/player-data/adapters/adapterTypes'
+import {
+  buildNflRedraftPlayerMetadataFromWire,
+  type NflRedraftPlayerDisplayMetadata,
+} from '@/lib/player-data/nflRedraftPlayerMetadata'
 
 export type WaiverPlayerAdapted = UnifiedPlayerWireDto & {
   /** Convenience for rows/cards */
@@ -15,6 +19,7 @@ export type WaiverPlayerAdapted = UnifiedPlayerWireDto & {
   displayAdp: number | null
   displayAiAdp: number | null
   displayByeWeek: number | null
+  canonicalPlayerMetadata: NflRedraftPlayerDisplayMetadata | null
   projectionSourceLabel: string
   adpSourceLabel: string
   statsSourceLabel: string
@@ -85,6 +90,7 @@ function buildDataQualityLabels(row: UnifiedPlayerWireDto): string[] {
   const labels: string[] = []
   const sport = String(row.sport ?? '').toUpperCase()
   const canonical = row.nflRedraft ?? null
+  const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   if (row.adp != null) labels.push('Provider ADP')
   if (row.aiAdp != null) labels.push('AF ADP')
   else labels.push('AF ADP coming soon')
@@ -96,9 +102,9 @@ function buildDataQualityLabels(row: UnifiedPlayerWireDto): string[] {
   ) {
     labels.push('Missing stats')
   }
-  if (canonical?.dataFreshness.media === 'missing') labels.push('Missing media')
-  if (canonical?.dataFreshness.staleWarnings.length) labels.push('Stale provider data')
-  if (row.lowConfidence || Boolean(canonical?.fallbacks.length)) labels.push('Limited confidence')
+  if (canonical?.dataFreshness.media === 'missing' || metadata?.providerFallback.fields.includes('headshotUrl')) labels.push('Missing media')
+  if (canonical?.dataFreshness.staleWarnings.length || metadata?.providerFreshness.stale) labels.push('Stale provider data')
+  if (row.lowConfidence || Boolean(canonical?.fallbacks.length) || metadata?.providerFallback.fallback) labels.push('Limited confidence')
   if (sport === 'NCAAF') labels.push('NCAAF limited data')
   return [...new Set(labels)]
 }
@@ -108,11 +114,12 @@ export function adaptWaiverWirePlayer(
   _flags?: PlayerDataAdapterFlags,
 ): WaiverPlayerAdapted {
   const canonical = row.nflRedraft ?? null
+  const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   const statsSummary = buildSeasonStatsSummary(row.normalizedStats)
   return {
     ...row,
-    displayHeadshotUrl: canonical?.media.headshot.url ?? row.headshotUrl ?? null,
-    displayTeamLogoUrl: canonical?.media.teamLogo.url ?? row.teamLogoUrl ?? null,
+    displayHeadshotUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? row.headshotUrl ?? null,
+    displayTeamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? row.teamLogoUrl ?? null,
     displayInjury: canonical?.injury.designation ?? row.injuryStatus ?? null,
     displayStatus: canonical?.activeStatus ?? null,
     displayProjection:
@@ -125,11 +132,14 @@ export function adaptWaiverWirePlayer(
     displayAdp: row.adp != null && Number.isFinite(Number(row.adp)) ? Number(row.adp) : null,
     displayAiAdp: row.aiAdp != null && Number.isFinite(Number(row.aiAdp)) ? Number(row.aiAdp) : null,
     displayByeWeek:
-      canonical?.byeWeek != null && Number.isFinite(Number(canonical.byeWeek))
-        ? Number(canonical.byeWeek)
-        : row.product?.byeWeek != null && Number.isFinite(Number(row.product.byeWeek))
-          ? Number(row.product.byeWeek)
-          : null,
+      metadata?.byeWeek != null && Number.isFinite(Number(metadata.byeWeek))
+        ? Number(metadata.byeWeek)
+        : canonical?.byeWeek != null && Number.isFinite(Number(canonical.byeWeek))
+          ? Number(canonical.byeWeek)
+          : row.product?.byeWeek != null && Number.isFinite(Number(row.product.byeWeek))
+            ? Number(row.product.byeWeek)
+            : null,
+    canonicalPlayerMetadata: metadata,
     projectionSourceLabel: formatSourceLabel(
       'Projection',
       canonical?.currentProjection.source ?? row.projectionsSource,

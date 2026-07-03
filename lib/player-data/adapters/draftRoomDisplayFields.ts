@@ -5,6 +5,7 @@
 
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
 import type { UnifiedPlayerProductView } from '@/lib/player-data/unifiedPlayerProductView'
+import type { NflRedraftPlayerDisplayMetadata } from '@/lib/player-data/nflRedraftPlayerMetadata'
 
 export type DraftRoomDisplayPlayerLike = {
   name?: string | null
@@ -12,6 +13,7 @@ export type DraftRoomDisplayPlayerLike = {
   team?: string | null
   display?: PlayerDisplayModel | null
   unifiedProductView?: UnifiedPlayerProductView | null
+  canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   playerId?: string | null
   id?: string | null
   yearsExp?: number | null
@@ -31,6 +33,7 @@ function trimHttpUrl(url: string | null | undefined): string | null {
 export function getDraftRoomDisplayName(player: DraftRoomDisplayPlayerLike | null | undefined): string {
   if (!player) return ''
   return (
+    player.canonicalPlayerMetadata?.displayName?.trim() ||
     player.unifiedProductView?.unified.fullName?.trim() ||
     player.display?.displayName?.trim() ||
     String(player.name ?? '').trim() ||
@@ -43,7 +46,7 @@ export function getDraftRoomDisplayTeam(player: DraftRoomDisplayPlayerLike | nul
   const u = player.unifiedProductView?.unified
   const abbr = u?.teamAbbr ?? u?.team
   const fromDisplay = player.display?.metadata?.teamAbbreviation
-  const raw = abbr ?? fromDisplay ?? player.team ?? null
+  const raw = player.canonicalPlayerMetadata?.teamAbbr ?? abbr ?? fromDisplay ?? player.team ?? null
   if (raw == null || String(raw).trim() === '') return null
   return String(raw).trim()
 }
@@ -51,6 +54,7 @@ export function getDraftRoomDisplayTeam(player: DraftRoomDisplayPlayerLike | nul
 export function getDraftRoomDisplayPosition(player: DraftRoomDisplayPlayerLike | null | undefined): string {
   if (!player) return ''
   return (
+    player.canonicalPlayerMetadata?.position?.trim() ||
     player.unifiedProductView?.unified.position?.trim() ||
     player.display?.metadata?.position?.trim() ||
     String(player.position ?? '').trim() ||
@@ -60,6 +64,8 @@ export function getDraftRoomDisplayPosition(player: DraftRoomDisplayPlayerLike |
 
 export function getDraftRoomDisplayHeadshot(player: DraftRoomDisplayPlayerLike | null | undefined): string | null {
   if (!player) return null
+  const canonical = player.canonicalPlayerMetadata?.headshot
+  if (canonical?.safeToRenderImage) return canonical.url
   const u = player.unifiedProductView?.unified.headshotUrl
   const d = player.display?.assets?.headshotUrl ?? player.display?.assets?.headshotFallbackUrl
   return trimHttpUrl(u ?? d ?? null)
@@ -75,6 +81,12 @@ export function getDraftRoomDisplayInjury(player: DraftRoomDisplayPlayerLike | n
     if (c != null && String(c).trim() !== '') return String(c).trim()
   }
   return null
+}
+
+export function getDraftRoomDisplayMetadata(
+  player: DraftRoomDisplayPlayerLike | null | undefined,
+): NflRedraftPlayerDisplayMetadata | null {
+  return player?.canonicalPlayerMetadata ?? null
 }
 
 /** Short label for chips — not a clinical diagnosis */
