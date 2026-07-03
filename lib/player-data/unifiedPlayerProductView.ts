@@ -216,10 +216,10 @@ function flattenStatSnapshot(entry: NormalizedDraftEntry): Record<string, unknow
 }
 
 function readMetadataLoose(entry: NormalizedDraftEntry, key: string): unknown {
-  const top = (entry as Record<string, unknown>)[key]
+  const top = (entry as unknown as Record<string, unknown>)[key]
   if (top !== undefined) return top
-  const dm = entry.display?.metadata as Record<string, unknown> | undefined
-  return dm?.[key]
+  const dm = safeRecord(entry.display?.metadata)
+  return dm[key]
 }
 
 export function buildUnifiedMeta(
@@ -325,6 +325,8 @@ export function buildUnifiedMeta(
     isDevyContext: entry.isDevy,
   })
 
+  const { first, last } = splitDisplayName(display.displayName)
+
   return {
     playerId: pid,
     providerPlayerId: typeof readMetadataLoose(entry, 'externalSourceId') === 'string'
@@ -333,7 +335,8 @@ export function buildUnifiedMeta(
     sport,
     soccerLeague,
     fullName: display.displayName,
-    ...splitDisplayName(display.displayName),
+    firstName: first,
+    lastName: last,
     position: meta.position || entry.position,
     positionCategory: posCat,
     team: teamModel?.abbreviation ?? teamAbbr,
