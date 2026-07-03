@@ -117,8 +117,12 @@ type BuildLiveScoringContextInput = {
 }
 
 const PROVIDER_LIVE_SCORING_MAX_AGE_MINUTES: Record<NflRedraftProviderId, number> = {
+  api_sports: 5,
+  clearsports: 15,
   sportsdataio: 5,
   rolling_insights: 5,
+  fantasycalc: 360,
+  espn: 5,
   sleeper: 1440,
   thesportsdb: 15,
   openweather: 120,

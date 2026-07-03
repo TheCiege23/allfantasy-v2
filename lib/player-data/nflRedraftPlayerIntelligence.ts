@@ -110,8 +110,12 @@ type BuildIntelligenceInput = {
 }
 
 const PROVIDER_INTELLIGENCE_MAX_AGE_MINUTES: Record<NflRedraftProviderId, number> = {
+  api_sports: 180,
+  clearsports: 360,
   sportsdataio: 180,
   rolling_insights: 120,
+  fantasycalc: 360,
+  espn: 180,
   sleeper: 1440,
   thesportsdb: 1440,
   openweather: 120,

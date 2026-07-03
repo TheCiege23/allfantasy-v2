@@ -101,10 +101,14 @@ type BuildGameContextInput = {
 }
 
 const PROVIDER_GAME_CONTEXT_MAX_AGE_MINUTES: Record<NflRedraftProviderId, number> = {
+  api_sports: 1440,
+  clearsports: 1440,
   sportsdataio: 1440,
   thesportsdb: 1440,
   openweather: 120,
   rolling_insights: 1440,
+  fantasycalc: 1440,
+  espn: 1440,
   sleeper: 1440,
   deterministic: 525600,
 }

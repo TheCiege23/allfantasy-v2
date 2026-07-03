@@ -191,7 +191,11 @@ const SURFACES_BY_TYPE: Record<NflRedraftEvidenceType, NflRedraftEvidenceSurface
 }
 
 const PROVIDER_IDS = new Set<NflRedraftProviderId>([
+  'api_sports',
+  'clearsports',
   'deterministic',
+  'espn',
+  'fantasycalc',
   'openweather',
   'rolling_insights',
   'sleeper',
@@ -213,6 +217,8 @@ function cleanProvider(value: unknown): NflRedraftProviderId | 'allfantasy' | 'u
   if (!text) return 'unknown'
   if (text === 'allfantasy' || text === 'af') return 'allfantasy'
   if (text === 'sportsdata' || text === 'sports_data_io' || text === 'sports-data-io') return 'sportsdataio'
+  if (text === 'api-sports' || text === 'apisports') return 'api_sports'
+  if (text === 'clear_sports' || text === 'clear-sports') return 'clearsports'
   if (text === 'rollinginsights' || text === 'rolling-insights') return 'rolling_insights'
   if (text === 'the_sports_db' || text === 'sportsdb' || text === 'the-sports-db') return 'thesportsdb'
   if (PROVIDER_IDS.has(text as NflRedraftProviderId)) return text as NflRedraftProviderId

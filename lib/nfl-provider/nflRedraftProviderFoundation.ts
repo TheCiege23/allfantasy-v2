@@ -1,5 +1,9 @@
 export type NflRedraftProviderId =
+  | 'api_sports'
+  | 'clearsports'
   | 'deterministic'
+  | 'espn'
+  | 'fantasycalc'
   | 'openweather'
   | 'rolling_insights'
   | 'sleeper'
@@ -17,7 +21,10 @@ export type NflRedraftProviderDomain =
   | 'player_metadata'
   | 'projection'
   | 'schedule'
+  | 'standings'
   | 'team_logo'
+  | 'fantasy_valuation'
+  | 'league_import'
   | 'weather'
 
 export type NflRedraftProviderStatus = 'available' | 'degraded' | 'fallback_only' | 'missing_config'
@@ -113,11 +120,15 @@ export interface NflRedraftProviderAdapter {
 }
 
 export const NFL_PROVIDER_ENV_KEYS: Record<NflRedraftProviderId, string[]> = {
+  api_sports: ['API_SPORTS_KEY', 'APISPORTS_API_KEY', 'API_SPORTS_API_KEY'],
+  clearsports: ['CLEARSPORTS_API_KEY', 'CLEAR_SPORTS_API_KEY'],
   rolling_insights: ['ROLLING_INSIGHTS_API_KEY', 'ROLLING_INSIGHTS_CLIENT_ID', 'ROLLING_INSIGHTS_CLIENT_SECRET'],
+  fantasycalc: ['FANTASYCALC_API_KEY', 'FANTASY_CALC_API_KEY'],
   sportsdataio: ['SPORTSDATAIO_API_KEY', 'SPORTSDATA_API_KEY', 'SPORTS_DATA_IO_API_KEY'],
   openweather: ['OPENWEATHER_API_KEY', 'OPENWEATHERMAP_API_KEY', 'OPEN_WEATHER_API_KEY'],
   thesportsdb: ['THESPORTSDB_API_KEY', 'SPORTSDB_API_KEY', 'THE_SPORTS_DB_API_KEY'],
   sleeper: [],
+  espn: [],
   deterministic: [],
 }
 
@@ -126,6 +137,21 @@ export const NFL_REDRAFT_PROVIDER_CAPABILITIES: NflRedraftProviderCapability[] =
   { providerId: 'rolling_insights', domain: 'historical_stats', priority: 5, requiresApiKey: true, maxAgeMinutes: 10080, note: 'Primary imported historical player stat source when licensed.' },
   { providerId: 'rolling_insights', domain: 'injury', priority: 5, requiresApiKey: true, maxAgeMinutes: 120, note: 'Primary imported injury/designation source when licensed.' },
   { providerId: 'rolling_insights', domain: 'depth_chart', priority: 5, requiresApiKey: true, maxAgeMinutes: 1440, note: 'Primary imported depth chart/role source when licensed.' },
+  { providerId: 'rolling_insights', domain: 'schedule', priority: 5, requiresApiKey: true, maxAgeMinutes: 1440, note: 'Operational backbone for NFL schedule context.' },
+  { providerId: 'rolling_insights', domain: 'live_score', priority: 5, requiresApiKey: true, maxAgeMinutes: 5, note: 'Operational backbone for live stat snapshots when available.' },
+  { providerId: 'rolling_insights', domain: 'standings', priority: 5, requiresApiKey: true, maxAgeMinutes: 15, note: 'Operational backbone for standings refresh context.' },
+
+  { providerId: 'api_sports', domain: 'player_metadata', priority: 15, requiresApiKey: true, maxAgeMinutes: 1440, note: 'Monthly enhancement source for identity enrichment.' },
+  { providerId: 'api_sports', domain: 'schedule', priority: 15, requiresApiKey: true, maxAgeMinutes: 1440, note: 'Monthly enhancement source for schedule context.' },
+  { providerId: 'api_sports', domain: 'team_logo', priority: 15, requiresApiKey: true, maxAgeMinutes: 10080, note: 'Monthly enhancement source for team media.' },
+  { providerId: 'api_sports', domain: 'headshot', priority: 15, requiresApiKey: true, maxAgeMinutes: 43200, note: 'Monthly enhancement source for player media.' },
+  { providerId: 'api_sports', domain: 'news', priority: 15, requiresApiKey: true, maxAgeMinutes: 180, note: 'Monthly enhancement source for NFL news.' },
+  { providerId: 'api_sports', domain: 'standings', priority: 15, requiresApiKey: true, maxAgeMinutes: 15, note: 'Monthly enhancement source for standings.' },
+
+  { providerId: 'clearsports', domain: 'player_metadata', priority: 25, requiresApiKey: true, maxAgeMinutes: 1440, note: 'Monthly enhancement source for identity fallback.' },
+  { providerId: 'clearsports', domain: 'projection', priority: 25, requiresApiKey: true, maxAgeMinutes: 360, note: 'Monthly enhancement source for projection fallback.' },
+
+  { providerId: 'fantasycalc', domain: 'fantasy_valuation', priority: 10, requiresApiKey: true, maxAgeMinutes: 360, note: 'Monthly enhancement source for fantasy market valuations.' },
 
   { providerId: 'sportsdataio', domain: 'live_score', priority: 10, requiresApiKey: true, maxAgeMinutes: 5, note: 'Primary live scoring and stat correction source.' },
   { providerId: 'sportsdataio', domain: 'historical_stats', priority: 10, requiresApiKey: true, maxAgeMinutes: 10080, note: 'Primary historical player/team stat source.' },
@@ -138,6 +164,8 @@ export const NFL_REDRAFT_PROVIDER_CAPABILITIES: NflRedraftProviderCapability[] =
 
   { providerId: 'sleeper', domain: 'player_metadata', priority: 20, requiresApiKey: false, maxAgeMinutes: 1440, note: 'Free read-only NFL player metadata fallback.' },
   { providerId: 'sleeper', domain: 'mock_draft', priority: 20, requiresApiKey: false, maxAgeMinutes: 1440, note: 'Free read-only user/league/draft context fallback.' },
+  { providerId: 'sleeper', domain: 'league_import', priority: 10, requiresApiKey: false, maxAgeMinutes: 1440, note: 'Primary league import provider for Sleeper leagues.' },
+  { providerId: 'espn', domain: 'league_import', priority: 20, requiresApiKey: false, maxAgeMinutes: 1440, note: 'Secondary import provider for ESPN leagues when user credentials exist.' },
 
   { providerId: 'thesportsdb', domain: 'team_logo', priority: 30, requiresApiKey: false, maxAgeMinutes: 10080, note: 'Free team badge/logo fallback; live feeds may require paid access.' },
   { providerId: 'thesportsdb', domain: 'schedule', priority: 30, requiresApiKey: false, maxAgeMinutes: 1440, note: 'Secondary public team/event schedule fallback.' },
@@ -153,9 +181,13 @@ export const NFL_REDRAFT_PROVIDER_CAPABILITIES: NflRedraftProviderCapability[] =
 ]
 
 export const NFL_REDRAFT_RATE_LIMITS: Record<NflRedraftProviderId, NflRedraftProviderRateLimitPolicy> = {
+  api_sports: { providerId: 'api_sports', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
+  clearsports: { providerId: 'clearsports', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
   rolling_insights: { providerId: 'rolling_insights', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
+  fantasycalc: { providerId: 'fantasycalc', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
   sportsdataio: { providerId: 'sportsdataio', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
   sleeper: { providerId: 'sleeper', maxRequestsPerMinute: 900, burst: 50, retryBackoffMs: 5_000 },
+  espn: { providerId: 'espn', maxRequestsPerMinute: 120, burst: 20, retryBackoffMs: 10_000 },
   thesportsdb: { providerId: 'thesportsdb', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
   openweather: { providerId: 'openweather', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 60_000 },
   deterministic: { providerId: 'deterministic', maxRequestsPerMinute: Number.POSITIVE_INFINITY, burst: Number.POSITIVE_INFINITY, retryBackoffMs: 0 },
