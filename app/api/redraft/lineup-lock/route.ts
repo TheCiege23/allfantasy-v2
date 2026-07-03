@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 import { readLineupLockSettings, type LineupLockMode } from '@/lib/redraft/lineupLock'
 
 export const dynamic = 'force-dynamic'
@@ -146,7 +147,7 @@ export async function POST(req: NextRequest) {
 
   await prisma.league.update({
     where: { id: season.leagueId },
-    data: { settings: { ...settings, sportConfig } },
+    data: { settings: toPrismaJsonInput({ ...settings, sportConfig }) },
   })
 
   // Audit roster-scoped changes (emergency unlock/clear). RedraftLeagueTransaction

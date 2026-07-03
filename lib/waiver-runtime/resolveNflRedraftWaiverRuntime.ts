@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 import { resolveCanonicalLeagueRules } from '@/lib/league-runtime'
 import type { CanonicalLeagueRuntimeEvent } from '@/lib/league-runtime/leagueRuntimeEvents'
 import { resolveRedraftRosterConfig } from '@/lib/redraft/rosterConfigResolver'
@@ -121,7 +122,7 @@ async function recordLeagueEvents(events: CanonicalLeagueRuntimeEvent[]) {
         eventType: event.type,
         title: eventTitle(event),
         description: null,
-        payload: event.payload,
+        payload: toPrismaJsonInput(event.payload),
         visibility: 'league',
         createdAt: new Date(event.occurredAtIso),
       })),
@@ -283,9 +284,18 @@ export async function resolveNflRedraftWaiverRuntime(input: {
   const activeRosterLimit = Math.max(1, rosterConfig.maxRosterSize - rosterConfig.irSlots - rosterConfig.taxiSlots)
   const rosters = await prisma.redraftRoster.findMany({
     where: { seasonId: season.id, leagueId: season.leagueId },
-    include: { players: { where: { droppedAt: null }, orderBy: { addedAt: 'asc' } } },
-    orderBy: [{ waiverPriority: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ waiverPriority: 'asc' }, { id: 'asc' }],
   })
+  const rosterPlayers = await prisma.redraftRosterPlayer.findMany({
+    where: { roster: { seasonId: season.id, leagueId: season.leagueId }, droppedAt: null },
+    orderBy: { addedAt: 'asc' },
+  })
+  const playersByRosterId = new Map<string, typeof rosterPlayers>()
+  for (const player of rosterPlayers) {
+    const list = playersByRosterId.get(player.rosterId) ?? []
+    list.push(player)
+    playersByRosterId.set(player.rosterId, list)
+  }
   const transactions = await prisma.redraftLeagueTransaction.findMany({
     where: {
       seasonId: season.id,
@@ -303,7 +313,8 @@ export async function resolveNflRedraftWaiverRuntime(input: {
   })
 
   const rosterInputs = rosters.map((roster) => {
-    const players = roster.players.map((player) => ({
+    const rosterPlayerRows = playersByRosterId.get(roster.id) ?? []
+    const players = rosterPlayerRows.map((player) => ({
       playerId: player.playerId,
       playerName: player.playerName,
       position: player.position,
@@ -358,7 +369,7 @@ export async function resolveNflRedraftWaiverRuntime(input: {
     }
   })
 
-  const activePlayerIds = new Set(rosters.flatMap((roster) => roster.players.map((player) => player.playerId)))
+  const activePlayerIds = new Set(rosterPlayers.map((player) => player.playerId))
   const freeAgents = input.includeFreeAgents
     ? await prisma.sportsPlayer
         .findMany({
@@ -425,7 +436,7 @@ async function recordClaimTransaction(input: {
       seasonId: input.seasonId,
       rosterId: input.rosterId,
       type: input.type,
-      metadata: input.metadata,
+      metadata: toPrismaJsonInput(input.metadata),
     },
   })
 }

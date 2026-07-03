@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 import type { Prisma } from '@prisma/client'
 import { resolveCanonicalLeagueRules } from '@/lib/league-runtime'
 import type { CanonicalLeagueRuntimeEvent } from '@/lib/league-runtime/leagueRuntimeEvents'
@@ -160,7 +161,7 @@ async function recordTradeLeagueEvents(events: CanonicalLeagueRuntimeEvent[]) {
         eventType: event.type,
         title: eventTitle(event),
         description: null,
-        payload: event.payload,
+        payload: toPrismaJsonInput(event.payload),
         visibility: 'league',
         createdAt: new Date(event.occurredAtIso),
       })),
@@ -306,9 +307,18 @@ export async function resolveNflRedraftTradeRuntime(input: {
   const activeRosterLimit = Math.max(1, rosterConfig.maxRosterSize - rosterConfig.irSlots - rosterConfig.taxiSlots)
   const rosters = await prisma.redraftRoster.findMany({
     where: { seasonId: season.id, leagueId: season.leagueId },
-    include: { players: { where: { droppedAt: null }, orderBy: { addedAt: 'asc' } } },
-    orderBy: [{ playoffSeed: 'asc' }, { createdAt: 'asc' }],
+    orderBy: [{ playoffSeed: 'asc' }, { id: 'asc' }],
   })
+  const rosterPlayers = await prisma.redraftRosterPlayer.findMany({
+    where: { roster: { seasonId: season.id, leagueId: season.leagueId }, droppedAt: null },
+    orderBy: { addedAt: 'asc' },
+  })
+  const playersByRosterId = new Map<string, typeof rosterPlayers>()
+  for (const player of rosterPlayers) {
+    const list = playersByRosterId.get(player.rosterId) ?? []
+    list.push(player)
+    playersByRosterId.set(player.rosterId, list)
+  }
   const proposals = await prisma.redraftTradeProposal.findMany({
     where: { seasonId: season.id, leagueId: season.leagueId },
     include: {
@@ -328,8 +338,9 @@ export async function resolveNflRedraftTradeRuntime(input: {
     take: 150,
   })
 
-  const rosterInputs = (rosters as ResolvedRosterRow[]).map((roster) => {
-    const players = roster.players.map((player) => ({
+  const rosterInputs = rosters.map((roster) => {
+    const rosterPlayerRows = playersByRosterId.get(roster.id) ?? []
+    const players = rosterPlayerRows.map((player) => ({
       playerId: player.playerId,
       playerName: player.playerName,
       position: player.position,
@@ -406,7 +417,7 @@ async function recordTransaction(input: {
       seasonId: input.seasonId,
       rosterId: input.rosterId,
       type: input.type,
-      metadata: input.metadata,
+      metadata: toPrismaJsonInput(input.metadata),
     },
   })
 }
@@ -426,13 +437,13 @@ async function upsertDecision(input: {
       decision: input.decision,
       decidedByUserId: input.actorUserId ?? null,
       decisionReason: input.reason ?? null,
-      snapshot: input.snapshot ?? {},
+      snapshot: toPrismaJsonInput(input.snapshot ?? {}),
     },
     update: {
       decision: input.decision,
       decidedByUserId: input.actorUserId ?? null,
       decisionReason: input.reason ?? null,
-      snapshot: input.snapshot ?? {},
+      snapshot: toPrismaJsonInput(input.snapshot ?? {}),
     },
   })
 }

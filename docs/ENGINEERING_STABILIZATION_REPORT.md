@@ -431,3 +431,193 @@ Generated/unrelated artifacts:
 - Investigate why `npm run typecheck` emits no progress before the 10-minute timeout.
 - Investigate production build stall with a build profiler or smaller Next segment builds.
 - Keep generated `.next-*` and Playwright artifacts out of stabilization commits.
+
+## Stabilization Pass 3
+
+Date: 2026-07-03
+
+Scope:
+
+- Create smaller targeted TypeScript diagnostic slices for `app/api` and `components`.
+- Fix only verified compile/build blockers related to NFL Redraft production readiness.
+- Avoid Decision OS, AI reasoning, new product behavior, broad refactors, and unrelated dirty files.
+
+### Diagnostic Harness Notes
+
+Temporary helper created outside the repo:
+
+```text
+C:\tmp\af-ts-shallow-diagnostics.cjs
+```
+
+Result:
+
+- The helper can enumerate route/component files quickly.
+- Its `noResolve` mode produces noisy missing-import diagnostics, so it was not used as a source of code fixes.
+- Normal resolver slices remained the source of truth for actual TypeScript fixes.
+
+### Diagnostic Slices Checked
+
+Passed with normal resolver:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs components/league components/league-home components/matchup-center
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs components/app/draft-room
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs components/war-room
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs components/dashboard components/providers
+```
+
+Results:
+
+- League/home/matchup components: 76 roots, 0 diagnostics.
+- Draft-room components: 57 roots, 0 diagnostics.
+- War-room components: 12 roots, 0 diagnostics.
+- Dashboard/provider components: 16 roots, 0 diagnostics.
+
+Passed with normal resolver:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/providers/status/route.ts app/api/clear-sports
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/redraft/premium-services/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/redraft/communication/chat/route.ts app/api/redraft/communication/events/route.ts app/api/redraft/communication/notifications/route.ts app/api/redraft/communication/announcements/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/sports/weather/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/cron/import-scores/route.ts app/api/cron/import-standings/route.ts app/api/cron/import-injuries/route.ts app/api/cron/import-schedules/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/admin/redraft
+```
+
+Results:
+
+- Provider/clear-sports routes: 4 roots, 0 diagnostics.
+- Premium services route: 4 roots, 0 diagnostics.
+- Redraft communication routes: 7 roots, 0 diagnostics.
+- Sports weather route: 4 roots, 0 diagnostics.
+- Cron import route slice: 7 roots, 0 diagnostics.
+- Admin redraft provider-validation routes: 4 roots, 0 diagnostics.
+
+Passed after fixes:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/redraft/waiver-process/route.ts app/api/redraft/score-sync/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/leagues/[leagueId]/draft/pool/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/leagues/[leagueId]/scoring/matchups/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/leagues/[leagueId]/trades/[tradeId]/process/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/league/create/redraft/route.ts app/api/leagues/redraft/create/route.ts app/api/leagues/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/league/create/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/redraft/playoffs/generate/route.ts app/api/redraft/lineup-lock/route.ts app/api/redraft/stream/[seasonId]/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/redraft/roster/route.ts app/api/redraft/matchup/route.ts app/api/redraft/standings/route.ts app/api/redraft/waiver-process/route.ts app/api/redraft/score-sync/route.ts app/api/redraft/lineup-lock/route.ts app/api/redraft/playoffs/generate/route.ts app/api/redraft/stream/[seasonId]/route.ts app/api/redraft/premium-services/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs lib/trade-runtime/resolveNflRedraftTradeRuntime.ts lib/waiver-runtime/resolveNflRedraftWaiverRuntime.ts lib/waiver-wire/free-agent-service.ts
+```
+
+Results:
+
+- All listed fixed slices returned 0 diagnostics.
+
+### Errors Fixed
+
+Fixed NFL/redraft-adjacent TypeScript blockers:
+
+- Wrapped redraft lineup-lock `League.settings` writes with `toPrismaJsonInput`.
+- Wrapped zombie weekly resolution/update JSON writes because redraft score-sync imports those specialty runtime paths.
+- Wrapped league creation, redraft creation, fantasy schedule, roster engine, and sport roster config JSON writes with `toPrismaJsonInput`.
+- Fixed admin provider health rate-limit aggregation and Prisma `groupBy` order typing.
+- Replaced stale NFL trade/waiver runtime `redraftRoster.players` include assumptions with explicit `redraftRosterPlayer` queries grouped by roster ID.
+- Wrapped NFL trade/waiver runtime league-event payloads, transaction metadata, and trade-decision snapshots with `toPrismaJsonInput`.
+- Preserved immediate free-agent result shape with `ok: true as const`.
+
+### Verification Results
+
+Passed:
+
+```text
+cmd /c npx vitest run __tests__/g50a-nfl-redraft-production-verification.test.ts __tests__/g50b-nfl-redraft-release-candidate.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+- 2 files passed.
+- 10 tests passed.
+
+Passed:
+
+```text
+cmd /c npx vitest run __tests__/g47b-nfl-redraft-live-stats-scoring-refresh.test.ts __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+- 2 files passed.
+- 12 tests passed.
+
+Targeted ESLint passed:
+
+```text
+cmd /c npx eslint app/api/league/create/route.ts app/api/redraft/lineup-lock/route.ts lib/admin-dashboard/AdminProviderHealthService.ts lib/zombie/weeklyResolutionEngine.ts lib/zombie/weeklyUpdateEngine.ts lib/mlb-roster/MlbRosterConfigService.ts lib/nba-roster/NbaRosterConfigService.ts lib/ncaab-roster/NcaabRosterConfigService.ts lib/ncaaf-roster/NcaafRosterConfigService.ts lib/nfl-roster/NflRosterConfigService.ts lib/nhl-roster/NhlRosterConfigService.ts lib/soccer-roster/SoccerRosterConfigService.ts lib/roster-engine/UnifiedRosterConfigService.ts lib/fantasy-schedule/ScheduleConfigService.ts lib/redraft-creation/create-redraft-league.ts lib/trade-runtime/resolveNflRedraftTradeRuntime.ts lib/waiver-runtime/resolveNflRedraftWaiverRuntime.ts lib/waiver-wire/free-agent-service.ts
+```
+
+- 0 errors.
+- 0 warnings.
+
+### Full Typecheck And Build Status
+
+Improved but still blocked:
+
+```text
+cmd /c npm run typecheck
+```
+
+Result:
+
+- No longer times out.
+- Completed in roughly 2-3 minutes with real diagnostics.
+- Still exits non-zero.
+
+Notable remaining diagnostic groups:
+
+- generated `.next/types/app/mock-draft/page.ts`
+- World Cup routes/services/pages
+- tournament routes/services
+- commissioner/non-redraft settings routes
+- dashboard/settings UI strict-null/prop issues
+- sports-os/importer worker typing
+- generic Prisma JSON writes outside the redraft stabilization path
+- draft/import route `select` plus `include` conflict
+- `app/api/leagues/[leagueId]/draft/live-sync/route.ts` and `draft/pick/route.ts` route-handler context type mismatch
+
+Still blocked:
+
+```text
+cmd /c npm run build
+```
+
+Result:
+
+- Timed out after 10 minutes.
+- No final build result emitted.
+
+### Remaining Blockers
+
+Code errors:
+
+- Full TypeScript still fails with a broad repo backlog outside the fixed redraft/provider/runtime slices.
+- Remaining NFL-adjacent route errors include draft import validation and draft route-handler context signatures.
+- Remaining non-redraft errors are mostly World Cup, tournament, commissioner settings, dashboard/settings UI, workers, sports-os, and Prisma JSON boundary issues.
+
+Environment/tooling limits:
+
+- Production build still does not complete in this workspace.
+- Generated `.next/types` still participates in full typecheck and includes a mock-draft page type error.
+
+Generated/unrelated artifacts:
+
+- Existing generated `.next-*` and Playwright artifacts remain dirty and untouched.
+- Existing unrelated dirty worktree files remain untouched.
+
+### Recommended Pass 4 Scope
+
+- Fix the remaining NFL-adjacent draft route diagnostics:
+  - `app/api/leagues/[leagueId]/draft/import/validate/route.ts`
+  - `app/api/leagues/[leagueId]/draft/live-sync/route.ts`
+  - `app/api/leagues/[leagueId]/draft/pick/route.ts`
+- Decide whether generated `.next/types` should be excluded or cleaned before full typecheck.
+- Continue Prisma JSON boundary cleanup by ownership bands:
+  - commissioner settings routes
+  - user/share/social routes
+  - workers and sports-os imports
+- Keep World Cup and tournament cleanup separate unless those modules block NFL Redraft release gates.
+- Investigate production build timeout after TypeScript errors are reduced further.
