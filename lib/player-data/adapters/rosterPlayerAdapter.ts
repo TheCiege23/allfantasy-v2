@@ -8,6 +8,10 @@ import {
   buildNflRedraftPlayerMetadataFromWire,
   type NflRedraftPlayerDisplayMetadata,
 } from '@/lib/player-data/nflRedraftPlayerMetadata'
+import {
+  buildNflRedraftPlayerIntelligenceFromWire,
+  type NflRedraftPlayerIntelligence,
+} from '@/lib/player-data/nflRedraftPlayerIntelligence'
 
 export type RosterSectionKey = 'starters' | 'bench' | 'ir' | 'taxi' | 'devy'
 
@@ -32,6 +36,7 @@ export type RosterPlayerMergeable = {
   statsSource?: string | null
   canonicalNflRedraft?: NflRedraftCanonicalPlayer | null
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
+  canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
   playerDataLastUpdatedAt?: string | null
   playerDataWarnings?: string[]
 }
@@ -43,6 +48,7 @@ function enrichOne(p: RosterPlayerMergeable, byId: Map<string, UnifiedPlayerWire
   if (!u) return p
   const canonical = u.nflRedraft ?? null
   const metadata = buildNflRedraftPlayerMetadataFromWire(u)
+  const intelligence = buildNflRedraftPlayerIntelligenceFromWire(u)
   return {
     ...p,
     name: metadata?.displayName ?? canonical?.displayName ?? p.name,
@@ -50,21 +56,25 @@ function enrichOne(p: RosterPlayerMergeable, byId: Map<string, UnifiedPlayerWire
     position: metadata?.position ?? canonical?.fantasyPosition ?? p.position,
     headshotUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? u.headshotUrl ?? null,
     teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? u.teamLogoUrl ?? null,
-    providerInjuryLabel: canonical?.injury.designation ?? u.injuryStatus ?? null,
+    providerInjuryLabel: intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? u.injuryStatus ?? null,
     unifiedProjectedPoints:
-      canonical?.currentProjection.weeklyProjectedPoints != null &&
-      Number.isFinite(Number(canonical.currentProjection.weeklyProjectedPoints))
-        ? Number(canonical.currentProjection.weeklyProjectedPoints)
+      intelligence?.projection.projectedFantasyPoints != null &&
+      Number.isFinite(Number(intelligence.projection.projectedFantasyPoints))
+        ? Number(intelligence.projection.projectedFantasyPoints)
+        : canonical?.currentProjection.weeklyProjectedPoints != null &&
+          Number.isFinite(Number(canonical.currentProjection.weeklyProjectedPoints))
+          ? Number(canonical.currentProjection.weeklyProjectedPoints)
         : u.projectedPoints != null && Number.isFinite(Number(u.projectedPoints))
           ? Number(u.projectedPoints)
           : null,
-    unifiedLowConfidence: u.lowConfidence === true || Boolean(canonical?.fallbacks.length),
+    unifiedLowConfidence: u.lowConfidence === true || Boolean(canonical?.fallbacks.length) || Boolean(intelligence?.providerFallback.fallback),
     profileSource: u.profileSource ?? null,
     statsSource: u.statsSource ?? null,
     canonicalNflRedraft: canonical,
     canonicalPlayerMetadata: metadata,
-    playerDataLastUpdatedAt: canonical?.lastUpdatedAt ?? null,
-    playerDataWarnings: metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
+    canonicalPlayerIntelligence: intelligence,
+    playerDataLastUpdatedAt: intelligence?.providerFreshness.updatedAtIso ?? canonical?.lastUpdatedAt ?? null,
+    playerDataWarnings: intelligence?.providerFreshness.warnings ?? metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
   }
 }
 

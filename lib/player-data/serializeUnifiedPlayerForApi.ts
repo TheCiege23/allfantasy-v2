@@ -15,6 +15,10 @@ import {
   buildNflRedraftPlayerMetadataFromCanonicalPlayer,
   type NflRedraftPlayerDisplayMetadata,
 } from '@/lib/player-data/nflRedraftPlayerMetadata'
+import {
+  buildNflRedraftPlayerIntelligenceFromCanonicalPlayer,
+  type NflRedraftPlayerIntelligence,
+} from '@/lib/player-data/nflRedraftPlayerIntelligence'
 
 export type UnifiedPlayerWireDto = {
   id: string
@@ -47,6 +51,8 @@ export type UnifiedPlayerWireDto = {
   nflRedraft?: NflRedraftCanonicalPlayer | null
   /** Display-safe NFL redraft media/metadata snapshot with no provider-specific ids or payloads. */
   nflRedraftPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
+  /** Display-safe NFL redraft projections, rankings, injuries, news, and freshness metadata. */
+  nflRedraftPlayerIntelligence?: NflRedraftPlayerIntelligence | null
   /** Nested snapshot for AI / advanced clients */
   product: {
     unified: UnifiedPlayerProductView['unified']
@@ -60,6 +66,24 @@ export type UnifiedPlayerWireDto = {
 
 export type { ProviderFallbackDiagnostics }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {}
+}
+
+function cleanString(value: unknown): string | null {
+  if (typeof value !== 'string') return null
+  const trimmed = value.trim()
+  return trimmed ? trimmed : null
+}
+
+function firstString(source: Record<string, unknown>, keys: string[]): string | null {
+  for (const key of keys) {
+    const value = cleanString(source[key])
+    if (value) return value
+  }
+  return null
+}
+
 export function serializeUnifiedPlayerForApi(entry: UnifiedPlayerProductView): UnifiedPlayerWireDto {
   const u = entry.unified
   const displayAssets =
@@ -71,6 +95,17 @@ export function serializeUnifiedPlayerForApi(entry: UnifiedPlayerProductView): U
   const nflRedraft = buildNflRedraftCanonicalPlayer(entry, { teamLogoUrl })
   const nflRedraftPlayerMetadata = nflRedraft
     ? buildNflRedraftPlayerMetadataFromCanonicalPlayer(nflRedraft)
+    : null
+  const nflRedraftPlayerIntelligence = nflRedraft
+    ? buildNflRedraftPlayerIntelligenceFromCanonicalPlayer(nflRedraft, {
+        adpSource: u.adpSource,
+        aiAdp: u.aiAdp,
+        aiAdpSampleSize: u.aiAdpSampleSize,
+        trendLabel: firstString(
+          { ...asRecord(u.normalizedStats), ...asRecord(u.normalizedProjections) },
+          ['trendLabel', 'playerTrendLabel', 'trend', 'trendingDirection'],
+        ),
+      })
     : null
   const diag: ProviderFallbackDiagnostics | undefined =
     'providerFallbackDiagnostics' in entry && entry.providerFallbackDiagnostics
@@ -107,6 +142,7 @@ export function serializeUnifiedPlayerForApi(entry: UnifiedPlayerProductView): U
     normalizedProjections: u.normalizedProjections,
     ...(nflRedraft ? { nflRedraft } : {}),
     ...(nflRedraftPlayerMetadata ? { nflRedraftPlayerMetadata } : {}),
+    ...(nflRedraftPlayerIntelligence ? { nflRedraftPlayerIntelligence } : {}),
     product: {
       unified: u,
       yearsExp: entry.yearsExp ?? null,

@@ -7,6 +7,10 @@ import {
   buildNflRedraftPlayerMetadataFromWire,
   type NflRedraftPlayerDisplayMetadata,
 } from '@/lib/player-data/nflRedraftPlayerMetadata'
+import {
+  buildNflRedraftPlayerIntelligenceFromWire,
+  type NflRedraftPlayerIntelligence,
+} from '@/lib/player-data/nflRedraftPlayerIntelligence'
 
 export type TradePlayerEvidenceSlice = {
   playerId: string
@@ -17,6 +21,7 @@ export type TradePlayerEvidenceSlice = {
   headshotUrl: string | null
   teamLogoUrl: string | null
   canonicalPlayerMetadata: NflRedraftPlayerDisplayMetadata | null
+  canonicalPlayerIntelligence: NflRedraftPlayerIntelligence | null
   injuryStatus: string | null
   adp: number | null
   aiAdp: number | null
@@ -41,9 +46,10 @@ export type TradePlayerEvidenceSlice = {
 export function tradeEvidenceFromUnifiedWire(row: UnifiedPlayerWireDto): TradePlayerEvidenceSlice {
   const canonical = row.nflRedraft ?? null
   const metadata = buildNflRedraftPlayerMetadataFromWire(row)
+  const intelligence = buildNflRedraftPlayerIntelligenceFromWire(row)
   const missing: string[] = []
   if (!metadata?.headshot.url && !canonical?.media.headshot.url && !row.headshotUrl) missing.push('image')
-  if ((canonical?.injury.designation ?? row.injuryStatus) == null || String(canonical?.injury.designation ?? row.injuryStatus).trim() === '') missing.push('injury')
+  if ((intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? row.injuryStatus) == null || String(intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? row.injuryStatus).trim() === '') missing.push('injury')
   if (!row.normalizedStats || Object.keys(row.normalizedStats).length <= 2) missing.push('stats')
   for (const field of canonical?.dataFreshness.missingFields ?? []) {
     if (!missing.includes(field)) missing.push(field)
@@ -57,7 +63,7 @@ export function tradeEvidenceFromUnifiedWire(row: UnifiedPlayerWireDto): TradePl
         rookieSource?: string | null
       }
     | undefined
-  const injuryPresent = (canonical?.injury.designation ?? row.injuryStatus) != null && String(canonical?.injury.designation ?? row.injuryStatus).trim() !== ''
+  const injuryPresent = (intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? row.injuryStatus) != null && String(intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? row.injuryStatus).trim() !== ''
   return {
     playerId: row.id,
     name: metadata?.displayName ?? row.name,
@@ -67,22 +73,23 @@ export function tradeEvidenceFromUnifiedWire(row: UnifiedPlayerWireDto): TradePl
     headshotUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? row.headshotUrl,
     teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? row.teamLogoUrl,
     canonicalPlayerMetadata: metadata,
-    injuryStatus: canonical?.injury.designation ?? row.injuryStatus,
-    adp: row.adp,
-    aiAdp: row.aiAdp,
-    projectedPoints: canonical?.currentProjection.weeklyProjectedPoints ?? row.projectedPoints,
+    canonicalPlayerIntelligence: intelligence,
+    injuryStatus: intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? row.injuryStatus,
+    adp: intelligence?.ranking.adp ?? row.adp,
+    aiAdp: intelligence?.ranking.aiAdp ?? row.aiAdp,
+    projectedPoints: intelligence?.projection.projectedFantasyPoints ?? canonical?.currentProjection.weeklyProjectedPoints ?? row.projectedPoints,
     fantasyPointsPerGame: row.fantasyPointsPerGame,
     profileSource: row.profileSource,
     statsSource: row.statsSource,
-    projectionsSource: row.projectionsSource,
-    injurySource: injuryPresent ? canonical?.injury.source ?? u?.profileSource ?? row.profileSource ?? null : null,
-    adpSource: row.adp != null ? u?.adpSource ?? null : null,
-    aiAdpSource: row.aiAdp != null ? u?.aiAdpSource ?? null : null,
+    projectionsSource: intelligence?.projection.source ?? row.projectionsSource,
+    injurySource: injuryPresent ? intelligence?.injury.source ?? canonical?.injury.source ?? u?.profileSource ?? row.profileSource ?? null : null,
+    adpSource: intelligence?.ranking.adp != null ? intelligence.ranking.adpSource ?? u?.adpSource ?? null : row.adp != null ? u?.adpSource ?? null : null,
+    aiAdpSource: intelligence?.ranking.aiAdp != null ? u?.aiAdpSource ?? null : row.aiAdp != null ? u?.aiAdpSource ?? null : null,
     experienceSource: u?.yearsExpSource ?? u?.rookieSource ?? u?.profileSource ?? row.profileSource ?? null,
-    lowConfidence: row.lowConfidence === true || Boolean(canonical?.fallbacks.length),
-    dataFallbacks: canonical?.fallbacks.map((fallback) => fallback.field) ?? [],
-    staleDataWarnings: canonical?.dataFreshness.staleWarnings ?? [],
-    canonicalLastUpdatedAt: canonical?.lastUpdatedAt ?? null,
+    lowConfidence: row.lowConfidence === true || Boolean(canonical?.fallbacks.length) || Boolean(intelligence?.providerFallback.fallback),
+    dataFallbacks: intelligence?.providerFallback.fields ?? canonical?.fallbacks.map((fallback) => fallback.field) ?? [],
+    staleDataWarnings: intelligence?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
+    canonicalLastUpdatedAt: intelligence?.providerFreshness.updatedAtIso ?? canonical?.lastUpdatedAt ?? null,
     missingDataNote: missing.length ? `missing: ${missing.join(', ')}` : undefined,
   }
 }

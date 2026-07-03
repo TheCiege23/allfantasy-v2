@@ -6,6 +6,7 @@ import type { RollingInsightsSoccerLeagueCode } from '@/lib/providers/rollingIns
 import type { ProviderFallbackDiagnostics } from '@/lib/player-data/providerFallbackDiagnostics'
 import type { UnifiedPlayerProductView } from '@/lib/player-data/unifiedPlayerProductView'
 import type { NflRedraftPlayerDisplayMetadata } from '@/lib/player-data/nflRedraftPlayerMetadata'
+import type { NflRedraftPlayerIntelligence } from '@/lib/player-data/nflRedraftPlayerIntelligence'
 
 export type PlayerDataAdapterFlags = {
   includeStats?: boolean
@@ -29,5 +30,7 @@ export type WithNormalizedLayers<T> = T & {
   unifiedProductView?: UnifiedPlayerProductView
   /** Display-safe canonical NFL redraft media/metadata; no provider ids or payloads. */
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
+  /** Display-safe canonical NFL redraft projections, rankings, injuries, news, and freshness. */
+  canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
   providerFallbackDiagnostics?: ProviderFallbackDiagnostics
 }

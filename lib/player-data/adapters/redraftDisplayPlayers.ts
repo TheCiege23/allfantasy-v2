@@ -5,6 +5,10 @@ import {
   buildNflRedraftPlayerMetadataFromWire,
   type NflRedraftPlayerDisplayMetadata,
 } from '@/lib/player-data/nflRedraftPlayerMetadata'
+import {
+  buildNflRedraftPlayerIntelligenceFromWire,
+  type NflRedraftPlayerIntelligence,
+} from '@/lib/player-data/nflRedraftPlayerIntelligence'
 import { teamDefenseDisplayNameFromId } from '@/lib/redraft/teamDefenseIdentity'
 
 export type DisplayPlayerRecord = SlimPlayer & {
@@ -22,6 +26,7 @@ export type DisplayPlayerRecord = SlimPlayer & {
   playerDataWarnings?: string[]
   canonicalNflRedraft?: NflRedraftCanonicalPlayer | null
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
+  canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
 }
 
 export type DisplayPlayerMap = Record<string, DisplayPlayerRecord>
@@ -29,6 +34,7 @@ export type DisplayPlayerMap = Record<string, DisplayPlayerRecord>
 export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayPlayerRecord {
   const canonical = row.nflRedraft ?? null
   const metadata = buildNflRedraftPlayerMetadataFromWire(row)
+  const intelligence = buildNflRedraftPlayerIntelligenceFromWire(row)
   return {
     id: row.id,
     name: metadata?.displayName ?? row.name,
@@ -43,11 +49,14 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
     headshotUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? row.headshotUrl ?? null,
     imageUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? row.imageUrl ?? row.headshotUrl ?? null,
     teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? row.teamLogoUrl ?? null,
-    injuryStatus: canonical?.injury.designation ?? row.injuryStatus ?? null,
+    injuryStatus: intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? row.injuryStatus ?? null,
     projectedPoints:
-      canonical?.currentProjection.weeklyProjectedPoints != null &&
-      Number.isFinite(Number(canonical.currentProjection.weeklyProjectedPoints))
-        ? Number(canonical.currentProjection.weeklyProjectedPoints)
+      intelligence?.projection.projectedFantasyPoints != null &&
+      Number.isFinite(Number(intelligence.projection.projectedFantasyPoints))
+        ? Number(intelligence.projection.projectedFantasyPoints)
+        : canonical?.currentProjection.weeklyProjectedPoints != null &&
+          Number.isFinite(Number(canonical.currentProjection.weeklyProjectedPoints))
+          ? Number(canonical.currentProjection.weeklyProjectedPoints)
         : row.projectedPoints != null && Number.isFinite(Number(row.projectedPoints))
           ? Number(row.projectedPoints)
           : null,
@@ -60,9 +69,10 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
     projectionsSource: row.projectionsSource ?? null,
     byeWeek: metadata?.byeWeek ?? canonical?.byeWeek ?? row.product?.byeWeek ?? null,
     activeStatus: metadata?.activeStatus ?? canonical?.activeStatus ?? null,
-    playerDataWarnings: metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
+    playerDataWarnings: intelligence?.providerFreshness.warnings ?? metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
     canonicalNflRedraft: canonical,
     canonicalPlayerMetadata: metadata,
+    canonicalPlayerIntelligence: intelligence,
   }
 }
 

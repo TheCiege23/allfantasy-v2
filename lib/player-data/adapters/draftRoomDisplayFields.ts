@@ -6,6 +6,7 @@
 import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
 import type { UnifiedPlayerProductView } from '@/lib/player-data/unifiedPlayerProductView'
 import type { NflRedraftPlayerDisplayMetadata } from '@/lib/player-data/nflRedraftPlayerMetadata'
+import type { NflRedraftPlayerIntelligence } from '@/lib/player-data/nflRedraftPlayerIntelligence'
 
 export type DraftRoomDisplayPlayerLike = {
   name?: string | null
@@ -14,6 +15,7 @@ export type DraftRoomDisplayPlayerLike = {
   display?: PlayerDisplayModel | null
   unifiedProductView?: UnifiedPlayerProductView | null
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
+  canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
   playerId?: string | null
   id?: string | null
   yearsExp?: number | null
@@ -73,6 +75,8 @@ export function getDraftRoomDisplayHeadshot(player: DraftRoomDisplayPlayerLike |
 
 export function getDraftRoomDisplayInjury(player: DraftRoomDisplayPlayerLike | null | undefined): string | null {
   if (!player) return null
+  const canonical = player.canonicalPlayerIntelligence?.injury.injuryStatus
+  if (canonical != null && String(canonical).trim() !== '') return String(canonical).trim()
   const top = player.injuryStatus
   const u = player.unifiedProductView?.unified.injuryStatus ?? player.unifiedProductView?.injuryStatus
   const meta = player.display?.metadata?.injuryStatus
@@ -87,6 +91,12 @@ export function getDraftRoomDisplayMetadata(
   player: DraftRoomDisplayPlayerLike | null | undefined,
 ): NflRedraftPlayerDisplayMetadata | null {
   return player?.canonicalPlayerMetadata ?? null
+}
+
+export function getDraftRoomDisplayIntelligence(
+  player: DraftRoomDisplayPlayerLike | null | undefined,
+): NflRedraftPlayerIntelligence | null {
+  return player?.canonicalPlayerIntelligence ?? null
 }
 
 /** Short label for chips — not a clinical diagnosis */
