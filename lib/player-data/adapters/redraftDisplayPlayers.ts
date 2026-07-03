@@ -13,6 +13,10 @@ import {
   buildNflRedraftGameContextFromWire,
   type NflRedraftGameContext,
 } from '@/lib/player-data/nflRedraftGameContext'
+import {
+  buildNflRedraftLiveScoringContextFromWire,
+  type NflRedraftLiveScoringContext,
+} from '@/lib/player-data/nflRedraftLiveScoringContext'
 import { teamDefenseDisplayNameFromId } from '@/lib/redraft/teamDefenseIdentity'
 
 export type DisplayPlayerRecord = SlimPlayer & {
@@ -31,12 +35,20 @@ export type DisplayPlayerRecord = SlimPlayer & {
   homeAway?: string | null
   kickoffTimeIso?: string | null
   gameStatus?: string | null
+  liveGameStatus?: string | null
+  gameClock?: string | null
+  actualFantasyPoints?: number | null
+  scoringRefreshTimestamp?: string | null
+  matchupRefreshTimestamp?: string | null
+  standingsRefreshRequired?: boolean
+  statCorrectionCount?: number
   weatherSummary?: string | null
   playerDataWarnings?: string[]
   canonicalNflRedraft?: NflRedraftCanonicalPlayer | null
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
   canonicalGameContext?: NflRedraftGameContext | null
+  canonicalLiveScoringContext?: NflRedraftLiveScoringContext | null
 }
 
 export type DisplayPlayerMap = Record<string, DisplayPlayerRecord>
@@ -46,6 +58,8 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
   const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   const intelligence = buildNflRedraftPlayerIntelligenceFromWire(row)
   const gameContext = buildNflRedraftGameContextFromWire(row)
+  const liveScoringContext = buildNflRedraftLiveScoringContextFromWire(row)
+  const liveGameStatus = liveScoringContext?.gameStatus !== 'unknown' ? liveScoringContext?.gameStatus ?? null : null
   return {
     id: row.id,
     name: metadata?.displayName ?? row.name,
@@ -62,7 +76,10 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
     teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? row.teamLogoUrl ?? null,
     injuryStatus: intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? row.injuryStatus ?? null,
     projectedPoints:
-      intelligence?.projection.projectedFantasyPoints != null &&
+      liveScoringContext?.projectedFantasyPoints != null &&
+      Number.isFinite(Number(liveScoringContext.projectedFantasyPoints))
+        ? Number(liveScoringContext.projectedFantasyPoints)
+      : intelligence?.projection.projectedFantasyPoints != null &&
       Number.isFinite(Number(intelligence.projection.projectedFantasyPoints))
         ? Number(intelligence.projection.projectedFantasyPoints)
         : canonical?.currentProjection.weeklyProjectedPoints != null &&
@@ -83,9 +100,17 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
     opponent: gameContext?.isByeWeek ? 'BYE' : gameContext?.opponent.teamAbbr ?? null,
     homeAway: gameContext?.homeAway ?? null,
     kickoffTimeIso: gameContext?.kickoffTimeIso ?? null,
-    gameStatus: gameContext?.gameStatus ?? null,
+    gameStatus: liveGameStatus ?? gameContext?.gameStatus ?? null,
+    liveGameStatus,
+    gameClock: liveScoringContext?.gameClock.display ?? null,
+    actualFantasyPoints: liveScoringContext?.actualFantasyPoints ?? liveScoringContext?.fantasyPoints ?? null,
+    scoringRefreshTimestamp: liveScoringContext?.refresh.scoringRefreshTimestamp ?? null,
+    matchupRefreshTimestamp: liveScoringContext?.refresh.matchupRefreshTimestamp ?? null,
+    standingsRefreshRequired: liveScoringContext?.refresh.standingsRefreshRequired ?? false,
+    statCorrectionCount: liveScoringContext?.statCorrections.length ?? 0,
     weatherSummary: formatWeatherSummary(gameContext),
     playerDataWarnings: [
+      ...(liveScoringContext?.providerFreshness.warnings ?? []),
       ...(gameContext?.providerFreshness.warnings ?? []),
       ...(gameContext?.weatherFreshness.warnings ?? []),
       ...(intelligence?.providerFreshness.warnings ?? metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? []),
@@ -94,6 +119,7 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
     canonicalPlayerMetadata: metadata,
     canonicalPlayerIntelligence: intelligence,
     canonicalGameContext: gameContext,
+    canonicalLiveScoringContext: liveScoringContext,
   }
 }
 

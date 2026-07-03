@@ -15,8 +15,15 @@ import {
   normalizeNflWeeklyStats,
 } from './nflStatNormalization'
 import type { NflRedraftCanonicalPlayer } from '@/lib/player-data/nflRedraftCanonicalPlayer'
+import type {
+  NflRedraftLiveClockContext,
+  NflRedraftLiveGameStatus,
+  NflRedraftLiveScoringContext,
+  NflRedraftStatCorrectionRecord,
+} from '@/lib/player-data/nflRedraftLiveScoringContext'
 
 export const NFL_REDRAFT_STAT_CORRECTION_VERSION_KEY = '__af_correction_version'
+export const NFL_REDRAFT_STAT_CORRECTION_MARKER_PREFIX = '__af_correction_applied_'
 
 export type NflRedraftScoringStatus = 'scheduled' | 'live' | 'final' | 'bye' | 'illegal_lineup'
 
@@ -48,6 +55,7 @@ export type NflRedraftRuntimePlayerInput = {
   playerDataLastUpdatedAt?: string | null
   playerDataWarnings?: string[]
   canonicalNflRedraft?: NflRedraftCanonicalPlayer | null
+  canonicalLiveScoringContext?: NflRedraftLiveScoringContext | null
 }
 
 export type NflRedraftRuntimeScoreInput = {
@@ -57,6 +65,7 @@ export type NflRedraftRuntimeScoreInput = {
   isFinalized?: boolean | null
   source?: string | null
   updatedAtIso?: string | null
+  canonicalLiveScoringContext?: NflRedraftLiveScoringContext | null
 }
 
 export type NflRedraftRuntimeTeamInput = {
@@ -95,7 +104,16 @@ export type NflRedraftPlayerScore = {
   playerDataLastUpdatedAt: string | null
   playerDataWarnings: string[]
   canonicalNflRedraft: NflRedraftCanonicalPlayer | null
+  canonicalLiveScoringContext: NflRedraftLiveScoringContext | null
   fantasyPoints: number
+  actualFantasyPoints: number | null
+  projectedFantasyPoints: number | null
+  liveGameStatus: NflRedraftLiveGameStatus | null
+  gameClock: NflRedraftLiveClockContext | null
+  scoringRefreshTimestamp: string | null
+  matchupRefreshTimestamp: string | null
+  standingsRefreshRequired: boolean
+  statCorrections: NflRedraftStatCorrectionRecord[]
   stats: Record<string, number>
   breakdown: Record<string, number>
   hasStats: boolean
@@ -179,6 +197,14 @@ export type NflRedraftLiveScoringRuntimeState = {
     illegalLineups: number
     finalizedMatchups: number
     correctionVersion: number
+  }
+  refresh: {
+    scoringRefreshTimestamp: string | null
+    matchupRefreshTimestamp: string | null
+    standingsRefreshRequired: boolean
+    standingsRefreshReason: string | null
+    providerFreshness: NflRedraftLiveScoringContext['providerFreshness'] | null
+    providerFallback: NflRedraftLiveScoringContext['providerFallback'] | null
   }
 }
 
@@ -357,8 +383,39 @@ function correctionVersionFromStats(stats: Record<string, number>): number {
   return Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0
 }
 
+function correctionMarkerKey(correctionId: string): string {
+  const safeId = String(correctionId)
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+  return `${NFL_REDRAFT_STAT_CORRECTION_MARKER_PREFIX}${safeId || 'unknown'}`
+}
+
+function statsKeysWithoutRuntimeMarkers(stats: Record<string, number>): string[] {
+  return Object.keys(stats).filter(
+    (key) => key !== NFL_REDRAFT_STAT_CORRECTION_VERSION_KEY && !key.startsWith(NFL_REDRAFT_STAT_CORRECTION_MARKER_PREFIX),
+  )
+}
+
 function scoreMap(rows: NflRedraftRuntimeScoreInput[]): Map<string, NflRedraftRuntimeScoreInput> {
   return new Map(rows.map((row) => [row.playerId, row]))
+}
+
+export function scoreRowsFromCanonicalLiveScoringContexts(
+  contexts: Array<NflRedraftLiveScoringContext | null | undefined>,
+): NflRedraftRuntimeScoreInput[] {
+  return contexts
+    .filter((context): context is NflRedraftLiveScoringContext => Boolean(context?.playerId))
+    .map((context) => ({
+      playerId: String(context.playerId),
+      sport: 'NFL',
+      stats: context.stats.stats,
+      isFinalized: context.final,
+      source: context.stats.source,
+      updatedAtIso: context.stats.updatedAtIso,
+      canonicalLiveScoringContext: context,
+    }))
 }
 
 export function buildNflRedraftTeamScore(input: {
@@ -368,8 +425,13 @@ export function buildNflRedraftTeamScore(input: {
 }): NflRedraftTeamScore {
   const playerScores: NflRedraftPlayerScore[] = input.team.players.map((player) => {
     const scoreRow = input.scoreRowsByPlayerId.get(player.playerId)
-    const normalizedStats = scoreRow ? finiteStats(scoreRow.stats) : {}
-    const hasStats = Object.keys(normalizedStats).some((key) => key !== NFL_REDRAFT_STAT_CORRECTION_VERSION_KEY)
+    const liveContext = scoreRow?.canonicalLiveScoringContext ?? player.canonicalLiveScoringContext ?? null
+    const normalizedStats = scoreRow
+      ? finiteStats(scoreRow.stats)
+      : liveContext
+        ? finiteStats(liveContext.stats.stats)
+        : {}
+    const hasStats = statsKeysWithoutRuntimeMarkers(normalizedStats).length > 0
     const calculation = hasStats
       ? calculateNflRedraftFantasyPoints({
           settings: input.settings,
@@ -377,6 +439,10 @@ export function buildNflRedraftTeamScore(input: {
           position: player.position,
         })
       : { points: 0, breakdown: {} }
+    const projectedPoints =
+      liveContext?.projectedFantasyPoints != null && Number.isFinite(Number(liveContext.projectedFantasyPoints))
+        ? Number(liveContext.projectedFantasyPoints)
+        : player.projectedPoints ?? null
     return {
       rosterId: input.team.rosterId,
       playerId: player.playerId,
@@ -389,17 +455,26 @@ export function buildNflRedraftTeamScore(input: {
       teamLogoUrl: player.teamLogoUrl ?? null,
       injuryStatus: player.providerInjuryLabel ?? player.injuryStatus ?? null,
       activeStatus: player.activeStatus ?? null,
-      projectedPoints: player.projectedPoints ?? null,
-      playerDataLastUpdatedAt: player.playerDataLastUpdatedAt ?? null,
-      playerDataWarnings: player.playerDataWarnings ?? [],
+      projectedPoints,
+      playerDataLastUpdatedAt: liveContext?.providerFreshness.updatedAtIso ?? player.playerDataLastUpdatedAt ?? null,
+      playerDataWarnings: [...(liveContext?.providerFreshness.warnings ?? []), ...(player.playerDataWarnings ?? [])],
       canonicalNflRedraft: player.canonicalNflRedraft ?? null,
+      canonicalLiveScoringContext: liveContext,
       fantasyPoints: calculation.points,
+      actualFantasyPoints: hasStats ? calculation.points : liveContext?.actualFantasyPoints ?? liveContext?.fantasyPoints ?? null,
+      projectedFantasyPoints: projectedPoints,
+      liveGameStatus: liveContext?.gameStatus ?? null,
+      gameClock: liveContext?.gameClock ?? null,
+      scoringRefreshTimestamp: liveContext?.refresh.scoringRefreshTimestamp ?? scoreRow?.updatedAtIso ?? null,
+      matchupRefreshTimestamp: liveContext?.refresh.matchupRefreshTimestamp ?? scoreRow?.updatedAtIso ?? null,
+      standingsRefreshRequired: liveContext?.refresh.standingsRefreshRequired ?? false,
+      statCorrections: liveContext?.statCorrections ?? [],
       stats: normalizedStats,
       breakdown: calculation.breakdown,
       hasStats,
-      isFinalized: scoreRow?.isFinalized === true,
+      isFinalized: scoreRow?.isFinalized === true || liveContext?.final === true,
       correctionVersion: correctionVersionFromStats(normalizedStats),
-      source: scoreRow?.source ?? null,
+      source: liveContext?.stats.source ?? scoreRow?.source ?? null,
     }
   })
 
@@ -584,6 +659,53 @@ export function buildNflRedraftScoringStandings(input: {
   })
 }
 
+function latestIso(values: Array<string | null | undefined>): string | null {
+  let latest: string | null = null
+  let latestTime = Number.NEGATIVE_INFINITY
+  for (const value of values) {
+    if (!value) continue
+    const time = new Date(value).getTime()
+    if (!Number.isFinite(time)) continue
+    if (time > latestTime) {
+      latestTime = time
+      latest = value
+    }
+  }
+  return latest
+}
+
+function deriveLiveScoringRefresh(input: {
+  allPlayers: NflRedraftPlayerScore[]
+  matchups: NflRedraftMatchupScore[]
+}): NflRedraftLiveScoringRuntimeState['refresh'] {
+  const contexts = input.allPlayers
+    .map((player) => player.canonicalLiveScoringContext)
+    .filter((context): context is NflRedraftLiveScoringContext => Boolean(context))
+  const correctionsApplied = contexts.some((context) => context.statCorrections.some((correction) => correction.applied))
+  const finalMatchups = input.matchups.some((matchup) => matchup.complete)
+  const refreshRequested = contexts.some((context) => context.refresh.standingsRefreshRequired)
+  const reason =
+    contexts.map((context) => context.refresh.standingsRefreshReason).find((value): value is string => Boolean(value)) ??
+    (correctionsApplied ? 'stat_correction' : finalMatchups ? 'final_game_state' : null)
+  const freshest = contexts
+    .map((context) => context.providerFreshness)
+    .sort((a, b) => {
+      const left = a.updatedAtIso ? new Date(a.updatedAtIso).getTime() : Number.NEGATIVE_INFINITY
+      const right = b.updatedAtIso ? new Date(b.updatedAtIso).getTime() : Number.NEGATIVE_INFINITY
+      return right - left
+    })[0] ?? null
+  const fallback = contexts.find((context) => context.providerFallback.fallback)?.providerFallback ?? contexts[0]?.providerFallback ?? null
+
+  return {
+    scoringRefreshTimestamp: latestIso(contexts.map((context) => context.refresh.scoringRefreshTimestamp)),
+    matchupRefreshTimestamp: latestIso(contexts.map((context) => context.refresh.matchupRefreshTimestamp)),
+    standingsRefreshRequired: refreshRequested || correctionsApplied || finalMatchups,
+    standingsRefreshReason: reason,
+    providerFreshness: freshest,
+    providerFallback: fallback,
+  }
+}
+
 export function buildNflRedraftLiveScoringRuntimeState(input: {
   leagueId: string
   seasonId: string
@@ -609,6 +731,7 @@ export function buildNflRedraftLiveScoringRuntimeState(input: {
   const standings = buildNflRedraftScoringStandings({ teams, matchups })
   const allPlayers = teams.flatMap((team) => [...team.starters, ...team.bench, ...team.ir])
   const starters = teams.flatMap((team) => team.starters)
+  const refresh = deriveLiveScoringRefresh({ allPlayers, matchups })
 
   return {
     leagueId: input.leagueId,
@@ -632,6 +755,7 @@ export function buildNflRedraftLiveScoringRuntimeState(input: {
       finalizedMatchups: matchups.filter((matchup) => matchup.complete).length,
       correctionVersion: Math.max(...allPlayers.map((player) => player.correctionVersion), 0),
     },
+    refresh,
   }
 }
 
@@ -654,6 +778,54 @@ export function applyNflRedraftStatCorrection(input: {
       [NFL_REDRAFT_STAT_CORRECTION_VERSION_KEY]: correctionVersion,
     },
     correctionVersion,
+  }
+}
+
+export function applyCanonicalNflRedraftStatCorrection(input: {
+  playerId: string
+  position: string
+  previousStats?: Record<string, unknown> | null
+  correction: NflRedraftStatCorrectionRecord
+}): {
+  normalizedStats: Record<string, number>
+  correctionVersion: number
+  applied: boolean
+  skippedReason: string | null
+} {
+  const previous = finiteStats(input.previousStats ?? {})
+  const markerKey = correctionMarkerKey(input.correction.correctionId)
+  const existingVersion = correctionVersionFromStats(previous)
+  if (previous[markerKey] === 1) {
+    return {
+      normalizedStats: previous,
+      correctionVersion: existingVersion,
+      applied: false,
+      skippedReason: 'correction_already_applied',
+    }
+  }
+
+  const statCategory = String(input.correction.statCategory ?? '').trim()
+  const nextValue = finiteNumber(input.correction.newValue)
+  if (!statCategory || nextValue == null) {
+    return {
+      normalizedStats: previous,
+      correctionVersion: existingVersion,
+      applied: false,
+      skippedReason: 'correction_missing_stat_value',
+    }
+  }
+
+  const correctionVersion = existingVersion + 1
+  return {
+    normalizedStats: {
+      ...previous,
+      [statCategory]: nextValue,
+      [NFL_REDRAFT_STAT_CORRECTION_VERSION_KEY]: correctionVersion,
+      [markerKey]: 1,
+    },
+    correctionVersion,
+    applied: true,
+    skippedReason: null,
   }
 }
 
@@ -728,6 +900,26 @@ export function buildScoringRuntimeEvents(input: {
             payload: { rosterId: team.rosterId, playerId: player.playerId, week: input.state.week, fantasyPoints: player.fantasyPoints },
           }),
         )
+        for (const correction of player.statCorrections.filter((row) => row.applied)) {
+          events.push(
+            buildScoringRuntimeEvent({
+              leagueId: input.state.leagueId,
+              type: 'scoring.stat_correction.applied',
+              actorUserId: input.actorUserId,
+              payload: {
+                rosterId: team.rosterId,
+                playerId: player.playerId,
+                week: input.state.week,
+                correctionId: correction.correctionId,
+                gameId: correction.gameId,
+                statCategory: correction.statCategory,
+                oldValue: correction.oldValue,
+                newValue: correction.newValue,
+                fantasyPointDelta: correction.fantasyPointDelta,
+              },
+            }),
+          )
+        }
       }
     }
   }

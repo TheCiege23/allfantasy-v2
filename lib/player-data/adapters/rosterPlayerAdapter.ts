@@ -16,6 +16,10 @@ import {
   buildNflRedraftGameContextFromWire,
   type NflRedraftGameContext,
 } from '@/lib/player-data/nflRedraftGameContext'
+import {
+  buildNflRedraftLiveScoringContextFromWire,
+  type NflRedraftLiveScoringContext,
+} from '@/lib/player-data/nflRedraftLiveScoringContext'
 
 export type RosterSectionKey = 'starters' | 'bench' | 'ir' | 'taxi' | 'devy'
 
@@ -42,7 +46,14 @@ export type RosterPlayerMergeable = {
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
   canonicalGameContext?: NflRedraftGameContext | null
+  canonicalLiveScoringContext?: NflRedraftLiveScoringContext | null
   providerGameStatus?: string | null
+  providerLiveGameStatus?: string | null
+  providerActualFantasyPoints?: number | null
+  providerScoringRefreshTimestamp?: string | null
+  providerMatchupRefreshTimestamp?: string | null
+  providerStandingsRefreshRequired?: boolean
+  providerStatCorrectionCount?: number
   providerWeatherSummary?: string | null
   playerDataLastUpdatedAt?: string | null
   playerDataWarnings?: string[]
@@ -57,6 +68,8 @@ function enrichOne(p: RosterPlayerMergeable, byId: Map<string, UnifiedPlayerWire
   const metadata = buildNflRedraftPlayerMetadataFromWire(u)
   const intelligence = buildNflRedraftPlayerIntelligenceFromWire(u)
   const gameContext = buildNflRedraftGameContextFromWire(u)
+  const liveScoringContext = buildNflRedraftLiveScoringContextFromWire(u)
+  const liveGameStatus = liveScoringContext?.gameStatus !== 'unknown' ? liveScoringContext?.gameStatus ?? null : null
   return {
     ...p,
     name: metadata?.displayName ?? canonical?.displayName ?? p.name,
@@ -66,9 +79,13 @@ function enrichOne(p: RosterPlayerMergeable, byId: Map<string, UnifiedPlayerWire
     teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? u.teamLogoUrl ?? null,
     opponent: gameContext?.isByeWeek ? 'BYE' : gameContext?.opponent.teamAbbr ?? p.opponent,
     gameTime: gameContext?.kickoffTimeIso ?? p.gameTime,
+    actual: liveScoringContext?.actualFantasyPoints ?? liveScoringContext?.fantasyPoints ?? p.actual,
     providerInjuryLabel: intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? u.injuryStatus ?? null,
     unifiedProjectedPoints:
-      intelligence?.projection.projectedFantasyPoints != null &&
+      liveScoringContext?.projectedFantasyPoints != null &&
+      Number.isFinite(Number(liveScoringContext.projectedFantasyPoints))
+        ? Number(liveScoringContext.projectedFantasyPoints)
+      : intelligence?.projection.projectedFantasyPoints != null &&
       Number.isFinite(Number(intelligence.projection.projectedFantasyPoints))
         ? Number(intelligence.projection.projectedFantasyPoints)
         : canonical?.currentProjection.weeklyProjectedPoints != null &&
@@ -84,10 +101,18 @@ function enrichOne(p: RosterPlayerMergeable, byId: Map<string, UnifiedPlayerWire
     canonicalPlayerMetadata: metadata,
     canonicalPlayerIntelligence: intelligence,
     canonicalGameContext: gameContext,
-    providerGameStatus: gameContext?.gameStatus ?? null,
+    canonicalLiveScoringContext: liveScoringContext,
+    providerGameStatus: liveGameStatus ?? gameContext?.gameStatus ?? null,
+    providerLiveGameStatus: liveGameStatus,
+    providerActualFantasyPoints: liveScoringContext?.actualFantasyPoints ?? liveScoringContext?.fantasyPoints ?? null,
+    providerScoringRefreshTimestamp: liveScoringContext?.refresh.scoringRefreshTimestamp ?? null,
+    providerMatchupRefreshTimestamp: liveScoringContext?.refresh.matchupRefreshTimestamp ?? null,
+    providerStandingsRefreshRequired: liveScoringContext?.refresh.standingsRefreshRequired ?? false,
+    providerStatCorrectionCount: liveScoringContext?.statCorrections.length ?? 0,
     providerWeatherSummary: formatWeatherSummary(gameContext),
-    playerDataLastUpdatedAt: gameContext?.providerFreshness.updatedAtIso ?? intelligence?.providerFreshness.updatedAtIso ?? canonical?.lastUpdatedAt ?? null,
+    playerDataLastUpdatedAt: liveScoringContext?.providerFreshness.updatedAtIso ?? gameContext?.providerFreshness.updatedAtIso ?? intelligence?.providerFreshness.updatedAtIso ?? canonical?.lastUpdatedAt ?? null,
     playerDataWarnings: [
+      ...(liveScoringContext?.providerFreshness.warnings ?? []),
       ...(gameContext?.providerFreshness.warnings ?? []),
       ...(gameContext?.weatherFreshness.warnings ?? []),
       ...(intelligence?.providerFreshness.warnings ?? metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? []),

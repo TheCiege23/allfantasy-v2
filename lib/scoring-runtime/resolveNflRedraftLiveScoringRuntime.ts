@@ -80,6 +80,14 @@ function serializeSnapshot(input: {
           illegalLineupIssues: team.illegalLineupIssues,
         }
       : null
+  const starterRefreshRows = [
+    ...input.matchup.home.starters,
+    ...(input.matchup.away?.starters ?? []),
+  ]
+  const latest = (values: Array<string | null>) => {
+    const sorted = values.filter((value): value is string => Boolean(value)).sort()
+    return sorted[sorted.length - 1] ?? null
+  }
 
   return {
     ...existing,
@@ -102,6 +110,8 @@ function serializeSnapshot(input: {
       correctionVersion: input.matchup.correctionVersion,
       homeScore: input.matchup.homeScore,
       awayScore: input.matchup.awayScore,
+      scoringRefreshTimestamp: latest(starterRefreshRows.map((player) => player.scoringRefreshTimestamp)),
+      matchupRefreshTimestamp: latest(starterRefreshRows.map((player) => player.matchupRefreshTimestamp)),
     },
   }
 }
@@ -248,6 +258,7 @@ export async function resolveNflRedraftLiveScoringRuntime(input: {
         playerDataLastUpdatedAt: canonical?.lastUpdatedAt ?? null,
         playerDataWarnings: canonical?.dataFreshness.staleWarnings ?? [],
         canonicalNflRedraft: canonical,
+        canonicalLiveScoringContext: unified?.nflRedraftLiveScoringContext ?? null,
       }
     })
     const validation = validateRedraftLineup({
