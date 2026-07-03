@@ -16,6 +16,7 @@ import { isNflRedraftCoreDashboardFromUserLeague } from '@/lib/league/is-nfl-red
 import { openDraftFromEmbeddedLeague } from '@/lib/dashboard/dashboard-draft-overlay-bridge'
 import { getNcaafBetaStatus, getNcaafBetaBannerInfo } from '@/lib/league/ncaaf-beta-guard'
 import { NcaafBetaDataBanner } from '@/components/NcaafBetaDataBanner'
+import { DraftPremiumShells } from '@/components/redraft-premium'
 
 export type DraftTabProps = {
   league: UserLeague
@@ -735,12 +736,15 @@ export function DraftTab({
       />
 
       {nflRedraftShell && !isLeagueHome && preDraft ? (
-        <NflRedraftDraftOrderBlock
-          teams={displayTeams}
-          isCommissioner={Boolean(isCommissioner || isOwner)}
-          onOpenDraftSettings={() => openSettingsDraft()}
-          onGenerateDraftOrder={() => void handleGenerateDraftOrder()}
-        />
+        <div className="space-y-4">
+          <NflRedraftDraftOrderBlock
+            teams={displayTeams}
+            isCommissioner={Boolean(isCommissioner || isOwner)}
+            onOpenDraftSettings={() => openSettingsDraft()}
+            onGenerateDraftOrder={() => void handleGenerateDraftOrder()}
+          />
+          <DraftPremiumShells leagueId={league.id} compact />
+        </div>
       ) : null}
 
       <LeagueRecentActivity leagueId={league.id} />

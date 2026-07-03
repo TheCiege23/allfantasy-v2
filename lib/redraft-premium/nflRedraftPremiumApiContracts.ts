@@ -115,7 +115,16 @@ export type NflRedraftPremiumProductError = {
   modelVersion: typeof NFL_REDRAFT_PREMIUM_API_CONTRACT_MODEL_VERSION
   ok: false
   error: {
-    code: 'invalid_request' | 'unknown_service' | 'invalid_tier' | 'provider_input_rejected'
+    code:
+      | 'invalid_request'
+      | 'unknown_service'
+      | 'invalid_tier'
+      | 'provider_input_rejected'
+      | 'unauthenticated'
+      | 'league_membership_denied'
+      | 'league_not_found'
+      | 'commissioner_required'
+      | 'auth_boundary_unavailable'
     message: string
     fields: string[]
   }
@@ -236,6 +245,14 @@ function error(
     ok: false,
     error: { code, message, fields },
   }
+}
+
+export function buildNflRedraftPremiumProductError(
+  code: NflRedraftPremiumProductError['error']['code'],
+  message: string,
+  fields: string[],
+): NflRedraftPremiumProductError {
+  return error(code, message, fields)
 }
 
 export function resolveNflRedraftPremiumTierFromEntitlement(input: {

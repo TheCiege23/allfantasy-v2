@@ -140,3 +140,38 @@ export function DraftPremiumShells(props: Omit<NflRedraftPremiumSurfaceRailProps
 export function PlayerCardPremiumShells(props: Omit<NflRedraftPremiumSurfaceRailProps, 'surface'>) {
   return <NflRedraftPremiumSurfaceRail {...props} surface="player_card" />
 }
+
+function canonicalIdOrNull(value: string | null | undefined): string | null {
+  const trimmed = value?.trim() ?? ''
+  return /^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$/.test(trimmed) ? trimmed : null
+}
+
+export function NflRedraftPremiumPlayerCardShells({
+  leagueId,
+  playerId,
+  teamId,
+  week,
+  season,
+  compact = true,
+  className,
+}: {
+  leagueId: string
+  playerId?: string | null
+  teamId?: string | null
+  week?: number | null
+  season?: number | null
+  compact?: boolean
+  className?: string
+}) {
+  return (
+    <PlayerCardPremiumShells
+      leagueId={leagueId}
+      playerId={canonicalIdOrNull(playerId)}
+      teamId={canonicalIdOrNull(teamId)}
+      week={week}
+      season={season}
+      compact={compact}
+      className={className}
+    />
+  )
+}

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createMockNextRequest } from './helpers/createMockNextRequest'
 import {
   NFL_REDRAFT_PROVIDER_EVIDENCE_PACKET_MODEL_VERSION,
@@ -13,6 +13,37 @@ import {
 } from '@/lib/redraft-premium'
 
 const INGESTED = '2026-09-13T18:16:00.000Z'
+
+const premiumRouteMocks = vi.hoisted(() => ({
+  enforceAccess: vi.fn(),
+  loadEvidence: vi.fn(),
+}))
+
+vi.mock('@/lib/redraft-premium/nflRedraftPremiumAccessBoundary', () => ({
+  enforceNflRedraftPremiumAccess: premiumRouteMocks.enforceAccess,
+  stripClientEntitlementForServerResolution: (requestBody: Record<string, unknown>, entitlement: { status: string; plans: string[] }) => {
+    const rest = { ...requestBody }
+    delete rest.requestedTier
+    delete rest.entitlement
+    return { ...rest, entitlement: { status: entitlement.status, plans: entitlement.plans } }
+  },
+}))
+
+vi.mock('@/lib/redraft-premium/nflRedraftPremiumProductionEvidenceSource', () => ({
+  loadNflRedraftPremiumProductionEvidence: premiumRouteMocks.loadEvidence,
+}))
+
+beforeEach(() => {
+  premiumRouteMocks.enforceAccess.mockResolvedValue({
+    ok: true,
+    userId: 'user-g49b',
+    userEmail: 'user-g49b@example.com',
+    isLeagueMember: true,
+    isCommissioner: true,
+    entitlement: { status: 'none', plans: [], currentPeriodEnd: null, gracePeriodEnd: null },
+  })
+  premiumRouteMocks.loadEvidence.mockResolvedValue([])
+})
 
 const SURFACES_BY_TYPE: Record<NflRedraftEvidenceType, NflRedraftEvidenceSurface[]> = {
   player_identity: ['draft', 'roster', 'waiver', 'trade', 'matchup', 'team', 'player_card'],
