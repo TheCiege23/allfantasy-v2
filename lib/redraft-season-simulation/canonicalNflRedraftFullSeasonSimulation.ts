@@ -322,9 +322,17 @@ function buildRules(): CanonicalLeagueRules {
     playoffs: {
       teamCount: 2,
       startWeek: 4,
+      startPoint: 4,
+      weeksPerRound: 1,
       firstRoundByes: 0,
+      bracketType: 'single_elimination',
+      matchupLength: 1,
+      totalRounds: 1,
       consolationBracketEnabled: true,
       thirdPlaceGameEnabled: false,
+      toiletBowlEnabled: false,
+      championshipLength: 1,
+      consolationPlaysFor: 'final_standings',
       seedingRules: 'standings',
       tiebreakerRules: ['win_pct', 'wins', 'points_for', 'points_against'],
       byeRules: 'top_seed_byes',
@@ -351,7 +359,24 @@ function buildRules(): CanonicalLeagueRules {
       inviteLinksDisabled: false,
       inviteCapacityOverride: false,
     },
-    intelligence: {},
+    intelligence: {
+      chimmyHelperEnabled: false,
+      managerIntelligence: {
+        requiredPlan: 'pro',
+        requiredFeatures: [],
+        leagueToggles: [],
+      },
+      commissionerIntelligence: {
+        requiredPlan: 'commissioner',
+        requiredFeatures: [],
+        enabledLeagueSettings: [],
+        lockedWithoutEntitlement: [],
+      },
+      automation: {
+        commissionerShortcutsEnabled: false,
+        weeklyLeagueReportEnabled: false,
+      },
+    },
   } as CanonicalLeagueRules
 }
 

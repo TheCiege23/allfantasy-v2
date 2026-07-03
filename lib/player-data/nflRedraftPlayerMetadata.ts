@@ -2,7 +2,7 @@ import type {
   NflRedraftCanonicalPlayerIdentity,
   NflRedraftFantasyPosition,
   NflRedraftPlayerActiveStatus,
-} from '@/lib/nfl-provider'
+} from '@/lib/nfl-provider/nflRedraftPlayerIdentity'
 import type { NflRedraftCanonicalPlayer, NflRedraftDataState } from '@/lib/player-data/nflRedraftCanonicalPlayer'
 import type { UnifiedPlayerWireDto } from '@/lib/player-data/serializeUnifiedPlayerForApi'
 import { normalizePosition, normalizeTeamAbbrev } from '@/lib/team-abbrev'

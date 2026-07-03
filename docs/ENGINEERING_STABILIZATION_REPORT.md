@@ -968,3 +968,202 @@ Environment/build:
   - missing `LanguageCode` import/type
 - Decide whether to include non-redraft tournament/World Cup/AI/automation in repo-wide build certification or isolate them behind separate stabilization slices.
 - Once full `npm run typecheck` passes or only intentionally deferred non-build paths remain, begin production build timing diagnostics for RC2 readiness.
+
+## Engineering Stabilization Pass 6
+
+### Objective
+
+Move from mostly stabilized typechecking to production build / RC2 readiness without changing product behavior.
+
+### Build Diagnostic Baseline
+
+Initial production build run:
+
+```text
+cmd /c npm run build
+```
+
+Result:
+
+- Exited non-zero after about 893 seconds.
+- Failed during webpack compilation with `server-only` import leakage into a client-facing roster/player-data graph.
+- Import trace:
+  - `components/app/roster/RosterBoard.tsx`
+  - `components/app/roster/useRosterManager.ts`
+  - `lib/player-data/adapters/rosterPlayerAdapter.ts`
+  - `lib/player-data/nflRedraftPlayerIntelligence.ts`
+  - `lib/nfl-provider/index.ts`
+  - `lib/nfl-provider/nflRedraftProductionProviderWiring.ts`
+  - `lib/api-sports.ts`
+  - `lib/realtime-events/injurySyncFanout.ts`
+  - `lib/sports-live-scores-service.ts`
+  - `lib/workers/rate-limit-manager.ts`
+
+Classification:
+
+- Real NFL Redraft build blocker.
+- Cause was a client-reachable canonical player-data module importing the broad `@/lib/nfl-provider` barrel, which re-exported production provider wiring and server-only modules.
+
+### Build Blockers Fixed
+
+Server/client provider boundary:
+
+- Updated canonical player-data modules to import provider foundation and identity contracts directly instead of the server-heavy provider barrel.
+- Affected modules:
+  - `lib/player-data/nflRedraftPlayerMetadata.ts`
+  - `lib/player-data/nflRedraftPlayerIntelligence.ts`
+  - `lib/player-data/nflRedraftGameContext.ts`
+  - `lib/player-data/nflRedraftLiveScoringContext.ts`
+  - `lib/player-data/nflRedraftProviderEvidencePackets.ts`
+- Preserved `server-only` guards in provider production wiring.
+- No raw provider payloads or provider-specific UI exposure were added.
+
+Stale build worker / `.next` lock:
+
+- A logged build showed `.next` locked before compilation:
+  - `ENOTEMPTY`
+  - `EPERM`
+- Active process inspection found stale timed-out build workers:
+  - npm build parent
+  - Next build child
+- Stopping only those stale build PIDs allowed the prebuild cleaner to remove `.next` normally.
+
+NFL Redraft type diagnostics:
+
+- Removed the remaining redraft-only diagnostics from:
+  - `lib/redraft-draft-room/warRoomSuggestions.ts`
+  - `lib/redraft-season-simulation/canonicalNflRedraftFullSeasonSimulation.ts`
+- War Room suggestions now preserve the extended redraft player shape when a recommendation falls back to the base recommendation player.
+- G43 full-season simulation rules now include the newer canonical playoff and intelligence defaults.
+
+### Build Metrics
+
+Clean production build after stale worker cleanup:
+
+```text
+cmd /c npm run build > C:\tmp\af-pass6-build-clean.log 2>&1
+```
+
+Result:
+
+- Passed in about 1188 seconds.
+- Compiled successfully.
+- Generated 492 app static pages.
+- Completed final page optimization and build trace collection.
+
+Final production build after Pass 6 source fixes:
+
+```text
+cmd /c npm run build > C:\tmp\af-pass6-build-final.log 2>&1
+```
+
+Result:
+
+- Passed in about 1168 seconds.
+- Compiled successfully.
+- Generated 492 app static pages.
+- Completed final page optimization and build trace collection.
+
+Known build limitation:
+
+- The build is clean but slow on this Windows workspace, especially with the full app route tree and 492 static pages.
+- Next build skips type and lint validation by project config, so full TypeScript and targeted ESLint remain separate release gates.
+
+### TypeScript Status
+
+Targeted TypeScript slices passed:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs lib/player-data/nflRedraftPlayerMetadata.ts lib/player-data/nflRedraftPlayerIntelligence.ts lib/player-data/nflRedraftGameContext.ts lib/player-data/nflRedraftLiveScoringContext.ts lib/player-data/nflRedraftProviderEvidencePackets.ts lib/player-data/adapters/rosterPlayerAdapter.ts components/app/roster/useRosterManager.ts components/app/roster/RosterBoard.tsx
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs lib/redraft-draft-room/warRoomSuggestions.ts lib/redraft-season-simulation/canonicalNflRedraftFullSeasonSimulation.ts
+```
+
+Results:
+
+- Player-data / roster client boundary slice: 0 diagnostics.
+- Redraft War Room / full-season simulation slice: 0 diagnostics.
+
+Full typecheck:
+
+```text
+cmd /c npm run typecheck
+```
+
+Result:
+
+- Completes in about 193 seconds.
+- Still exits non-zero.
+- No remaining diagnostics were reported for the Pass 6 NFL Redraft files above.
+
+Remaining diagnostics are grouped as:
+
+- Legacy/app-shell:
+  - `app/settings/components/SettingsChrome.tsx`
+  - `components/bracket/LeagueHomeTabs.tsx`
+  - playoff challenge components/services
+  - `lib/preferences/types.ts`
+  - `lib/meta-client.ts`
+- Tournament:
+  - tournament routes and tournament-mode services with Prisma JSON/input boundaries.
+- World Cup:
+  - admin action route strict numeric fields.
+  - World Cup bracket UI strict null/tab/callback typing.
+  - World Cup data sync, group stage, reminder, private reply, and AI audit shape mismatches.
+- AI/automation:
+  - AI chat/page, AI engine plugins, AI waiver service, working memory, and automation job JSON/error typings.
+- Shared/non-redraft services:
+  - fantasy media retry, admin dashboard auth-session filters, Sleeper import JSON, NBA schedule config, onboarding retention, platform analytics, player valuation cache, playoff settings, referral, reputation, and survivor foundation JSON/input boundaries.
+
+### Verification Results
+
+Targeted tests:
+
+```text
+cmd /c npx vitest run __tests__/g43-nfl-redraft-full-season-simulation.test.ts __tests__/g50a-nfl-redraft-production-verification.test.ts __tests__/g50b-nfl-redraft-release-candidate.test.ts __tests__/g47b-nfl-redraft-live-stats-scoring-refresh.test.ts __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- 5 test files passed.
+- 23 tests passed.
+
+Targeted ESLint:
+
+```text
+cmd /c npx eslint lib/redraft-draft-room/warRoomSuggestions.ts lib/redraft-season-simulation/canonicalNflRedraftFullSeasonSimulation.ts lib/player-data/nflRedraftPlayerMetadata.ts lib/player-data/nflRedraftPlayerIntelligence.ts lib/player-data/nflRedraftGameContext.ts lib/player-data/nflRedraftLiveScoringContext.ts lib/player-data/nflRedraftProviderEvidencePackets.ts
+```
+
+Result:
+
+- Passed with 0 errors.
+
+### RC2 Readiness Assessment
+
+PASS:
+
+- Production build now succeeds from a clean `.next` state.
+- The concrete webpack/server-only build blocker is fixed.
+- G43/G47B/G49F/G50A/G50B focused regression suite remains green.
+- Targeted TypeScript and ESLint pass for Pass 6 touched files.
+- NFL Redraft-specific type diagnostics identified in Pass 5 are resolved.
+
+PASS WITH LIMITATIONS:
+
+- Full typecheck completes but remains non-zero due non-redraft legacy, World Cup, tournament, AI/automation, and shared JSON/input diagnostics.
+- Local production build is slow, taking roughly 19.5 to 19.8 minutes in this workspace.
+- Stale timed-out build workers can lock `.next`; failed build attempts should be followed by process cleanup before judging later builds.
+
+FAIL:
+
+- Repo-wide `npm run typecheck` is not yet clean.
+
+### Recommended RC3 / Pass 7 Scope
+
+- Clean or isolate non-redraft typecheck blockers that are currently preventing repo-wide TypeScript readiness:
+  - app-shell settings/preferences and league-home chat member shape.
+  - tournament Prisma JSON/input boundaries.
+  - shared service JSON/input boundaries.
+  - World Cup strict typings, if repo-wide certification requires World Cup.
+  - AI/automation diagnostics only as compile stabilization, without building OS or recommendation features.
+- Add a documented build runbook step for clearing stale timed-out Next build workers on Windows.
+- Consider route-tree/build-size analysis only after typecheck blockers are under control; current production build passes but remains slow.

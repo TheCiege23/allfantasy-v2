@@ -3,8 +3,8 @@ import type {
   NflRedraftProviderError,
   NflRedraftProviderId,
   NflRedraftProviderRateLimitPolicy,
-} from '@/lib/nfl-provider'
-import type { NflRedraftCanonicalPlayerIdentity } from '@/lib/nfl-provider'
+} from '@/lib/nfl-provider/nflRedraftProviderFoundation'
+import type { NflRedraftCanonicalPlayerIdentity } from '@/lib/nfl-provider/nflRedraftPlayerIdentity'
 import type { NflRedraftCanonicalPlayer, NflRedraftDataState } from '@/lib/player-data/nflRedraftCanonicalPlayer'
 import type {
   NflRedraftPlayerDisplayMetadata,

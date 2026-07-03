@@ -2,11 +2,11 @@ import type {
   CanonicalNflRedraftProviderRecord,
   NflRedraftProviderFreshness,
   NflRedraftProviderId,
-} from '@/lib/nfl-provider'
+} from '@/lib/nfl-provider/nflRedraftProviderFoundation'
 import {
   buildNflRedraftProviderFreshness,
   toCanonicalNflRedraftProviderRecord,
-} from '@/lib/nfl-provider'
+} from '@/lib/nfl-provider/nflRedraftProviderFoundation'
 import type { NflRedraftDataState } from '@/lib/player-data/nflRedraftCanonicalPlayer'
 import type {
   NflRedraftProviderFallbackMetadata,
