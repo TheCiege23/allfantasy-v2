@@ -1,6 +1,7 @@
 export type NflRedraftProviderId =
   | 'deterministic'
   | 'openweather'
+  | 'rolling_insights'
   | 'sleeper'
   | 'sportsdataio'
   | 'thesportsdb'
@@ -112,6 +113,7 @@ export interface NflRedraftProviderAdapter {
 }
 
 export const NFL_PROVIDER_ENV_KEYS: Record<NflRedraftProviderId, string[]> = {
+  rolling_insights: ['ROLLING_INSIGHTS_API_KEY', 'ROLLING_INSIGHTS_CLIENT_ID', 'ROLLING_INSIGHTS_CLIENT_SECRET'],
   sportsdataio: ['SPORTSDATAIO_API_KEY', 'SPORTSDATA_API_KEY', 'SPORTS_DATA_IO_API_KEY'],
   openweather: ['OPENWEATHER_API_KEY', 'OPENWEATHERMAP_API_KEY', 'OPEN_WEATHER_API_KEY'],
   thesportsdb: ['THESPORTSDB_API_KEY', 'SPORTSDB_API_KEY', 'THE_SPORTS_DB_API_KEY'],
@@ -120,6 +122,11 @@ export const NFL_PROVIDER_ENV_KEYS: Record<NflRedraftProviderId, string[]> = {
 }
 
 export const NFL_REDRAFT_PROVIDER_CAPABILITIES: NflRedraftProviderCapability[] = [
+  { providerId: 'rolling_insights', domain: 'player_metadata', priority: 5, requiresApiKey: true, maxAgeMinutes: 1440, note: 'Primary AllFantasy NFL identity/profile import source when configured.' },
+  { providerId: 'rolling_insights', domain: 'historical_stats', priority: 5, requiresApiKey: true, maxAgeMinutes: 10080, note: 'Primary imported historical player stat source when licensed.' },
+  { providerId: 'rolling_insights', domain: 'injury', priority: 5, requiresApiKey: true, maxAgeMinutes: 120, note: 'Primary imported injury/designation source when licensed.' },
+  { providerId: 'rolling_insights', domain: 'depth_chart', priority: 5, requiresApiKey: true, maxAgeMinutes: 1440, note: 'Primary imported depth chart/role source when licensed.' },
+
   { providerId: 'sportsdataio', domain: 'live_score', priority: 10, requiresApiKey: true, maxAgeMinutes: 5, note: 'Primary live scoring and stat correction source.' },
   { providerId: 'sportsdataio', domain: 'historical_stats', priority: 10, requiresApiKey: true, maxAgeMinutes: 10080, note: 'Primary historical player/team stat source.' },
   { providerId: 'sportsdataio', domain: 'projection', priority: 10, requiresApiKey: true, maxAgeMinutes: 360, note: 'Primary fantasy projection source.' },
@@ -146,6 +153,7 @@ export const NFL_REDRAFT_PROVIDER_CAPABILITIES: NflRedraftProviderCapability[] =
 ]
 
 export const NFL_REDRAFT_RATE_LIMITS: Record<NflRedraftProviderId, NflRedraftProviderRateLimitPolicy> = {
+  rolling_insights: { providerId: 'rolling_insights', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
   sportsdataio: { providerId: 'sportsdataio', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
   sleeper: { providerId: 'sleeper', maxRequestsPerMinute: 900, burst: 50, retryBackoffMs: 5_000 },
   thesportsdb: { providerId: 'thesportsdb', maxRequestsPerMinute: 60, burst: 10, retryBackoffMs: 30_000 },
