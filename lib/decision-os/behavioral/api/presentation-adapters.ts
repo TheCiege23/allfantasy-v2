@@ -145,7 +145,7 @@ export function adaptLeagueBehavioralToPresentation(
   }))
 
   const recommendationSet = buildRecommendationPresentationSet(
-    rawRecs.map(buildRecommendationPresentation),
+    rawRecs.map((rec) => buildRecommendationPresentation(rec)),
     id,
     'commissioner',
   )
@@ -203,10 +203,14 @@ export function adaptManagerBehavioralToPresentation(
   const managerCard = buildManagerCard(
     id,
     intel.leagueId,
-    score,
-    intel.participationTier,
-    intel.retentionRisk,
-    { completeness: intel.completeness },
+    {
+      participationTier: intel.participationTier,
+      retentionRisk: intel.retentionRisk,
+      overallEngagementScore: score,
+      daysSinceLastActivity: intel.daysSinceLastActivity,
+      isInactive: intel.isInactive,
+      completeness: intel.completeness,
+    },
   )
 
   const retentionMetric = buildRetentionMetric(id, intel.retentionRisk, intel.completeness)
