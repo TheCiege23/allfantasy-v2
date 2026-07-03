@@ -1,0 +1,328 @@
+import type { EntitlementStatus, SubscriptionPlanId } from '@/lib/subscription/types'
+import { expandPlansWithBundle, isActiveOrGraceStatus } from '@/lib/subscription/feature-access'
+import type { NflRedraftEvidenceSurface, NflRedraftProviderEvidencePacket } from '@/lib/player-data/nflRedraftProviderEvidencePackets'
+import {
+  buildNflRedraftPremiumServiceSummary,
+  canAccessNflRedraftPremiumService,
+  resolveNflRedraftPremiumServiceRequiredTier,
+  type NflRedraftPremiumActionCategory,
+  type NflRedraftPremiumServiceId,
+  type NflRedraftPremiumServiceVariant,
+  type NflRedraftPremiumTier,
+} from '@/lib/redraft-premium/nflRedraftPremiumServices'
+
+export const NFL_REDRAFT_PREMIUM_API_CONTRACT_MODEL_VERSION = 'nfl-redraft-premium-api-contract-v1' as const
+
+const SERVICE_IDS: readonly NflRedraftPremiumServiceId[] = [
+  'basic_runtime_facts',
+  'war_room',
+  'commissioner_digest',
+  'manager_brief',
+  'matchup_prep',
+  'waiver_report',
+  'trade_review',
+  'draft_prep',
+] as const
+
+const SERVICE_VARIANTS: readonly NflRedraftPremiumServiceVariant[] = ['basic', 'commissioner', 'advanced'] as const
+const PREMIUM_TIERS: readonly NflRedraftPremiumTier[] = ['FREE', 'AF_PRO', 'AF_COMMISSIONER', 'AF_SUPREME', 'AF_WAR_ROOM'] as const
+
+export type NflRedraftPremiumServiceContractRequest = {
+  serviceType?: string | null
+  serviceId?: string | null
+  serviceVariant?: string | null
+  leagueId?: string | null
+  teamId?: string | null
+  managerId?: string | null
+  matchupId?: string | null
+  playerId?: string | null
+  week?: number | string | null
+  season?: number | string | null
+  requestedTier?: string | null
+  entitlement?: {
+    status?: EntitlementStatus | null
+    plans?: SubscriptionPlanId[] | null
+  } | null
+  generatedAtIso?: string | null
+}
+
+export type NflRedraftPremiumApiCanonicalIds = {
+  leagueId: string | null
+  teamId: string | null
+  managerId: string | null
+  matchupId: string | null
+  playerId: string | null
+  week: number | null
+  season: number | null
+}
+
+export type NflRedraftPremiumApiAccessStatus = {
+  allowed: boolean
+  requiredTier: NflRedraftPremiumTier
+  requestedTier: NflRedraftPremiumTier
+  reason: 'allowed' | 'tier_required'
+}
+
+export type NflRedraftPremiumProductPacket = {
+  modelVersion: typeof NFL_REDRAFT_PREMIUM_API_CONTRACT_MODEL_VERSION
+  ok: true
+  serviceType: NflRedraftPremiumServiceId
+  serviceName: string
+  serviceVariant: NflRedraftPremiumServiceVariant
+  requiredTier: NflRedraftPremiumTier
+  accessStatus: NflRedraftPremiumApiAccessStatus
+  canonicalIds: NflRedraftPremiumApiCanonicalIds
+  evidencePacketIds: string[]
+  freshnessWarnings: {
+    overall: string
+    counts: Record<string, number>
+  }
+  staleDataWarnings: string[]
+  fallbackWarnings: string[]
+  missingDataWarnings: string[]
+  eligibleSurfaces: NflRedraftEvidenceSurface[]
+  factualCategoryLabels: NflRedraftPremiumActionCategory[]
+  unavailableDataMessages: string[]
+  factsOnly: true
+  deterministic: true
+  generatedAtIso: string
+}
+
+export type NflRedraftPremiumProductError = {
+  modelVersion: typeof NFL_REDRAFT_PREMIUM_API_CONTRACT_MODEL_VERSION
+  ok: false
+  error: {
+    code: 'invalid_request' | 'unknown_service' | 'provider_input_rejected'
+    message: string
+    fields: string[]
+  }
+}
+
+export type NflRedraftPremiumProductContractResult =
+  | NflRedraftPremiumProductPacket
+  | NflRedraftPremiumProductError
+
+export type NflRedraftPremiumProductContractDependencies = {
+  evidencePackets?: NflRedraftProviderEvidencePacket[]
+  generatedAtIso?: string | null
+}
+
+function cleanString(value: unknown): string | null {
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    return trimmed ? trimmed : null
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) return String(value)
+  return null
+}
+
+function cleanInteger(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
+  if (typeof value === 'string' && /^\d+$/.test(value.trim())) return Number(value.trim())
+  return null
+}
+
+function isServiceId(value: unknown): value is NflRedraftPremiumServiceId {
+  return typeof value === 'string' && SERVICE_IDS.includes(value as NflRedraftPremiumServiceId)
+}
+
+function cleanServiceVariant(value: unknown): NflRedraftPremiumServiceVariant {
+  return typeof value === 'string' && SERVICE_VARIANTS.includes(value as NflRedraftPremiumServiceVariant)
+    ? (value as NflRedraftPremiumServiceVariant)
+    : 'basic'
+}
+
+function cleanTier(value: unknown): NflRedraftPremiumTier | null {
+  return typeof value === 'string' && PREMIUM_TIERS.includes(value as NflRedraftPremiumTier)
+    ? (value as NflRedraftPremiumTier)
+    : null
+}
+
+function forbiddenInputFields(value: unknown, path = ''): string[] {
+  if (!value || typeof value !== 'object') return []
+  if (Array.isArray(value)) {
+    return value.flatMap((entry, index) => forbiddenInputFields(entry, `${path}[${index}]`))
+  }
+
+  const fields: string[] = []
+  for (const [key, entry] of Object.entries(value as Record<string, unknown>)) {
+    const fullPath = path ? `${path}.${key}` : key
+    const lower = key.toLowerCase()
+    if (
+      lower === 'evidencepackets' ||
+      lower === 'providerid' ||
+      lower === 'providerids' ||
+      lower === 'providerplayerid' ||
+      lower === 'sourceprovider' ||
+      lower === 'providerpayload' ||
+      lower === 'rawproviderpayload' ||
+      lower === 'payload'
+    ) {
+      fields.push(fullPath)
+    }
+    fields.push(...forbiddenInputFields(entry, fullPath))
+  }
+  return fields
+}
+
+function error(
+  code: NflRedraftPremiumProductError['error']['code'],
+  message: string,
+  fields: string[],
+): NflRedraftPremiumProductError {
+  return {
+    modelVersion: NFL_REDRAFT_PREMIUM_API_CONTRACT_MODEL_VERSION,
+    ok: false,
+    error: { code, message, fields },
+  }
+}
+
+export function resolveNflRedraftPremiumTierFromEntitlement(input: {
+  serviceId: NflRedraftPremiumServiceId
+  variant?: NflRedraftPremiumServiceVariant
+  status?: EntitlementStatus | null
+  plans?: SubscriptionPlanId[] | null
+}): NflRedraftPremiumTier {
+  const status = input.status ?? 'none'
+  if (!isActiveOrGraceStatus(status)) return 'FREE'
+
+  const rawPlans = input.plans ?? []
+  const expanded = expandPlansWithBundle(rawPlans)
+  const hasSupreme = rawPlans.includes('supreme')
+  const hasAllAccess = rawPlans.includes('all_access')
+
+  if (input.serviceId === 'war_room') {
+    return rawPlans.includes('war_room') || hasAllAccess ? 'AF_WAR_ROOM' : 'FREE'
+  }
+
+  if (input.variant === 'advanced') {
+    return hasSupreme ? 'AF_SUPREME' : 'FREE'
+  }
+
+  const required = resolveNflRedraftPremiumServiceRequiredTier(input.serviceId, input.variant ?? 'basic')
+  if (required === 'FREE') return 'FREE'
+  if (required === 'AF_COMMISSIONER') {
+    if (hasSupreme) return 'AF_SUPREME'
+    return expanded.includes('commissioner') ? 'AF_COMMISSIONER' : 'FREE'
+  }
+  if (required === 'AF_PRO') {
+    if (hasSupreme) return 'AF_SUPREME'
+    return expanded.includes('pro') ? 'AF_PRO' : 'FREE'
+  }
+  if (required === 'AF_SUPREME') return hasSupreme ? 'AF_SUPREME' : 'FREE'
+  return 'FREE'
+}
+
+function unavailableMessages(input: {
+  evidencePacketIds: string[]
+  missingDataWarnings: string[]
+  staleDataWarnings: string[]
+  fallbackWarnings: string[]
+}): string[] {
+  const messages = [
+    ...input.missingDataWarnings.map((warning) => `missing:${warning}`),
+    ...input.staleDataWarnings.map((warning) => `stale:${warning}`),
+    ...input.fallbackWarnings.map((warning) => `fallback:${warning}`),
+  ]
+  if (input.evidencePacketIds.length === 0) messages.push('unavailable:no_matching_canonical_evidence')
+  return Array.from(new Set(messages))
+}
+
+export function buildNflRedraftPremiumProductContract(
+  request: NflRedraftPremiumServiceContractRequest,
+  dependencies: NflRedraftPremiumProductContractDependencies = {},
+): NflRedraftPremiumProductContractResult {
+  const forbiddenFields = forbiddenInputFields(request)
+  if (forbiddenFields.length > 0) {
+    return error('provider_input_rejected', 'Only canonical identifiers are accepted by this contract.', forbiddenFields)
+  }
+
+  const rawServiceType = cleanString(request.serviceType ?? request.serviceId)
+  if (!isServiceId(rawServiceType)) {
+    return error('unknown_service', 'Unknown NFL redraft premium service type.', ['serviceType'])
+  }
+
+  const leagueId = cleanString(request.leagueId)
+  if (!leagueId) return error('invalid_request', 'leagueId is required.', ['leagueId'])
+
+  const serviceVariant = cleanServiceVariant(request.serviceVariant)
+  const requestedTier =
+    cleanTier(request.requestedTier) ??
+    resolveNflRedraftPremiumTierFromEntitlement({
+      serviceId: rawServiceType,
+      variant: serviceVariant,
+      status: request.entitlement?.status ?? 'none',
+      plans: request.entitlement?.plans ?? [],
+    })
+
+  const canonicalIds: NflRedraftPremiumApiCanonicalIds = {
+    leagueId,
+    teamId: cleanString(request.teamId),
+    managerId: cleanString(request.managerId),
+    matchupId: cleanString(request.matchupId),
+    playerId: cleanString(request.playerId),
+    week: cleanInteger(request.week),
+    season: cleanInteger(request.season),
+  }
+
+  const summary = buildNflRedraftPremiumServiceSummary({
+    serviceId: rawServiceType,
+    serviceVariant,
+    requestedTier,
+    evidencePackets: dependencies.evidencePackets ?? [],
+    canonicalContext: {
+      leagueId,
+      season: canonicalIds.season,
+      week: canonicalIds.week,
+      playerIds: canonicalIds.playerId ? [canonicalIds.playerId] : [],
+      teamIds: canonicalIds.teamId ? [canonicalIds.teamId] : [],
+      matchupIds: canonicalIds.matchupId ? [canonicalIds.matchupId] : [],
+      gameIds: [],
+    },
+    generatedAtIso: request.generatedAtIso ?? dependencies.generatedAtIso ?? null,
+  })
+
+  const fallbackWarnings = summary.fallbackStatus.packetIds.map((packetId) => `fallback:${packetId}`)
+  const missingDataWarnings = summary.unavailableDataWarnings
+  const staleDataWarnings = summary.staleDataWarnings
+  const accessAllowed = canAccessNflRedraftPremiumService({
+    tier: requestedTier,
+    serviceId: rawServiceType,
+    variant: serviceVariant,
+  })
+
+  return {
+    modelVersion: NFL_REDRAFT_PREMIUM_API_CONTRACT_MODEL_VERSION,
+    ok: true,
+    serviceType: rawServiceType,
+    serviceName: summary.serviceName,
+    serviceVariant,
+    requiredTier: summary.requiredTier,
+    accessStatus: {
+      allowed: accessAllowed,
+      requiredTier: summary.requiredTier,
+      requestedTier,
+      reason: accessAllowed ? 'allowed' : 'tier_required',
+    },
+    canonicalIds,
+    evidencePacketIds: summary.evidencePacketIds,
+    freshnessWarnings: {
+      overall: summary.freshnessStatus.overall,
+      counts: summary.freshnessStatus.counts,
+    },
+    staleDataWarnings,
+    fallbackWarnings,
+    missingDataWarnings,
+    eligibleSurfaces: summary.surfaceEligibility,
+    factualCategoryLabels: summary.actionCategoryLabels,
+    unavailableDataMessages: unavailableMessages({
+      evidencePacketIds: summary.evidencePacketIds,
+      missingDataWarnings,
+      staleDataWarnings,
+      fallbackWarnings,
+    }),
+    factsOnly: true,
+    deterministic: true,
+    generatedAtIso: summary.generatedAtIso,
+  }
+}
