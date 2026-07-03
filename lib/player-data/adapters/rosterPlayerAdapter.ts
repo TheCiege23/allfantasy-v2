@@ -12,6 +12,10 @@ import {
   buildNflRedraftPlayerIntelligenceFromWire,
   type NflRedraftPlayerIntelligence,
 } from '@/lib/player-data/nflRedraftPlayerIntelligence'
+import {
+  buildNflRedraftGameContextFromWire,
+  type NflRedraftGameContext,
+} from '@/lib/player-data/nflRedraftGameContext'
 
 export type RosterSectionKey = 'starters' | 'bench' | 'ir' | 'taxi' | 'devy'
 
@@ -37,6 +41,9 @@ export type RosterPlayerMergeable = {
   canonicalNflRedraft?: NflRedraftCanonicalPlayer | null
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
+  canonicalGameContext?: NflRedraftGameContext | null
+  providerGameStatus?: string | null
+  providerWeatherSummary?: string | null
   playerDataLastUpdatedAt?: string | null
   playerDataWarnings?: string[]
 }
@@ -49,6 +56,7 @@ function enrichOne(p: RosterPlayerMergeable, byId: Map<string, UnifiedPlayerWire
   const canonical = u.nflRedraft ?? null
   const metadata = buildNflRedraftPlayerMetadataFromWire(u)
   const intelligence = buildNflRedraftPlayerIntelligenceFromWire(u)
+  const gameContext = buildNflRedraftGameContextFromWire(u)
   return {
     ...p,
     name: metadata?.displayName ?? canonical?.displayName ?? p.name,
@@ -56,6 +64,8 @@ function enrichOne(p: RosterPlayerMergeable, byId: Map<string, UnifiedPlayerWire
     position: metadata?.position ?? canonical?.fantasyPosition ?? p.position,
     headshotUrl: metadata?.headshot.url ?? canonical?.media.headshot.url ?? u.headshotUrl ?? null,
     teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? u.teamLogoUrl ?? null,
+    opponent: gameContext?.isByeWeek ? 'BYE' : gameContext?.opponent.teamAbbr ?? p.opponent,
+    gameTime: gameContext?.kickoffTimeIso ?? p.gameTime,
     providerInjuryLabel: intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? u.injuryStatus ?? null,
     unifiedProjectedPoints:
       intelligence?.projection.projectedFantasyPoints != null &&
@@ -73,9 +83,28 @@ function enrichOne(p: RosterPlayerMergeable, byId: Map<string, UnifiedPlayerWire
     canonicalNflRedraft: canonical,
     canonicalPlayerMetadata: metadata,
     canonicalPlayerIntelligence: intelligence,
-    playerDataLastUpdatedAt: intelligence?.providerFreshness.updatedAtIso ?? canonical?.lastUpdatedAt ?? null,
-    playerDataWarnings: intelligence?.providerFreshness.warnings ?? metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
+    canonicalGameContext: gameContext,
+    providerGameStatus: gameContext?.gameStatus ?? null,
+    providerWeatherSummary: formatWeatherSummary(gameContext),
+    playerDataLastUpdatedAt: gameContext?.providerFreshness.updatedAtIso ?? intelligence?.providerFreshness.updatedAtIso ?? canonical?.lastUpdatedAt ?? null,
+    playerDataWarnings: [
+      ...(gameContext?.providerFreshness.warnings ?? []),
+      ...(gameContext?.weatherFreshness.warnings ?? []),
+      ...(intelligence?.providerFreshness.warnings ?? metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? []),
+    ],
   }
+}
+
+function formatWeatherSummary(gameContext: NflRedraftGameContext | null): string | null {
+  if (!gameContext || gameContext.weather.unavailable) return null
+  const parts = [
+    gameContext.weather.temperatureF != null ? `${Math.round(gameContext.weather.temperatureF)}F` : null,
+    gameContext.weather.windSpeedMph != null ? `${Math.round(gameContext.weather.windSpeedMph)} mph wind` : null,
+    gameContext.weather.precipitationType !== 'unknown' && gameContext.weather.precipitationType !== 'none'
+      ? gameContext.weather.precipitationType
+      : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(' / ') : gameContext.weather.condition
 }
 
 function mapSection(

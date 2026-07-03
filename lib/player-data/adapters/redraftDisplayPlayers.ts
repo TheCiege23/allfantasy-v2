@@ -9,6 +9,10 @@ import {
   buildNflRedraftPlayerIntelligenceFromWire,
   type NflRedraftPlayerIntelligence,
 } from '@/lib/player-data/nflRedraftPlayerIntelligence'
+import {
+  buildNflRedraftGameContextFromWire,
+  type NflRedraftGameContext,
+} from '@/lib/player-data/nflRedraftGameContext'
 import { teamDefenseDisplayNameFromId } from '@/lib/redraft/teamDefenseIdentity'
 
 export type DisplayPlayerRecord = SlimPlayer & {
@@ -23,10 +27,16 @@ export type DisplayPlayerRecord = SlimPlayer & {
   projectionsSource?: string | null
   byeWeek?: number | null
   activeStatus?: string | null
+  opponent?: string | null
+  homeAway?: string | null
+  kickoffTimeIso?: string | null
+  gameStatus?: string | null
+  weatherSummary?: string | null
   playerDataWarnings?: string[]
   canonicalNflRedraft?: NflRedraftCanonicalPlayer | null
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
+  canonicalGameContext?: NflRedraftGameContext | null
 }
 
 export type DisplayPlayerMap = Record<string, DisplayPlayerRecord>
@@ -35,6 +45,7 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
   const canonical = row.nflRedraft ?? null
   const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   const intelligence = buildNflRedraftPlayerIntelligenceFromWire(row)
+  const gameContext = buildNflRedraftGameContextFromWire(row)
   return {
     id: row.id,
     name: metadata?.displayName ?? row.name,
@@ -69,11 +80,33 @@ export function displayPlayerFromUnifiedRow(row: UnifiedPlayerWireDto): DisplayP
     projectionsSource: row.projectionsSource ?? null,
     byeWeek: metadata?.byeWeek ?? canonical?.byeWeek ?? row.product?.byeWeek ?? null,
     activeStatus: metadata?.activeStatus ?? canonical?.activeStatus ?? null,
-    playerDataWarnings: intelligence?.providerFreshness.warnings ?? metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
+    opponent: gameContext?.isByeWeek ? 'BYE' : gameContext?.opponent.teamAbbr ?? null,
+    homeAway: gameContext?.homeAway ?? null,
+    kickoffTimeIso: gameContext?.kickoffTimeIso ?? null,
+    gameStatus: gameContext?.gameStatus ?? null,
+    weatherSummary: formatWeatherSummary(gameContext),
+    playerDataWarnings: [
+      ...(gameContext?.providerFreshness.warnings ?? []),
+      ...(gameContext?.weatherFreshness.warnings ?? []),
+      ...(intelligence?.providerFreshness.warnings ?? metadata?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? []),
+    ],
     canonicalNflRedraft: canonical,
     canonicalPlayerMetadata: metadata,
     canonicalPlayerIntelligence: intelligence,
+    canonicalGameContext: gameContext,
   }
+}
+
+function formatWeatherSummary(gameContext: NflRedraftGameContext | null): string | null {
+  if (!gameContext || gameContext.weather.unavailable) return null
+  const parts = [
+    gameContext.weather.temperatureF != null ? `${Math.round(gameContext.weather.temperatureF)}F` : null,
+    gameContext.weather.windSpeedMph != null ? `${Math.round(gameContext.weather.windSpeedMph)} mph wind` : null,
+    gameContext.weather.precipitationType !== 'unknown' && gameContext.weather.precipitationType !== 'none'
+      ? gameContext.weather.precipitationType
+      : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(' / ') : gameContext.weather.condition
 }
 
 export function buildDisplayPlayerMap(

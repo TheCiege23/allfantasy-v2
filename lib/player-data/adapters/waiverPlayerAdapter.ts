@@ -12,6 +12,10 @@ import {
   buildNflRedraftPlayerIntelligenceFromWire,
   type NflRedraftPlayerIntelligence,
 } from '@/lib/player-data/nflRedraftPlayerIntelligence'
+import {
+  buildNflRedraftGameContextFromWire,
+  type NflRedraftGameContext,
+} from '@/lib/player-data/nflRedraftGameContext'
 
 export type WaiverPlayerAdapted = UnifiedPlayerWireDto & {
   /** Convenience for rows/cards */
@@ -23,8 +27,13 @@ export type WaiverPlayerAdapted = UnifiedPlayerWireDto & {
   displayAdp: number | null
   displayAiAdp: number | null
   displayByeWeek: number | null
+  displayOpponent: string | null
+  displayKickoffTime: string | null
+  displayGameStatus: string | null
+  displayWeatherSummary: string | null
   canonicalPlayerMetadata: NflRedraftPlayerDisplayMetadata | null
   canonicalPlayerIntelligence: NflRedraftPlayerIntelligence | null
+  canonicalGameContext: NflRedraftGameContext | null
   projectionSourceLabel: string
   adpSourceLabel: string
   statsSourceLabel: string
@@ -97,6 +106,7 @@ function buildDataQualityLabels(row: UnifiedPlayerWireDto): string[] {
   const canonical = row.nflRedraft ?? null
   const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   const intelligence = buildNflRedraftPlayerIntelligenceFromWire(row)
+  const gameContext = buildNflRedraftGameContextFromWire(row)
   if (row.adp != null) labels.push('Provider ADP')
   if (row.aiAdp != null) labels.push('AF ADP')
   else labels.push('AF ADP coming soon')
@@ -109,8 +119,10 @@ function buildDataQualityLabels(row: UnifiedPlayerWireDto): string[] {
     labels.push('Missing stats')
   }
   if (canonical?.dataFreshness.media === 'missing' || metadata?.providerFallback.fields.includes('headshotUrl')) labels.push('Missing media')
-  if (canonical?.dataFreshness.staleWarnings.length || metadata?.providerFreshness.stale || intelligence?.providerFreshness.stale) labels.push('Stale provider data')
-  if (row.lowConfidence || Boolean(canonical?.fallbacks.length) || metadata?.providerFallback.fallback || intelligence?.providerFallback.fallback) labels.push('Limited confidence')
+  if (gameContext?.providerFallback.fields.includes('opponent')) labels.push('Missing schedule')
+  if (gameContext?.providerFallback.fields.includes('weather')) labels.push('Missing weather')
+  if (canonical?.dataFreshness.staleWarnings.length || metadata?.providerFreshness.stale || intelligence?.providerFreshness.stale || gameContext?.providerFreshness.stale || gameContext?.weatherFreshness.stale) labels.push('Stale provider data')
+  if (row.lowConfidence || Boolean(canonical?.fallbacks.length) || metadata?.providerFallback.fallback || intelligence?.providerFallback.fallback || gameContext?.providerFallback.fallback) labels.push('Limited confidence')
   if (sport === 'NCAAF') labels.push('NCAAF limited data')
   return [...new Set(labels)]
 }
@@ -122,6 +134,7 @@ export function adaptWaiverWirePlayer(
   const canonical = row.nflRedraft ?? null
   const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   const intelligence = buildNflRedraftPlayerIntelligenceFromWire(row)
+  const gameContext = buildNflRedraftGameContextFromWire(row)
   const statsSummary = buildSeasonStatsSummary(row.normalizedStats)
   return {
     ...row,
@@ -149,8 +162,13 @@ export function adaptWaiverWirePlayer(
           : row.product?.byeWeek != null && Number.isFinite(Number(row.product.byeWeek))
             ? Number(row.product.byeWeek)
             : null,
+    displayOpponent: gameContext?.isByeWeek ? 'BYE' : gameContext?.opponent.teamAbbr ?? null,
+    displayKickoffTime: gameContext?.kickoffTimeIso ?? null,
+    displayGameStatus: gameContext?.gameStatus ?? null,
+    displayWeatherSummary: formatWeatherSummary(gameContext),
     canonicalPlayerMetadata: metadata,
     canonicalPlayerIntelligence: intelligence,
+    canonicalGameContext: gameContext,
     projectionSourceLabel: formatSourceLabel(
       'Projection',
       intelligence?.projection.source ?? canonical?.currentProjection.source ?? row.projectionsSource,
@@ -162,6 +180,18 @@ export function adaptWaiverWirePlayer(
     seasonStatsSummary: statsSummary,
     experienceSummary: experienceSummaryFromWire(row),
   }
+}
+
+function formatWeatherSummary(gameContext: NflRedraftGameContext | null): string | null {
+  if (!gameContext || gameContext.weather.unavailable) return null
+  const parts = [
+    gameContext.weather.temperatureF != null ? `${Math.round(gameContext.weather.temperatureF)}F` : null,
+    gameContext.weather.windSpeedMph != null ? `${Math.round(gameContext.weather.windSpeedMph)} mph wind` : null,
+    gameContext.weather.precipitationType !== 'unknown' && gameContext.weather.precipitationType !== 'none'
+      ? gameContext.weather.precipitationType
+      : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(' / ') : gameContext.weather.condition
 }
 
 export function adaptWaiverWirePlayerList(

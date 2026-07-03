@@ -7,6 +7,7 @@ import type { ProviderFallbackDiagnostics } from '@/lib/player-data/providerFall
 import type { UnifiedPlayerProductView } from '@/lib/player-data/unifiedPlayerProductView'
 import type { NflRedraftPlayerDisplayMetadata } from '@/lib/player-data/nflRedraftPlayerMetadata'
 import type { NflRedraftPlayerIntelligence } from '@/lib/player-data/nflRedraftPlayerIntelligence'
+import type { NflRedraftGameContext } from '@/lib/player-data/nflRedraftGameContext'
 
 export type PlayerDataAdapterFlags = {
   includeStats?: boolean
@@ -32,5 +33,7 @@ export type WithNormalizedLayers<T> = T & {
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   /** Display-safe canonical NFL redraft projections, rankings, injuries, news, and freshness. */
   canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
+  /** Display-safe canonical NFL schedule, opponent, stadium, and weather context. */
+  canonicalGameContext?: NflRedraftGameContext | null
   providerFallbackDiagnostics?: ProviderFallbackDiagnostics
 }

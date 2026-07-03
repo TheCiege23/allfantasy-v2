@@ -11,6 +11,10 @@ import {
   buildNflRedraftPlayerIntelligenceFromWire,
   type NflRedraftPlayerIntelligence,
 } from '@/lib/player-data/nflRedraftPlayerIntelligence'
+import {
+  buildNflRedraftGameContextFromWire,
+  type NflRedraftGameContext,
+} from '@/lib/player-data/nflRedraftGameContext'
 
 export type MatchupPlayerCardContext = {
   playerId: string
@@ -21,8 +25,14 @@ export type MatchupPlayerCardContext = {
   teamLogoUrl: string | null
   canonicalPlayerMetadata: NflRedraftPlayerDisplayMetadata | null
   canonicalPlayerIntelligence: NflRedraftPlayerIntelligence | null
+  canonicalGameContext: NflRedraftGameContext | null
   injuryStatus: string | null
   activeStatus: string | null
+  opponent: string | null
+  homeAway: string | null
+  kickoffTimeIso: string | null
+  gameStatus: string | null
+  weatherSummary: string | null
   projectedPoints: number | null
   liveStatsAvailable: boolean
   statsSource: string | null
@@ -35,6 +45,7 @@ export function matchupContextFromUnifiedWire(row: UnifiedPlayerWireDto): Matchu
   const canonical = row.nflRedraft ?? null
   const metadata = buildNflRedraftPlayerMetadataFromWire(row)
   const intelligence = buildNflRedraftPlayerIntelligenceFromWire(row)
+  const gameContext = buildNflRedraftGameContextFromWire(row)
   const stats = row.normalizedStats ?? {}
   const keys = Object.keys(stats).filter((k) => k !== 'projectionSource')
   return {
@@ -46,13 +57,35 @@ export function matchupContextFromUnifiedWire(row: UnifiedPlayerWireDto): Matchu
     teamLogoUrl: metadata?.teamLogo.url ?? canonical?.media.teamLogo.url ?? row.teamLogoUrl,
     canonicalPlayerMetadata: metadata,
     canonicalPlayerIntelligence: intelligence,
+    canonicalGameContext: gameContext,
     injuryStatus: intelligence?.injury.injuryStatus ?? canonical?.injury.designation ?? row.injuryStatus,
     activeStatus: canonical?.activeStatus ?? null,
+    opponent: gameContext?.isByeWeek ? 'BYE' : gameContext?.opponent.teamAbbr ?? null,
+    homeAway: gameContext?.homeAway ?? null,
+    kickoffTimeIso: gameContext?.kickoffTimeIso ?? null,
+    gameStatus: gameContext?.gameStatus ?? null,
+    weatherSummary: formatWeatherSummary(gameContext),
     projectedPoints: intelligence?.projection.projectedFantasyPoints ?? canonical?.currentProjection.weeklyProjectedPoints ?? row.projectedPoints,
     liveStatsAvailable: keys.length > 2,
     statsSource: row.statsSource,
     projectionSource: intelligence?.projection.source ?? canonical?.currentProjection.source ?? row.projectionsSource,
-    lowConfidence: row.lowConfidence === true || Boolean(canonical?.fallbacks.length) || Boolean(intelligence?.providerFallback.fallback),
-    staleDataWarnings: intelligence?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? [],
+    lowConfidence: row.lowConfidence === true || Boolean(canonical?.fallbacks.length) || Boolean(intelligence?.providerFallback.fallback) || Boolean(gameContext?.providerFallback.fallback),
+    staleDataWarnings: [
+      ...(intelligence?.providerFreshness.warnings ?? canonical?.dataFreshness.staleWarnings ?? []),
+      ...(gameContext?.providerFreshness.warnings ?? []),
+      ...(gameContext?.weatherFreshness.warnings ?? []),
+    ],
   }
+}
+
+function formatWeatherSummary(gameContext: NflRedraftGameContext | null): string | null {
+  if (!gameContext || gameContext.weather.unavailable) return null
+  const parts = [
+    gameContext.weather.temperatureF != null ? `${Math.round(gameContext.weather.temperatureF)}F` : null,
+    gameContext.weather.windSpeedMph != null ? `${Math.round(gameContext.weather.windSpeedMph)} mph wind` : null,
+    gameContext.weather.precipitationType !== 'unknown' && gameContext.weather.precipitationType !== 'none'
+      ? gameContext.weather.precipitationType
+      : null,
+  ].filter(Boolean)
+  return parts.length ? parts.join(' / ') : gameContext.weather.condition
 }

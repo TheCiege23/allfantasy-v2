@@ -7,6 +7,7 @@ import type { PlayerDisplayModel } from '@/lib/draft-sports-models/types'
 import type { UnifiedPlayerProductView } from '@/lib/player-data/unifiedPlayerProductView'
 import type { NflRedraftPlayerDisplayMetadata } from '@/lib/player-data/nflRedraftPlayerMetadata'
 import type { NflRedraftPlayerIntelligence } from '@/lib/player-data/nflRedraftPlayerIntelligence'
+import type { NflRedraftGameContext } from '@/lib/player-data/nflRedraftGameContext'
 
 export type DraftRoomDisplayPlayerLike = {
   name?: string | null
@@ -16,6 +17,7 @@ export type DraftRoomDisplayPlayerLike = {
   unifiedProductView?: UnifiedPlayerProductView | null
   canonicalPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   canonicalPlayerIntelligence?: NflRedraftPlayerIntelligence | null
+  canonicalGameContext?: NflRedraftGameContext | null
   playerId?: string | null
   id?: string | null
   yearsExp?: number | null
@@ -97,6 +99,12 @@ export function getDraftRoomDisplayIntelligence(
   player: DraftRoomDisplayPlayerLike | null | undefined,
 ): NflRedraftPlayerIntelligence | null {
   return player?.canonicalPlayerIntelligence ?? null
+}
+
+export function getDraftRoomDisplayGameContext(
+  player: DraftRoomDisplayPlayerLike | null | undefined,
+): NflRedraftGameContext | null {
+  return player?.canonicalGameContext ?? null
 }
 
 /** Short label for chips — not a clinical diagnosis */

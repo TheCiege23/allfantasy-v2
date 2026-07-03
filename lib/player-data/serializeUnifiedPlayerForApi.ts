@@ -19,6 +19,10 @@ import {
   buildNflRedraftPlayerIntelligenceFromCanonicalPlayer,
   type NflRedraftPlayerIntelligence,
 } from '@/lib/player-data/nflRedraftPlayerIntelligence'
+import {
+  buildNflRedraftGameContextFromProductView,
+  type NflRedraftGameContext,
+} from '@/lib/player-data/nflRedraftGameContext'
 
 export type UnifiedPlayerWireDto = {
   id: string
@@ -53,6 +57,8 @@ export type UnifiedPlayerWireDto = {
   nflRedraftPlayerMetadata?: NflRedraftPlayerDisplayMetadata | null
   /** Display-safe NFL redraft projections, rankings, injuries, news, and freshness metadata. */
   nflRedraftPlayerIntelligence?: NflRedraftPlayerIntelligence | null
+  /** Display-safe NFL redraft schedule, opponent, stadium, and weather context. */
+  nflRedraftGameContext?: NflRedraftGameContext | null
   /** Nested snapshot for AI / advanced clients */
   product: {
     unified: UnifiedPlayerProductView['unified']
@@ -107,6 +113,7 @@ export function serializeUnifiedPlayerForApi(entry: UnifiedPlayerProductView): U
         ),
       })
     : null
+  const nflRedraftGameContext = buildNflRedraftGameContextFromProductView(entry)
   const diag: ProviderFallbackDiagnostics | undefined =
     'providerFallbackDiagnostics' in entry && entry.providerFallbackDiagnostics
       ? (entry.providerFallbackDiagnostics as ProviderFallbackDiagnostics)
@@ -143,6 +150,7 @@ export function serializeUnifiedPlayerForApi(entry: UnifiedPlayerProductView): U
     ...(nflRedraft ? { nflRedraft } : {}),
     ...(nflRedraftPlayerMetadata ? { nflRedraftPlayerMetadata } : {}),
     ...(nflRedraftPlayerIntelligence ? { nflRedraftPlayerIntelligence } : {}),
+    ...(nflRedraftGameContext ? { nflRedraftGameContext } : {}),
     product: {
       unified: u,
       yearsExp: entry.yearsExp ?? null,
