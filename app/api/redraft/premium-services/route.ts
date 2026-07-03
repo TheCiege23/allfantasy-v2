@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { buildNflRedraftPremiumProductContract } from '@/lib/redraft-premium/nflRedraftPremiumApiContracts'
+import { resolveNflRedraftPremiumEvidence } from '@/lib/redraft-premium/nflRedraftPremiumEvidenceResolver'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,8 +23,21 @@ export async function POST(request: Request) {
     )
   }
 
-  const result = buildNflRedraftPremiumProductContract(
-    typeof body === 'object' && body ? body : {},
-  )
+  const requestBody = typeof body === 'object' && body ? body : {}
+  const preflight = buildNflRedraftPremiumProductContract(requestBody)
+  if (!preflight.ok) return NextResponse.json(preflight, { status: 400 })
+
+  const resolved = resolveNflRedraftPremiumEvidence({
+    serviceId: preflight.serviceType,
+    serviceVariant: preflight.serviceVariant,
+    canonicalIds: preflight.canonicalIds,
+    ingestedAtIso: preflight.generatedAtIso,
+  })
+
+  const result = buildNflRedraftPremiumProductContract(requestBody, {
+    evidencePackets: resolved.evidencePackets,
+    resolverStatus: resolved.resolverStatus,
+    evidenceCounts: resolved.evidenceCounts,
+  })
   return NextResponse.json(result, { status: result.ok ? 200 : 400 })
 }
