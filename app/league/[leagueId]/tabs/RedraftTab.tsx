@@ -10,6 +10,13 @@ import { TradeCenter } from './redraft/TradeCenter'
 import { WaiverCenter } from './redraft/WaiverCenter'
 import { IDPWaiverSection } from '@/app/idp/components/IDPWaiverSection'
 import {
+  LeagueDashboardPremiumShells,
+  MatchupPremiumShells,
+  TeamPagePremiumShells,
+  TradePremiumShells,
+  WaiverPremiumShells,
+} from '@/components/redraft-premium'
+import {
   fetchRedraftLiveScoring,
   fetchRedraftMatchups,
   fetchRedraftRoster,
@@ -194,6 +201,13 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
 
       {loading || error || !season ? null : (
         <>
+          <LeagueDashboardPremiumShells
+            leagueId={leagueId}
+            teamId={selectedRosterId}
+            week={currentWeek}
+            season={season.season}
+            compact
+          />
 
           <MatchupView
             matchup={visibleMatchup}
@@ -202,16 +216,41 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
             sport={sport}
           />
 
+          <MatchupPremiumShells
+            leagueId={leagueId}
+            teamId={selectedRosterId}
+            matchupId={visibleMatchup?.id ?? null}
+            week={currentWeek}
+            season={season.season}
+            compact
+          />
+
           <ScheduleView schedule={schedule} />
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <RosterManager roster={selectedRoster} week={currentWeek} />
+            <div className="space-y-3">
+              <RosterManager roster={selectedRoster} week={currentWeek} />
+              <TeamPagePremiumShells
+                leagueId={leagueId}
+                teamId={selectedRosterId}
+                week={currentWeek}
+                season={season.season}
+                compact
+              />
+            </div>
             <div className="space-y-3">
               <WaiverCenter
                 seasonId={seasonId}
                 leagueId={leagueId}
                 rosterId={selectedRosterId}
                 sport={sport}
+              />
+              <WaiverPremiumShells
+                leagueId={leagueId}
+                teamId={selectedRosterId}
+                week={currentWeek}
+                season={season.season}
+                compact
               />
               {idpLeagueUi ? <IDPWaiverSection leagueId={leagueId} week={currentWeek} /> : null}
             </div>
@@ -223,6 +262,13 @@ export function RedraftTab({ leagueId, idpLeagueUi = false }: { leagueId: string
             standings={standings}
             currentWeek={currentWeek}
             myRosterId={selectedRosterId}
+          />
+          <TradePremiumShells
+            leagueId={leagueId}
+            teamId={selectedRosterId}
+            week={currentWeek}
+            season={season.season}
+            compact
           />
 
           <StandingsView rows={standings} seasonId={seasonId} />
