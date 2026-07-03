@@ -314,15 +314,15 @@ export function listNflRedraftLegacyDirectProviderAudit(): NflRedraftLegacyDirec
       riskLevel: 'low',
       migrateNow: false,
       suggestedCanonicalReplacement: 'Use G49H weather resolver with hidden optional fallback.',
-      notes: 'Weather is contextual only and must never block fantasy runtime.',
+      notes: 'G49J migrated team-based NFL weather lookups; lat/lon/city utility modes remain legacy and non-redraft-specific.',
     },
     {
       routeOrFile: 'lib/player-assets/resolvePlayerHeadshot.ts',
       providerUsed: 'API-Sports, ClearSports',
       riskLevel: 'high',
-      migrateNow: true,
+      migrateNow: false,
       suggestedCanonicalReplacement: 'Use G49H headshots resolver and canonical metadata/media path.',
-      notes: 'Media lookup is close to UI surfaces and should be one of the first low-risk migrations.',
+      notes: 'G49J migrated NFL headshots to the canonical media resolver; non-NFL legacy fallback remains unchanged.',
     },
     {
       routeOrFile: 'app/api/fantasycalc/route.ts',
@@ -330,7 +330,7 @@ export function listNflRedraftLegacyDirectProviderAudit(): NflRedraftLegacyDirec
       riskLevel: 'medium',
       migrateNow: false,
       suggestedCanonicalReplacement: 'Use G49H fantasy_valuations resolver with canonical cache before hidden fallback.',
-      notes: 'Valuation is premium/enhancement data and should not bypass freshness/fallback policy.',
+      notes: 'G49J migrated single-player valuation lookup; list, trending, and trade comparison legacy shapes remain deferred.',
     },
     {
       routeOrFile: 'app/api/redraft/*',

@@ -188,7 +188,7 @@ describe('G49I NFL redraft provider validation dashboard', () => {
           routeOrFile: 'lib/player-assets/resolvePlayerHeadshot.ts',
           providerUsed: 'API-Sports, ClearSports',
           riskLevel: 'high',
-          migrateNow: true,
+          migrateNow: false,
         }),
         expect.objectContaining({
           routeOrFile: 'app/api/redraft/*',
