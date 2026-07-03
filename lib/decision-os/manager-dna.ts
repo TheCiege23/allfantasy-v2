@@ -70,12 +70,12 @@ function normalizePercent(value: number | null | undefined) {
 
 function getProfileField(source: ManagerDnaSource, key: keyof ManagerDnaProfile): unknown {
   if (!source) return undefined
-  return (source as Record<string, unknown>)[key]
+  return (source as unknown as Record<string, unknown>)[key]
 }
 
 function getCardField(source: ManagerDnaSource, key: keyof DnaCard): unknown {
   if (!source) return undefined
-  return (source as Record<string, unknown>)[key]
+  return (source as unknown as Record<string, unknown>)[key]
 }
 
 function resolveCoachingFocus(input: {

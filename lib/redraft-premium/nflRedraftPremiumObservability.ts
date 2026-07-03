@@ -147,7 +147,7 @@ export function buildNflRedraftPremiumEvidenceHealth(
     stalePackets: evidencePackets.filter((packet) => packet.stale).length,
     fallbackPackets: evidencePackets.filter((packet) => packet.fallback).length,
     missingPackets: evidencePackets.filter((packet) => packet.missing).length,
-    freshPackets: evidencePackets.filter((packet) => packet.freshnessStatus === 'fresh').length,
+    freshPackets: evidencePackets.filter((packet) => packet.freshnessStatus === 'available').length,
     unknownFreshnessPackets: evidencePackets.filter((packet) => packet.freshnessStatus === 'unknown').length,
     byEvidenceType,
     byProvider,

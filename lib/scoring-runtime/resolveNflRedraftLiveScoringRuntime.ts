@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 import { resolveCanonicalLeagueRules } from '@/lib/league-runtime'
 import type { CanonicalLeagueRuntimeEvent } from '@/lib/league-runtime'
 import { resolveRedraftRosterConfig } from '@/lib/redraft/rosterConfigResolver'
@@ -155,7 +156,7 @@ async function recordLeagueEvents(events: CanonicalLeagueRuntimeEvent[]) {
         eventType: event.type,
         title: eventTitle(event),
         description: null,
-        payload: event.payload,
+        payload: toPrismaJsonInput(event.payload),
         visibility: 'league',
         createdAt: new Date(event.occurredAtIso),
       })),
@@ -178,7 +179,7 @@ async function recordScoringAudit(input: {
         action: input.action,
         targetType: 'redraft_season',
         targetId: input.seasonId,
-        details: input.details,
+        details: toPrismaJsonInput(input.details),
       },
     })
   } catch {
@@ -205,11 +206,20 @@ export async function resolveNflRedraftLiveScoringRuntime(input: {
   const rosterConfig = resolveRedraftRosterConfig(season.sport, league?.settings ?? null)
   const rosters = await prisma.redraftRoster.findMany({
     where: { seasonId: season.id, leagueId: season.leagueId },
-    include: { players: { where: { droppedAt: null }, orderBy: { addedAt: 'asc' } } },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { id: 'asc' },
   })
-  const playerIds = Array.from(new Set(rosters.flatMap((roster) => roster.players.map((player) => player.playerId))))
-  const sports = Array.from(new Set(rosters.flatMap((roster) => roster.players.map((player) => player.sport))))
+  const rosterPlayers = await prisma.redraftRosterPlayer.findMany({
+    where: { roster: { seasonId: season.id, leagueId: season.leagueId }, droppedAt: null },
+    orderBy: { addedAt: 'asc' },
+  })
+  const playersByRosterId = new Map<string, typeof rosterPlayers>()
+  for (const player of rosterPlayers) {
+    const rows = playersByRosterId.get(player.rosterId) ?? []
+    rows.push(player)
+    playersByRosterId.set(player.rosterId, rows)
+  }
+  const playerIds = Array.from(new Set(rosterPlayers.map((player) => player.playerId)))
+  const sports = Array.from(new Set(rosterPlayers.map((player) => player.sport)))
   const scores = playerIds.length
     ? await prisma.playerWeeklyScore.findMany({
         where: { playerId: { in: playerIds }, week, season: season.season, sport: { in: sports } },
@@ -237,7 +247,7 @@ export async function resolveNflRedraftLiveScoringRuntime(input: {
   }))
 
   const teamInputs: NflRedraftRuntimeTeamInput[] = rosters.map((roster) => {
-    const players = roster.players.map((player) => {
+    const players = (playersByRosterId.get(roster.id) ?? []).map((player) => {
       const unified = unifiedById.get(player.playerId)
       const canonical = unified?.nflRedraft ?? null
       return {
@@ -349,11 +359,11 @@ export async function persistNflRedraftLiveScoringWeek(input: {
             : matchup.status === 'live' || matchup.status === 'illegal_lineup'
               ? 'active'
               : 'scheduled',
-        lineupSnapshots: serializeSnapshot({
+        lineupSnapshots: toPrismaJsonInput(serializeSnapshot({
           existing: existingById.get(matchup.matchupId),
           matchup,
           generatedAtIso: resolved.state.generatedAtIso,
-        }),
+        })),
       },
     })
   }

@@ -260,7 +260,7 @@ function activeTogglesFromRules(rules: CanonicalLeagueRules): string[] {
   for (const rule of rules.scoring.activeRules ?? []) {
     const key = bridgeScoringKey(rule.statKey) ?? rule.statKey
     if (key.startsWith('idp_')) toggles.add('IDP')
-    if (key === 'te_premium' && rule.enabled !== false) toggles.add('TE_PREMIUM')
+    if (key === 'te_premium') toggles.add('TE_PREMIUM')
   }
   return expandSportConfigToggles([...toggles])
 }
@@ -285,11 +285,10 @@ export function resolveNflRedraftScoringSettings(input: {
 
   let mappedRuleCount = 0
   for (const rule of input.rules.scoring.activeRules ?? []) {
-    if (rule.enabled === false) continue
     const engineKey = bridgeScoringKey(rule.statKey) ?? rule.statKey
     const value = finiteNumber(rule.pointsValue)
     if (!engineKey || value === null) continue
-    categoryPoints[engineKey] = value * (finiteNumber(rule.multiplier) ?? 1)
+    categoryPoints[engineKey] = value
     mappedRuleCount += 1
   }
 

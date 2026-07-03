@@ -750,7 +750,7 @@ export async function resumeDraftSession(leagueId: string): Promise<boolean> {
     // already expired when the draft was paused, so restore the full configured clock.
     const hasUsableRemaining =
       typeof session.pausedRemainingSeconds === 'number' && session.pausedRemainingSeconds > 0
-    const sec = hasUsableRemaining ? session.pausedRemainingSeconds : (effectiveStored ?? 0)
+    const sec = hasUsableRemaining ? Number(session.pausedRemainingSeconds) : (effectiveStored ?? 0)
     const timerEndAt =
       effectiveStored != null && effectiveStored > 0
         ? new Date(Date.now() + sec * 1000)

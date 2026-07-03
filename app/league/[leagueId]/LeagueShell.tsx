@@ -27,6 +27,7 @@ import {
   LineChart,
   ListOrdered,
   Lock,
+  MessageSquare,
   Repeat2,
   RotateCcw,
   Scale,

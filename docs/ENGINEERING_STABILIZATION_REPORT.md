@@ -268,3 +268,166 @@ What improved:
 - G45-G50B redraft provider/runtime tests still pass.
 - Touched shared modules now pass scoped TypeScript and targeted ESLint.
 - The TypeScript project no longer intentionally includes historical generated Next output roots.
+
+## Stabilization Pass 2
+
+Date: 2026-07-03
+
+Scope:
+
+- Find high-impact repo-wide TypeScript/build blockers without broad refactors.
+- Prefer smaller module-group checks over another blind full-repo pass.
+- Fix only verified compile blockers and document remaining timeout boundaries.
+
+### Diagnostic Groups Checked
+
+Passed after fixes:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs lib/auth.ts lib/prisma.ts lib/player-data lib/redraft-premium lib/nfl-provider lib/clear-sports lib/sports-live-scores-service.ts lib/draft-room lib/scoring-runtime lib/fantasycalc-db.ts lib/idp lib/devy/lifecycle/DevyAuditLog.ts lib/player-identity/playerMismatchLogger.ts lib/live-draft-engine lib/roster-lineup-engine lib/merged-devy-c2c/lifecycle/C2CAuditLog.ts lib/ai-learning-system/recordEvent.ts lib/league-chat/LeagueChatMessageService.ts lib/guillotine/GuillotineLeagueConfig.ts app/league/[leagueId]/LeagueShell.tsx components/war-room/WarRoomPanel.tsx lib/world-cup/worldCupI18n.ts
+```
+
+Result:
+
+- 209 roots checked.
+- 0 diagnostics after fixes.
+
+Passed:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs lib/redraft-premium lib/nfl-provider lib/provider-orchestrator lib/player-data lib/scoring-runtime
+```
+
+Result:
+
+- 52 roots checked.
+- 0 diagnostics.
+
+Timed out:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs components
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/redraft app/api/leagues app/api/sports app/api/cron
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/redraft
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/leagues
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/sports/weather/route.ts app/api/cron/import-scores/route.ts app/api/cron/import-schedules/route.ts app/api/cron/import-standings/route.ts app/api/cron/import-injuries/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/redraft/premium-services/route.ts app/api/redraft/score-sync/route.ts app/api/redraft/roster/route.ts app/api/redraft/waiver-process/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/leagues/[leagueId]/draft/pool/route.ts app/api/leagues/[leagueId]/scoring/matchups/route.ts app/api/leagues/[leagueId]/trades/[tradeId]/process/route.ts
+```
+
+Classification:
+
+- Environment/tooling limit for these route and component graphs in this workspace.
+- No actionable diagnostics were emitted before timeout.
+- Pass 3 should split route validation by dependency boundary or use a lighter route-type harness.
+
+### Errors Fixed
+
+Fixed shared TypeScript blockers:
+
+- Added `lib/prisma-json.ts` helper for Prisma JSON input casts.
+- Normalized Prisma JSON writes in fantasy calc, IDP audit, devy/C2C lifecycle audit, player mismatch logging, live scoring snapshots, roster assignment, lineup locks, league chat, guillotine config, Chimmy alert preferences, data warehouse simulations, league graph snapshots, survivor idol ledger entries, and AF learning events.
+- Tightened draft-room rookie diagnostic types so provider metadata can be inspected without assuming `Record<string, unknown>`.
+- Fixed NFL redraft scoring runtime active-rule assumptions for the generated canonical scoring type.
+- Replaced stale redraft live-scoring roster include assumptions with explicit roster-player loading.
+- Fixed draft pool cache and sports-player delegate casts by going through `unknown` first.
+- Fixed nullable draft timer and IDP position arguments.
+- Fixed `LeagueShell` missing `MessageSquare` import.
+- Restored `WarRoomPanel` draft-room link handler using the existing dashboard overlay bridge.
+- Removed duplicate World Cup translation keys that blocked TypeScript parsing.
+- Fixed strict Decision OS type checks without adding OS behavior: guarded partial cohort templates, removed stale input read, and used unknown-first view-model field probes.
+
+### Verification Results
+
+Passed:
+
+```text
+cmd /c npx vitest run __tests__/g50a-nfl-redraft-production-verification.test.ts __tests__/g50b-nfl-redraft-release-candidate.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+- 2 files passed.
+- 10 tests passed.
+
+Passed:
+
+```text
+cmd /c npx vitest run __tests__/g47b-nfl-redraft-live-stats-scoring-refresh.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+- 1 file passed.
+- 5 tests passed.
+
+Passed after isolated rerun:
+
+```text
+cmd /c npx vitest run __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+- 1 file passed.
+- 7 tests passed.
+
+Note:
+
+- The first combined `g47b` + `g49f` run hit a Vitest worker startup timeout before `g49f` executed. The isolated `g49f` rerun passed, so this is classified as worker-pool/environment pressure rather than a test regression.
+
+Targeted ESLint:
+
+```text
+cmd /c npx eslint app/league/[leagueId]/LeagueShell.tsx components/war-room/WarRoomPanel.tsx lib/prisma-json.ts lib/draft-room/draftPlayerRookie.ts lib/draft-room/draftRoomRookieDiagnostics.ts lib/draft-room/draftPoolPositionGroups.ts lib/draft-room/ensureDraftPoolReady.ts lib/scoring-runtime/canonicalNflRedraftScoringRuntime.ts lib/scoring-runtime/resolveNflRedraftLiveScoringRuntime.ts lib/redraft-premium/nflRedraftPremiumObservability.ts lib/fantasycalc-db.ts lib/idp/IdpSettingsAudit.ts lib/devy/lifecycle/DevyAuditLog.ts lib/player-identity/playerMismatchLogger.ts lib/redraft/scheduleEngine.ts lib/live-draft-engine/DraftSessionService.ts lib/live-draft-engine/RosterAssignmentService.ts lib/roster-lineup-engine/lineupLockService.ts lib/merged-devy-c2c/lifecycle/C2CAuditLog.ts lib/ai-learning-system/recordEvent.ts lib/league-chat/LeagueChatMessageService.ts lib/guillotine/GuillotineLeagueConfig.ts lib/chimmy-alerts/ChimmyAlertPreferencesService.ts lib/data-warehouse/FantasyDataWarehouse.ts lib/league-intelligence-graph/GraphSnapshotService.ts lib/survivor/SurvivorIdolRegistry.ts lib/decision-os/manager-dna.ts lib/world-cup/worldCupI18n.ts lib/decision-os/phase6/company/company-intelligence.ts lib/sport-teams/SportPlayerPoolResolver.ts
+```
+
+Result:
+
+- 0 errors.
+- 4 existing warnings in `app/league/[leagueId]/LeagueShell.tsx`.
+
+### Full Typecheck And Build Status
+
+Still blocked:
+
+```text
+cmd /c npm run typecheck
+```
+
+Result:
+
+- Timed out after 10 minutes.
+- No final diagnostics emitted.
+
+Still blocked:
+
+```text
+cmd /c npm run build
+```
+
+Result:
+
+- Timed out after 10 minutes.
+- No final build result emitted.
+
+### Remaining Blockers
+
+Code errors:
+
+- No diagnostics remain in the 209-root shared/redraft/provider/app-shell scope checked in Pass 2.
+- No diagnostics remain in the focused provider/premium/runtime library scope.
+
+Environment/tooling limits:
+
+- Full TypeScript still does not complete in this workspace.
+- Production build still does not complete in this workspace.
+- Large Next route/component scoped checks time out before emitting diagnostics.
+- Vitest can still hit worker startup timeouts when multiple heavy suites run together, though isolated suites pass.
+
+Generated/unrelated artifacts:
+
+- The worktree still contains unrelated generated Next/Playwright output and many unrelated dirty files.
+- These were intentionally left untouched.
+
+### Recommended Pass 3 Scope
+
+- Build a persistent route-type diagnostic harness that compiles one Next route and its direct imports without loading the full app graph.
+- Split `components` validation into ownership bands instead of one subtree.
+- Investigate why `npm run typecheck` emits no progress before the 10-minute timeout.
+- Investigate production build stall with a build profiler or smaller Next segment builds.
+- Keep generated `.next-*` and Playwright artifacts out of stabilization commits.

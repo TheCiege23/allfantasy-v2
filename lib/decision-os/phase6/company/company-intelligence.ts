@@ -699,6 +699,7 @@ function assembleCohortRecommendations(input: CompanyIntelligenceInput): CohortR
   const recs: CohortRecommendation[] = []
 
   for (const [label, template] of Object.entries(COHORT_TEMPLATES)) {
+    if (!template) continue
     const count = dist.distribution[label] ?? 0
     if (count <= 0) continue
     recs.push({
@@ -726,7 +727,6 @@ function assembleMonetizationSignals(input: CompanyIntelligenceInput): Monetizat
   const signals: MonetizationSignal[] = []
   const dist = input.archetypeDistribution
   const leagueSignals = input.leagueSignals
-  const summary = input.engagementHealthSummary  // not present at call time — compute inline
 
   // For health score, we need the passiveDormantFraction
   let passiveDormantFraction = 0

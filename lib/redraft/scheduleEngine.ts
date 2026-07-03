@@ -27,7 +27,7 @@ function buildScheduleOnlyRules(input: {
       regularSeasonLength: input.regularSeasonWeeks,
       playoffTransitionPoint: input.playoffStartWeek,
     },
-  } as CanonicalLeagueRules
+  } as unknown as CanonicalLeagueRules
 }
 
 /**

@@ -4,6 +4,7 @@
  */
 
 import { prisma } from '@/lib/prisma'
+import { toPrismaNullableJsonInput } from '@/lib/prisma-json'
 
 export type PlayerMismatchReason =
   | 'NO_SPORT_PLAYER_RECORD_MATCH'
@@ -57,7 +58,7 @@ export async function logPlayerMismatchEvent(payload: PlayerMismatchLogPayload):
             ? payload.confidence
             : null,
         reason: payload.reason,
-        details: payload.details ?? undefined,
+        details: toPrismaNullableJsonInput(payload.details),
       },
     })
   } catch (e) {
