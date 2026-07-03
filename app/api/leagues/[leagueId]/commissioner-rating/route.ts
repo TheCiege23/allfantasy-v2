@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 
 export const dynamic = 'force-dynamic'
 
@@ -134,7 +135,7 @@ export async function POST(
 
   await prisma.league.update({
     where: { id: leagueId },
-    data: { settings: { ...settings, commissioner_ratings: store } },
+    data: { settings: toPrismaJsonInput({ ...settings, commissioner_ratings: store }) },
   })
 
   return NextResponse.json({ ok: true, message: 'Rating submitted successfully' })

@@ -85,8 +85,8 @@ export async function GET() {
 
       results.push({
         leagueId: season.leagueId,
-        leagueName: season.league.name,
-        sport: season.sport,
+        leagueName: season.league.name ?? 'League',
+        sport: season.sport ?? 'NFL',
         week,
         myPts,
         oppPts: matchup?.awayRosterId ? oppPts : null,

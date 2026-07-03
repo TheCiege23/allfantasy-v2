@@ -437,6 +437,8 @@ export function DashboardShell({
   }, [leagues, activeLeagueId])
 
   useEffect(() => {
+    if (!searchParams) return
+
     const draftOverlayRequested = searchParams.get('draftOverlay') === '1'
     const leagueId = searchParams.get('leagueId')?.trim() ?? ''
     const draftId = searchParams.get('draftId')?.trim() || undefined

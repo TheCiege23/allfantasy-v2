@@ -23,6 +23,7 @@ import {
   setDraftOrderModeAndLotteryConfig,
 } from '@/lib/draft-lottery/lotteryConfigStorage'
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 import { DYNASTY_SUPPORTED_TEAM_SIZES, VETO_RECOMMENDATION_COPY } from '@/lib/dynasty-core/constants'
 import { TAXI_ELIGIBILITY_YEARS_OPTIONS, TAXI_LOCK_BEHAVIOR_OPTIONS } from '@/lib/taxi/constants'
 
@@ -151,7 +152,7 @@ export async function PUT(
     const current = (league.settings as Record<string, unknown>) ?? {}
     await prisma.league.update({
       where: { id: leagueId },
-      data: { settings: { ...current, ...settingsPatch } },
+      data: { settings: toPrismaJsonInput({ ...current, ...settingsPatch }) },
     })
   }
 

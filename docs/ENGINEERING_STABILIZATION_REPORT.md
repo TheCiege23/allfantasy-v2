@@ -794,3 +794,177 @@ Environment/scale:
   - bracket duplicate object key
 - Keep World Cup and tournament cleanup in separate non-redraft stabilization slices unless they are required for repository-wide build certification.
 - Reattempt production build only after the full TypeScript diagnostic count is materially lower, then investigate any remaining timeout with build profiling.
+
+## Stabilization Pass 5
+
+Date: 2026-07-03
+
+Scope:
+
+- Reduce repo-wide TypeScript diagnostics without adding product features or changing runtime behavior.
+- Prioritize Prisma JSON/input boundaries, mock draft persistence, commissioner/settings routes, league transfer, share/user routes, workers, sports-os imports, and low-risk dashboard strict typing.
+- Avoid Decision OS, AI reasoning, OS functionality, mass formatting, generated artifacts, unrelated dirty files, and production build investigation until Pass 5 is committed.
+
+### Diagnostic Baseline
+
+Initial full typecheck:
+
+```text
+cmd /c npm run typecheck
+```
+
+Result:
+
+- Completed in about 95 seconds.
+- Exited non-zero with broad repo diagnostics.
+
+Baseline priority groups:
+
+- Prisma JSON/input typing in mock draft persistence, commissioner settings, league transfer, share/user/zombie routes, worker imports, sports-os imports, and shared audit/publish/scoring services.
+- Dashboard/app-shell strict null and literal typing.
+- Stripe/subscription narrow type mismatches.
+- Remaining non-redraft legacy, tournament, World Cup, AI/automation, playoff, and generated/import mismatch diagnostics.
+
+### Diagnostics Removed
+
+Prisma JSON/input boundaries fixed:
+
+- `app/api/mock-draft/save/route.ts`
+- `app/api/mock-draft/simulate-v2/route.ts`
+- `app/api/draft/room/create/route.ts`
+- `app/api/bestball/settings/route.ts`
+- `app/api/commissioner/leagues/[leagueId]/division-settings/route.ts`
+- `app/api/commissioner/leagues/[leagueId]/dues/route.ts`
+- `app/api/commissioner/leagues/[leagueId]/renew/route.ts`
+- `app/api/league/transfer/route.ts`
+- `app/api/share/[shareId]/approve/route.ts`
+- `app/api/share/generate-copy/route.ts`
+- `app/api/user/autocoach/route.ts`
+- `app/api/zombie/status/route.ts`
+- `app/api/zombie/universe/[universeId]/invite/route.ts`
+- `lib/social-sharing/SharePublishService.ts`
+- `lib/social-clips-grok/SocialPublishService.ts`
+- `lib/workers/power-rankings-worker.ts`
+- `lib/workers/sports-data-importer.ts`
+- `lib/sports-os/PlayerGameLogImportService.ts`
+- `lib/admin-audit.ts`
+- `lib/scoring-engine/ScoringAuditService.ts`
+- `server/services/matchupEngine.ts`
+- `app/api/leagues/[leagueId]/commissioner-rating/route.ts`
+- `app/api/leagues/[leagueId]/downsize/route.ts`
+- `app/api/leagues/[leagueId]/dynasty-settings/route.ts`
+
+Strict type and shape fixes:
+
+- `app/api/user/me/route.ts` now types the username field it already returns.
+- `app/api/dashboard/live-scores/route.ts` now provides non-null DTO fallbacks for league name and sport.
+- `app/api/sports/injuries/route.ts` now narrows nullable Date values before freshness checks.
+- `app/api/stripe/webhook/route.ts` now carries typed checkout coupon context already used by the webhook.
+- `lib/subscription/webhookHandlers.ts` now guards subscription interval before monthly credit resolution.
+- `lib/sports-os/FantasyValueSnapshotService.ts` and `lib/sports-os/PlayerGameLogImportService.ts` now avoid incompatible type predicates.
+- `app/dashboard/components/TodaysMissionStrip.tsx` now preserves urgency literal types.
+- `app/dashboard/DashboardShell.tsx` now guards nullable search params before draft overlay parsing.
+- `components/brackets/playoffs/PlayoffSyncDiagnosticsPanel.tsx` removed a duplicate object key.
+
+### Diagnostic Slices Checked
+
+Passed with normal resolver:
+
+```text
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/mock-draft/save/route.ts app/api/mock-draft/simulate-v2/route.ts app/api/draft/room/create/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/bestball/settings/route.ts "app/api/commissioner/leagues/[leagueId]/division-settings/route.ts" "app/api/commissioner/leagues/[leagueId]/dues/route.ts" "app/api/commissioner/leagues/[leagueId]/renew/route.ts"
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/league/transfer/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs "app/api/share/[shareId]/approve/route.ts" app/api/share/generate-copy/route.ts app/api/user/autocoach/route.ts app/api/user/me/route.ts app/api/zombie/status/route.ts "app/api/zombie/universe/[universeId]/invite/route.ts"
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs lib/workers/power-rankings-worker.ts lib/workers/sports-data-importer.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs lib/sports-os/FantasyValueSnapshotService.ts lib/sports-os/PlayerGameLogImportService.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/dashboard/live-scores/route.ts app/api/sports/injuries/route.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs app/api/stripe/webhook/route.ts lib/subscription/webhookHandlers.ts
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs "app/api/leagues/[leagueId]/commissioner-rating/route.ts" "app/api/leagues/[leagueId]/downsize/route.ts" "app/api/leagues/[leagueId]/dynasty-settings/route.ts"
+cmd /c node C:\tmp\af-ts-scope-diagnostics.cjs lib/admin-audit.ts lib/social-clips-grok/SocialPublishService.ts lib/scoring-engine/ScoringAuditService.ts server/services/matchupEngine.ts
+```
+
+Results:
+
+- All listed slices returned 0 diagnostics.
+- `app/dashboard/components/TodaysMissionStrip.tsx` returned 0 diagnostics.
+- `components/brackets/playoffs/PlayoffSyncDiagnosticsPanel.tsx` returned 0 diagnostics.
+- A broader dashboard slice still pulled unrelated `lib/meta-client.ts` and World Cup diagnostics, so it was not used as a source of Pass 5 fixes.
+
+### Verification Results
+
+Full typecheck after fixes:
+
+```text
+cmd /c npm run typecheck
+```
+
+Result:
+
+- Completed in about 108 seconds.
+- Still exits non-zero.
+- The Pass 5 target groups listed above are no longer present in the final full-typecheck output.
+
+Targeted tests:
+
+```text
+cmd /c npx vitest run __tests__/g50a-nfl-redraft-production-verification.test.ts __tests__/g50b-nfl-redraft-release-candidate.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+cmd /c npx vitest run __tests__/draft/nfl-redraft-draft-room-smoke.test.ts __tests__/redraft/draft-finalize-contract.test.ts __tests__/redraft/draft-finalize-schedule.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+cmd /c npx vitest run __tests__/g47b-nfl-redraft-live-stats-scoring-refresh.test.ts __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Results:
+
+- G50A/G50B: 10 tests passed.
+- Draft-room smoke and draft finalize suites: 30 tests passed.
+- G47B/G49F provider-premium runtime bundle: 12 tests passed.
+- Draft finalize suites still emit existing best-effort lifecycle event mock warnings, but assertions pass.
+
+Targeted ESLint passed for all touched TypeScript/TSX files.
+
+### Remaining Blockers
+
+NFL Redraft:
+
+- `lib/redraft-draft-room/warRoomSuggestions.ts` references `injuryStatus` on `RecommendationPlayer`.
+- `lib/redraft-season-simulation/canonicalNflRedraftFullSeasonSimulation.ts` still has a `CanonicalLeagueRules` shape mismatch for playoff defaults.
+- Production build remains unverified because full typecheck still fails.
+
+Legacy/app-shell:
+
+- `app/settings/components/SettingsChrome.tsx` has a prop mismatch and was intentionally not touched because it was already dirty before Pass 5.
+- `components/bracket/LeagueHomeTabs.tsx` still has a chat member username shape mismatch.
+- Playoff challenge components/services still have stale exports and view-shape mismatches.
+- `lib/preferences/types.ts` still references a missing `LanguageCode` type.
+
+Tournament:
+
+- Tournament routes and tournament-mode services still have Prisma JSON/input diagnostics.
+
+World Cup:
+
+- World Cup admin routes, pages, components, services, and AI/plugin modules still have strict null, stale export, provider/action enum, audit-entry, and view-shape diagnostics.
+
+AI/automation:
+
+- AI chat/page, AI engine/plugin, AI waiver, working-memory, and automation job/error modules still have type diagnostics.
+- These were not changed because this stabilization pass is not OS or AI feature work.
+
+Other shared services:
+
+- Remaining JSON/input diagnostics exist in fantasy media retry, referral, reputation, player valuation, platform analytics, playoff settings, survivor server route, and related non-redraft service modules.
+
+Environment/build:
+
+- Production build was not reattempted in Pass 5 because the user specified Pass 6 begins after Pass 5 is committed.
+
+### Recommended Pass 6 Scope
+
+- Start with the remaining NFL Redraft-specific diagnostics:
+  - `lib/redraft-draft-room/warRoomSuggestions.ts`
+  - `lib/redraft-season-simulation/canonicalNflRedraftFullSeasonSimulation.ts`
+- Then remove small app-shell blockers that are clean or explicitly approved despite dirty state:
+  - settings chrome prop mismatch
+  - league home chat member username shape
+  - missing `LanguageCode` import/type
+- Decide whether to include non-redraft tournament/World Cup/AI/automation in repo-wide build certification or isolate them behind separate stabilization slices.
+- Once full `npm run typecheck` passes or only intentionally deferred non-build paths remain, begin production build timing diagnostics for RC2 readiness.

@@ -81,7 +81,7 @@ export const GET = withApiUsage({ endpoint: "/api/sports/injuries", tool: "Sport
         const value = injury.fetchedAt ?? injury.date ?? null;
         return value instanceof Date ? value : value ? new Date(value) : null;
       })
-      .filter((value): value is Date => Boolean(value) && Number.isFinite(value.getTime()))
+      .filter((value): value is Date => value != null && Number.isFinite(value.getTime()))
       .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
     const now = Date.now();
     const staleSportsRows = sportsInjuries.some((injury) => injury.expiresAt < new Date());

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { toPrismaNullableJsonInput } from "@/lib/prisma-json"
 
 export type AdminAuditEntry = {
   id: string
@@ -29,7 +30,7 @@ export async function logAdminAudit(input: LogAdminActionInput): Promise<void> {
         action: input.action,
         targetType: input.targetType ?? null,
         targetId: input.targetId ?? null,
-        details: input.details ?? undefined,
+        details: toPrismaNullableJsonInput(input.details),
       },
     })
   } catch (e) {
