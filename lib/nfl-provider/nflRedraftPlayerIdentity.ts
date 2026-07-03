@@ -10,6 +10,8 @@ import {
 export const NFL_REDRAFT_PLAYER_IDENTITY_MODEL_VERSION = 'nfl-redraft-player-identity-v1' as const
 
 export const NFL_REDRAFT_PLAYER_IDENTITY_PROVIDERS = [
+  'api_sports',
+  'clearsports',
   'rolling_insights',
   'sportsdataio',
   'sleeper',
@@ -38,6 +40,8 @@ export type NflRedraftProviderPlayerIds = {
   sportsDataIoId: string | null
   sleeperId: string | null
   theSportsDbId: string | null
+  apiSportsId: string | null
+  clearSportsId: string | null
   gsisId: string | null
   espnId: string | null
   yahooId: string | null
@@ -48,6 +52,8 @@ export type NflRedraftProviderTeamIds = {
   sportsDataIoTeamId: string | null
   sleeperTeamId: string | null
   theSportsDbTeamId: string | null
+  apiSportsTeamId: string | null
+  clearSportsTeamId: string | null
 }
 
 export type NflRedraftPlayerIdentityCacheMetadata = {
@@ -101,6 +107,8 @@ type ProviderFieldCandidates = {
   sportsDataIoId: string[]
   sleeperId: string[]
   theSportsDbId: string[]
+  apiSportsId: string[]
+  clearSportsId: string[]
   gsisId: string[]
   espnId: string[]
   yahooId: string[]
@@ -128,12 +136,76 @@ type ProviderFieldCandidates = {
 const DEFAULT_IDENTITY_MAX_AGE_MINUTES = 1440
 
 const PROVIDER_FIELD_CANDIDATES: Record<NflRedraftPlayerIdentityProviderId, ProviderFieldCandidates> = {
+  api_sports: {
+    playerId: ['id', 'player.id', 'playerId', 'apiSportsId'],
+    rollingInsightsId: ['rollingInsightsId', 'rolling_insights_id'],
+    sportsDataIoId: ['sportsDataIoId', 'sports_data_id'],
+    sleeperId: ['sleeperId', 'sleeper_id'],
+    theSportsDbId: ['theSportsDbId', 'thesportsdb_id'],
+    apiSportsId: ['id', 'player.id', 'apiSportsId', 'api_sports_id'],
+    clearSportsId: ['clearSportsId', 'clear_sports_id'],
+    gsisId: ['gsisId', 'gsis_id'],
+    espnId: ['espnId', 'espn_id'],
+    yahooId: ['yahooId', 'yahoo_id'],
+    firstName: ['firstName', 'first_name'],
+    lastName: ['lastName', 'last_name'],
+    fullName: ['name', 'player.name', 'fullName', 'playerName'],
+    displayName: ['displayName', 'name', 'player.name'],
+    team: ['team.name', 'team.abbreviation', 'teamAbbr', 'team'],
+    teamId: ['team.id', 'teamId', 'providerTeamId'],
+    position: ['position', 'group'],
+    fantasyPositions: ['fantasyPositions', 'fantasy_positions', 'eligiblePositions'],
+    jerseyNumber: ['number', 'jerseyNumber'],
+    headshotUrl: ['image', 'player.image', 'headshotUrl', 'photoUrl'],
+    teamLogoUrl: ['team.logo', 'teamLogoUrl'],
+    height: ['height'],
+    weight: ['weight'],
+    age: ['age'],
+    experience: ['experience', 'yearsExperience', 'years_exp'],
+    college: ['college'],
+    byeWeek: ['byeWeek', 'bye_week'],
+    activeStatus: ['status', 'activeStatus'],
+    updatedAt: ['updatedAt', 'updated_at', 'lastUpdated'],
+  },
+  clearsports: {
+    playerId: ['id', 'playerId', 'clearSportsId'],
+    rollingInsightsId: ['rollingInsightsId', 'rolling_insights_id'],
+    sportsDataIoId: ['sportsDataIoId', 'sports_data_id'],
+    sleeperId: ['sleeperId', 'sleeper_id'],
+    theSportsDbId: ['theSportsDbId', 'thesportsdb_id'],
+    apiSportsId: ['apiSportsId', 'api_sports_id'],
+    clearSportsId: ['id', 'playerId', 'clearSportsId', 'clear_sports_id'],
+    gsisId: ['gsisId', 'gsis_id'],
+    espnId: ['espnId', 'espn_id'],
+    yahooId: ['yahooId', 'yahoo_id'],
+    firstName: ['firstName', 'first_name'],
+    lastName: ['lastName', 'last_name'],
+    fullName: ['name', 'fullName', 'playerName'],
+    displayName: ['displayName', 'name'],
+    team: ['teamAbbrev', 'team', 'team.abbrev'],
+    teamId: ['teamId', 'team_id'],
+    position: ['position', 'pos'],
+    fantasyPositions: ['fantasyPositions', 'fantasy_positions', 'eligiblePositions'],
+    jerseyNumber: ['number', 'jerseyNumber', 'jersey_number'],
+    headshotUrl: ['imageUrl', 'image_url', 'headshot'],
+    teamLogoUrl: ['teamLogoUrl', 'team.logo'],
+    height: ['height'],
+    weight: ['weight'],
+    age: ['age'],
+    experience: ['experience', 'yearsExperience', 'years_exp'],
+    college: ['college'],
+    byeWeek: ['byeWeek', 'bye_week'],
+    activeStatus: ['status', 'activeStatus'],
+    updatedAt: ['updatedAt', 'updated_at', 'lastUpdated'],
+  },
   rolling_insights: {
     playerId: ['player_id', 'playerId', 'id', 'providerPlayerId'],
     rollingInsightsId: ['rollingInsightsId', 'rolling_insights_id', 'player_id', 'playerId', 'id'],
     sportsDataIoId: ['sportsDataIoId', 'sportsDataID', 'sportsdataio_id'],
     sleeperId: ['sleeperId', 'sleeper_id'],
     theSportsDbId: ['theSportsDbId', 'theSportsDbPlayerId', 'thesportsdb_id'],
+    apiSportsId: ['apiSportsId', 'api_sports_id'],
+    clearSportsId: ['clearSportsId', 'clear_sports_id'],
     gsisId: ['gsisId', 'gsis_id'],
     espnId: ['espnId', 'espn_id'],
     yahooId: ['yahooId', 'yahoo_id'],
@@ -163,6 +235,8 @@ const PROVIDER_FIELD_CANDIDATES: Record<NflRedraftPlayerIdentityProviderId, Prov
     sportsDataIoId: ['PlayerID', 'SportsDataID', 'sportsDataIoId'],
     sleeperId: ['SleeperID', 'SleeperPlayerID', 'sleeperId'],
     theSportsDbId: ['TheSportsDbID', 'TheSportsDBID', 'theSportsDbId'],
+    apiSportsId: ['ApiSportsID', 'apiSportsId'],
+    clearSportsId: ['ClearSportsID', 'clearSportsId'],
     gsisId: ['GsisID', 'GSISID', 'Gsid', 'gsisId'],
     espnId: ['EspnID', 'ESPNID', 'espnId'],
     yahooId: ['YahooID', 'yahooId'],
@@ -192,6 +266,8 @@ const PROVIDER_FIELD_CANDIDATES: Record<NflRedraftPlayerIdentityProviderId, Prov
     sportsDataIoId: ['metadata.sportsDataIoId', 'sportsDataIoId', 'sports_data_id'],
     sleeperId: ['player_id', 'sleeperId', 'sleeper_id'],
     theSportsDbId: ['metadata.theSportsDbId', 'theSportsDbId', 'thesportsdb_id'],
+    apiSportsId: ['metadata.apiSportsId', 'apiSportsId', 'api_sports_id'],
+    clearSportsId: ['metadata.clearSportsId', 'clearSportsId', 'clear_sports_id'],
     gsisId: ['gsis_id', 'gsisId', 'metadata.gsisId'],
     espnId: ['espn_id', 'espnId', 'metadata.espnId'],
     yahooId: ['yahoo_id', 'yahooId', 'metadata.yahooId'],
@@ -221,6 +297,8 @@ const PROVIDER_FIELD_CANDIDATES: Record<NflRedraftPlayerIdentityProviderId, Prov
     sportsDataIoId: ['strSportsDataID', 'sportsDataIoId'],
     sleeperId: ['strSleeperID', 'sleeperId'],
     theSportsDbId: ['idPlayer', 'theSportsDbId'],
+    apiSportsId: ['strAPISportsID', 'apiSportsId'],
+    clearSportsId: ['strClearSportsID', 'clearSportsId'],
     gsisId: ['strGSISID', 'gsisId'],
     espnId: ['strESPNID', 'espnId'],
     yahooId: ['strYahooID', 'yahooId'],
@@ -250,6 +328,8 @@ const PROVIDER_FIELD_CANDIDATES: Record<NflRedraftPlayerIdentityProviderId, Prov
     sportsDataIoId: ['sportsDataIoId'],
     sleeperId: ['sleeperId'],
     theSportsDbId: ['theSportsDbId'],
+    apiSportsId: ['apiSportsId'],
+    clearSportsId: ['clearSportsId'],
     gsisId: ['gsisId'],
     espnId: ['espnId'],
     yahooId: ['yahooId'],
@@ -420,6 +500,8 @@ export function normalizeNflProviderTeamIds(
     sportsDataIoTeamId: providerId === 'sportsdataio' ? teamId : normalizeNflProviderPlayerId(firstValue(payload, ['sportsDataIoTeamId', 'sportsDataTeamID'])),
     sleeperTeamId: providerId === 'sleeper' ? teamId : normalizeNflProviderPlayerId(firstValue(payload, ['sleeperTeamId'])),
     theSportsDbTeamId: providerId === 'thesportsdb' ? teamId : normalizeNflProviderPlayerId(firstValue(payload, ['theSportsDbTeamId', 'idTeam'])),
+    apiSportsTeamId: providerId === 'api_sports' ? teamId : normalizeNflProviderPlayerId(firstValue(payload, ['apiSportsTeamId', 'api_sports_team_id'])),
+    clearSportsTeamId: providerId === 'clearsports' ? teamId : normalizeNflProviderPlayerId(firstValue(payload, ['clearSportsTeamId', 'clear_sports_team_id'])),
   }
 }
 
@@ -434,6 +516,8 @@ export function normalizeNflProviderPlayerIds(input: {
   const sportsDataIoId = normalizeNflProviderPlayerId(firstValue(input.payload, fields.sportsDataIoId))
   const sleeperId = normalizeNflProviderPlayerId(firstValue(input.payload, fields.sleeperId))
   const theSportsDbId = normalizeNflProviderPlayerId(firstValue(input.payload, fields.theSportsDbId))
+  const apiSportsId = normalizeNflProviderPlayerId(firstValue(input.payload, fields.apiSportsId))
+  const clearSportsId = normalizeNflProviderPlayerId(firstValue(input.payload, fields.clearSportsId))
   const gsisId = normalizeNflProviderPlayerId(firstValue(input.payload, fields.gsisId))
   const espnId = normalizeNflProviderPlayerId(firstValue(input.payload, fields.espnId))
   const yahooId = normalizeNflProviderPlayerId(firstValue(input.payload, fields.yahooId))
@@ -456,6 +540,8 @@ export function normalizeNflProviderPlayerIds(input: {
     sportsDataIoId,
     sleeperId,
     theSportsDbId,
+    apiSportsId,
+    clearSportsId,
     gsisId,
     espnId,
     yahooId,
@@ -593,6 +679,20 @@ export function normalizeTheSportsDbPlayerIdentity(
   options: Omit<NormalizeNflRedraftPlayerIdentityInput, 'providerId' | 'payload'> = {},
 ): NflRedraftCanonicalPlayerIdentity {
   return normalizeNflRedraftProviderPlayerIdentity({ ...options, providerId: 'thesportsdb', payload })
+}
+
+export function normalizeApiSportsPlayerIdentity(
+  payload: Record<string, unknown>,
+  options: Omit<NormalizeNflRedraftPlayerIdentityInput, 'providerId' | 'payload'> = {},
+): NflRedraftCanonicalPlayerIdentity {
+  return normalizeNflRedraftProviderPlayerIdentity({ ...options, providerId: 'api_sports', payload })
+}
+
+export function normalizeClearSportsPlayerIdentity(
+  payload: Record<string, unknown>,
+  options: Omit<NormalizeNflRedraftPlayerIdentityInput, 'providerId' | 'payload'> = {},
+): NflRedraftCanonicalPlayerIdentity {
+  return normalizeNflRedraftProviderPlayerIdentity({ ...options, providerId: 'clearsports', payload })
 }
 
 function buildIdentityWarnings(input: {
