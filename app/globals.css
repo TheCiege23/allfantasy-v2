@@ -1287,6 +1287,157 @@ html[data-mode="legacy"] {
   color: var(--link-color-hover);
 }
 
+/* ═══════════════════════════════════════════════════════════════════════════
+   Commissioner OS — design tokens (Phase 0.1)
+   Additive only. Every color token below is a semantic alias onto the
+   existing alert palette (error, warn, success, info), muted text, and
+   accent-purple — not a new hex value. var() references resolve at
+   computed-value time against whichever html[data-mode] is active, so
+   these never need per-mode redeclaration.
+   Structural tokens (spacing, radius, sizing, z-index, opacity, typography)
+   are mode-independent, matching the existing space, radius, and
+   transition naming convention already in this file.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Severity (5-tier, per Design Language & Experience System §8/§11) */
+  --severity-critical-text: var(--alert-error-text);
+  --severity-critical-bg: var(--alert-error-bg);
+  --severity-critical-border: var(--alert-error-border);
+
+  --severity-elevated-text: var(--alert-warn-text);
+  --severity-elevated-bg: var(--alert-warn-bg);
+  --severity-elevated-border: var(--alert-warn-border);
+
+  /* Advisory = Elevated's hue, deliberately lower-weight — a milder concern,
+     never a second, unrelated color. */
+  --severity-advisory-text: color-mix(in srgb, var(--alert-warn-text) 70%, var(--muted));
+  --severity-advisory-bg: color-mix(in srgb, var(--alert-warn-bg) 60%, transparent);
+  --severity-advisory-border: color-mix(in srgb, var(--alert-warn-border) 60%, transparent);
+
+  /* Standard = neutral. No ongoing concern means no alarm color at all. */
+  --severity-standard-text: var(--muted);
+  --severity-standard-bg: transparent;
+  --severity-standard-border: var(--border);
+
+  --severity-positive-text: var(--alert-success-text);
+  --severity-positive-bg: var(--alert-success-bg);
+  --severity-positive-border: var(--alert-success-border);
+
+  /* Status roles beyond severity (Design Language §11) */
+  --status-information-text: var(--alert-info-text);
+  --status-information-bg: var(--alert-info-bg);
+  --status-information-border: var(--alert-info-border);
+
+  /* Opportunity: must never read as a problem, so it never borrows Warning
+     or Critical's hue — reuses the existing purple accent instead, already
+     themed per-mode and unclaimed by any other severity role. */
+  --status-opportunity-text: var(--accent-purple);
+  --status-opportunity-bg: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+  --status-opportunity-border: color-mix(in srgb, var(--accent-purple) 25%, transparent);
+
+  --status-disabled-text: var(--muted2);
+  --status-disabled-bg: transparent;
+  --status-disabled-border: var(--border);
+
+  /* Benchmark comparison — distinct names even where values equal severity
+     tokens, so benchmarking never blurs into the severity language
+     (Design Language §11: "never reused as generic good/neutral/bad"). */
+  --benchmark-above: var(--alert-success-text);
+  --benchmark-equal: var(--muted);
+  --benchmark-below: var(--alert-error-text);
+
+  /* Spacing — base-4 scale. --space-card (16px) and --space-section (32px),
+     already defined above, are this scale's --space-16 and --space-32;
+     left untouched so nothing that already references them changes. */
+  --space-4: 0.25rem;
+  --space-8: 0.5rem;
+  --space-12: 0.75rem;
+  --space-16: 1rem;
+  --space-24: 1.5rem;
+  --space-32: 2rem;
+  --space-48: 3rem;
+  --space-64: 4rem;
+  --space-96: 6rem;
+
+  /* Radius — three named steps. Values match the existing --radius-button/
+     --radius-card (already both 12px) and --radius-card-lg (16px). */
+  --radius-subtle: 0.5rem;
+  --radius-standard: 0.75rem;
+  --radius-generous: 1rem;
+
+  /* Elevation — two levels only, per Design Language §21. Light-mode value
+     matches the existing .glow-box shadow exactly. */
+  --elevation-0: none;
+  --elevation-1: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05);
+
+  /* Motion — named aliases onto the existing transition tokens, so
+     Commissioner OS code can reference motion by the same bands the
+     Design Language System names (§15), without duplicating timings. */
+  --motion-micro: var(--transition-premium);
+  --motion-panel: var(--transition-slow);
+
+  /* Icon / control / badge / container sizing — no prior token existed. */
+  --icon-size-compact: 16px;
+  --icon-size-standard: 20px;
+  --icon-size-large: 24px;
+
+  --control-height-compact: 32px;
+  --control-height-standard: 40px;
+  --control-height-large: 48px;
+
+  --badge-height-compact: 18px;
+  --badge-height-standard: 22px;
+
+  --container-width-reading: 720px;
+  --container-width-dashboard: 1440px;
+
+  /* Z-index — intentionally stays below the two pre-existing hardcoded
+     values in this file ([data-radix-popper-content-wrapper]: 90 and
+     .crest-intro-overlay: 120), so this scale can never collide with them. */
+  --z-base: 1;
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-drawer: 30;
+  --z-modal: 40;
+  --z-command-palette: 50;
+  --z-toast: 60;
+
+  /* Opacity */
+  --opacity-disabled: 0.5;
+  --opacity-hover: 0.9;
+  --opacity-overlay: 0.6;
+
+  /* Typography — extends the existing --text-xs(12)/--text-sm(14)/
+     --text-base(16)/--text-lg(18) scale upward with the named roles the
+     Design Language System calls for (§12): Caption=xs, Label=sm, Body=base. */
+  --text-subheader: 1.25rem;
+  --text-header: 1.5rem;
+  --text-display: 2rem;
+
+  /* Breakpoints — reference only; custom properties cannot be read inside
+     @media conditions, so these document the values, while
+     lib/commissioner-os/tokens/breakpoints.ts is the authoritative,
+     JS-consumable source. Matches the existing 640px mobile threshold
+     already used elsewhere in this file. */
+  --breakpoint-tablet: 640px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-large-desktop: 1440px;
+}
+
+html[data-mode="dark"],
+html[data-mode="legacy"] {
+  /* Dark/legacy elevation reuses .glow-box's existing dark-mode treatment
+     (glow instead of a plain shadow, which reads poorly on dark surfaces). */
+  --elevation-1: 0 0 20px rgba(34, 211, 238, 0.15), 0 0 60px rgba(34, 211, 238, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Tabular figures for the Metrics typography role (Design Language §12) —
+   numbers must not shift width as their digit count changes. */
+.text-metric {
+  font-variant-numeric: tabular-nums;
+}
+
 /* ─── Settings / SettingsChrome dark background fallback ─────────────────── */
 /* bg-[#0a0e1a] and bg-[#1a1f3a] are used by SettingsChrome.
    In light mode, reuse the bg-override rule above; these aliases ensure
