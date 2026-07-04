@@ -13206,6 +13206,178 @@ model RedraftTradeMarketEvent {
   @@map("redraft_trade_market_events")
 }
 
+/// G15.1 Event Foundation — append-only normalized domain event log.
+/// Sport/concept/provider agnostic: cadence lives in `period`, sport-specific
+/// detail in `payload`/`metadata` (JSON), entity refs in `subjects` (canonical ids).
+model DomainEvent {
+  id             String    @id @default(cuid())
+  eventId        String    @unique
+  type           String
+  schemaVersion  Int       @default(1)
+  occurredAt     DateTime
+  recordedAt     DateTime  @default(now())
+  sport          String?
+  leagueConcept  String?
+  tenantId       String    @default("allfantasy")
+  leagueId       String?
+  seasonId       String?
+  actorType      String    @default("system")
+  actorId        String?
+  source         String    @default("unknown")
+  correlationId  String?
+  causationId    String?
+  idempotencyKey String    @unique
+  payload        Json      @default("{}")
+  metadata       Json      @default("{}")
+  period         Json?
+  subjects       Json      @default("[]")
+
+  @@index([leagueId, occurredAt])
+  @@index([seasonId, occurredAt])
+  @@index([type, occurredAt])
+  @@index([tenantId, occurredAt])
+  @@index([correlationId])
+  @@map("domain_events")
+}
+
+/// G15.1 Event Foundation — transactional-outbox dispatch state for DomainEvent.
+/// One row per event; written in the same tx as the event, drained by OutboxRelay.
+model EventOutbox {
+  id           String    @id @default(cuid())
+  eventId      String    @unique
+  status       String    @default("pending") // pending | claimed | retry | dispatched | dead
+  attempts     Int       @default(0)
+  availableAt  DateTime  @default(now())
+  claimedBy    String?
+  claimedAt    DateTime?
+  lastError    String?
+  dispatchedAt DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([status, availableAt])
+  @@index([status, claimedAt])
+  @@map("event_outbox")
+}
+
+/// G15.3 Event Projections — first read model (League Activity Timeline / Event Audit
+/// Feed). DISPOSABLE: rebuildable from DomainEvent; business behavior must not depend
+/// on it. Idempotent by `eventId` (at-least-once delivery → upsert on replay).
+model AuditFeedEntry {
+  id            String   @id @default(cuid())
+  eventId       String   @unique
+  tenantId      String   @default("allfantasy")
+  leagueId      String?
+  seasonId      String?
+  type          String
+  summary       String   @default("")
+  sport         String?
+  leagueConcept String?
+  actorType     String?
+  actorId       String?
+  occurredAt    DateTime
+  createdAt     DateTime @default(now())
+
+  @@index([leagueId, occurredAt])
+  @@index([tenantId, occurredAt])
+  @@index([type])
+  @@map("event_audit_feed")
+}
+
+/// G15.3 — per-projection cursor for rebuild/operational visibility.
+model ProjectionCheckpoint {
+  id              String    @id @default(cuid())
+  projection      String    @unique
+  lastEventId     String?
+  lastOccurredAt  DateTime?
+  eventsProcessed Int       @default(0)
+  updatedAt       DateTime  @updatedAt
+
+  @@map("intelligence_projection_checkpoint")
+}
+
+/// G15.4 Intelligence read model — per-league activity/health rollup. DISPOSABLE
+/// (rebuildable from domain_events). Sport/concept-agnostic. Scalar counters use
+/// atomic increments; categoryCounts are columns to avoid read-modify-write races.
+model IntelligenceLeagueSnapshot {
+  id                 String    @id @default(cuid())
+  leagueId           String    @unique
+  tenantId           String    @default("allfantasy")
+  sport              String?
+  leagueConcept      String?
+  firstEventAt       DateTime?
+  lastActivityAt     DateTime?
+  totalEvents        Int       @default(0)
+  tradeCount         Int       @default(0)
+  waiverCount        Int       @default(0)
+  lineupCount        Int       @default(0)
+  draftCount         Int       @default(0)
+  scoringCount       Int       @default(0)
+  governanceCount    Int       @default(0)
+  lifecycleCount     Int       @default(0)
+  otherCount         Int       @default(0)
+  openTradeProposals Int       @default(0)
+  lastTradeAt        DateTime?
+  lastWaiverAt       DateTime?
+  lastLineupAt       DateTime?
+  lastDraftAt        DateTime?
+  lastScoringAt      DateTime?
+  updatedAt          DateTime  @updatedAt
+
+  @@index([tenantId, lastActivityAt])
+  @@map("intelligence_league_snapshot")
+}
+
+/// G15.4 Intelligence read model — per (league, manager) activity rollup.
+model IntelligenceManagerSnapshot {
+  id            String    @id @default(cuid())
+  leagueId      String
+  managerKey    String
+  lastActiveAt  DateTime?
+  totalActions  Int       @default(0)
+  tradeActions  Int       @default(0)
+  waiverActions Int       @default(0)
+  lineupActions Int       @default(0)
+  otherActions  Int       @default(0)
+  updatedAt     DateTime  @updatedAt
+
+  @@unique([leagueId, managerKey])
+  @@map("intelligence_manager_snapshot")
+}
+
+/// G15.4 — idempotency ledger for incremental projections (at-least-once → exactly-once apply).
+model IntelligenceProcessedEvent {
+  id          String   @id @default(cuid())
+  projection  String
+  eventId     String
+  processedAt DateTime @default(now())
+
+  @@unique([projection, eventId])
+  @@map("intelligence_processed_event")
+}
+
+/// Phase 3.3 — rolling historical ledger for trend calculation. Unlike
+/// IntelligenceLeagueSnapshot (one row per league, upserted in place — a
+/// "current state" cache), this is INSERT-only: one new row per capture,
+/// so two points in time can actually be compared. DISPOSABLE (rebuildable
+/// from domain_events + IntelligenceLeagueSnapshot history is not itself
+/// the source of truth). No FK, matching every other read model here.
+model IntelligenceLeagueSnapshotHistory {
+  id                    String   @id @default(cuid())
+  leagueId              String
+  tenantId              String   @default("allfantasy")
+  capturedAt            DateTime @default(now())
+  leagueEngagementScore Int
+  leagueEngagementTier  String
+  tradeActivityRate     Float
+  waiverActivityRate    Float
+  draftActivityRate     Float
+
+  @@index([leagueId, capturedAt])
+  @@index([tenantId, capturedAt])
+  @@map("intelligence_league_snapshot_history")
+}
+
 /// T8: native trade block — a manager publicly signals a player they will move (+ what they want
 /// back). League-visible. No FK (signal survives roster churn). Internal ids only.
 model RedraftTradeBlockItem {
