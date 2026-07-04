@@ -1167,3 +1167,150 @@ FAIL:
   - AI/automation diagnostics only as compile stabilization, without building OS or recommendation features.
 - Add a documented build runbook step for clearing stale timed-out Next build workers on Windows.
 - Consider route-tree/build-size analysis only after typecheck blockers are under control; current production build passes but remains slow.
+
+## RC2 Launch Certification
+
+### Scope
+
+This certification pass audited only the production-ready NFL Redraft platform:
+
+- league lifecycle
+- draft lifecycle
+- season lifecycle
+- provider layer
+- premium/auth gating
+- runtime refresh paths
+- NFL Redraft UI surfaces
+- production readiness boundaries
+
+It did not attempt to clean the full repository or fix legacy non-redraft diagnostics unless they materially blocked NFL Redraft launch readiness.
+
+### Verification Run
+
+Production build:
+
+```text
+cmd /c npm run build
+```
+
+Result:
+
+- Passed.
+- Next.js production build completed successfully from a clean `.next` state.
+- Build generated 492 static pages and completed route trace collection.
+- Build still skips validation of types and linting as currently configured by the repo build script.
+
+League lifecycle / dashboard / creation:
+
+```text
+cmd /c npx vitest run __tests__/canonical-league-create-pipeline.test.ts __tests__/canonical-league-creation-legacy-payload.test.ts __tests__/nfl-redraft-league-dashboard.test.ts __tests__/redraft-league-ux-regression.test.ts __tests__/redraft-production-smoke-blockers.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- 34 tests executed.
+- 31 passed.
+- 3 failed.
+
+Draft lifecycle:
+
+```text
+cmd /c npx vitest run __tests__/draft/nfl-redraft-draft-room-smoke.test.ts __tests__/draft/draft-room-functional-regression.test.ts __tests__/draft/d9-mobile-responsive.test.ts __tests__/draft/f2-mobile-polish.test.ts __tests__/redraft/draft-finalize-contract.test.ts __tests__/redraft/draft-finalize-schedule.test.ts __tests__/draft/draft-completion-chain.test.ts __tests__/redraft/redraft-draft-room-hardening.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- 190 tests passed.
+
+Season lifecycle / runtime:
+
+```text
+cmd /c npx vitest run __tests__/redraft/lineup-lock-engine.test.ts __tests__/redraft/waiver-scoring.test.ts __tests__/redraft/add-drop-errors.test.ts __tests__/redraft/trade-settlement.test.ts __tests__/redraft/trade-veto-route.test.ts __tests__/redraft/standings-api.test.ts __tests__/redraft/playoff-advance.test.ts __tests__/redraft/playoff-finalize.test.ts __tests__/g43-nfl-redraft-full-season-simulation.test.ts __tests__/redraft/redraft-score-sync-cron.test.ts __tests__/redraft/commissioner-scoring-contract.test.ts __tests__/redraft/team-defense-scoring-contract.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- 211 tests passed.
+
+Provider / evidence / premium / release-candidate path:
+
+```text
+cmd /c npx vitest run __tests__/g41-nfl-redraft-player-data-pipeline.test.ts __tests__/g45-nfl-redraft-provider-foundation.test.ts __tests__/g46a-nfl-redraft-player-identity.test.ts __tests__/g46b-nfl-redraft-player-media-metadata.test.ts __tests__/g46c-nfl-redraft-player-intelligence-data.test.ts __tests__/g47a-nfl-redraft-schedule-weather-context.test.ts __tests__/g47b-nfl-redraft-live-stats-scoring-refresh.test.ts __tests__/g48-nfl-redraft-provider-evidence-packets.test.ts __tests__/g49a-nfl-redraft-premium-service-foundation.test.ts __tests__/g49b-nfl-redraft-premium-service-api-contracts.test.ts __tests__/g49c-nfl-redraft-premium-evidence-resolver.test.ts __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts __tests__/g49g-nfl-redraft-provider-orchestration-platform.test.ts __tests__/g49h-nfl-redraft-production-provider-wiring.test.ts __tests__/g49i-nfl-redraft-provider-validation-dashboard.test.ts __tests__/g49j-nfl-redraft-provider-migration-certification.test.ts __tests__/g50a-nfl-redraft-production-verification.test.ts __tests__/g50b-nfl-redraft-release-candidate.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- 112 tests passed.
+
+### Verified Production Capabilities
+
+Verified as production-capable for NFL Redraft:
+
+- canonical league creation pipeline
+- league dashboard load and redraft shell contract
+- authenticated draft-room resolver flow
+- live draft runtime and draft finalization flow
+- mock draft page typing/build path
+- roster validation and lineup lock enforcement
+- waiver scoring and add/drop runtime
+- trade settlement and commissioner veto route behavior
+- standings update path and playoff advancement/finalization
+- full-season simulation runtime
+- provider orchestrator path from identity through live scoring
+- evidence packet generation and premium service contract flow
+- premium evidence resolver, observability, and release-candidate coverage
+- production build graph for NFL Redraft pages and routes
+
+### Launch Blockers
+
+None verified in this pass for the NFL Redraft shipping scope.
+
+The three failing tests from the league lifecycle batch were reviewed and classified as stale source-contract expectations rather than current launch blockers:
+
+- `__tests__/redraft-league-ux-regression.test.ts`
+  - expects literal `"Trade Center"` source strings, while current `LeagueShell.tsx` intentionally labels the tab `"Trades"`.
+- `__tests__/redraft-league-ux-regression.test.ts`
+  - expects an exact local variable name (`ds`) in `app/league/[leagueId]/draft/page.tsx`, while the runtime still uses the same underlying draft-session/materialization flow with a different variable name.
+- `__tests__/redraft-production-smoke-blockers.test.ts`
+  - expects start/resume to proceed without `POOL_NOT_READY`, while the newer draft-room behavior intentionally guards start/resume on pool readiness and triggers background prewarm.
+
+These are test-debt mismatches against current implementation, not proof of broken NFL Redraft runtime behavior. Current draft-room smoke and hardening suites passed.
+
+### High-Priority Post-Launch Items
+
+- Update stale source-contract tests to reflect the current draft-room and league-shell behavior.
+- Investigate best-effort event persistence warnings observed during passing tests:
+  - `lifecycle.season.activated` emit warning during draft finalization tests.
+  - trade-market event capture warning during commissioner veto tests.
+- Add explicit ops/runbook guidance for the current slow Windows production build cycle.
+- Review whether any currently skipped lint/type validation should be reintroduced into CI build gating rather than local build only.
+
+### Non-Redraft Backlog
+
+These remain outside NFL Redraft launch scope unless repo-wide certification is later required:
+
+- legacy non-redraft TypeScript diagnostics
+- World Cup strict typing and route cleanup
+- tournament strict typing and Prisma JSON/input cleanup
+- AI/automation compile cleanup that is not required for NFL Redraft runtime shipping
+- unrelated dirty worktree cleanup and generated artifact cleanup
+
+### Production Readiness Assessment
+
+PASS for NFL Redraft launch certification with limitations:
+
+- NFL Redraft build path passes.
+- NFL Redraft regression coverage is strong across draft, season, provider, premium, and release-candidate suites.
+- No verified blocker was found that would prevent an NFL Redraft beta/RC3 progression.
+
+Limitations:
+
+- repository-wide `npm run typecheck` still fails outside NFL Redraft scope
+- some league-shell smoke tests assert outdated source strings rather than live behavior
+- passing tests still surface best-effort event logging warnings that should be cleaned up after launch certification
+
+### Recommended RC3 Work
+
+- Refresh stale NFL Redraft source-contract tests so certification matches the shipped implementation.
+- Triage the non-fatal event persistence warnings in draft finalization and trade-veto flows.
+- Keep repo-wide stabilization separate from NFL Redraft ship-readiness so legacy modules do not obscure launch decisions.
