@@ -1758,3 +1758,25 @@ Why:
 - deployment, migration, auth, cron, provider, premium, and evidence contracts remain intact
 - targeted closed-beta operational suites passed cleanly
 - remaining concerns are deployment-environment and operator-discipline issues, not new application correctness failures
+
+## Closed Beta Execution
+
+Closed beta execution planning has been documented in:
+
+- [CLOSED_BETA_EXECUTION_PLAN.md](./CLOSED_BETA_EXECUTION_PLAN.md)
+
+That document covers:
+
+- launch checklist
+- beta invitation and onboarding checklists
+- support workflow
+- bug reporting workflow
+- known limitations
+- analytics / observability review
+- error-handling review
+- beta success metrics
+- recommended production launch criteria
+
+Closed beta execution conclusion:
+
+- Ready to invite NFL Redraft beta users, with the main remaining caution being incomplete telemetry coverage for some interactive user milestones compared with the stronger audit/cron/provider observability already in place.
