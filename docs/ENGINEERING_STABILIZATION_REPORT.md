@@ -1502,3 +1502,259 @@ Why:
 Recommendation:
 
 - Ready for Closed Beta
+
+## RC4 Closed Beta Operational Readiness
+
+### Scope
+
+This pass stayed inside the NFL Redraft closed-beta readiness boundary:
+
+- deployment and secret readiness
+- database and migration safety
+- auth, permissions, and premium enforcement
+- runtime cron/reliability verification
+- observability and security review
+- release checklist and go/no-go recommendation
+
+No new features, no architecture redesign, and no OS/AI work was added.
+
+### Deployment Readiness
+
+Operationally ready with a few explicit operator caveats:
+
+- `package.json` keeps production build and deploy flow explicit:
+  - `build`
+  - `build:no-lint`
+  - `vercel-build`
+  - `db:migrate:deploy`
+- `lib/provider-config.ts` centralizes provider env resolution and supports the current NFL provider stack without logging secret values.
+- `lib/auth.ts` enforces runtime auth-secret presence while still allowing production build compilation with a build-phase placeholder secret.
+- `lib/staging/validateStagingEnv.ts` provides a strong preflight for:
+  - Stripe mode safety
+  - cron secret presence
+  - app URL presence
+  - auth-secret presence
+  - non-production database targeting
+- `scripts/check-staging-env.ts` and `scripts/setup-staging-db.ts` give a real operator workflow for preflight and staging database preparation.
+
+Operational caveat:
+
+- Local `npm run build` re-runs in this workspace did not finish inside the 20-minute tool window during RC4.
+- Captured output shows the build reaches Next.js optimized production build startup after a busy `.next` cleanup step.
+- No fresh NFL Redraft compile/build diagnostic was emitted before timeout.
+- Given the prior RC3/Pass 6 build-pass baseline and the lack of new actionable diagnostics, this is classified as a local environment/build-duration limitation, not a newly verified NFL Redraft release blocker.
+
+### Database Readiness
+
+Operationally ready for closed beta with documented safety rails:
+
+- `prisma/schema.prisma` includes the canonical NFL Redraft/provider runtime models required by prior gates, including:
+  - `PlayerIdentityMap`
+  - `SportsGame`
+  - `LeagueChampionship`
+- `scripts/prisma-migrate-deploy.cjs`:
+  - selects valid Postgres URLs safely
+  - normalizes Supabase pooler/direct configurations
+  - disables Prisma advisory locks for the affected pooler case
+  - includes recovery handling for known transient migration failures
+- `scripts/setup-staging-db.ts` refuses production-host execution unless explicitly overridden and temporarily neutralizes local prod env DB URLs so Prisma CLI cannot silently target production.
+
+Deployment order for beta:
+
+1. validate env with `npm run check:staging-env`
+2. apply migrations with deploy flow
+3. verify drift
+4. start app/runtime
+5. validate cron/provider/premium health
+
+Database risk level:
+
+- Moderate operational sensitivity, low code-path uncertainty.
+- Main risk is operator misconfiguration, not missing migration tooling.
+
+### Authentication And Permissions
+
+Verified and production-appropriate for closed beta:
+
+- `server/services/leagueActionGate.ts` enforces:
+  - authenticated access
+  - membership visibility
+  - commissioner elevation for restricted league actions
+  - lifecycle-state gating
+- `lib/league-access.ts` resolves membership through canonical league + roster membership checks.
+- `server/services/permissionService.ts` separates:
+  - head commissioner
+  - elevated commissioner
+  - member/view access
+- `lib/subscription/EntitlementResolver.ts` resolves premium access server-side from subscription/grant state.
+- Premium route enforcement remains covered by passing G49E/G49F regression tests.
+
+Security posture from this pass:
+
+- no verified privilege-escalation path surfaced in the audited NFL Redraft routes/contracts
+- no verified client-claimed premium bypass surfaced
+- cron auth accepts the intended cron/import/admin secrets via canonical helper rather than ad hoc route logic
+
+### Runtime Reliability
+
+Closed-beta runtime readiness is strong based on current code paths plus passing tests:
+
+- redraft score sync cron:
+  - authenticated by `requireCronAuth`
+  - enumerates active seasons
+  - isolates season failures
+  - preserves telemetry
+  - keeps legacy automation bridge best-effort only
+- provider/premium/runtime reliability remains covered by passing suites:
+  - `g50a`
+  - `g50b`
+  - `g49e`
+  - `g49f`
+  - `g49h`
+  - `g49i`
+  - `g49j`
+  - `redraft-score-sync-cron`
+- staging env validator confirms the operational contract for:
+  - cron secrets
+  - Stripe mode
+  - app URL
+  - DB safety
+
+No verified closed-beta runtime blocker surfaced in this pass.
+
+### Observability
+
+Observability is adequate for closed beta, with room to deepen post-beta:
+
+- premium evidence observability remains covered by passing G49F tests
+- provider validation dashboard and trace flow remain covered by passing G49I tests
+- redraft score-sync cron is instrumented with production-health sync telemetry
+- provider/evidence/premium paths preserve facts-only operational metadata rather than leaking raw provider payloads
+
+Observed gap:
+
+- there is still no new RC4 live staging/log capture artifact in this environment
+- observability contracts are present and tested, but full production monitoring setup still depends on deployment environment configuration
+
+### Security Observations
+
+No new verified NFL Redraft security blocker was found.
+
+Positive findings:
+
+- premium access is resolved server-side
+- league membership and commissioner boundaries are enforced through canonical helpers
+- staging DB tooling explicitly guards against production DB misuse
+- staging env tooling catches live Stripe key mistakes
+- provider config centralization reduces secret sprawl
+- cron authentication is explicit and reusable
+
+Known operational risks:
+
+- build/runtime environments still depend on correct secret provisioning for auth, premium, providers, and cron routes
+- local worktrees with active `.next` usage can interfere with repeat build validation on Windows
+
+### Closed Beta Support Readiness
+
+Enough operational guidance exists to support a controlled beta.
+
+Known limitations to communicate to operators:
+
+- local Windows build verification may require an isolated build directory or a clean workspace when `.next` is busy
+- provider-backed enhancement surfaces may degrade gracefully when enhancement providers are unavailable
+- production observability quality will depend on final deployment configuration for Sentry/log sinks/provider credentials
+
+Recommended support workflow:
+
+1. validate env/secrets before deployment
+2. apply migrations with staging-first verification
+3. verify provider dashboard and premium route health
+4. verify commissioner draft/score-sync/waiver cron behavior
+5. monitor provider freshness, fallback counts, and premium evidence health
+
+Rollback/recovery posture:
+
+- rollback should be deployment-first, not schema-destructive
+- DB safety relies on staged migration verification before production rollout
+- provider outages should degrade to fallback/unavailable states rather than crash core runtime
+
+### Release Checklist
+
+- `[PASS WITH LIMITATIONS]` production build
+  - prior RC3 baseline passed
+  - RC4 local re-run timed out without new diagnostics
+- `[PASS]` migrations / deploy tooling
+- `[PASS]` provider verification
+- `[PASS]` authentication boundary
+- `[PASS]` premium verification
+- `[PASS]` commissioner workflow coverage
+- `[PASS]` manager workflow coverage from prior RC3/RC2 runtime suites
+- `[PASS]` draft workflow coverage
+- `[PASS]` season workflow coverage
+- `[PASS WITH LIMITATIONS]` monitoring enabled by code path/contracts
+  - deployment-time sink/config still required
+- `[PASS WITH LIMITATIONS]` logging enabled by code path/contracts
+  - environment/log aggregation configuration still required
+- `[PASS WITH LIMITATIONS]` backups verified
+  - migration safety and staging guards are present, but live backup policy must be confirmed in deployment ops
+- `[PASS]` rollback plan documented at the operational level for code/deploy rollback
+
+### Verification
+
+Attempted build:
+
+```text
+cmd /c npm run build
+```
+
+Result:
+
+- timed out in this local environment
+- captured output reached `Creating an optimized production build ...`
+- no new actionable NFL Redraft diagnostic surfaced
+
+Attempted isolated-dist build:
+
+```text
+$env:AF_NEXT_DIST_DIR='.next-rc4-build'; cmd /c npm run build
+```
+
+Result:
+
+- also timed out in this local environment
+- classified as environment/build-duration pressure rather than a new verified redraft build break
+
+Passed targeted operational/regression suite:
+
+```text
+cmd /c npx vitest run __tests__/g50a-nfl-redraft-production-verification.test.ts __tests__/g50b-nfl-redraft-release-candidate.test.ts __tests__/g49e-nfl-redraft-premium-production-enforcement.test.tsx __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts __tests__/g49h-nfl-redraft-production-provider-wiring.test.ts __tests__/g49i-nfl-redraft-provider-validation-dashboard.test.ts __tests__/g49j-nfl-redraft-provider-migration-certification.test.ts __tests__/redraft/redraft-score-sync-cron.test.ts __tests__/staging-env-validator.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- 9 files passed
+- 76 tests passed
+
+### Operational Risks
+
+Remaining closed-beta operational risks:
+
+- local build-repeatability on busy Windows worktrees
+- deployment-time secret/config completeness
+- production monitoring/log sink completeness outside this repo
+- operator error during environment/database targeting if preflight is skipped
+
+None of these are newly verified NFL Redraft code blockers.
+
+### Go / No-Go Recommendation
+
+Recommendation:
+
+- Ready for Closed Beta Deployment
+
+Why:
+
+- no verified NFL Redraft operational blocker surfaced
+- deployment, migration, auth, cron, provider, premium, and evidence contracts remain intact
+- targeted closed-beta operational suites passed cleanly
+- remaining concerns are deployment-environment and operator-discipline issues, not new application correctness failures
