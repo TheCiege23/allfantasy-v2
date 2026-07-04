@@ -1314,3 +1314,191 @@ Limitations:
 - Refresh stale NFL Redraft source-contract tests so certification matches the shipped implementation.
 - Triage the non-fatal event persistence warnings in draft finalization and trade-veto flows.
 - Keep repo-wide stabilization separate from NFL Redraft ship-readiness so legacy modules do not obscure launch decisions.
+
+## RC3 Beta Hardening
+
+### Scope
+
+This pass stayed inside the NFL Redraft beta-hardening boundary:
+
+- validate commissioner and manager journeys
+- re-run NFL Redraft build and regression coverage
+- refresh stale RC2 test debt
+- classify only genuine beta blockers, polish items, and post-launch backlog
+
+No new platform features, OS work, AI reasoning, or non-redraft scope was added.
+
+### Scenarios Tested
+
+Production build:
+
+```text
+cmd /c npm run build
+```
+
+Result:
+
+- Passed.
+- Next.js production build completed successfully.
+- Build continues to generate the NFL Redraft route graph successfully.
+
+League lifecycle / dashboard / shell verification:
+
+```text
+cmd /c npx vitest run __tests__/canonical-league-create-pipeline.test.ts __tests__/canonical-league-creation-legacy-payload.test.ts __tests__/nfl-redraft-league-dashboard.test.ts __tests__/redraft-league-ux-regression.test.ts __tests__/redraft-production-smoke-blockers.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result after stale test refresh:
+
+- Covered league creation, dashboard gating, shell labels, pre-draft actions, and draft resolver wiring.
+
+Draft / commissioner controls / mobile draft shell:
+
+```text
+cmd /c npx vitest run __tests__/draft/nfl-redraft-draft-room-smoke.test.ts __tests__/draft/draft-room-functional-regression.test.ts __tests__/draft/d9-mobile-responsive.test.ts __tests__/draft/f2-mobile-polish.test.ts __tests__/draft/draft-completion-chain.test.ts __tests__/redraft/draft-finalize-contract.test.ts __tests__/redraft/draft-finalize-schedule.test.ts __tests__/redraft/redraft-draft-room-hardening.test.ts __tests__/draft/pool-prewarm-controls.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- Current draft-room behavior validated, including mobile layout contracts, cold-start gating, non-blocking resume behavior, finalization flow, and commissioner control wiring.
+
+Season runtime:
+
+```text
+cmd /c npx vitest run __tests__/redraft/lineup-lock-engine.test.ts __tests__/redraft/waiver-scoring.test.ts __tests__/redraft/add-drop-errors.test.ts __tests__/redraft/trade-settlement.test.ts __tests__/redraft/trade-veto-route.test.ts __tests__/redraft/standings-api.test.ts __tests__/redraft/playoff-advance.test.ts __tests__/redraft/playoff-finalize.test.ts __tests__/g43-nfl-redraft-full-season-simulation.test.ts __tests__/redraft/redraft-score-sync-cron.test.ts __tests__/redraft/commissioner-scoring-contract.test.ts __tests__/redraft/team-defense-scoring-contract.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- Passed in this RC cycle.
+- Covered lineup lock, waivers, trades, standings, playoffs, scoring sync, championship finalization, and full-season simulation.
+
+Provider runtime / premium:
+
+```text
+cmd /c npx vitest run __tests__/g47b-nfl-redraft-live-stats-scoring-refresh.test.ts __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts __tests__/g50a-nfl-redraft-production-verification.test.ts __tests__/g50b-nfl-redraft-release-candidate.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- Passed in this RC cycle.
+- Covered live scoring context, evidence persistence/observability, provider certification, and release-candidate runtime checks.
+
+Commissioner flow contracts:
+
+```text
+cmd /c npx vitest run __tests__/commissioner-hub-health.test.ts __tests__/redraft/trade-veto-route.test.ts __tests__/redraft/commissioner-scoring-contract.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- Passed.
+- Covered commissioner visibility, action gating, scoring configuration contract, and trade-veto commissioner path.
+
+Final focused RC3 validation pass:
+
+```text
+cmd /c npx vitest run __tests__/redraft-league-ux-regression.test.ts __tests__/redraft-production-smoke-blockers.test.ts __tests__/draft/pool-prewarm-controls.test.ts __tests__/commissioner-hub-health.test.ts __tests__/canonical-league-create-pipeline.test.ts __tests__/canonical-league-creation-legacy-payload.test.ts __tests__/nfl-redraft-league-dashboard.test.ts __tests__/redraft/trade-veto-route.test.ts __tests__/redraft/commissioner-scoring-contract.test.ts __tests__/g49f-nfl-redraft-premium-evidence-observability.test.ts __tests__/g50a-nfl-redraft-production-verification.test.ts __tests__/g50b-nfl-redraft-release-candidate.test.ts --pool=threads --maxWorkers=1 --reporter=verbose
+```
+
+Result:
+
+- 12 files passed.
+- 204 tests passed.
+
+### Commissioner Flow Verification
+
+Verified through source-contract and runtime tests:
+
+- league creation pipeline remains canonical
+- dashboard shell correctly gates NFL Redraft flows
+- pre-draft commissioner actions still surface draft room, settings, and mock draft entry points
+- commissioner draft controls still wire start, pause, resume, reset timer, undo, and draft settings
+- cold start now truthfully returns `POOL_NOT_READY` while background prewarm runs
+- cold resume still proceeds while warming the pool so paused drafts recover
+- commissioner trade veto flow still enforces commissioner permission and writes expected audit state
+- commissioner scoring configuration contract remains stable
+- commissioner hub health/action summary still builds from canonical runtime state
+
+### Manager Flow Verification
+
+Verified through current regression coverage:
+
+- managers reach the league shell through the NFL Redraft dashboard gate
+- authenticated draft resolver still routes managers into the live draft room
+- draft-room client and shell contracts remain intact
+- lineup lock enforcement remains active
+- waiver scoring and add/drop flows remain active
+- trade settlement flow remains active
+- standings, matchups, playoffs, and championship completion remain active
+- premium evidence and release-candidate service contracts remain stable for manager-facing consumers
+
+### Runtime Verification
+
+Verified:
+
+- live scoring context and refresh coverage
+- lineup lock
+- waiver processing
+- trade runtime and veto path
+- standings update
+- playoff advancement and season finalization
+- provider-backed evidence and premium observability
+- draft pool readiness / cache / prewarm contract
+
+### Mobile Verification
+
+Validated through targeted draft mobile and shell regression coverage:
+
+- draft room responsive layout contracts
+- draft room polished mobile shell behaviors
+- viewport-constrained scroll handling for heavy draft surfaces
+- no newly verified overflow/clipping blocker was surfaced by the touched mobile regression suites
+
+Limitations:
+
+- This pass did not add a new interactive browser walkthrough or fresh console-capture artifact.
+- Mobile verification in RC3 is primarily regression-test based rather than a new manual browser audit.
+
+### Beta Blockers
+
+None verified in this pass.
+
+### High-Priority Polish
+
+- `trade-market` best-effort event capture warnings still appear during passing commissioner veto integration tests; core trade-veto behavior still succeeds.
+- A fresh interactive browser/console verification pass would still be worthwhile before expanding beyond closed beta, even though current regression/build evidence is strong.
+- Build still emits legacy AI migration delegation logs for unrelated legacy endpoints during static generation; not an NFL Redraft blocker, but mildly noisy.
+
+### Post-Launch Backlog
+
+- repo-wide non-redraft TypeScript cleanup
+- World Cup/tournament/legacy module cleanup outside NFL Redraft scope
+- broader browser-console artifact collection for non-redraft routes
+- non-fatal trade-event persistence warning cleanup if it remains isolated to best-effort paths
+
+### Issues Fixed In RC3
+
+- refreshed stale league-shell expectations to match the current shipped `Trades` label behavior and current draft resolver implementation
+- refreshed stale draft prewarm expectations to match the canonical readiness contract:
+  - `getDraftPoolReadiness`
+  - gated cold start with `POOL_NOT_READY`
+  - non-blocking cold resume with background prewarm
+  - shared cache-key builder contract
+
+### Beta Readiness Assessment
+
+PASS for NFL Redraft beta hardening.
+
+Why:
+
+- production build passes
+- commissioner journey contracts remain intact
+- manager journey runtime remains intact
+- season runtime, provider runtime, and premium contracts remain intact
+- stale RC2 test debt has been updated to match the current canonical implementation
+- no verified beta blocker surfaced
+
+Recommendation:
+
+- Ready for Closed Beta
