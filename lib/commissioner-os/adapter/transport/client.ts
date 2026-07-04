@@ -62,12 +62,24 @@ export async function callDecisionOS<T>(
   const authHeaders = await resolveDecisionOSAuthHeaders(config)
   const url = `${config.baseUrl}${path}`
 
+  // Self-referential calls into Vercel Preview/protected deployments hit Vercel's
+  // own SSO wall (redirect to vercel.com/sso-api) before ever reaching this route,
+  // since Deployment Protection applies to server-to-server requests exactly like
+  // browser requests. VERCEL_AUTOMATION_BYPASS_SECRET (set via Project Settings ->
+  // Deployment Protection -> Protection Bypass for Automation) is Vercel's own
+  // documented mechanism for exempting exactly this case; absent locally and in
+  // any environment without protection enabled, so this is a no-op there.
+  const bypassSecret = process.env.VERCEL_AUTOMATION_BYPASS_SECRET
+  const bypassHeaders: Record<string, string> = bypassSecret
+    ? { 'x-vercel-protection-bypass': bypassSecret }
+    : {}
+
   try {
     const data = await fetchJsonWithRetry<T>(
       url,
       {
         ...init,
-        headers: { 'Content-Type': 'application/json', ...authHeaders, ...init.headers },
+        headers: { 'Content-Type': 'application/json', ...authHeaders, ...bypassHeaders, ...init.headers },
         signal: AbortSignal.timeout(config.timeoutMs),
       },
       { context: `decision-os:${moduleId}:${path}` }
