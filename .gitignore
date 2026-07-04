@@ -92,3 +92,4 @@ spotify-final-results.txt
 .env*.local
 
 .env.redraft-test
+.env*
