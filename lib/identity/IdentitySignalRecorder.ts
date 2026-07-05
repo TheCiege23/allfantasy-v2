@@ -34,7 +34,7 @@ export async function recordIdentitySignal(input: {
         contextId: input.contextId?.trim() || null,
       },
     })
-    .catch((err) => {
+    .catch((err: unknown) => {
       // Never let signal capture break the actual signup/login/join flow it's attached to.
       console.error("[identity-signal] record failed (non-fatal):", err)
     })
