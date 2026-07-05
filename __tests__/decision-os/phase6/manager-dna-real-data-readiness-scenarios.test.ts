@@ -42,6 +42,7 @@ vi.mock('@/lib/decision-os/behavioral/port', async () => {
     loadDraftRows: vi.fn(),
     loadRedraftTradeRows: vi.fn(),
     loadRedraftRosterPlayerRows: vi.fn(),
+    loadRedraftRosterMoveRows: vi.fn(),
   }
 })
 
@@ -116,6 +117,9 @@ function mockScenario(before: boolean, scenario: Scenario) {
   vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue(
     before ? [] : (scenario.redraftRosterPlayers ?? []),
   )
+  // Phase 2H source — no lineup-history scenario data exercised in this
+  // Phase 2F harness; keep it empty so results are unaffected here.
+  vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
 }
 
 async function runBeforeAndAfter(scenario: Scenario) {

@@ -11,19 +11,25 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { findManyTradeMock, findManyRosterPlayerMock } = vi.hoisted(() => ({
+const { findManyTradeMock, findManyRosterPlayerMock, findManyRosterMoveHistoryMock } = vi.hoisted(() => ({
   findManyTradeMock: vi.fn(),
   findManyRosterPlayerMock: vi.fn(),
+  findManyRosterMoveHistoryMock: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     redraftTradeProposal: { findMany: findManyTradeMock },
     redraftRosterPlayer: { findMany: findManyRosterPlayerMock },
+    redraftRosterMoveHistory: { findMany: findManyRosterMoveHistoryMock },
   },
 }))
 
-import { loadRedraftTradeRows, loadRedraftRosterPlayerRows } from '@/lib/decision-os/behavioral/port'
+import {
+  loadRedraftTradeRows,
+  loadRedraftRosterPlayerRows,
+  loadRedraftRosterMoveRows,
+} from '@/lib/decision-os/behavioral/port'
 
 describe('loadRedraftTradeRows', () => {
   beforeEach(() => vi.clearAllMocks())
@@ -150,5 +156,60 @@ describe('loadRedraftRosterPlayerRows', () => {
   it('returns an empty array (fails safely) when the league has no redraft roster player rows', async () => {
     findManyRosterPlayerMock.mockResolvedValue([])
     expect(await loadRedraftRosterPlayerRows('lg-empty')).toEqual([])
+  })
+})
+
+describe('loadRedraftRosterMoveRows (Phase 2H)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('returns rows with a real week/season, unlike loadRedraftRosterPlayerRows', async () => {
+    findManyRosterMoveHistoryMock.mockResolvedValue([
+      {
+        id: 'rmh-1',
+        leagueId: 'lg-A',
+        rosterId: 'ros-1',
+        seasonId: 'season-1',
+        season: 2026,
+        week: 7,
+        actorUserId: 'user-1',
+        source: 'user',
+        createdAt: new Date('2026-02-01T00:00:00Z'),
+      },
+    ])
+
+    const rows = await loadRedraftRosterMoveRows('lg-A')
+
+    expect(rows).toEqual([
+      {
+        id: 'rmh-1',
+        leagueId: 'lg-A',
+        rosterId: 'ros-1',
+        seasonId: 'season-1',
+        season: 2026,
+        week: 7,
+        actorUserId: 'user-1',
+        source: 'user',
+        createdAt: new Date('2026-02-01T00:00:00Z'),
+      },
+    ])
+  })
+
+  it('scopes the query to the given leagueId and applies the since filter when provided', async () => {
+    findManyRosterMoveHistoryMock.mockResolvedValue([])
+    const since = new Date('2026-01-01T00:00:00Z')
+
+    await loadRedraftRosterMoveRows('lg-B', since)
+
+    expect(findManyRosterMoveHistoryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { leagueId: 'lg-B', createdAt: { gte: since } },
+        take: 500,
+      }),
+    )
+  })
+
+  it('returns an empty array (fails safely) when the league has no lineup-history rows yet', async () => {
+    findManyRosterMoveHistoryMock.mockResolvedValue([])
+    expect(await loadRedraftRosterMoveRows('lg-empty')).toEqual([])
   })
 })

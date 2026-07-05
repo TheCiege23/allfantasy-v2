@@ -39,6 +39,7 @@ import {
   loadDraftRows,
   loadRedraftTradeRows,
   loadRedraftRosterPlayerRows,
+  loadRedraftRosterMoveRows,
 } from '@/lib/decision-os/behavioral/port'
 import {
   mapWaiverClaimsToEvents,
@@ -47,6 +48,7 @@ import {
   mapDraftRowsToEvents,
   mapRedraftTradesToEvents,
   mapRedraftRosterPlayersToEvents,
+  mapRedraftRosterMovesToEvents,
 } from '@/lib/decision-os/behavioral/mappers'
 import {
   assembleManagerBehavioralFacts,
@@ -79,24 +81,33 @@ function sinceDate(days: number): Date {
 
 /**
  * Same event-loading shape as real-data-provider.ts's loadAllLeagueEvents, plus
- * the Phase 2E redraft trade/roster sources (docs/DECISION_OS_MANAGER_DNA_PHASE2D_REAL_DATA_READINESS.md):
+ * the Phase 2E redraft trade/roster sources (docs/DECISION_OS_MANAGER_DNA_PHASE2D_REAL_DATA_READINESS.md)
+ * and the Phase 2H redraft lineup-history source (docs/DECISION_OS_MANAGER_DNA_PHASE2G_VOLUME_AND_LINEUP_HISTORY_SCOPE.md):
  * the live redraft product writes to RedraftTradeProposal/RedraftTradeAsset and
  * RedraftRoster/RedraftRosterPlayer, not AfLeagueTrade/AfRosterMoveHistory — so
- * without these two additional sources, real redraft trade and roster activity
- * would never reach this pipeline at all. All four original sources are
- * unchanged; this only adds two more to the same Promise.all/event-array
- * composition.
+ * without these additional sources, real redraft trade and roster activity
+ * would never reach this pipeline at all. `redraftRosterMoveRows` (Phase 2H)
+ * is the only source with a real, non-null week — everything else composed
+ * here is unchanged.
  */
 async function loadLeagueEvents(leagueId: string, since: Date): Promise<BehavioralEvent[]> {
-  const [waiverRows, tradeRows, rosterMoveRows, draftData, redraftTradeRows, redraftRosterPlayerRows] =
-    await Promise.all([
-      loadWaiverClaimRows(leagueId, since),
-      loadLeagueTradeRows(leagueId, since),
-      loadRosterMoveRows(leagueId, since),
-      loadDraftRows(leagueId),
-      loadRedraftTradeRows(leagueId, since),
-      loadRedraftRosterPlayerRows(leagueId, since),
-    ])
+  const [
+    waiverRows,
+    tradeRows,
+    rosterMoveRows,
+    draftData,
+    redraftTradeRows,
+    redraftRosterPlayerRows,
+    redraftRosterMoveRows,
+  ] = await Promise.all([
+    loadWaiverClaimRows(leagueId, since),
+    loadLeagueTradeRows(leagueId, since),
+    loadRosterMoveRows(leagueId, since),
+    loadDraftRows(leagueId),
+    loadRedraftTradeRows(leagueId, since),
+    loadRedraftRosterPlayerRows(leagueId, since),
+    loadRedraftRosterMoveRows(leagueId, since),
+  ])
   return [
     ...mapWaiverClaimsToEvents(waiverRows),
     ...mapLeagueTradesToEvents(tradeRows),
@@ -104,6 +115,7 @@ async function loadLeagueEvents(leagueId: string, since: Date): Promise<Behavior
     ...mapDraftRowsToEvents(draftData.session, draftData.picks),
     ...mapRedraftTradesToEvents(redraftTradeRows),
     ...mapRedraftRosterPlayersToEvents(redraftRosterPlayerRows),
+    ...mapRedraftRosterMovesToEvents(redraftRosterMoveRows),
   ]
 }
 

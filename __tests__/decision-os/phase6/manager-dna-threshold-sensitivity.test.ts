@@ -26,6 +26,7 @@ vi.mock('@/lib/decision-os/behavioral/port', async () => {
     loadDraftRows: vi.fn(),
     loadRedraftTradeRows: vi.fn(),
     loadRedraftRosterPlayerRows: vi.fn(),
+    loadRedraftRosterMoveRows: vi.fn(),
   }
 })
 
@@ -72,6 +73,7 @@ async function runTrades(n: number) {
   vi.mocked(port.loadDraftRows).mockImplementation(emptyDraft)
   vi.mocked(port.loadRedraftTradeRows).mockResolvedValue(makeTrades(n))
   vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
+  vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
   return resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 }
 
@@ -82,6 +84,7 @@ async function runFreeAgents(n: number) {
   vi.mocked(port.loadDraftRows).mockImplementation(emptyDraft)
   vi.mocked(port.loadRedraftTradeRows).mockResolvedValue([])
   vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue(makeFreeAgents(n))
+  vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
   return resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 }
 

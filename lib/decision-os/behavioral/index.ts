@@ -80,6 +80,7 @@ export type {
   RawDraftPickRow,
   RawRedraftTradeRow,
   RawRedraftRosterPlayerRow,
+  RawRedraftRosterMoveRow,
 } from './port'
 
 export {
@@ -89,6 +90,7 @@ export {
   loadDraftRows,
   loadRedraftTradeRows,
   loadRedraftRosterPlayerRows,
+  loadRedraftRosterMoveRows,
 } from './port'
 
 // ── Phase 5.1: Mappers (pure row → event) ────────────────────────────────────
@@ -119,6 +121,8 @@ export {
   mapRedraftTradesToEvents,
   mapRedraftRosterPlayerToLineupSavedEvent,
   mapRedraftRosterPlayersToEvents,
+  mapRedraftRosterMoveToLineupSavedEvent,
+  mapRedraftRosterMovesToEvents,
 } from './mappers'
 
 // ── Phase 5.1: Assembler (pure events → facts) ───────────────────────────────

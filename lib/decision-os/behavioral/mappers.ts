@@ -25,6 +25,7 @@ import type {
   RawDraftPickRow,
   RawRedraftTradeRow,
   RawRedraftRosterPlayerRow,
+  RawRedraftRosterMoveRow,
 } from './port'
 
 // ── Waiver mappers ────────────────────────────────────────────────────────────
@@ -605,4 +606,52 @@ export function mapRedraftRosterPlayersToEvents(rows: RawRedraftRosterPlayerRow[
     if (event) events.push(event)
   }
   return events
+}
+
+// ── Phase 2H: Redraft lineup-save history mapper ─────────────────────────────
+
+/**
+ * Map a RedraftRosterMoveHistory row to a `lineup_saved` event with a REAL
+ * week/season — unlike `mapRedraftRosterPlayerToLineupSavedEvent` above,
+ * which honestly has to leave week/season null (RedraftRosterPlayer has no
+ * such columns). This is the source docs/DECISION_OS_MANAGER_DNA_PHASE2G_VOLUME_AND_LINEUP_HISTORY_SCOPE.md
+ * scoped specifically to unlock lib/decision-os/phase6/patterns/patterns.ts's
+ * lineup-based pattern detectors (which explicitly skip week=null events).
+ * Slot-level detail (slotChanges, startedPlayerIds, benchedPlayerIds) is
+ * still not stored per-event here — honest zeros/empty arrays, same
+ * convention as every other lineup_saved mapper in this file.
+ */
+export function mapRedraftRosterMoveToLineupSavedEvent(row: RawRedraftRosterMoveRow): BehavioralEvent {
+  const completeness = computeEventCompleteness({
+    hasManagerId: row.actorUserId != null,
+    timestampConfidence: 'exact',
+    hasProvider: false,
+    missingMetadataFieldCount: 1, // slot-level detail unavailable
+  })
+
+  return {
+    eventId: `redraft_roster_move_history_${row.id}`,
+    eventType: 'lineup_saved',
+    occurredAt: row.createdAt.toISOString(),
+    recordedAt: row.createdAt.toISOString(),
+    leagueId: row.leagueId,
+    managerId: row.actorUserId,
+    source: 'api',
+    provenance: makeSystemProvenance(['RedraftRosterMoveHistory']),
+    completeness,
+    uncertainty: makeMinUncertainty(),
+    metadata: {
+      week: row.week,
+      season: row.season,
+      leagueType: 'redraft',
+      slotChanges: 0,
+      startedPlayerIds: [],
+      benchedPlayerIds: [],
+    },
+  }
+}
+
+/** Map a batch of RedraftRosterMoveHistory rows to BehavioralEvent[]. */
+export function mapRedraftRosterMovesToEvents(rows: RawRedraftRosterMoveRow[]): BehavioralEvent[] {
+  return rows.map(mapRedraftRosterMoveToLineupSavedEvent)
 }

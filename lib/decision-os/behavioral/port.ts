@@ -20,6 +20,13 @@
  * `loadRedraftTradeRows` and `loadRedraftRosterPlayerRows` below are new,
  * additive loaders reading those tables so real redraft activity becomes
  * visible to the same downstream pipeline — nothing above this comment changed.
+ *
+ * Phase 2H addition (docs/DECISION_OS_MANAGER_DNA_PHASE2G_VOLUME_AND_LINEUP_HISTORY_SCOPE.md
+ * §2): `loadRedraftRosterMoveRows` reads the new RedraftRosterMoveHistory
+ * table (written by app/api/redraft/roster/route.ts's PATCH handler), which
+ * — unlike the free-agent-derived roster signal above — carries a real,
+ * non-null `week`, making it visible to Phase 6.1's lineup-based pattern
+ * detectors for the first time.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -535,5 +542,77 @@ export async function loadRedraftRosterPlayerRows(
     acquisitionType: row.acquisitionType,
     addedAt: row.addedAt,
     droppedAt: row.droppedAt ?? null,
+  }))
+}
+
+// ── Phase 2H: Redraft lineup-save history raw row interface + loader ────────
+
+/**
+ * A RedraftRosterMoveHistory row — unlike RawRedraftRosterPlayerRow, this
+ * carries a real, non-null `week`/`season` (see recordRedraftRosterMoveHistory
+ * in lib/redraft/rosterMoveHistory.ts), so events derived from this source
+ * are visible to Phase 6.1's lineup-based pattern detectors.
+ */
+export interface RawRedraftRosterMoveRow {
+  id: string
+  leagueId: string
+  rosterId: string
+  seasonId: string
+  season: number
+  week: number
+  actorUserId: string | null
+  source: string
+  createdAt: Date
+}
+
+/**
+ * Load RedraftRosterMoveHistory rows for a league. Read-only, same MAX_ROWS
+ * cap and since-date filtering as every other loader in this file. Returns an
+ * empty array (never throws on a missing/empty table) — the same
+ * fails-safely contract every other loader here already has.
+ */
+export async function loadRedraftRosterMoveRows(
+  leagueId: string,
+  since?: Date,
+): Promise<RawRedraftRosterMoveRow[]> {
+  const rows = await prisma.redraftRosterMoveHistory.findMany({
+    where: {
+      leagueId,
+      ...(since ? { createdAt: { gte: since } } : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: MAX_ROWS,
+    select: {
+      id: true,
+      leagueId: true,
+      rosterId: true,
+      seasonId: true,
+      season: true,
+      week: true,
+      actorUserId: true,
+      source: true,
+      createdAt: true,
+    },
+  })
+  return rows.map((row: {
+    id: string
+    leagueId: string
+    rosterId: string
+    seasonId: string
+    season: number
+    week: number
+    actorUserId: string | null
+    source: string
+    createdAt: Date
+  }): RawRedraftRosterMoveRow => ({
+    id: row.id,
+    leagueId: row.leagueId,
+    rosterId: row.rosterId,
+    seasonId: row.seasonId,
+    season: row.season,
+    week: row.week,
+    actorUserId: row.actorUserId ?? null,
+    source: row.source,
+    createdAt: row.createdAt,
   }))
 }

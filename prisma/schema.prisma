@@ -5502,6 +5502,7 @@ model League {
   afLeagueTrades                        AfLeagueTrade[]
   afRosterLineupAssignments             AfRosterLineupAssignment[]
   afRosterMoveHistory                   AfRosterMoveHistory[]
+  redraftRosterMoveHistory              RedraftRosterMoveHistory[]
   afLineupLockStates                    AfLineupLockState[]
   waiverRuns                            WaiverRun[]
   waiverResults                         WaiverResult[]
@@ -12823,6 +12824,7 @@ model RedraftRoster {
   playoffWinningMatchups   RedraftPlayoffMatchup[]    @relation("RedraftPlayoffWinnerRoster")
   playoffSeeds             RedraftPlayoffSeed[]
   players                  RedraftRosterPlayer[]
+  rosterMoveHistory        RedraftRosterMoveHistory[]
   season                   RedraftSeason              @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   tradeAssetsFrom          RedraftTradeAsset[]        @relation("RedraftTradeAssetFrom")
   tradeAssetsTo            RedraftTradeAsset[]        @relation("RedraftTradeAssetTo")
@@ -12857,6 +12859,35 @@ model RedraftRosterPlayer {
   @@index([rosterId])
   @@index([playerId])
   @@map("redraft_roster_players")
+}
+
+/// Phase 2H — lineup-save history for redraft rosters, giving Phase 6 Decision
+/// OS DNA a real `week` value for lineup_saved events (see
+/// docs/DECISION_OS_MANAGER_DNA_PHASE2G_VOLUME_AND_LINEUP_HISTORY_SCOPE.md §2).
+/// Mirrors AfRosterMoveHistory's shape/hash-dedup convention exactly; no
+/// RedraftSeason relation (season is a plain Int here too, matching
+/// AfRosterMoveHistory, to avoid a field-name collision with the `season`
+/// scalar column).
+model RedraftRosterMoveHistory {
+  id          String        @id @default(cuid())
+  leagueId    String
+  rosterId    String
+  seasonId    String
+  season      Int
+  week        Int
+  actorUserId String?       @db.VarChar(128)
+  source      String        @db.VarChar(32)
+  moveSummary String?       @db.VarChar(512)
+  beforeHash  String?       @db.VarChar(64)
+  afterHash   String?       @db.VarChar(64)
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  league      League        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster      RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, rosterId, createdAt])
+  @@index([leagueId, seasonId, week])
+  @@map("redraft_roster_move_history")
 }
 
 model RedraftMatchup {

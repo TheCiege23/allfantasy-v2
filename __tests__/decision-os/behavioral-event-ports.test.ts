@@ -41,6 +41,8 @@ import {
   mapRedraftTradesToEvents,
   mapRedraftRosterPlayerToLineupSavedEvent,
   mapRedraftRosterPlayersToEvents,
+  mapRedraftRosterMoveToLineupSavedEvent,
+  mapRedraftRosterMovesToEvents,
 } from '@/lib/decision-os/behavioral/mappers'
 
 import {
@@ -57,6 +59,7 @@ import type {
   RawDraftPickRow,
   RawRedraftTradeRow,
   RawRedraftRosterPlayerRow,
+  RawRedraftRosterMoveRow,
 } from '@/lib/decision-os/behavioral/port'
 
 import type { BehavioralEvent } from '@/lib/decision-os/behavioral'
@@ -672,6 +675,68 @@ describe('mapRedraftRosterPlayersToEvents', () => {
 
   it('returns empty array for empty input', () => {
     expect(mapRedraftRosterPlayersToEvents([])).toEqual([])
+  })
+})
+
+// ── Phase 2H: Redraft lineup-history mapper ──────────────────────────────────
+
+function makeRedraftRosterMoveRow(overrides: Partial<RawRedraftRosterMoveRow> = {}): RawRedraftRosterMoveRow {
+  return {
+    id: 'rmh-001',
+    leagueId: 'lg-A',
+    rosterId: 'ros-1',
+    seasonId: 'season-1',
+    season: 2026,
+    week: 7,
+    actorUserId: 'user-1',
+    source: 'user',
+    createdAt: T0,
+    ...overrides,
+  }
+}
+
+describe('mapRedraftRosterMoveToLineupSavedEvent', () => {
+  it('produces lineup_saved with a REAL, non-null week and season', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow({ week: 9, season: 2026 }))
+    expect(e.eventType).toBe('lineup_saved')
+    expect(e.metadata).toMatchObject({ week: 9, season: 2026, leagueType: 'redraft' })
+  })
+
+  it('uses actorUserId as managerId', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow({ actorUserId: 'user-42' }))
+    expect(e.managerId).toBe('user-42')
+  })
+
+  it('degrades completeness when actorUserId is null, but never fabricates one', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow({ actorUserId: null }))
+    expect(e.managerId).toBeNull()
+    expect(e.completeness).toBeLessThan(100)
+  })
+
+  it('provenance derivedFrom names RedraftRosterMoveHistory', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow())
+    expect(e.provenance.derivedFrom).toEqual(['RedraftRosterMoveHistory'])
+    expect(e.provenance.provider).toBeNull()
+  })
+
+  it('still sets honest zeros for slot-level detail (not stored per-event)', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow())
+    expect(e.metadata).toMatchObject({ slotChanges: 0, startedPlayerIds: [], benchedPlayerIds: [] })
+  })
+})
+
+describe('mapRedraftRosterMovesToEvents', () => {
+  it('emits one lineup_saved event per row', () => {
+    const events = mapRedraftRosterMovesToEvents([
+      makeRedraftRosterMoveRow({ id: 'rmh-1' }),
+      makeRedraftRosterMoveRow({ id: 'rmh-2' }),
+    ])
+    expect(events).toHaveLength(2)
+    expect(events.every((e) => e.eventType === 'lineup_saved')).toBe(true)
+  })
+
+  it('returns empty array for empty input (missing history fails safely, not with an error)', () => {
+    expect(mapRedraftRosterMovesToEvents([])).toEqual([])
   })
 })
 

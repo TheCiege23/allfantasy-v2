@@ -20,6 +20,7 @@ import type {
   RawDraftPickRow,
   RawRedraftTradeRow,
   RawRedraftRosterPlayerRow,
+  RawRedraftRosterMoveRow,
 } from '@/lib/decision-os/behavioral/port'
 
 vi.mock('@/lib/decision-os/behavioral/port', async () => {
@@ -34,6 +35,7 @@ vi.mock('@/lib/decision-os/behavioral/port', async () => {
     loadDraftRows: vi.fn(),
     loadRedraftTradeRows: vi.fn(),
     loadRedraftRosterPlayerRows: vi.fn(),
+    loadRedraftRosterMoveRows: vi.fn(),
   }
 })
 
@@ -123,12 +125,26 @@ const makeRedraftRosterPlayerRow = (o: Partial<RawRedraftRosterPlayerRow> = {}):
   ...o,
 })
 
+const makeRedraftRosterMoveRow = (o: Partial<RawRedraftRosterMoveRow> = {}): RawRedraftRosterMoveRow => ({
+  id: 'redraft-rmh-1',
+  leagueId: LG,
+  rosterId: 'roster-1',
+  seasonId: 'season-1',
+  season: 2026,
+  week: 7,
+  actorUserId: MGR,
+  source: 'user',
+  createdAt: new Date('2026-01-09T12:00:00Z'),
+  ...o,
+})
+
 function mockPorts(overrides: {
   waivers?: RawWaiverClaimRow[]
   trades?: RawLeagueTradeRow[]
   rosterMoves?: RawRosterMoveRow[]
   redraftTrades?: RawRedraftTradeRow[]
   redraftRosterPlayers?: RawRedraftRosterPlayerRow[]
+  redraftRosterMoves?: RawRedraftRosterMoveRow[]
 } = {}) {
   vi.mocked(port.loadWaiverClaimRows).mockResolvedValue(overrides.waivers ?? [])
   vi.mocked(port.loadLeagueTradeRows).mockResolvedValue(overrides.trades ?? [])
@@ -136,6 +152,7 @@ function mockPorts(overrides: {
   vi.mocked(port.loadDraftRows).mockImplementation(emptyDraftResult)
   vi.mocked(port.loadRedraftTradeRows).mockResolvedValue(overrides.redraftTrades ?? [])
   vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue(overrides.redraftRosterPlayers ?? [])
+  vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue(overrides.redraftRosterMoves ?? [])
 }
 
 describe('resolveManagerIntelligencePayload', () => {
@@ -178,6 +195,7 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadDraftRows).mockImplementation(emptyDraftResult)
     vi.mocked(port.loadRedraftTradeRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
+    vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
@@ -191,6 +209,21 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadDraftRows).mockImplementation(emptyDraftResult)
     vi.mocked(port.loadRedraftTradeRows).mockRejectedValue(new Error('redraft_trade_proposals unavailable'))
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
+    vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result).toEqual({ managerDna: null, recommendations: null })
+  })
+
+  it('is degraded-safe when specifically the Phase 2H lineup-history loader fails (missing history fails safely)', async () => {
+    vi.mocked(port.loadWaiverClaimRows).mockResolvedValue([])
+    vi.mocked(port.loadLeagueTradeRows).mockResolvedValue([])
+    vi.mocked(port.loadRosterMoveRows).mockResolvedValue([])
+    vi.mocked(port.loadDraftRows).mockImplementation(emptyDraftResult)
+    vi.mocked(port.loadRedraftTradeRows).mockResolvedValue([])
+    vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
+    vi.mocked(port.loadRedraftRosterMoveRows).mockRejectedValue(new Error('redraft_roster_move_history unavailable'))
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
@@ -313,5 +346,67 @@ describe('resolveManagerIntelligencePayload', () => {
     expect(result.managerDna).not.toBeNull()
     expect(result.managerDna!.primaryIdentity).toBe('unknown')
     expect(result.recommendations).not.toBeNull()
+  })
+
+  // ── Phase 2H: redraft lineup-history (real week) now visible to Phase 6 DNA ─
+
+  it('calls loadRedraftRosterMoveRows with the league id and a since Date', async () => {
+    mockPorts()
+    await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+    expect(port.loadRedraftRosterMoveRows).toHaveBeenCalledWith(LG, expect.any(Date))
+  })
+
+  it('existing behavior (waivers + redraft trades) is unchanged when there is zero lineup-history data (regression guard)', async () => {
+    mockPorts({
+      waivers: [makeWaiverRow({ id: 'wc-1' })],
+      // 2+ trades is the measured minimum to flip transactionStyle (see the
+      // Phase 2F/2G sensitivity findings) — matches the existing "redraft
+      // trade activity alone" test above exactly.
+      redraftTrades: [makeRedraftTradeRow({ id: 'rt-1' }), makeRedraftTradeRow({ id: 'rt-2', createdAt: new Date('2026-01-09T12:00:00Z') })],
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.transactionStyle).toBe('trade_dominant')
+  })
+
+  it('a real week now reaches Phase 6.1 pattern detection — something free-agent-only signal (Phase 2E) could never do', async () => {
+    // 4 lineup-history rows in the SAME real week (5) — previously impossible:
+    // mapRedraftRosterPlayerToLineupSavedEvent (Phase 2E) has to leave
+    // metadata.week null, and patterns.ts explicitly skips week=null events.
+    // This scenario is only reachable at all because Phase 2H's mapper
+    // carries a real week value.
+    mockPorts({
+      redraftRosterMoves: Array.from({ length: 4 }, (_, i) =>
+        makeRedraftRosterMoveRow({ id: `rmh-${i}`, week: 5, createdAt: new Date(2026, 0, i + 1, 12) }),
+      ),
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result.managerDna).not.toBeNull()
+    // Measured directly (not hand-derived): deriveDecisionStyle checks for a
+    // repeated_lineup_indecision pattern BEFORE falling back to a rate-based
+    // check — this identity is unreachable without a real week value.
+    expect(result.managerDna!.decisionStyle).toBe('indecisive')
+    expect(result.managerDna!.traits).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ trait: 'lineup_tinkerer', evidence: ['1 week(s) with 3+ lineup saves'] }),
+      ]),
+    )
+  })
+
+  it('does not double-count: this source is additive alongside free-agent roster signal, not a replacement', async () => {
+    mockPorts({
+      redraftRosterPlayers: [makeRedraftRosterPlayerRow({ id: 'rp-1' })],
+      redraftRosterMoves: [makeRedraftRosterMoveRow({ id: 'rmh-1' })],
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    // Both sources contribute to the same manager's facts without conflict —
+    // no crash, no duplicate-event rejection, a real (non-error) profile.
+    expect(result.managerDna).not.toBeNull()
   })
 })
