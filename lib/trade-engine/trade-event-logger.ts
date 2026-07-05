@@ -4,7 +4,7 @@ import { prisma } from '../prisma'
 
 export const CURRENT_MODEL_VERSION = 'v2.1.0'
 
-export type TradeOfferMode = 'INSTANT' | 'STRUCTURED' | 'TRADE_IDEAS' | 'PROPOSAL_GENERATOR' | 'TRADE_CONSOLE'
+export type TradeOfferMode = 'INSTANT' | 'STRUCTURED' | 'TRADE_IDEAS' | 'PROPOSAL_GENERATOR' | 'TRADE_CONSOLE' | 'LIVE_PROPOSAL'
 
 function toPrismaTradeOfferMode(mode: TradeOfferMode): PrismaTradeOfferMode {
   if (mode === 'TRADE_CONSOLE') return 'TRADE_HUB'
@@ -47,6 +47,10 @@ export interface TradeOfferEventInput {
   isSuperFlex?: boolean | null
   leagueFormat?: string | null
   scoringType?: string | null
+  /** Real idempotency key for live-captured offers (AfLeagueTrade.id) — see
+   * docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md §1.3. Omit for
+   * hypothetical-evaluation-tool calls (unchanged, existing behavior). */
+  afLeagueTradeId?: string | null
 }
 
 function computeInputHash(input: TradeOfferEventInput): string {
@@ -101,12 +105,23 @@ export async function logTradeOfferEvent(input: TradeOfferEventInput): Promise<s
         isSuperFlex: input.isSuperFlex ?? null,
         leagueFormat: input.leagueFormat ?? null,
         scoringType: input.scoringType ?? null,
+        afLeagueTradeId: input.afLeagueTradeId ?? null,
         modelVersion: CURRENT_MODEL_VERSION,
       },
     })
     return event.id
   } catch (err: any) {
     if (err?.code === 'P2002') {
+      // Idempotent retry: if this was a live-capture call keyed by
+      // afLeagueTradeId, return the already-captured event's id instead of
+      // null, so the caller can still link an outcome to it later.
+      if (input.afLeagueTradeId) {
+        const existing = await prisma.tradeOfferEvent.findUnique({
+          where: { afLeagueTradeId: input.afLeagueTradeId },
+          select: { id: true },
+        }).catch(() => null)
+        return existing?.id ?? null
+      }
       return null
     }
     console.error('[TradeEventLogger] Failed to log trade offer event:', err)
@@ -114,7 +129,9 @@ export async function logTradeOfferEvent(input: TradeOfferEventInput): Promise<s
   }
 }
 
-export type TradeOutcomeStatus = 'accepted' | 'rejected' | 'expired' | 'countered' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'COUNTERED'
+export type TradeOutcomeStatus =
+  | 'accepted' | 'rejected' | 'expired' | 'countered' | 'unknown'
+  | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'COUNTERED' | 'UNKNOWN'
 
 export interface TradeOutcomeEventInput {
   offerEventId?: string | null
@@ -124,6 +141,9 @@ export interface TradeOutcomeEventInput {
   outcome: TradeOutcomeStatus
   timeToDecisionMinutes?: number | null
   finalTradeId?: string | null
+  /** Real idempotency key for live-captured outcomes (AfLeagueTrade.id) — see
+   * docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md §1.3. */
+  afLeagueTradeId?: string | null
 }
 
 export async function logTradeOutcomeEvent(input: TradeOutcomeEventInput): Promise<string | null> {
@@ -134,13 +154,26 @@ export async function logTradeOutcomeEvent(input: TradeOutcomeEventInput): Promi
         leagueId: input.leagueId ?? null,
         week: input.week ?? null,
         season: input.season ?? null,
-        outcome: input.outcome.toUpperCase() as 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'COUNTERED',
+        outcome: input.outcome.toUpperCase() as 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'COUNTERED' | 'UNKNOWN',
         timeToDecisionMin: input.timeToDecisionMinutes ?? null,
         leagueTradeId: input.finalTradeId ?? null,
+        afLeagueTradeId: input.afLeagueTradeId ?? null,
       },
     })
     return event.id
-  } catch (err) {
+  } catch (err: any) {
+    if (err?.code === 'P2002') {
+      // Idempotent retry: already captured for this afLeagueTradeId (or this
+      // offerEventId already has an outcome) — treat as success, not an error.
+      if (input.afLeagueTradeId) {
+        const existing = await prisma.tradeOutcomeEvent.findUnique({
+          where: { afLeagueTradeId: input.afLeagueTradeId },
+          select: { id: true },
+        }).catch(() => null)
+        return existing?.id ?? null
+      }
+      return null
+    }
     console.error('[TradeEventLogger] Failed to log trade outcome event:', err)
     return null
   }

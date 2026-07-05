@@ -1,9 +1,11 @@
 # ADR — Trade Learning: Live Capture Architecture
 
-**Status:** Proposed. Not implemented. No source code changed in this session.
+**Status:** Proposed and **implemented (Trade Learning Phase 8)**. Schema migration authored and validated offline — **not yet deployed to any environment** (no database connection made during implementation, consistent with this workstream's established rule).
 **Branch:** `g15-event-foundation`
 **Follows:** `docs/TRADE_LEARNING_DATA_CAPTURE_AUDIT.md` (root-cause audit, corrected `d0ab01590`), `docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md` (the precedent this ADR's format and governance approach deliberately mirrors), `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`.
-**Constraint honored:** this document proposes no code, no migration, no calibration-math change. It exists so a human reviews the design questions before any implementation phase touches the real trade-completion code path.
+**Constraint honored (original ADR turn):** this document proposed no code, no migration, no calibration-math change, so a human could review the design questions before any implementation phase touched the real trade-completion code path.
+
+> **Implementation update (Phase 8):** every decision below was implemented exactly as specified, with one exception discovered during implementation and handled per this phase's own explicit instruction ("if implementation reveals the ADR cannot be implemented as written due to an unforeseen architectural constraint, stop... and do not invent an alternative architecture"): **`AfLeagueTrade.status` never actually transitions to `'expired'` anywhere in the current codebase** — confirmed by repo-wide grep, zero write sites found. The `expired → EXPIRED` mapping itself is implemented (ready to fire correctly if this is ever triggered), but there is no live code path to hook it to. This is documented, not invented around — see `docs/TRADE_LEARNING_DATA_CAPTURE_AUDIT.md`'s implementation-record section for detail. It does not block the other five (of six) status mappings, all of which have real, confirmed transition points and are fully wired.
 
 ## Why this needs an ADR and not a direct implementation
 
@@ -128,18 +130,37 @@ model TradeOutcomeEvent {
 
 ---
 
-## Explicit non-goals
+## Explicit non-goals (unchanged by Phase 8's implementation)
 
-- Does not implement anything — that is the next, separate phase, once this ADR is reviewed.
-- Does not change `calibrateInterceptFromOutcomes()`, `calibrateFromFeedback()`, `promoteShadowB0()`, or any calibration formula/weight/threshold.
-- Does not touch Decision OS, AI Coach, Chimmy, or any public API.
-- Does not resolve the `Feedback`/`TradeFeedback` question (Decision 4) — explicitly deferred.
-- Does not enable `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED`.
+- `calibrateInterceptFromOutcomes()`, `calibrateFromFeedback()`, `promoteShadowB0()`, and every calibration formula/weight/threshold: untouched.
+- Decision OS, AI Coach, Chimmy: untouched. No public API added or changed.
+- The `Feedback`/`TradeFeedback` question (Decision 4): still explicitly deferred, not resolved by this implementation.
+- `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED`: still unset everywhere.
+
+---
+
+## Implementation record (Phase 8)
+
+- **Schema**: `TradeOfferMode.LIVE_PROPOSAL` added; `TradeOfferEvent.afLeagueTradeId`/`TradeOutcomeEvent.afLeagueTradeId` (both nullable, unique) added. Migration `prisma/migrations/20260705010000_add_trade_learning_live_capture/migration.sql`, hand-authored, `prisma validate`/`generate` run offline — **not deployed to any environment**.
+- **Prediction capture**: `lib/league-trade-engine/tradeLearningCapture.ts` (new) — `captureLiveTradeOffer()` reuses `computeTradeDrivers()` + `calibrateAcceptProbability()` (the same deterministic pipeline `runCoreEngine()` uses internally, minus its AI-narrative/negotiation-toolkit layer) with zero new prediction math. Resolves `AfLeagueTradeItem`s via the existing `findPlayerBySleeperId`/`getPickValue`/`fetchFantasyCalcValues` helpers, with the same flat-default-value fallback convention `lib/trade-learning.ts`'s `analyzeHistoricalTrade()` already uses for unresolvable assets.
+- **Outcome capture**: `captureLiveTradeOutcome()` implements Decision 2's mapping exactly (`processed→ACCEPTED`, `rejected→REJECTED`, `countered→COUNTERED`, `expired→EXPIRED`, `vetoed→UNKNOWN`, `cancelled→UNKNOWN`), looks up the linked offer by `afLeagueTradeId`, writes with `offerEventId` set.
+- **Wiring**: `lib/league-trade-engine/tradeService.ts` calls these at every real, confirmed transition point (`createAfLeagueTrade`, the counter-parent update, `finalizeAfLeagueTradeProcessing`, `commissionerAfTradeDecision`'s reject branch, `rejectAfLeagueTrade`, `cancelAfLeagueTrade`, `castAfTradeVetoVote`'s threshold branch) — all `await`ed after the real state change (outside any transaction), all fail-safe internally (never throw).
+- **Idempotency**: both new `afLeagueTradeId` columns are uniquely constrained; `logTradeOfferEvent()`/`logTradeOutcomeEvent()` catch `P2002` and return the already-captured row's id instead of erroring.
+- **Tests**: 26 new tests across three files (`trade-learning-capture.test.ts`, `league-trade-engine-live-capture-wiring.test.ts`, `live-capture-calibration-integration.test.ts`) — see `docs/TRADE_LEARNING_DATA_CAPTURE_AUDIT.md` for the full list and verification results.
 
 ---
 
 ## Files changed in this session
 
-- `docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md` (this document, new)
+- `docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md` (this document, updated with the implementation record above)
+- `prisma/schema.prisma` (modified — additive: `LIVE_PROPOSAL` enum value, two new `afLeagueTradeId` columns)
+- `prisma/migrations/20260705010000_add_trade_learning_live_capture/migration.sql` (new)
+- `lib/trade-engine/trade-event-logger.ts` (modified — extended `TradeOfferMode`/`TradeOutcomeStatus` unions, added `afLeagueTradeId` to both input/write paths, added idempotent `P2002` handling)
+- `lib/league-trade-engine/tradeLearningCapture.ts` (new)
+- `lib/league-trade-engine/tradeService.ts` (modified — wired capture calls at 7 real call sites)
+- `__tests__/trade-engine/trade-learning-capture.test.ts` (new)
+- `__tests__/league-trade-engine-live-capture-wiring.test.ts` (new)
+- `__tests__/trade-engine/live-capture-calibration-integration.test.ts` (new)
+- `docs/TRADE_LEARNING_DATA_CAPTURE_AUDIT.md` (updated)
 
-No other file was created, modified, or deleted. No schema, migration, or source code change was made. No database was queried or connected to.
+No calibration formula/weight/threshold, Decision OS code, AI Coach, Chimmy, or public API was touched. No database was queried or connected to — the migration was authored and validated offline only.

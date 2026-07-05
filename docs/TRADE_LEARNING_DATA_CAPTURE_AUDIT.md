@@ -1,8 +1,8 @@
 # Trade Learning — Data Capture Readiness Audit
 
-**Status:** Audit complete. No code changed — the obvious-looking fix turned out to require a product decision, per this phase's own explicit branching rule (see §4).
+**Status:** Audit complete (Phase 5). **Implemented in Phase 8** (`docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md`) — see the implementation-record section appended at the end of this document.
 **Branch:** `g15-event-foundation`
-**Scope:** Decision OS — Trade Learning Phase 5, following Phase 1 (`0376b9ed0`), Phase 2 (`092b0a114`), Phase 3 (`6766d4fa4`), Phase 4 (`45c538a67`).
+**Scope:** Decision OS — Trade Learning Phase 5, following Phase 1 (`0376b9ed0`), Phase 2 (`092b0a114`), Phase 3 (`6766d4fa4`), Phase 4 (`45c538a67`). Extended by Phase 6 (capture architecture ADR, `f51f9a6ef`) and Phase 8 (implementation, this update).
 **Method:** Read-only code audit (three parallel research passes plus direct verification of their findings). No database connection this session — Phase 4 already measured staging's row counts; this phase explains *why* those counts are zero.
 
 > **Correction (same session, after the third research pass finished and was verified):** the first version of this document, and the commit it shipped in, claimed `TradeFeedback` has zero live write call sites anywhere in the codebase. **That was wrong** — the third research pass found a real one, verified directly: `POST /api/legacy/trade/feedback` (dispatched via `app/api/legacy/[...path]/route.ts`'s `["trade","feedback"]` pattern to `server/api-route-modules/legacy/trade/feedback/route.ts:53`, `prisma.tradeFeedback.create(...)`), called from `app/af-legacy/page.tsx`'s `submitTradeFeedback()` — a real, `gtag`-tracked rating widget on AI-suggested trades in a "trade finder" feature. The earlier claim was based on a grep that never searched `server/` (only `app/`, `lib/`, `scripts/`) — an incomplete search, not a correct finding stated with appropriate hedging. §1, §2, and §3 below are corrected accordingly. This is left visible rather than silently fixed, consistent with this workstream's practice of treating its own prior claims as falsifiable.
@@ -96,8 +96,55 @@ Only after that ADR is reviewed should implementation (the actual write points f
 
 ---
 
-## Files changed in this session
+## Files changed in the original (Phase 5) session
 
 - `docs/TRADE_LEARNING_DATA_CAPTURE_AUDIT.md` (this document — created, then corrected in the same session after the third research pass's finding was verified; see the correction note at the top)
 
-No source code was created, modified, or deleted. No calibration math, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere. No database was queried this session (Phase 4 already measured staging; this phase explains the measurement via code audit only).
+No source code was created, modified, or deleted in Phase 5. No calibration math, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere. No database was queried in Phase 5 (Phase 4 already measured staging; Phase 5 explained the measurement via code audit only).
+
+---
+
+## Implementation record (Phase 8 — Implement Live Capture Architecture)
+
+Every gap this audit identified is now closed, with one exception found and handled during implementation (not invented around — see below).
+
+### What's implemented
+
+- **Prediction capture**: real `AfLeagueTrade` proposals now get a live acceptance-probability prediction logged (`TradeOfferEvent`, `mode: LIVE_PROPOSAL`), via `lib/league-trade-engine/tradeLearningCapture.ts`'s `captureLiveTradeOffer()`, wired into `createAfLeagueTrade()`.
+- **Outcome capture**: `processed→ACCEPTED`, `rejected→REJECTED`, `countered→COUNTERED`, `vetoed→UNKNOWN`, `cancelled→UNKNOWN` are all wired at their real, confirmed transition points in `lib/league-trade-engine/tradeService.ts`, each correctly linked back to its own offer event via the new `afLeagueTradeId` idempotency key.
+- **The `TradeFeedback` finding from this document's correction** remains explicitly unaddressed by Phase 8 — per the ADR's Decision 4, it was deliberately out of scope for capture-architecture implementation.
+
+### The one gap found during implementation, not invented around
+
+**`AfLeagueTrade.status` never transitions to `'expired'` anywhere in the current codebase** — confirmed by repo-wide grep (zero write sites) while implementing Phase 8. The `expired→EXPIRED` mapping itself is implemented in `mapAfTradeStatusToOutcome()` (correct and ready), but nothing calls `captureLiveTradeOutcome()` with `status: 'expired'`, because nothing ever sets that status on a real `AfLeagueTrade` row. A real, working expiry mechanism (something must actively check `expiresAt < now()` and transition the status) does not exist for this table today — it exists only for the separate, legacy `redraftTradeProposal` table (on-demand check inside `app/api/redraft/trade-votes/route.ts`, confirmed in the original Phase 5 audit). Building that mechanism is new functionality beyond an "asset-shape adapter," so it was not built here — this is documented as the clearest remaining blocker to full six-status coverage, not silently left out.
+
+### Tests added (26 total)
+
+- `__tests__/trade-engine/trade-learning-capture.test.ts` (17) — the status mapping, asset-valuation fallbacks (unresolvable player, pick with/without metadata, FAAB, specialty asset), isSuperFlex derivation, idempotent lookups, and fail-safe behavior on internal errors.
+- `__tests__/league-trade-engine-live-capture-wiring.test.ts` (8) — proposal creation, counter-offer (parent outcome + new offer), processed/rejected/cancelled/vetoed capture at their real `tradeService.ts` call sites, veto-threshold-not-yet-met producing no capture, and confirming the processed-outcome capture happens after the transaction commits, not inside it.
+- `__tests__/trade-engine/live-capture-calibration-integration.test.ts` (1) — end-to-end proof that 30 real, live-captured offer+outcome pairs (via the real `logTradeOfferEvent`/`logTradeOutcomeEvent` exports, not reimplemented) are correctly read by the existing, unmodified `computeShadowB0()`, producing the exact expected observed rate.
+
+### Verification results
+
+- Full relevant suite: **89/89 passing** (`__tests__/trade-engine/`, `league-trade-engine-validation.test.ts`, the new wiring test, `trade-league-analyze-api.test.ts`, both admin diagnostics-route suites).
+- All 6 Decision OS trade-slice test files: **71/71 passing**, unchanged.
+- 5 additional adjacent trade-route test files (`redraft-trade-playoff-routes-contract`, `league-trade-process-route-auth`, `redraft/trade-canonicalization`, `redraft/real-trade-builder-ui`, `redraft/trade-veto-route`): **87/87 passing**, unchanged.
+- `npm run typecheck`: 158 total errors, identical to the established baseline, zero new errors in any touched file.
+
+### Remaining blockers before shadow recalibration is meaningful to enable
+
+1. **Migration not yet deployed** to any environment (staging or production) — authored and validated offline only, per this workstream's rule against connecting to a real database without explicit, same-turn approval.
+2. **The `'expired'` status gap above** — five of six mappings are live; the sixth needs new expiry-detection functionality that doesn't exist yet for `AfLeagueTrade`.
+3. **Real volume, again** — Phase 4 measured zero rows on the one staging branch checked; that measurement should be re-run only after the migration is deployed there, since before this phase there was no live writer to measure in the first place.
+4. **`TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere** — this phase makes real data possible, it does not enable anything.
+
+## Files changed in the Phase 8 session
+
+- `prisma/schema.prisma`, `prisma/migrations/20260705010000_add_trade_learning_live_capture/migration.sql`
+- `lib/trade-engine/trade-event-logger.ts`
+- `lib/league-trade-engine/tradeLearningCapture.ts` (new)
+- `lib/league-trade-engine/tradeService.ts`
+- `__tests__/trade-engine/trade-learning-capture.test.ts`, `__tests__/league-trade-engine-live-capture-wiring.test.ts`, `__tests__/trade-engine/live-capture-calibration-integration.test.ts` (all new)
+- `docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md`, `docs/TRADE_LEARNING_DATA_CAPTURE_AUDIT.md` (this document, updated)
+
+No calibration formula/weight/threshold, Decision OS code, AI Coach, Chimmy, or public API was touched. No database was queried or connected to.
