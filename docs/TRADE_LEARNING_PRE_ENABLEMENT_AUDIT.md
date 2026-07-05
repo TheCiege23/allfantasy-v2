@@ -1,9 +1,9 @@
 # Trade Learning — Pre-Enablement Data Readiness Audit
 
-**Status:** Audit complete, **including a real staging measurement (Phase 4)**. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` **not enabled**. No calibration math, thresholds, or recommendation logic changed.
+**Status:** Audit complete, real staging measurement done (Phase 4), **and the migration is now deployed + end-to-end validated on staging (Phase 9)**. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` **still not enabled anywhere**. No calibration math, thresholds, or recommendation logic changed.
 **Branch:** `g15-event-foundation`
-**Scope:** Decision OS — Trade Learning Phase 3 (this document's original sections 1–8, code-only) + Phase 4 (§9, real staging measurement), following Phase 1 (`0376b9ed0`, atomic activation) and Phase 2 (`092b0a114`, shadow rollout observability).
-**Method:** Phase 3 made no database connection (offered the choice, chose local-only). **Phase 4's task explicitly and unambiguously instructed connecting to staging to run read-only aggregate queries — that instruction is the same-turn approval this workstream has always required, so it was carried out.** Read-only `SELECT`/`COUNT`/`GROUP BY`/`MIN`/`MAX` queries only, against the Neon branch confirmed to match `.env.staging` (`staging-nfl-verify`, host `ep-winter-salad-ad34lce8`, project `icy-field-51189449`, branch `br-weathered-credit-addbjdlc`) — never the `production` branch, which was explicitly identified and avoided. No row-level or user-identifying data was retrieved.
+**Scope:** Phase 3 (§1–8, code-only) + Phase 4 (§9, real read-only staging measurement) + **Phase 9 (§10, migration deployment + real write validation)**, following Phase 1 (`0376b9ed0`), Phase 2 (`092b0a114`), Phase 8 (`7fb69eb4d`, capture implementation).
+**Method:** Phase 3 made no database connection. Phase 4 ran read-only aggregates on staging. **Phase 9's task explicitly instructed deploying the migration and creating real test data on staging — both real write actions, confirmed via explicit user approval in that turn given the qualitatively different (and, for the enum addition, effectively permanent) nature of the actions versus every prior read-only phase.** All work stayed on the same confirmed staging branch (`staging-nfl-verify`, host `ep-winter-salad-ad34lce8`, project `icy-field-51189449`, branch `br-weathered-credit-addbjdlc`) — the `production` branch was never targeted.
 
 ---
 
@@ -187,8 +187,71 @@ No change was made, so there is nothing to roll back. If a future session enable
 
 ---
 
+## 10. Staging migration deployment and end-to-end write validation (Phase 9)
+
+Everything in §9 above was read-only. This section is not — it deployed the Phase 8 schema migration and created real (then cleaned-up) test data on staging, per the user's explicit approval that turn.
+
+### 10.1 Migration deployment
+
+The Phase 8 migration (`prisma/migrations/20260705010000_add_trade_learning_live_capture/migration.sql`) was applied to staging one statement at a time via the Neon SQL tool:
+
+1. `ALTER TYPE "TradeOfferMode" ADD VALUE IF NOT EXISTS 'LIVE_PROPOSAL';` — succeeded.
+2. `ALTER TABLE "TradeOfferEvent" ADD COLUMN "afLeagueTradeId" TEXT;` — succeeded.
+3. `ALTER TABLE "TradeOutcomeEvent" ADD COLUMN "afLeagueTradeId" TEXT;` — succeeded.
+4. `CREATE UNIQUE INDEX "TradeOfferEvent_afLeagueTradeId_key" ...` — succeeded.
+5. `CREATE UNIQUE INDEX "TradeOutcomeEvent_afLeagueTradeId_key" ...` — succeeded.
+
+**Verified after deployment:**
+- `pg_enum` confirms `TradeOfferMode` now has 6 values including `LIVE_PROPOSAL`.
+- `information_schema.columns` confirms both `afLeagueTradeId` columns exist, nullable, `text`.
+- `pg_indexes` confirms both unique indexes exist exactly as named in the migration.
+- A row was inserted into `_prisma_migrations` (checksum computed locally via `sha256sum`, matching Prisma's own convention) so future `prisma migrate deploy`/`status` calls on this branch correctly recognize this migration as already applied, rather than flagging drift.
+
+**Not touched:** the `production` branch, at any point.
+
+### 10.2 End-to-end write validation — two real bugs found and fixed
+
+A one-off script (never committed — Node/`tsx`, run locally with `DATABASE_URL` pointed explicitly at the staging connection string, with a hard-coded safety assertion refusing to proceed unless the resolved host contained `ep-winter-salad` and did not contain `ep-curly-block`) created a dedicated, clearly-labeled, fully isolated test league (`platform: 'phase9_validation'`) — never touching any existing real staging data — with 2 test users, 2 test rosters, and 5 real `AfLeagueTrade` + `AfLeagueTradeItem` rows, then called the real, unmodified `captureLiveTradeOffer()`/`captureLiveTradeOutcome()` functions against them.
+
+**First run surfaced a real bug:** every trade after the first failed to log an offer event at all (`Unique constraint failed on the fields: (inputHash)`). Root cause: `computeInputHash()` (`lib/trade-engine/trade-event-logger.ts`) never accounted for `afLeagueTradeId` — two distinct real trades sharing identical test assets collided on the pre-existing content-hash unique constraint, and the P2002 fallback (which looks up an existing row by `afLeagueTradeId`) correctly found nothing, since no row for that trade was ever created — silently returning `null`. This is exactly the "invisible to calibration" failure mode the whole ADR was written to avoid, now found for real. **Fixed**: `computeInputHash()` now folds `afLeagueTradeId` into its payload when present (a no-op — `JSON.stringify` drops `undefined` keys — for the five existing hypothetical-evaluation callers, which never pass it).
+
+**Same run surfaced a second real bug**, found while validating calibration ingestion: `computeShadowB0()` reported "0 outcomes" despite 4 real, correctly-linked outcome rows existing. Root cause: `captureLiveTradeOffer()`/`captureLiveTradeOutcome()` never populated `season` at all, even though `League.season` was directly available and always has a real value (`@default(2026)`, never null). Every real capture would have been permanently invisible to any season-scoped calibration query — not a validation-script artifact, a structural gap. **Fixed**: `captureLiveTradeOffer()` now passes `input.league.season`; `captureLiveTradeOutcome()` inherits `season` from its own linked offer event (avoiding an extra query) unless the caller explicitly overrides it.
+
+**Re-run after both fixes, on freshly re-created test data**, succeeded completely:
+
+| Scenario | Offer captured | Outcome captured | Linked correctly | Idempotent retry |
+|---|---|---|---|---|
+| Accepted (`processed`) | ✅ | `ACCEPTED` | ✅ `offerEventId` matches | ✅ both offer and outcome retries returned the same id, no duplicate row |
+| Rejected | ✅ | `REJECTED` | ✅ | — |
+| Vetoed | ✅ | `UNKNOWN` (per the approved mapping, not `REJECTED`) | ✅ | — |
+| Countered | ✅ | `COUNTERED` | ✅ | — |
+| Non-terminal (`awaiting_commissioner`) | ✅ (offer capture is unconditional at proposal time) | *(none — correct)* | N/A | — |
+
+All 5 offer rows and all 4 outcome rows were confirmed present in the real staging database via direct query afterward, with `season: 2026` now correctly populated on every row (matching `League.season`'s real default).
+
+### 10.3 Diagnostics validated against real data
+
+`buildTradeLearningDiagnostics()` (the same function behind `GET /api/admin/trade-learning/diagnostics`) was called directly against staging with this real test data present. It correctly reported `operational.weeklyRecalibrationEnabled: false`, honest `shadow`/`promotion` nulls (no shadow computed yet — sample too small), and `calibrationHealth.totalPaired: 2` (its own independent 30-day window query correctly found 2 of the 5 real offers that had a matching accept/reject-labeled outcome). No discrepancy between the tool's output and direct database queries of the same data.
+
+### 10.4 Calibration ingestion validated — including a real, un-fixed operational finding
+
+`computeShadowB0()` — called directly, unmodified — correctly read the real captured data **once queried with the matching season**. Calling it with its default parameter (`season: 2025`, i.e. `computeShadowB0()` with no argument) found "0 outcomes," which is not a bug in the capture code (confirmed: the real rows genuinely have `season: 2026`, correctly populated) — it is because **`CURRENT_SEASON`/`CALIBRATION_SEASON` are hardcoded to `2025` throughout `lib/trade-engine/{accept-calibration,auto-recalibration}.ts`, while `League.season` already defaults to `2026`** (the actual current season, per this workstream's own timeline). Calling `computeShadowB0(2026)` explicitly found the real data immediately (`"Only 4 outcomes, need 30"` — correct, honest, and exactly the expected gate behavior for real staging volume this small).
+
+**This is a real, load-bearing operational finding, not fixed here** — changing the hardcoded season constants is a threshold/configuration decision explicitly out of this phase's scope ("do not tune thresholds"). It means: **whoever eventually schedules `runWeeklyRecalibration()` must ensure it is invoked with the current real season, not relying on the function's own stale hardcoded default**, or real 2026-season data will silently never be considered. Added to the remaining blockers below.
+
+### 10.5 Cleanup
+
+All test data (5 `AfLeagueTrade` + items, 5 `TradeOfferEvent`, 4 `TradeOutcomeEvent`, 1 league, 2 users) was deleted after validation completed, restoring staging to the same clean, zero-row state Phase 4 measured — so a future genuine volume measurement isn't polluted by this validation's synthetic data. Confirmed via direct query: 0 leftover rows across every touched table.
+
+---
+
 ## Files changed in this session
 
-- `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` (this document, updated with §9)
+- `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` (this document, updated with §9, then §10)
+- `lib/trade-engine/trade-event-logger.ts` (bug fix — `computeInputHash()` now folds in `afLeagueTradeId`)
+- `lib/league-trade-engine/tradeLearningCapture.ts` (bug fix — `season` now populated on both offer and outcome capture)
+- `__tests__/trade-engine/trade-event-logger-live-capture-hash.test.ts` (new — regression test for the inputHash fix)
+- `__tests__/trade-engine/trade-learning-capture.test.ts` (updated — regression tests for the season fix)
+- `prisma/migrations/20260705010000_add_trade_learning_live_capture/` — **deployed to staging** (not production)
 
-No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. No code was changed — the staging measurement confirmed diagnostics and gate logic are already correct; no bug was found. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Only read-only aggregate queries were run, against the confirmed staging branch, never production.
+No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Staging was written to (migration + test data) with explicit user approval, then restored to a clean state; production was never touched.

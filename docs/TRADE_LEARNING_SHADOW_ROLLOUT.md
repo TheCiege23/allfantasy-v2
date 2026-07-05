@@ -1,8 +1,10 @@
 # Trade Learning — Shadow Rollout Guide
 
 **Audience:** whoever is considering flipping `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` on.
-**Status:** the system is implemented and observable (Phase 1 + Phase 2). **Not enabled anywhere.** This document does not recommend a rollout date — it tells you what to check before picking one.
-**Related:** `docs/TRADE_LEARNING_ACTIVATION_BLOCKERS.md` (full implementation history), `docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md` (why the system is shaped this way), `docs/DECISION_OS_CLOSED_LOOP_LEARNING_AUDIT.md` (why this exists at all).
+**Status:** the system is implemented, observable (Phase 1 + Phase 2), and **the live-capture schema is now deployed to staging and end-to-end validated with real writes (Phase 9)** — real trades on staging will now produce real `TradeOfferEvent`/`TradeOutcomeEvent` rows once the deployed application code runs there. **Still not enabled anywhere.** This document does not recommend a rollout date — it tells you what to check before picking one.
+**Related:** `docs/TRADE_LEARNING_ACTIVATION_BLOCKERS.md` (full implementation history), `docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md` (why the system is shaped this way), `docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md` (the live-capture design), `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` §10 (the staging deployment + validation record, including two real bugs found and fixed there), `docs/DECISION_OS_CLOSED_LOOP_LEARNING_AUDIT.md` (why this exists at all).
+
+> **Important operational finding from Phase 9, not yet resolved:** `computeShadowB0()`/`getCalibratedWeights()`/etc. default to a hardcoded `season` (`2025`), but real `League.season` already defaults to `2026`. If `runWeeklyRecalibration()` is ever scheduled without an explicit, current `season` argument, it will silently look at the wrong season and find nothing, even once real volume exists. This must be resolved (see the checklist below) before enabling — it is a real, load-bearing gap, not a hypothetical one.
 
 ---
 
@@ -79,7 +81,11 @@ If disabled: `[TradeLearningScheduler] skipped: disabled (...)` and nothing furt
 
 ## Operational checklist — before enabling anywhere
 
-- [ ] Check `GET /api/admin/trade-learning/diagnostics` on the target environment first — confirm `shadow.sampleSize` / real `TradeOutcomeEvent` volume is nonzero, so you're not enabling something that will sit idle for weeks with zero visibility into whether it's "working" or "waiting."
+- [x] ~~Deploy the live-capture schema migration to staging~~ — **done, Phase 9**: `TradeOfferMode.LIVE_PROPOSAL` + both `afLeagueTradeId` columns/indexes are live on staging, verified against `pg_enum`/`information_schema`/`pg_indexes` directly, and recorded in `_prisma_migrations`.
+- [x] ~~Prove real trades produce real, linked events~~ — **done, Phase 9**: real `AfLeagueTrade` rows, run through the real, unmodified capture functions, produced correctly-linked `TradeOfferEvent`/`TradeOutcomeEvent` rows for accepted/rejected/vetoed/countered outcomes, with working idempotency against real Postgres constraints. Two real bugs found this way were fixed (an `inputHash` collision for real trades with identical assets, and `season` never being populated) — see `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` §10.
+- [ ] **Resolve the season-mismatch finding** (see the callout above) before scheduling anything — decide whether `runWeeklyRecalibration()` should always be invoked with an explicit current-season argument, or whether the hardcoded `CURRENT_SEASON`/`CALIBRATION_SEASON` constants need updating. This is a real gap, not a hypothetical one, and untouched by Phase 9 (out of scope: "do not tune thresholds").
+- [ ] **Let real, organic trade activity accumulate on staging** — Phase 9 proved the pipeline *works*; it does not mean real volume exists yet. The schema migration alone doesn't create trades — a deployed application instance running the Phase 8 code against real user trades does. Re-check `GET /api/admin/trade-learning/diagnostics` (or a fresh read-only volume measurement, following the `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` §1 query pattern) once that's live.
+- [ ] Check `GET /api/admin/trade-learning/diagnostics` on the target environment — confirm `shadow.sampleSize` / real `TradeOutcomeEvent` volume is nonzero (using the correct season, per the finding above), so you're not enabling something that will sit idle for weeks with zero visibility into whether it's "working" or "waiting."
 - [ ] Enable in **staging first**, not production, and watch at least one full 7-day maturity cycle before considering production.
 - [ ] After enabling, check the diagnostics endpoint and logs after the *first* scheduled firing — confirm `[TradeLearningScheduler] invoked (flag=enabled)` appears and the run completes without error (`ok: true` from the cron route).
 - [ ] Watch `calibrationHealth.ece`/`.alerts` and `drift.overallSeverity` throughout the shadow period — these are independent of whether promotion has happened yet and can surface a problem before any `calibratedB0` change occurs.

@@ -186,6 +186,11 @@ export async function captureLiveTradeOffer(input: {
 
     return await logTradeOfferEvent({
       leagueId: input.leagueId,
+      // League.season always has a real value (@default(2026), never null) —
+      // without this, every real capture's season would be null and
+      // permanently invisible to computeShadowB0()'s season-scoped query,
+      // discovered via real staging validation (Trade Learning Phase 9).
+      season: input.league.season,
       assetsGiven: give.map((a) => ({ name: a.name ?? a.id, value: a.value, type: a.type })),
       assetsReceived: receive.map((a) => ({ name: a.name ?? a.id, value: a.value, type: a.type })),
       features: {
@@ -232,13 +237,16 @@ export async function captureLiveTradeOutcome(input: {
   try {
     const offer = await prisma.tradeOfferEvent.findUnique({
       where: { afLeagueTradeId: input.tradeId },
-      select: { id: true },
+      select: { id: true, season: true },
     })
 
     return await logTradeOutcomeEvent({
       offerEventId: offer?.id ?? null,
       leagueId: input.leagueId,
-      season: input.season ?? null,
+      // Inherit the season from this outcome's own linked offer event (which
+      // now correctly carries League.season — see captureLiveTradeOffer())
+      // rather than leaving it null, unless the caller explicitly overrides.
+      season: input.season ?? offer?.season ?? null,
       week: input.week ?? null,
       outcome,
       afLeagueTradeId: input.tradeId,

@@ -59,6 +59,15 @@ function computeInputHash(input: TradeOfferEventInput): string {
     r: input.assetsReceived.map(a => a.name).sort(),
     m: input.mode,
     l: input.leagueId,
+    // Real trades are already uniquely identified by afLeagueTradeId. Folding
+    // it in here (only when present) prevents two DISTINCT real trades that
+    // happen to have identical give/receive assets from colliding on this
+    // content hash — discovered via real staging validation (Trade Learning
+    // Phase 9): every real trade after the first with the same test assets
+    // failed to log at all, since inputHash alone can't tell two such trades
+    // apart. `JSON.stringify` drops an `undefined` key entirely, so this is a
+    // no-op (byte-identical hash) for every existing, non-live caller.
+    t: input.afLeagueTradeId ?? undefined,
   })
   return createHash('sha256').update(payload).digest('hex').slice(0, 32)
 }

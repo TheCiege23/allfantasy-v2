@@ -70,9 +70,10 @@ function makeFcPlayer(sleeperId: string, name: string, value: number) {
   } as any
 }
 
-function makeLeague(starterSlots?: Record<string, number>): League {
+function makeLeague(starterSlots?: Record<string, number>, season = 2025): League {
   return {
     id: 'league-1',
+    season,
     settings: starterSlots ? { rosterSettings: { starterSlots } } : null,
   } as unknown as League
 }
@@ -229,6 +230,23 @@ describe('captureLiveTradeOffer', () => {
     expect(mockLogTradeOfferEvent.mock.calls[0][0].assetsGiven[0].value).toBe(200)
   })
 
+  it('populates season from League.season (Phase 9 regression — was previously always null, invisible to computeShadowB0\'s season-scoped query)', async () => {
+    mockRosterCount.mockResolvedValue(12)
+    mockFetchFantasyCalcValues.mockResolvedValue([])
+    mockLogTradeOfferEvent.mockResolvedValue('offer-event-season')
+
+    const items: CaptureTradeItem[] = [
+      { itemType: 'player', itemReference: 'x', fromRosterId: PROPOSER, toRosterId: RECEIVER },
+    ]
+
+    await captureLiveTradeOffer({
+      tradeId: 'trade-season', leagueId: 'league-1', proposerRosterId: PROPOSER, receiverRosterId: RECEIVER, items,
+      league: makeLeague(undefined, 2027),
+    })
+
+    expect(mockLogTradeOfferEvent.mock.calls[0][0].season).toBe(2027)
+  })
+
   it('derives isSuperFlex from the league\'s own settings snapshot (provider-agnostic, no Sleeper-specific parsing)', async () => {
     mockRosterCount.mockResolvedValue(12)
     mockFetchFantasyCalcValues.mockResolvedValue([])
@@ -285,7 +303,7 @@ describe('captureLiveTradeOutcome', () => {
   })
 
   it('links a mapped terminal outcome back to its own offer event via afLeagueTradeId', async () => {
-    mockTradeOfferEventFindUnique.mockResolvedValue({ id: 'offer-event-1' })
+    mockTradeOfferEventFindUnique.mockResolvedValue({ id: 'offer-event-1', season: 2025 })
     mockLogTradeOutcomeEvent.mockResolvedValue('outcome-event-1')
 
     const result = await captureLiveTradeOutcome({ tradeId: 'trade-1', leagueId: 'league-1', status: 'processed' })
@@ -293,12 +311,30 @@ describe('captureLiveTradeOutcome', () => {
     expect(result).toBe('outcome-event-1')
     expect(mockTradeOfferEventFindUnique).toHaveBeenCalledWith({
       where: { afLeagueTradeId: 'trade-1' },
-      select: { id: true },
+      select: { id: true, season: true },
     })
     const call = mockLogTradeOutcomeEvent.mock.calls[0][0]
     expect(call.offerEventId).toBe('offer-event-1')
     expect(call.outcome).toBe('ACCEPTED')
     expect(call.afLeagueTradeId).toBe('trade-1')
+  })
+
+  it('inherits season from its own linked offer event (Phase 9 regression — was previously always null)', async () => {
+    mockTradeOfferEventFindUnique.mockResolvedValue({ id: 'offer-event-1', season: 2027 })
+    mockLogTradeOutcomeEvent.mockResolvedValue('outcome-event-season')
+
+    await captureLiveTradeOutcome({ tradeId: 'trade-season', leagueId: 'league-1', status: 'processed' })
+
+    expect(mockLogTradeOutcomeEvent.mock.calls[0][0].season).toBe(2027)
+  })
+
+  it('an explicitly-passed season overrides the inherited one', async () => {
+    mockTradeOfferEventFindUnique.mockResolvedValue({ id: 'offer-event-1', season: 2027 })
+    mockLogTradeOutcomeEvent.mockResolvedValue('outcome-event-override')
+
+    await captureLiveTradeOutcome({ tradeId: 'trade-override', leagueId: 'league-1', status: 'processed', season: 2030 })
+
+    expect(mockLogTradeOutcomeEvent.mock.calls[0][0].season).toBe(2030)
   })
 
   it('still writes an outcome (with offerEventId null) if no matching offer event is found', async () => {
