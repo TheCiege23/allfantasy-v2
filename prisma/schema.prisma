@@ -3081,6 +3081,9 @@ model AppUser {
   playoffBracketChallengesOwned            PlayoffBracketChallenge[]              @relation("PlayoffBracketChallengeOwner")
   playoffBracketEntries                    PlayoffBracketEntry[]                  @relation("PlayoffBracketEntryUser")
   sponsorCouponRedemptions                 SponsorCouponRedemption[]
+  identitySignals                          IdentitySignal[]
+  householdExceptionsAsA                   HouseholdException[]                   @relation("HouseholdExceptionUserA")
+  householdExceptionsAsB                   HouseholdException[]                   @relation("HouseholdExceptionUserB")
 
   @@map("app_users")
 }
@@ -5828,6 +5831,58 @@ model LeagueIntegritySettings {
   league                     League    @relation(fields: [leagueId], references: [id], onDelete: Cascade)
 
   @@map("league_integrity_settings")
+}
+
+/// Hashed/salted identity signals captured at signup, login, and league-join —
+/// never raw IP or raw user-agent. Feeds DuplicateManagerRiskService; an
+/// append-only log (not a single overwritable fingerprint) so repeated
+/// matches across time strengthen a signal instead of being lost on update.
+model IdentitySignal {
+  id            String   @id @default(cuid())
+  userId        String
+  /// HMAC-SHA256(ip, salt) — never the raw IP.
+  ipHash        String?
+  /// HMAC-SHA256(user-agent, salt) — never the raw UA string.
+  userAgentHash String?
+  /// Optional client-supplied device/session id (e.g. a persisted anonymous cookie id). Not hashed — already opaque.
+  deviceId      String?
+  /// "signup" | "login" | "league_join"
+  context       String
+  /// e.g. leagueId when context = "league_join"
+  contextId     String?
+  createdAt     DateTime @default(now())
+  user          AppUser  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([ipHash])
+  @@index([userAgentHash])
+  @@index([deviceId])
+  @@index([contextId])
+  @@map("identity_signals")
+}
+
+/// A commissioner/admin-confirmed legitimate pair (e.g. real household/family)
+/// that suppresses future DuplicateManagerRiskService flags between them.
+/// Stored with appUserIdA < appUserIdB (string comparison) so a pair is never
+/// duplicated in both orders — see HouseholdExceptionService for the canonical
+/// ordering helper. `leagueId` null = exception applies everywhere; set = a
+/// single-league exception only.
+model HouseholdException {
+  id               String    @id @default(cuid())
+  appUserIdA       String
+  appUserIdB       String
+  leagueId         String?
+  reason           String?
+  approvedByUserId String?
+  createdAt        DateTime  @default(now())
+  userA            AppUser   @relation("HouseholdExceptionUserA", fields: [appUserIdA], references: [id], onDelete: Cascade)
+  userB            AppUser   @relation("HouseholdExceptionUserB", fields: [appUserIdB], references: [id], onDelete: Cascade)
+
+  @@unique([appUserIdA, appUserIdB, leagueId])
+  @@index([appUserIdA])
+  @@index([appUserIdB])
+  @@index([leagueId])
+  @@map("household_exceptions")
 }
 
 /// Per-user per-league Chimmy AutoCoachâ„¢ (AF Pro); commissioner can block via `League.autoCoachEnabled` + `blockedByCommissioner`.

@@ -556,6 +556,16 @@ export const authOptions: NextAuthOptions = {
           return await runSocialLink();
         } catch (error) {
           console.error("[auth] social account linking error:", error);
+          // linkSocialAccountToAppUser() already refuses to create a NEW AppUser
+          // without an email (SOCIAL_PROVIDER_EMAIL_MISSING) — this only maps that
+          // to a clearer message. It does NOT add a new early guard: Apple only
+          // returns email on a user's FIRST authorization, so a blanket "no email
+          // -> reject" check here (before the existing-account lookup) would break
+          // legitimate repeat Apple sign-ins for already-linked accounts.
+          const errMsg = error instanceof Error ? error.message : "";
+          if (errMsg === "SOCIAL_PROVIDER_EMAIL_MISSING") {
+            return "/auth/error?error=SOCIAL_PROVIDER_EMAIL_MISSING";
+          }
           return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
         }
       }
