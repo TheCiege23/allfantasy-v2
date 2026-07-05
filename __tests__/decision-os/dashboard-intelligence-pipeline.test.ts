@@ -18,6 +18,8 @@ import type {
   RawRosterMoveRow,
   RawDraftSessionRow,
   RawDraftPickRow,
+  RawRedraftTradeRow,
+  RawRedraftRosterPlayerRow,
 } from '@/lib/decision-os/behavioral/port'
 
 vi.mock('@/lib/decision-os/behavioral/port', async () => {
@@ -30,6 +32,8 @@ vi.mock('@/lib/decision-os/behavioral/port', async () => {
     loadLeagueTradeRows: vi.fn(),
     loadRosterMoveRows: vi.fn(),
     loadDraftRows: vi.fn(),
+    loadRedraftTradeRows: vi.fn(),
+    loadRedraftRosterPlayerRows: vi.fn(),
   }
 })
 
@@ -89,15 +93,49 @@ const emptyDraftResult = () =>
     picks: [] as RawDraftPickRow[],
   })
 
+const makeRedraftTradeRow = (o: Partial<RawRedraftTradeRow> = {}): RawRedraftTradeRow => ({
+  id: 'redraft-trade-1',
+  leagueId: LG,
+  proposerRosterId: 'roster-1',
+  receiverRosterId: 'roster-2',
+  proposerOwnerId: MGR,
+  receiverOwnerId: OTHER_MGR,
+  status: 'accepted',
+  vetoMode: 'no_veto',
+  acceptedAt: new Date('2026-01-12T12:00:00Z'),
+  rejectedAt: null,
+  expiresAt: null,
+  createdAt: new Date('2026-01-08T12:00:00Z'),
+  itemCount: 2,
+  ...o,
+})
+
+const makeRedraftRosterPlayerRow = (o: Partial<RawRedraftRosterPlayerRow> = {}): RawRedraftRosterPlayerRow => ({
+  id: 'redraft-rp-1',
+  leagueId: LG,
+  rosterId: 'roster-1',
+  ownerUserId: MGR,
+  playerId: 'player-z',
+  playerName: 'Player Z',
+  acquisitionType: 'free_agent',
+  addedAt: new Date('2026-01-09T12:00:00Z'),
+  droppedAt: null,
+  ...o,
+})
+
 function mockPorts(overrides: {
   waivers?: RawWaiverClaimRow[]
   trades?: RawLeagueTradeRow[]
   rosterMoves?: RawRosterMoveRow[]
+  redraftTrades?: RawRedraftTradeRow[]
+  redraftRosterPlayers?: RawRedraftRosterPlayerRow[]
 } = {}) {
   vi.mocked(port.loadWaiverClaimRows).mockResolvedValue(overrides.waivers ?? [])
   vi.mocked(port.loadLeagueTradeRows).mockResolvedValue(overrides.trades ?? [])
   vi.mocked(port.loadRosterMoveRows).mockResolvedValue(overrides.rosterMoves ?? [])
   vi.mocked(port.loadDraftRows).mockImplementation(emptyDraftResult)
+  vi.mocked(port.loadRedraftTradeRows).mockResolvedValue(overrides.redraftTrades ?? [])
+  vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue(overrides.redraftRosterPlayers ?? [])
 }
 
 describe('resolveManagerIntelligencePayload', () => {
@@ -138,6 +176,21 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadLeagueTradeRows).mockResolvedValue([])
     vi.mocked(port.loadRosterMoveRows).mockResolvedValue([])
     vi.mocked(port.loadDraftRows).mockImplementation(emptyDraftResult)
+    vi.mocked(port.loadRedraftTradeRows).mockResolvedValue([])
+    vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result).toEqual({ managerDna: null, recommendations: null })
+  })
+
+  it('is degraded-safe when specifically the NEW redraft loaders fail (missing redraft data fails safely)', async () => {
+    vi.mocked(port.loadWaiverClaimRows).mockResolvedValue([])
+    vi.mocked(port.loadLeagueTradeRows).mockResolvedValue([])
+    vi.mocked(port.loadRosterMoveRows).mockResolvedValue([])
+    vi.mocked(port.loadDraftRows).mockImplementation(emptyDraftResult)
+    vi.mocked(port.loadRedraftTradeRows).mockRejectedValue(new Error('redraft_trade_proposals unavailable'))
+    vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
@@ -166,5 +219,99 @@ describe('resolveManagerIntelligencePayload', () => {
     expect(port.loadLeagueTradeRows).toHaveBeenCalledWith(LG, expect.any(Date))
     expect(port.loadRosterMoveRows).toHaveBeenCalledWith(LG, expect.any(Date))
     expect(port.loadDraftRows).toHaveBeenCalledWith(LG)
+    expect(port.loadRedraftTradeRows).toHaveBeenCalledWith(LG, expect.any(Date))
+    expect(port.loadRedraftRosterPlayerRows).toHaveBeenCalledWith(LG, expect.any(Date))
+  })
+
+  // ── Phase 2E: redraft trade + roster activity now visible to Phase 6 DNA ────
+
+  it('existing Af*/WaiverClaim-only behavior is unchanged when there is zero redraft data (regression guard)', async () => {
+    mockPorts({
+      waivers: [makeWaiverRow({ id: 'wc-1' }), makeWaiverRow({ id: 'wc-2', createdAt: new Date('2026-01-11T12:00:00Z') }), makeWaiverRow({ id: 'wc-3', createdAt: new Date('2026-01-12T12:00:00Z') })],
+      trades: [makeTradeRow()],
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    // Byte-identical assertions to the pre-Phase-2E "real activity" test above —
+    // adding the two new (empty-by-default) redraft loaders changes nothing
+    // when there's no redraft data for this league.
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.managerId).toBe(MGR)
+    expect(result.managerDna!.leagueId).toBe(LG)
+    expect(result.recommendations).not.toBeNull()
+    expect(result.recommendations!.entityId).toBe(MGR)
+    expect(result.recommendations!.tier).toBe('manager')
+  })
+
+  it('redraft trade activity alone (zero Af*/WaiverClaim data) now contributes to a real, non-unknown profile', async () => {
+    mockPorts({
+      redraftTrades: [
+        makeRedraftTradeRow({ id: 'rt-1' }),
+        makeRedraftTradeRow({ id: 'rt-2', createdAt: new Date('2026-01-09T12:00:00Z'), acceptedAt: new Date('2026-01-13T12:00:00Z') }),
+        makeRedraftTradeRow({ id: 'rt-3', createdAt: new Date('2026-01-10T12:00:00Z'), acceptedAt: new Date('2026-01-14T12:00:00Z') }),
+      ],
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    // Before this phase, this input (real activity ONLY in redraft tables) would
+    // have produced 'passive' transactionStyle — nothing read RedraftTradeProposal
+    // at all, so the trade-rate signal driving deriveTransactionStyle() would
+    // have been zero regardless of how much real trading this manager did.
+    // Whether primaryIdentity crosses into a specific non-'unknown' label
+    // additionally depends on Phase 6.1's own pattern-detection thresholds
+    // (a separately-tested layer, see __tests__/decision-os/phase6/manager-dna.test.ts)
+    // — transactionStyle is the reliable, directly-attributable signal this
+    // test proves redraft trade data now reaches.
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.transactionStyle).toBe('trade_dominant')
+  })
+
+  it('redraft roster (free_agent) activity contributes when enough of it exists', async () => {
+    // 10 free-agent adds over the 90-day default lookback pushes
+    // lineupEditsPerWeek decisively above deriveDecisionStyle's 0.5
+    // threshold (10 / (90/7) ≈ 0.78/week) — a reliable, directly-attributable
+    // signal distinguishing "roster activity reached this profile" from the
+    // zero-activity baseline (which falls into the `< 0.5 → 'decisive'`
+    // branch instead; see the baseline test above).
+    mockPorts({
+      redraftRosterPlayers: Array.from({ length: 10 }, (_, i) =>
+        makeRedraftRosterPlayerRow({ id: `rp-${i}`, addedAt: new Date(`2026-01-${String((i % 28) + 1).padStart(2, '0')}T12:00:00Z`) }),
+      ),
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.decisionStyle).toBe('methodical')
+  })
+
+  it('does not double-count: waiver/trade/drafted-acquired RedraftRosterPlayer rows are excluded (already covered by their own sources)', async () => {
+    mockPorts({
+      redraftRosterPlayers: [
+        makeRedraftRosterPlayerRow({ id: 'rp-waiver', acquisitionType: 'waiver' }),
+        makeRedraftRosterPlayerRow({ id: 'rp-trade', acquisitionType: 'trade' }),
+        makeRedraftRosterPlayerRow({ id: 'rp-drafted', acquisitionType: 'drafted' }),
+      ],
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    // None of these three rows should contribute a lineup_saved-derived signal —
+    // the manager should look identical to the zero-activity case.
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.primaryIdentity).toBe('unknown')
+    expect(result.managerDna!.confidence).toBe(0)
+  })
+
+  it('missing/absent redraft data fails safely — resolves normally with the two new sources simply empty', async () => {
+    mockPorts({ redraftTrades: [], redraftRosterPlayers: [] })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.primaryIdentity).toBe('unknown')
+    expect(result.recommendations).not.toBeNull()
   })
 })

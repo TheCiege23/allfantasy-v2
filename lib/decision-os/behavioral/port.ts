@@ -11,6 +11,15 @@
  * - Timestamps: always system-generated createdAt → exact confidence
  * - No provider fields (all sources are native AF tables → provider: null)
  * - Row limit: 500 rows max per source per call (see MAX_ROWS)
+ *
+ * Phase 2E addition (docs/DECISION_OS_MANAGER_DNA_PHASE2D_REAL_DATA_READINESS.md
+ * §5–§6): the live redraft product does NOT write to AfLeagueTrade or
+ * AfRosterMoveHistory — it writes to RedraftTradeProposal/RedraftTradeAsset
+ * (trades, via app/api/redraft/trade-proposals/route.ts) and RedraftRoster/
+ * RedraftRosterPlayer (roster composition, via app/api/redraft/roster/route.ts).
+ * `loadRedraftTradeRows` and `loadRedraftRosterPlayerRows` below are new,
+ * additive loaders reading those tables so real redraft activity becomes
+ * visible to the same downstream pipeline — nothing above this comment changed.
  */
 
 import { prisma } from '@/lib/prisma'
@@ -372,4 +381,159 @@ export async function loadDraftRows(
   }))
 
   return { session: rawSession, picks: rawPicks }
+}
+
+// ── Phase 2E: Redraft trade + roster raw row interfaces ──────────────────────
+
+export interface RawRedraftTradeRow {
+  id: string
+  leagueId: string
+  proposerRosterId: string
+  receiverRosterId: string
+  /** Resolved via RedraftRoster.ownerId — always present (roster always has an owner). */
+  proposerOwnerId: string
+  /** Resolved via RedraftRoster.ownerId — always present, unlike AfLeagueTrade's receiver side. */
+  receiverOwnerId: string
+  status: string
+  /** 'commissioner' | 'league_vote' | 'no_veto'. */
+  vetoMode: string
+  acceptedAt: Date | null
+  rejectedAt: Date | null
+  expiresAt: Date | null
+  createdAt: Date
+  /** Count of RedraftTradeAsset rows for this proposal (derived via _count). */
+  itemCount: number
+}
+
+/**
+ * A `RedraftRosterPlayer` row representing a roster-composition change with a
+ * real timestamp. Only rows with `acquisitionType === 'free_agent'` map to a
+ * behavioral event (see mappers.ts) — 'waiver'/'trade'/'drafted' rows are
+ * already covered by their own dedicated sources and would double-count
+ * activity if also mapped here.
+ */
+export interface RawRedraftRosterPlayerRow {
+  id: string
+  leagueId: string
+  rosterId: string
+  /** Resolved via RedraftRoster.ownerId — always present. */
+  ownerUserId: string
+  playerId: string
+  playerName: string
+  acquisitionType: string
+  addedAt: Date
+  droppedAt: Date | null
+}
+
+/**
+ * Load RedraftTradeProposal rows (with asset counts + resolved roster owners)
+ * for a league. Mirrors `loadLeagueTradeRows`'s shape and read-only contract.
+ */
+export async function loadRedraftTradeRows(
+  leagueId: string,
+  since?: Date,
+): Promise<RawRedraftTradeRow[]> {
+  const rows = await prisma.redraftTradeProposal.findMany({
+    where: {
+      leagueId,
+      ...(since ? { createdAt: { gte: since } } : {}),
+    },
+    orderBy: { createdAt: 'desc' },
+    take: MAX_ROWS,
+    select: {
+      id: true,
+      leagueId: true,
+      proposerRosterId: true,
+      receiverRosterId: true,
+      status: true,
+      vetoMode: true,
+      acceptedAt: true,
+      rejectedAt: true,
+      expiresAt: true,
+      createdAt: true,
+      proposerRoster: { select: { ownerId: true } },
+      receiverRoster: { select: { ownerId: true } },
+      _count: { select: { assets: true } },
+    },
+  })
+  return rows.map((row: {
+    id: string
+    leagueId: string
+    proposerRosterId: string
+    receiverRosterId: string
+    status: string
+    vetoMode: string
+    acceptedAt: Date | null
+    rejectedAt: Date | null
+    expiresAt: Date | null
+    createdAt: Date
+    proposerRoster: { ownerId: string }
+    receiverRoster: { ownerId: string }
+    _count: { assets: number }
+  }): RawRedraftTradeRow => ({
+    id: row.id,
+    leagueId: row.leagueId,
+    proposerRosterId: row.proposerRosterId,
+    receiverRosterId: row.receiverRosterId,
+    proposerOwnerId: row.proposerRoster.ownerId,
+    receiverOwnerId: row.receiverRoster.ownerId,
+    status: row.status,
+    vetoMode: row.vetoMode,
+    acceptedAt: row.acceptedAt ?? null,
+    rejectedAt: row.rejectedAt ?? null,
+    expiresAt: row.expiresAt ?? null,
+    createdAt: row.createdAt,
+    itemCount: row._count.assets,
+  }))
+}
+
+/**
+ * Load RedraftRosterPlayer rows for a league (resolved roster owner included),
+ * filtered to rows whose `addedAt` (or `droppedAt`) falls within the lookback
+ * window. Read-only, same MAX_ROWS cap as every other loader in this file.
+ */
+export async function loadRedraftRosterPlayerRows(
+  leagueId: string,
+  since?: Date,
+): Promise<RawRedraftRosterPlayerRow[]> {
+  const rows = await prisma.redraftRosterPlayer.findMany({
+    where: {
+      roster: { leagueId },
+      ...(since
+        ? { OR: [{ addedAt: { gte: since } }, { droppedAt: { gte: since } }] }
+        : {}),
+    },
+    orderBy: { addedAt: 'desc' },
+    take: MAX_ROWS,
+    select: {
+      id: true,
+      rosterId: true,
+      playerId: true,
+      playerName: true,
+      acquisitionType: true,
+      addedAt: true,
+      droppedAt: true,
+      roster: { select: { leagueId: true, ownerId: true } },
+    },
+  })
+  return rows.map((row: {
+    id: string
+    rosterId: string
+    playerId: string
+    playerName: string
+    acquisitionType: string
+    addedAt: Date
+    droppedAt: Date | null
+    roster: { leagueId: string; ownerId: string }
+  }): RawRedraftRosterPlayerRow => ({
+    id: row.id,
+    leagueId: row.roster.leagueId,
+    rosterId: row.rosterId,
+    ownerUserId: row.roster.ownerId,
+    playerId: row.playerId,
+    playerName: row.playerName,
+    acquisitionType: row.acquisitionType,
+    addedAt: row.addedAt,
+    droppedAt: row.droppedAt ?? null,
+  }))
 }

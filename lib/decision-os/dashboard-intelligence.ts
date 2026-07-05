@@ -37,12 +37,16 @@ import {
   loadLeagueTradeRows,
   loadRosterMoveRows,
   loadDraftRows,
+  loadRedraftTradeRows,
+  loadRedraftRosterPlayerRows,
 } from '@/lib/decision-os/behavioral/port'
 import {
   mapWaiverClaimsToEvents,
   mapLeagueTradesToEvents,
   mapRosterMovesToEvents,
   mapDraftRowsToEvents,
+  mapRedraftTradesToEvents,
+  mapRedraftRosterPlayersToEvents,
 } from '@/lib/decision-os/behavioral/mappers'
 import {
   assembleManagerBehavioralFacts,
@@ -73,19 +77,33 @@ function sinceDate(days: number): Date {
   return d
 }
 
-/** Same event-loading shape as real-data-provider.ts's loadAllLeagueEvents — the real ports, composed the same way. */
+/**
+ * Same event-loading shape as real-data-provider.ts's loadAllLeagueEvents, plus
+ * the Phase 2E redraft trade/roster sources (docs/DECISION_OS_MANAGER_DNA_PHASE2D_REAL_DATA_READINESS.md):
+ * the live redraft product writes to RedraftTradeProposal/RedraftTradeAsset and
+ * RedraftRoster/RedraftRosterPlayer, not AfLeagueTrade/AfRosterMoveHistory — so
+ * without these two additional sources, real redraft trade and roster activity
+ * would never reach this pipeline at all. All four original sources are
+ * unchanged; this only adds two more to the same Promise.all/event-array
+ * composition.
+ */
 async function loadLeagueEvents(leagueId: string, since: Date): Promise<BehavioralEvent[]> {
-  const [waiverRows, tradeRows, rosterMoveRows, draftData] = await Promise.all([
-    loadWaiverClaimRows(leagueId, since),
-    loadLeagueTradeRows(leagueId, since),
-    loadRosterMoveRows(leagueId, since),
-    loadDraftRows(leagueId),
-  ])
+  const [waiverRows, tradeRows, rosterMoveRows, draftData, redraftTradeRows, redraftRosterPlayerRows] =
+    await Promise.all([
+      loadWaiverClaimRows(leagueId, since),
+      loadLeagueTradeRows(leagueId, since),
+      loadRosterMoveRows(leagueId, since),
+      loadDraftRows(leagueId),
+      loadRedraftTradeRows(leagueId, since),
+      loadRedraftRosterPlayerRows(leagueId, since),
+    ])
   return [
     ...mapWaiverClaimsToEvents(waiverRows),
     ...mapLeagueTradesToEvents(tradeRows),
     ...mapRosterMovesToEvents(rosterMoveRows),
     ...mapDraftRowsToEvents(draftData.session, draftData.picks),
+    ...mapRedraftTradesToEvents(redraftTradeRows),
+    ...mapRedraftRosterPlayersToEvents(redraftRosterPlayerRows),
   ]
 }
 
