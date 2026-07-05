@@ -128,7 +128,11 @@ export function NflRedraftLeagueHomeDashboard({
   const entitlements = useEntitlements()
   const hasManagerIntelligence = entitlements.hasPro || entitlements.hasSupreme
   const hasCommissionerIntelligence = entitlements.hasCommissioner || entitlements.hasSupreme
-  const joinedTeams = teamSlots.filter((team) => Boolean(team.id)).length
+  // `claimedByUserId` is set only when a real manager has claimed the slot (the
+  // commissioner's own slot is claimed at creation); `Boolean(team.id)` counted every
+  // auto-materialized placeholder team, which reported the league as "full" before
+  // anyone but the commissioner had joined.
+  const joinedTeams = teamSlots.filter((team) => Boolean(team.claimedByUserId)).length
   const teamCount = league.teamCount ?? teamSlots.length
   const draftDate = formatDraftDate(draftDateIso)
   const teamLabel = userTeamName || 'Roster opens after draft'
@@ -199,12 +203,12 @@ export function NflRedraftLeagueHomeDashboard({
       title: 'Manager Intelligence',
       body: hasManagerIntelligence
         ? 'Draft prep insights, roster guidance, waiver watchlist, trade outlook, and matchup prep are available for your team.'
-        : 'AF Pro unlocks Manager Intelligence, personal Decision OS views, and smarter prep workflows.',
+        : 'AF Pro unlocks Manager Intelligence, personalized insight views, and smarter prep workflows.',
       meta: hasManagerIntelligence ? 'Unlocked' : 'AF Pro preview',
       locked: !hasManagerIntelligence,
     },
     {
-      title: 'Personal Decision OS panel',
+      title: 'Personal Intelligence panel',
       body: hasManagerIntelligence
         ? 'Your personal recommendations stay tied to league settings and your roster context.'
         : 'Preview the shape of smart recommendations without changing the normal league experience.',
@@ -230,7 +234,7 @@ export function NflRedraftLeagueHomeDashboard({
       title: 'Fair Play Monitoring',
       body: 'Review inactive manager detection, anti-tanking, anti-collusion, and advanced trade review controls.',
       locked: !hasCommissionerIntelligence,
-      cta: hasCommissionerIntelligence ? 'Open Decision OS settings' : undefined,
+      cta: hasCommissionerIntelligence ? 'Open League Helper settings' : undefined,
       onClick: hasCommissionerIntelligence ? () => onOpenSettings('ai-chimmy-setup') : undefined,
     },
     {

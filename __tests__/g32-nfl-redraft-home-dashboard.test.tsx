@@ -85,7 +85,7 @@ describe('G32 NFL redraft league home dashboard', () => {
 
     expect(screen.getAllByRole('heading', { name: 'Manager Intelligence' })[0]).toBeInTheDocument()
     expect(screen.getByTestId('g32-manager-intelligence-section')).toHaveTextContent('Unlocked')
-    expect(screen.getByText(/Personal Decision OS panel/)).toBeInTheDocument()
+    expect(screen.getByText(/Personal Intelligence panel/)).toBeInTheDocument()
   })
 
   it('shows commissioner HQ and premium Commissioner Intelligence preview for free commissioners', () => {

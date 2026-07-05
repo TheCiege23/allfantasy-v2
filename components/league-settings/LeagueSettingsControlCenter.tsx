@@ -42,7 +42,7 @@ const TABS: { id: LeagueSettingsHubTabId; label: string; short: string }[] = [
   { id: 'permissions', label: 'Permissions', short: 'Perms' },
   { id: 'commissioner', label: 'Commissioner Intelligence', short: 'Commish' },
   { id: 'conceptRules', label: 'Advanced Rule Support', short: 'Rules' },
-  { id: 'ai', label: 'Decision OS', short: 'Decision OS' },
+  { id: 'ai', label: 'League Helper', short: 'Helper' },
 ]
 
 function resolveInitialTab(panel: string | null | undefined): LeagueSettingsHubTabId {
@@ -109,7 +109,7 @@ export function LeagueSettingsControlCenter({
         return (
           <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-5 text-[13px] leading-relaxed text-white/65">
             <p className="mb-2 text-[14px] font-semibold text-white/85">Notifications</p>
-            <p>Basic league notifications are available in account settings. Weekly League Report controls live under Decision OS for AF Commissioner.</p>
+            <p>Basic league notifications are available in account settings. Weekly League Report controls live under League Helper for AF Commissioner.</p>
           </div>
         )
       case 'permissions':

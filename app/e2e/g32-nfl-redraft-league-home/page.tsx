@@ -152,7 +152,7 @@ export default function G32NflRedraftLeagueHomeHarness() {
                 'Notifications',
                 'Permissions',
                 'Commissioner Intelligence',
-                'Decision OS',
+                'League Helper',
                 'League Health',
                 'Trade Health',
                 'Manager Engagement',

@@ -218,9 +218,6 @@ export function CreateLeagueWizard(props: WizardProps) {
                 state={props.state}
                 completionIssues={props.completionIssues}
                 submitError={props.submitError}
-                submitting={props.submitting}
-                canCreate={canCreate}
-                onSubmit={props.onSubmit}
               />
             ) : null}
           </div>
@@ -553,16 +550,10 @@ export function ReviewCreateStep({
   state,
   completionIssues,
   submitError,
-  submitting,
-  canCreate,
-  onSubmit,
 }: {
   state: CreateLeagueV2State
   completionIssues: WizardProps['completionIssues']
   submitError: string | null
-  submitting: boolean
-  canCreate: boolean
-  onSubmit: () => void
 }) {
   const { t } = useLanguage()
 
@@ -595,16 +586,6 @@ export function ReviewCreateStep({
           {submitError}
         </div>
       ) : null}
-
-      <button
-        type="button"
-        onClick={onSubmit}
-        disabled={!canCreate || submitting}
-        className="min-h-12 w-full rounded-xl bg-violet-600 px-5 text-sm font-black text-white shadow-lg shadow-violet-600/25 transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-55"
-        data-testid="g30-create-league-submit-primary"
-      >
-        {submitting ? t('createLeague.g30.creating') : t('createLeague.v2.create')}
-      </button>
     </section>
   )
 }

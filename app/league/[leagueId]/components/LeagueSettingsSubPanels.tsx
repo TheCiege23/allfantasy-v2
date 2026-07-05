@@ -840,7 +840,16 @@ export function SettingsSubPanelBody({
     case 'notifications':
       return <NotificationsPanel />
     case 'invite':
-      return <InvitePanel inviteUrl={inviteUrl} filled={ctx.league.teams.length} total={numTeams} />
+      return (
+        <InvitePanel
+          inviteUrl={inviteUrl}
+          // Count only slots a real manager has claimed — `teams.length` includes
+          // auto-materialized placeholder slots and reported the league as "full"
+          // before anyone but the commissioner had joined.
+          filled={ctx.league.teams.filter((team) => Boolean(team.claimedByUserId)).length}
+          total={numTeams}
+        />
+      )
     case 'co-owners':
       return <CoOwnersPanel ctx={ctx} />
     case 'draft-results':
@@ -1857,7 +1866,7 @@ function AiFeaturePanel({ panelId, ctx }: { panelId: string; ctx: SubPanelContex
           }
           break
         default:
-          throw new Error('Unknown Decision OS panel')
+          throw new Error('Unknown AI tool panel')
       }
 
       const res = await fetch(endpoint, {
@@ -1881,7 +1890,7 @@ function AiFeaturePanel({ panelId, ctx }: { panelId: string; ctx: SubPanelContex
 
   return (
     <div className="space-y-3">
-      <p className="text-[13px] text-white/70">{titles[panelId] ?? 'Decision OS tool'}</p>
+      <p className="text-[13px] text-white/70">{titles[panelId] ?? 'AI tool'}</p>
 
       {panelId === 'ai-trade' ? (
         <div className="space-y-2">

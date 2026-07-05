@@ -51,7 +51,7 @@ test.describe('@g32 @nfl-redraft league home overhaul', () => {
     for (const label of ['General', 'Draft', 'Roster', 'Scoring', 'Waivers', 'Trades', 'Playoffs', 'Members', 'Notifications', 'Permissions']) {
       await expect(page.getByTestId('g32-settings-modal')).toContainText(label)
     }
-    for (const premium of ['Commissioner Intelligence', 'Decision OS', 'League Health', 'Trade Health', 'Fair Play Monitoring', 'Draft Readiness', 'Weekly League Report']) {
+    for (const premium of ['Commissioner Intelligence', 'League Helper', 'League Health', 'Trade Health', 'Fair Play Monitoring', 'Draft Readiness', 'Weekly League Report']) {
       await expect(page.getByTestId('g32-settings-modal')).toContainText(premium)
     }
     await page.getByRole('button', { name: 'Close' }).click()

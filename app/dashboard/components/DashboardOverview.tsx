@@ -889,7 +889,7 @@ export function DashboardOverview({
             }}
           />
           <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">
-            AllFantasy Command Center
+            Daily Briefing
           </p>
           <h1 className="mt-1.5 text-[26px] font-black leading-tight tracking-tight text-white sm:text-[30px]">
             Your fantasy command center is live.

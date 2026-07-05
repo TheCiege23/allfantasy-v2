@@ -57,7 +57,7 @@ export function AiLeagueSettingsPanel({
   return (
     <div className="min-h-0 flex-1 space-y-6 px-6 py-6 text-[13px] text-white/85" data-testid="settings-ai-panel">
       <SettingsPanelHeading
-        title="Decision OS"
+        title="Commissioner Intelligence"
         subtitle="League-wide intelligence controls. Deterministic engines still enforce rules; recommendations stay explainable."
       />
 

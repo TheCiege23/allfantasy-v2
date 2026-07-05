@@ -33,21 +33,24 @@ describe('G32 NFL redraft league home contracts', () => {
     expect(tabs).not.toContain("label: 'AI Coaching'")
   })
 
-  it('labels settings surfaces with Decision OS and Intelligence language', () => {
+  it('labels settings surfaces with customer-safe Intelligence/Helper language (no "Decision OS")', () => {
+    // "Decision OS" is an internal engineering codename (see lib/decision-os/) and must
+    // never appear in customer-facing settings copy — renamed for closed beta (see
+    // docs/CLOSED_BETA_UI_QA_FIXES.md item #3).
     const settingsHub = read('components/league-settings/LeagueSettingsControlCenter.tsx')
     const settingsNav = read('app/league/[leagueId]/components/settings/SettingsNav.tsx')
     const modalPanel = read('app/league/[leagueId]/components/settings/AiLeagueSettingsPanel.tsx')
     const compactTab = read('components/league-settings/tabs/AISettingsTab.tsx')
 
     expect(settingsHub).toContain("label: 'Commissioner Intelligence'")
-    expect(settingsHub).toContain("label: 'Decision OS'")
-    expect(settingsNav).toContain("label: 'Decision OS'")
+    expect(settingsHub).toContain("label: 'League Helper'")
+    expect(settingsNav).toContain("label: 'Commissioner Intelligence'")
     expect(settingsNav).toContain("label: '🤖 League Guide'")
-    expect(modalPanel).toContain('title="Decision OS"')
-    expect(compactTab).toContain('Control Commissioner Intelligence and Decision OS settings')
+    expect(modalPanel).toContain('title="Commissioner Intelligence"')
+    expect(compactTab).toContain('Control League Helper settings')
 
     const visibleCopySources = [settingsHub, settingsNav, modalPanel, compactTab].join('\n')
-    expect(visibleCopySources).not.toMatch(/AI Settings|AI Host|AI waiver|AI trade|AI draft|AI commissioner|AI assistant/)
+    expect(visibleCopySources).not.toMatch(/Decision OS/)
   })
 
   it('enforces premium Commissioner Intelligence settings server-side', () => {

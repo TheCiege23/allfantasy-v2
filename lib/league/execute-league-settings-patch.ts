@@ -179,7 +179,7 @@ export async function executeLeagueSettingsPatch(
 
   const premiumCommissionerKeys = requestedPremiumCommissionerKeys(body)
   if (premiumCommissionerKeys.length > 0 && !hasSub) {
-    return jsonError('AF Commissioner or AF Supreme is required for Commissioner Intelligence and Decision OS settings.', 403)
+    return jsonError('AF Commissioner or AF Supreme is required for Commissioner Intelligence and League Helper settings.', 403)
   }
 
   if (body.playoffTeams != null) {

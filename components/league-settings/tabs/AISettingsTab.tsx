@@ -74,7 +74,7 @@ export function AISettingsTab({ ctx, canEdit, hasAfCommissionerSub }: LeagueSett
     <div className="space-y-4">
       {saving ? <p className="text-[11px] font-semibold text-cyan-300/80">Saving…</p> : null}
       <p className="text-[12px] text-white/45">
-        Control Commissioner Intelligence and Decision OS settings. Premium controls require AF Commissioner or AF
+        Control League Helper settings. Premium controls require AF Commissioner or AF
         Supreme.
       </p>
 

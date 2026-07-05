@@ -81,7 +81,7 @@ const BASE_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'waiver', label: 'Waivers' },
   { id: 'playoff', label: 'Playoffs' },
   { id: 'schedule', label: 'Schedule' },
-  { id: 'ai', label: 'Decision OS' },
+  { id: 'ai', label: 'Commissioner Intelligence' },
   { id: 'notifications', label: 'Notifications' },
   { id: 'dues', label: 'Payments / League Dues' },
   { id: 'import_sync', label: 'Import / Sync' },
@@ -123,7 +123,7 @@ const DEVY_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'devy_taxi', label: '🚕 Taxi Rules' },
   { id: 'devy_drafts', label: '🎲 Drafts' },
   { id: 'devy_import', label: '📥 Import' },
-  { id: 'devy_ai', label: '🤖 Decision OS' },
+  { id: 'devy_ai', label: '🤖 League Guide' },
 ]
 
 const C2C_NAV: { id: SettingsNavTabId; label: string }[] = [
@@ -133,7 +133,7 @@ const C2C_NAV: { id: SettingsNavTabId; label: string }[] = [
   { id: 'c2c_taxi', label: '🚕 Taxi Rules' },
   { id: 'c2c_devy', label: '🎓 Devy Rules' },
   { id: 'c2c_drafts', label: '🎲 Drafts' },
-  { id: 'c2c_ai', label: '🤖 Decision OS' },
+  { id: 'c2c_ai', label: '🤖 League Guide' },
 ]
 
 const SURVIVOR_NAV: { id: SettingsNavTabId; label: string }[] = [

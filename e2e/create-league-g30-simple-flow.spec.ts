@@ -104,7 +104,7 @@ async function fillRequiredCreateFields(page: Page, teamCount: number, name: str
 async function submitCreate(page: Page) {
   await page.getByTestId('g30-step-review').click()
   await expect(page.getByTestId('g30-review-issues')).toHaveCount(0)
-  await page.getByTestId('g30-create-league-submit-primary').click()
+  await page.getByTestId('g30-create-league-submit').click()
 }
 
 test('creates NFL redraft with universal team counts 2 and 32', async ({ page }) => {
