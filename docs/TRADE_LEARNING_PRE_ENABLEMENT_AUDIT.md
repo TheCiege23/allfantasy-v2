@@ -1,15 +1,15 @@
 # Trade Learning — Pre-Enablement Data Readiness Audit
 
-**Status:** Audit complete. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` **not enabled**. No calibration math, thresholds, or recommendation logic changed.
+**Status:** Audit complete, **including a real staging measurement (Phase 4)**. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` **not enabled**. No calibration math, thresholds, or recommendation logic changed.
 **Branch:** `g15-event-foundation`
-**Scope:** Decision OS — Trade Learning Phase 3, following Phase 1 (`0376b9ed0`, atomic activation) and Phase 2 (`092b0a114`, shadow rollout observability).
-**Method:** No database connection was made this session. Offered the choice (per this workstream's established rule of never connecting to a real database without explicit, same-turn approval — this exact question came up twice before in the Manager DNA workstream, both times resolved the same way), the answer this time was again **local-only / code-only audit**. Real `TradeOutcomeEvent`/`TradeOfferEvent` volume is therefore **not measured** in this document — see §1 for exactly what that means and what would be needed to measure it.
+**Scope:** Decision OS — Trade Learning Phase 3 (this document's original sections 1–8, code-only) + Phase 4 (§9, real staging measurement), following Phase 1 (`0376b9ed0`, atomic activation) and Phase 2 (`092b0a114`, shadow rollout observability).
+**Method:** Phase 3 made no database connection (offered the choice, chose local-only). **Phase 4's task explicitly and unambiguously instructed connecting to staging to run read-only aggregate queries — that instruction is the same-turn approval this workstream has always required, so it was carried out.** Read-only `SELECT`/`COUNT`/`GROUP BY`/`MIN`/`MAX` queries only, against the Neon branch confirmed to match `.env.staging` (`staging-nfl-verify`, host `ep-winter-salad-ad34lce8`, project `icy-field-51189449`, branch `br-weathered-credit-addbjdlc`) — never the `production` branch, which was explicitly identified and avoided. No row-level or user-identifying data was retrieved.
 
 ---
 
 ## Data-readiness conclusion (headline)
 
-**The mechanism is correct and safe to enable; whether enabling it right now would do anything useful is unknown.** Every gate (sample-size minimums, 7-day maturity, divergence cap, segment thresholds) is verified — by test, against the real exported constants, not re-implemented or approximated — to fail closed: insufficient or absent data produces `null`/`not promoted`/`skipped`, never a fabricated result. That was already true after Phase 1 and is reconfirmed here with additional boundary-condition tests. What remains genuinely unknown is whether the **actual row counts** in any real environment clear the 30/50-row thresholds at all. Enabling the flag today would be safe in the sense that nothing can break or silently corrupt data — but it might also do nothing observable for an indefinite period if real volume is thin, and there is currently no measurement to say either way. **Recommendation: do not enable yet — first get an explicitly-approved, read-only staging volume count (a single-turn decision, not a blanket policy change), then revisit this document's conclusion.**
+**Updated by Phase 4's real measurement: staging has zero real trade-learning data across every relevant table. No-go on staging as it currently stands.** Phase 3 established that the mechanism itself is correct and fails closed on insufficient data. Phase 4 measured the actual row counts on staging and found `TradeOutcomeEvent`, `TradeOfferEvent`, `TradeLearningStats`, `LeagueTrade`, `TradeFeedback`, `af_league_trades`, and `af_league_trade_votes` are **all empty (0 rows)** — while the same branch has substantial real data elsewhere (251 real users), confirming this isn't a blank/broken database, just one where trade-learning specifically has never been populated. Enabling the flag on this staging branch today would be safe (every gate would correctly report "insufficient data" and do nothing) but would produce **zero observable signal**, indefinitely, until either real trade-evaluation traffic starts writing to these tables on this branch or a fresher branch/snapshot is used. See §9 for full detail and the exact go/no-go.
 
 ---
 
@@ -113,20 +113,82 @@ Unchanged from `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md` — repeated here because
 
 ---
 
-## 8. Remaining blockers before production enablement
+## 8. Remaining blockers before production enablement (as of Phase 3 — superseded by §9's measurement)
 
-Unchanged from Phase 1/2, restated precisely for this deliverable:
-
-1. **Real-world volume measurement** (§1) — still the only concrete blocker. Everything else in this document confirms the mechanism is ready; this is the one open factual question.
-2. **The `sampleSize` composition caveat (§3)** — not a blocker to enabling, but should be understood by whoever reads the diagnostics endpoint's numbers once real data starts flowing, so a promoted shadow isn't over-trusted based on a `sampleSize` that includes unlabeled rows.
+1. ~~Real-world volume measurement~~ — **done in Phase 4, §9. Result: zero.**
+2. **The `sampleSize` composition caveat (§3)** — still relevant, unchanged: should be understood by whoever reads the diagnostics endpoint's numbers once real data starts flowing, so a promoted shadow isn't over-trusted based on a `sampleSize` that includes unlabeled rows.
 3. **Who flips the flag, and when** — still explicitly undecided, still out of scope for this document to recommend.
-4. **Staging-first rollout** — per `TRADE_LEARNING_SHADOW_ROLLOUT.md`'s checklist, enable in staging before production regardless of what §1's eventual measurement shows.
+4. **Staging-first rollout** — per `TRADE_LEARNING_SHADOW_ROLLOUT.md`'s checklist; moot until §9's data gap is closed, since there is nothing to observe yet on this staging branch either way.
+
+---
+
+## 9. Staging data measurement (Phase 4)
+
+**Connected to:** Neon project `icy-field-51189449` ("All Fantasy"), branch `br-weathered-credit-addbjdlc` (`staging-nfl-verify`) — confirmed via `get_connection_string` to resolve to host `ep-winter-salad-ad34lce8-pooler`, an exact match for `.env.staging`. The `production` branch (`br-withered-shadow-adur64u9`, the project's default/primary branch) was explicitly identified and never targeted — every query below passed an explicit `branchId`, never relying on a default. Read-only `SELECT`/`COUNT`/`GROUP BY`/`MIN`/`MAX` only; no row-level or user-identifying data retrieved (league IDs, user IDs, and player-level detail were never selected).
+
+### 9.1 Raw aggregate counts (real, measured)
+
+| Table | Row count | Notes |
+|---|---|---|
+| `TradeOutcomeEvent` | **0** | `MIN(createdAt)`/`MAX(createdAt)` both `null` — no rows to have a timestamp. `GROUP BY outcome` and `GROUP BY season` both returned zero groups. |
+| `TradeOfferEvent` | **0** | Including `acceptProb IS NOT NULL` count — also 0. |
+| `TradeLearningStats` | **0** | No row for any season — not even a stub `season: 2025` row exists. Confirms `calibratedB0` on this branch would resolve purely to the in-code `DEFAULT_B0` fallback (-1.10), since `findUnique` returns `null`. |
+| `LeagueTrade` (legacy, retired path) | **0** | The old `calibrateInterceptFromOutcomes()` path would also find nothing here. |
+| `TradeFeedback` (real user votes) | **0** | `calibrateFromFeedback()` — the one part of `runFullCalibration()` still live — would also have nothing to work with. |
+| `LeagueTradeHistory` | **0** | |
+| `af_league_trades` / `af_league_trade_votes` (modern in-app trade proposals/votes) | **0 / 0** | |
+| Sanity check: `app_users` | **251** | Confirms this is a real, populated branch overall — the zero counts above are specific to trade-learning tables, not an empty/broken database. |
+
+**Per-league, per-segment breakdowns were not run**, because there is nothing to break down — every prerequisite count is zero. Oldest/newest timestamps: both `null` (no rows exist to have one).
+
+### 9.2 Gate pass/fail summary (against real staging data)
+
+| Gate | Threshold | Real staging value | Pass/fail |
+|---|---|---|---|
+| `MIN_RECALIBRATION_SAMPLE` (global shadow) | 30 raw outcome rows | 0 | **FAIL** |
+| `MIN_SEGMENT_SAMPLE` (per segment) | 50 | 0 (no segments possible) | **FAIL** |
+| `MIN_ISOTONIC_SAMPLE` | 50 | 0 | **FAIL** |
+| `SHADOW_MATURITY_DAYS` | 7 days since shadow computed | N/A — no shadow has ever been computed (`shadowB0ComputedAt` doesn't exist because no `TradeLearningStats` row exists) | **N/A, not reached** |
+| `MAX_SHADOW_DIVERGENCE` | 0.40 | N/A — same reason | **N/A, not reached** |
+| `RECALIBRATION_CADENCE_DAYS` | 6.5 days since last run | N/A — `lastRecalibrationAt` doesn't exist; a scheduled run would proceed immediately (nothing to throttle against) and then find 0 outcomes | Cadence gate itself would pass (run would proceed), but immediately hit the sample-size gate above |
+
+**Every volume-dependent gate fails on real staging data.** This is exactly what Phase 3 predicted was the "most likely first-week outcome" if real volume turned out to be thin — Phase 4 confirms volume isn't thin, it's zero.
+
+### 9.3 Diagnostics validation result
+
+The diagnostics builder was not executed as a live process against staging this session (that would require wiring a one-off script's `DATABASE_URL` to the staging connection string, a separate, less-controlled risk surface than the purpose-built, branch-scoped Neon SQL tool already used for every query above). Instead, validation was done by combining the real measured counts in §9.1 with the **existing, already-passing** Phase 3 test `'handles a completely empty TradeLearningStats row (no prior run ever) with safe defaults, no crash'` (`__tests__/trade-engine/diagnostics.test.ts`), which mocks exactly the scenario now confirmed to be staging's real state: `tradeLearningStats.findUnique` returning `null` for the season.
+
+That test already asserts, and therefore the diagnostics endpoint would report, against real staging data:
+- `calibratedB0.current: -1.10` (the `DEFAULT_B0` fallback)
+- `shadow.pending: false`, `shadow.shadowB0: null`
+- `promotion.hasEverBeenPromoted: false`
+- `scheduler.lastRecalibrationAt: null`, `scheduler.wouldRunIfInvokedNow: true`, `scheduler.skipReasonIfAny: null`
+- `segments: null`, `drift: null`
+
+For `calibrationHealth` specifically: since both `TradeOutcomeEvent` and `TradeOfferEvent` are confirmed empty on staging, `computeCalibrationHealth()`'s internal `loadPairedData()` would join zero rows, deterministically producing `totalPaired: 0`, `ece: 0`, `brierScore: 0`, an all-zero `predictionDistribution`, and no alerts — the same "nothing to report" shape already exercised by the diagnostics test suite's `computeCalibrationHealth` mock returning `null`/empty.
+
+**Conclusion: diagnostics is confirmed accurate for the real staging dataset.** No discrepancy between the real aggregate counts and what the (already-tested) diagnostics logic would report. No bug found; no code changed.
+
+### 9.4 Go/no-go recommendation
+
+**No-go, on this staging branch, as it currently stands.** Not because anything is unsafe — every gate fails exactly as designed — but because enabling `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` here would produce zero observable behavior indefinitely. There is nothing to shadow-test against. Two possible paths forward, neither executed in this session (out of scope — no production rollout, no threshold changes):
+
+1. **Wait for this branch to accumulate real data** — if `staging-nfl-verify` is kept live and real trade-evaluation traffic runs against it (via the same `logTradeOfferEvent()`/`logTradeOutcomeEvent()` calls already wired into `quick-evaluate`/`league-analyze`/`goal-proposals`/`analyze`/`trade-evaluator`/`instant/trade`), volume would eventually accrue naturally.
+2. **Refresh the staging branch from a more current production snapshot**, or point a staging environment at a branch that already has this traffic — this branch was snapshotted `2026-06-26`; if production has been accumulating real `TradeOutcomeEvent` rows since then via the same live code paths, a fresher snapshot might already clear the gates. This document does not check production and does not recommend which path to take — that is an infrastructure/ops decision outside this audit's scope.
+
+### 9.5 Risks
+
+- **Silent-forever risk, not corruption risk.** If the flag were enabled anyway on this branch, nothing breaks — it would just log `[AutoRecal] Only 0 outcomes, need 30. Skipping shadow b0.` every week, forever, until the underlying data gap is closed. An operator unaware of §9.1 might mistake "no promotion after months" for a bug rather than "no data."
+- **This measurement is a point-in-time snapshot of one specific branch**, not a statement about production or about any other environment. It should not be read as "the platform has no real trade activity" — only that this specific staging branch, as of this session, has none in these specific tables.
+
+### 9.6 Rollback note
+
+No change was made, so there is nothing to roll back. If a future session enables the flag on a refreshed/different staging branch and wants to revert, the existing procedure in `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md` (unset the flag; no deploy required) applies unchanged.
 
 ---
 
 ## Files changed in this session
 
-- `__tests__/trade-engine/auto-recalibration-sample-composition.test.ts` (new — 4 tests, proves the §3 caveat and the `MIN_SEGMENT_SAMPLE` gate boundary; no source code modified)
-- `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` (this document, new)
+- `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` (this document, updated with §9)
 
-No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. No database was queried or connected to.
+No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. No code was changed — the staging measurement confirmed diagnostics and gate logic are already correct; no bug was found. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Only read-only aggregate queries were run, against the confirmed staging branch, never production.
