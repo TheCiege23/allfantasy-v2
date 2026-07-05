@@ -16,6 +16,7 @@ export type { SportAdapter } from './sport-adapter/types'
 export { UnknownSportAdapterError } from './sport-adapter/types'
 export { SportAdapterRegistry, sportAdapterRegistry } from './sport-adapter/registry'
 export { registerDefaultSportAdapters, buildSportAdapterFromConfig } from './sport-adapter/adapters'
+export { resolveSportAdapter } from './sport-adapter/resolve'
 
 export type { ProviderAdapter, DataDomain, ProviderName } from './provider-adapter/types'
 export { UnknownProviderAdapterError } from './provider-adapter/types'

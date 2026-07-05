@@ -10,6 +10,7 @@
  * Decision Object contract, which is unchanged.
  */
 import type { DecisionProvenance } from '@/lib/decision-os/core/decision'
+import { resolveSportAdapter } from '@/lib/decision-os-core'
 import type { CommissionerHealthWorld } from './world'
 
 export interface CommissionerHealthDCO {
@@ -44,7 +45,10 @@ export function buildCommissionerHealthDCO(input: CommissionerHealthDCOInput): C
   const w = input.world
   const uncertainty: string[] = []
   if (w.uncertainty) uncertainty.push(w.uncertainty)
-  if (!w.nflDataCoverageKnown && String(w.sport).toUpperCase() === 'NFL') {
+  // Sport-adapter-backed equivalent of the old `sport === 'NFL'` string check —
+  // see SportAdapter.tracksProviderDataCoverage's doc comment for why NFL is
+  // (honestly) the only sport this applies to today.
+  if (!w.nflDataCoverageKnown && resolveSportAdapter(w.sport)?.tracksProviderDataCoverage) {
     uncertainty.push('NFL data coverage could not be verified.')
   }
 

@@ -28,6 +28,16 @@ function deriveCompetitionStructure(_config: SportConfigFull): CompetitionStruct
 }
 
 /**
+ * Only NFL has a wired provider data-coverage signal today (see
+ * `SportAdapter.tracksProviderDataCoverage`'s doc comment). This is the single
+ * declared place that fact lives — deliberately not derived from any
+ * `SportConfigFull` field, since no such field exists yet for any sport.
+ */
+function deriveTracksProviderDataCoverage(config: SportConfigFull): boolean {
+  return config.sport === 'NFL'
+}
+
+/**
  * Builds a SportAdapter for any sport present in `lib/sportConfig`'s registry.
  * Returns null (never throws) when the sport has no config — safe, deterministic
  * degradation matching the Canonical World's "null over fabrication" convention.
@@ -45,6 +55,7 @@ export function buildSportAdapterFromConfig(sport: string): SportAdapter | null 
     rosterSlotCategories: Array.from(new Set(config.defaultRosterSlots.map((s) => s.key))),
     scoringStatVocabulary: config.scoringCategories.map((c) => c.key),
     supportsIDP: config.supportsIDP,
+    tracksProviderDataCoverage: deriveTracksProviderDataCoverage(config),
     parseRawStats(raw: Record<string, number>): Record<string, number> {
       if (legacyAdapter) return legacyAdapter.parseRawStats(raw)
       const vocabulary = new Set(config.scoringCategories.map((c) => c.key))

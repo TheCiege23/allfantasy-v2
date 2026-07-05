@@ -11,6 +11,7 @@ function fakeAdapter(sport: string): SportAdapter {
     rosterSlotCategories: ['starter', 'bench'],
     scoringStatVocabulary: ['stat_a', 'stat_b'],
     supportsIDP: false,
+    tracksProviderDataCoverage: false,
     parseRawStats: (raw) => raw,
     getLineupLockTime: (iso) => new Date(iso),
   }
@@ -74,6 +75,22 @@ describe('buildSportAdapterFromConfig (wraps lib/sportConfig)', () => {
     expect(adapter!.scoringStatVocabulary.length).toBeGreaterThan(0)
     expect(adapter!.supportsIDP).toBe(true)
     expect(adapter!.getLineupLockTime('2026-09-08T17:00:00.000Z')).toBeInstanceOf(Date)
+  })
+
+  it('flags NFL (and only NFL) as tracking provider data coverage', () => {
+    // Mirrors the exact real-world set of sports with a wired data-coverage
+    // signal today (lib/decision-os/commissioner-health), which
+    // lib/decision-os/commissioner-health/dco.ts now resolves through this
+    // adapter instead of an inline `sport === 'NFL'` string comparison.
+    expect(buildSportAdapterFromConfig('NFL')!.tracksProviderDataCoverage).toBe(true)
+    expect(buildSportAdapterFromConfig('NCAAF')!.tracksProviderDataCoverage).toBe(false)
+    expect(buildSportAdapterFromConfig('MLB')!.tracksProviderDataCoverage).toBe(false)
+    expect(buildSportAdapterFromConfig('GOLF')!.tracksProviderDataCoverage).toBe(false)
+  })
+
+  it('is case-insensitive for tracksProviderDataCoverage, matching the old sport.toUpperCase() check', () => {
+    expect(buildSportAdapterFromConfig('nfl')!.tracksProviderDataCoverage).toBe(true)
+    expect(buildSportAdapterFromConfig('Nfl')!.tracksProviderDataCoverage).toBe(true)
   })
 
   it('returns null (never throws) for a sport with no config', () => {

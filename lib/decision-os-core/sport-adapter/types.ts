@@ -27,6 +27,18 @@ export interface SportAdapter {
 
   supportsIDP: boolean
 
+  /**
+   * Whether this sport currently has a provider-backed data-coverage verification
+   * signal (e.g. depth chart / injury foundation coverage) that a decision can
+   * honestly check. Only NFL has this today — see
+   * `lib/decision-os/commissioner-health/world.ts`'s `nflDataCoverageKnown`,
+   * itself sourced from an NFL-only snapshot field
+   * (`lib/commissioner-hub/commissionerHubHealth.ts`'s `nflDataCoverage`).
+   * This flag is the single declared place that fact lives, so decision logic
+   * can ask the adapter instead of comparing `sport === 'NFL'` inline.
+   */
+  tracksProviderDataCoverage: boolean
+
   /** == existing SportAdapter.parseRawStats in lib/redraft/sportAdapters/types.ts */
   parseRawStats(raw: Record<string, number>): Record<string, number>
 
