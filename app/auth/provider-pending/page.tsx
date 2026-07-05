@@ -15,8 +15,10 @@ import { signupUrlWithIntent } from "@/lib/auth/auth-intent-resolver"
 
 const SUPPORTED_PROVIDER_IDS: SocialProvider[] = [
   "google",
+  "spotify",
   "apple",
   "facebook",
+  "discord",
   "instagram",
   "x",
   "tiktok",

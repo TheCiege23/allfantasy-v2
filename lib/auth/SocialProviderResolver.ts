@@ -63,10 +63,16 @@ export function isSocialProviderEnabled(provider: SocialProvider): boolean {
     return process.env.NEXT_PUBLIC_ENABLE_X_AUTH === 'true'
   }
   if (provider === 'discord') {
-    // No NextAuth provider is wired for Discord yet (lib/auth.ts has no
-    // DiscordProvider) — Discord only exists elsewhere for unrelated league
-    // integrations. Same forward-compat shape as 'x' above.
-    return process.env.NEXT_PUBLIC_ENABLE_DISCORD_AUTH === 'true'
+    // DiscordProvider is now registered in lib/auth.ts (gated on DISCORD_CLIENT_ID
+    // + DISCORD_CLIENT_SECRET). This is intentionally a SEPARATE credential pair
+    // from the pre-existing Discord bot/account-linking integration in
+    // lib/discord/constants.ts (/api/auth/discord/callback, bot-install) — do not
+    // conflate the two. Client bundles can't see the server-only vars, so the
+    // explicit public flag is required there; same shape as google/spotify/facebook.
+    return (
+      process.env.NEXT_PUBLIC_ENABLE_DISCORD_AUTH === 'true' ||
+      !!(process.env.DISCORD_CLIENT_ID && process.env.DISCORD_CLIENT_SECRET)
+    )
   }
   return false
 }
