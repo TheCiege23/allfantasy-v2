@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useEffect, type CSSProperties } from "react"
+import { useState, useEffect, type CSSProperties, type ReactNode } from "react"
 import { signIn } from "next-auth/react"
 import {
   Shield,
@@ -12,6 +12,9 @@ import {
   CheckCircle2,
   ArrowRight,
   X,
+  TrendingUp,
+  Crown,
+  Swords,
 } from "lucide-react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
@@ -28,6 +31,7 @@ import {
   isSocialProviderEnabled,
 } from "@/lib/auth/SocialProviderResolver"
 import { buildProviderPendingHref } from "@/lib/auth/ProviderPendingFlow"
+import { positionColor } from "@/lib/draft/positions"
 
 function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined): string {
   if (typeof callbackUrl === "string") {
@@ -39,6 +43,152 @@ function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined):
     }
   }
   return "/dashboard"
+}
+
+/** Small avatar chip for the welcome panel's preview cards — reuses the real product's position colors. */
+function MiniAvatar({ initials, pos }: { initials: string; pos: string }) {
+  const color = positionColor(pos)
+  return (
+    <span
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+      style={{
+        background: `color-mix(in srgb, ${color} 22%, var(--panel2))`,
+        color,
+        border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`,
+      }}
+    >
+      {initials}
+    </span>
+  )
+}
+
+function TrustStat({ label }: { label: string }) {
+  return (
+    <span
+      className="rounded-full border px-3 py-1 text-[11px] font-semibold"
+      style={{ borderColor: "var(--border)", color: "var(--muted)", background: "color-mix(in srgb, var(--panel2) 60%, transparent)" }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function DecorativeCard({ label, live, children }: { label: string; live?: boolean; children: ReactNode }) {
+  return (
+    <div
+      className="login-card-hover rounded-xl border p-3"
+      style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 55%, transparent)" }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase" style={{ color: "var(--muted)" }}>{label}</span>
+        {live && (
+          <span
+            className="login-live-pulse rounded-full px-2 py-0.5 text-[9px] font-bold uppercase"
+            style={{ background: "color-mix(in srgb, var(--accent-red) 16%, transparent)", color: "var(--accent-red)" }}
+          >
+            Live
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** Fantasy command-center welcome panel — desktop: full panel with the AF crest + preview cards; mobile: compact strip above the form. */
+function WelcomeFantasyPanel() {
+  return (
+    <>
+      {/* Desktop: full panel */}
+      <aside className="relative z-10 hidden flex-col justify-center px-10 py-16 lg:flex xl:px-16" aria-hidden="true">
+        <div className="mx-auto w-full max-w-md">
+          <img
+            src="/brand/af-shield-transparent.png"
+            alt=""
+            width={40}
+            height={40}
+            className="mb-5 h-10 w-10 object-contain"
+          />
+          <h1 className="mb-3 text-[32px] font-black leading-tight sm:text-[38px]" style={{ color: "var(--text)" }}>
+            Welcome back to your league.
+          </h1>
+          <p className="mb-8 text-sm leading-6" style={{ color: "var(--muted)" }}>
+            Your matchups, waivers, trades, drafts, and commissioner tools are waiting.
+          </p>
+
+          <div className="space-y-3">
+            <DecorativeCard label="Live Matchup" live>
+              <div className="flex items-center justify-between text-[12px] font-semibold" style={{ color: "var(--text)" }}>
+                <span>Dynasty Dragons</span>
+                <span className="text-[15px] font-black" style={{ color: "var(--accent-cyan)" }}>78.4</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[12px] font-semibold" style={{ color: "var(--muted)" }}>
+                <span>Gridiron Gang</span>
+                <span className="text-[15px] font-black" style={{ color: "var(--text)" }}>71.2</span>
+              </div>
+            </DecorativeCard>
+
+            <DecorativeCard label="Waiver Alert">
+              <div className="flex items-center gap-2.5">
+                <MiniAvatar initials="RS" pos="WR" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-semibold" style={{ color: "var(--text)" }}>Rome Odunze available</p>
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>62% rostered · trending up</p>
+                </div>
+                <TrendingUp className="h-4 w-4 shrink-0" style={{ color: "var(--accent-emerald)" }} aria-hidden="true" />
+              </div>
+            </DecorativeCard>
+
+            <DecorativeCard label="Trade Offer">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-bold" style={{ color: "var(--accent-emerald-strong)" }}>96/100 fair</span>
+              </div>
+              <p className="text-[12px]" style={{ color: "var(--text)" }}>
+                Jonathan Taylor <span style={{ color: "var(--muted)" }}>for</span> DeVonta Smith
+              </p>
+            </DecorativeCard>
+
+            <DecorativeCard label="Commissioner Alert">
+              <div className="flex items-center gap-2.5">
+                <Crown className="h-4 w-4 shrink-0" style={{ color: "var(--accent-amber-strong)" }} aria-hidden="true" />
+                <p className="text-[12px] font-medium" style={{ color: "var(--text)" }}>Playoff bracket locks in 3 days</p>
+              </div>
+            </DecorativeCard>
+
+            <DecorativeCard label="Draft Room">
+              <div className="flex items-center gap-2.5">
+                <Swords className="h-4 w-4 shrink-0" style={{ color: "var(--accent-purple)" }} aria-hidden="true" />
+                <p className="text-[12px] font-medium" style={{ color: "var(--text)" }}>
+                  On the clock <span style={{ color: "var(--muted)" }}>— Pick 1.03, 0:58 remaining</span>
+                </p>
+              </div>
+            </DecorativeCard>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center gap-2 border-t pt-6" style={{ borderColor: "var(--border)" }}>
+            <TrustStat label="Secure & Private" />
+            <TrustStat label="Fantasy Sports Only" />
+            <TrustStat label="Built for Commissioners" />
+            <TrustStat label="No Gambling" />
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile/tablet: compact intro above the form — crest visible, no cards, form stays near the top */}
+      <div className="relative z-10 flex flex-col items-center px-4 pt-8 text-center lg:hidden">
+        <img
+          src="/brand/af-shield-transparent.png"
+          alt=""
+          width={36}
+          height={36}
+          className="mb-3 h-9 w-9 object-contain"
+        />
+        <h1 className="text-2xl font-black leading-tight" style={{ color: "var(--text)" }}>
+          Welcome back to your league.
+        </h1>
+      </div>
+    </>
+  )
 }
 
 export default function LoginContent() {
@@ -252,7 +402,7 @@ export default function LoginContent() {
   }
 
   const inputSurfaceStyle: CSSProperties = {
-    background: "var(--panel2)",
+    background: "color-mix(in srgb, var(--panel2) 82%, transparent)",
     color: "var(--text)",
     borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
   }
@@ -311,7 +461,10 @@ export default function LoginContent() {
         </div>
       </nav>
 
-      <main className="relative z-10 flex min-h-[calc(100vh-56px)] items-center justify-center px-4 py-10 sm:px-4 sm:py-16">
+      <main className="relative z-10 min-h-[calc(100vh-56px)] lg:grid lg:grid-cols-2">
+        <WelcomeFantasyPanel />
+
+        <div className="flex flex-col items-center justify-center px-4 py-8 sm:px-4 sm:py-12 lg:py-16">
         <div className="w-full max-w-[440px]">
           <div className="pb-8 text-center">
             <div className="relative mb-5 inline-flex">
@@ -374,8 +527,11 @@ export default function LoginContent() {
             className="rounded-[18px] border p-8"
             style={{
               borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
-              background: "var(--panel)",
-              boxShadow: "0 24px 80px color-mix(in srgb, var(--text) 10%, transparent)",
+              background: "color-mix(in srgb, var(--panel) 78%, transparent)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              boxShadow:
+                "0 24px 80px color-mix(in srgb, var(--text) 10%, transparent), inset 0 1px 0 color-mix(in srgb, white 6%, transparent)",
             }}
           >
             <form onSubmit={handlePasswordLogin} className="space-y-4">
@@ -568,7 +724,7 @@ export default function LoginContent() {
               </button>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
               {[
                 {
                   provider: "apple" as const,
@@ -596,6 +752,33 @@ export default function LoginContent() {
                   ),
                 },
                 {
+                  provider: "discord" as const,
+                  label: "Discord",
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#5865F2" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.373-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.121.1.247.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.076.076 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                    </svg>
+                  ),
+                },
+                {
+                  provider: "instagram" as const,
+                  label: "Instagram",
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <defs>
+                        <linearGradient id="login-ig-g" x1="0%" y1="100%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#f09433" />
+                          <stop offset="25%" stopColor="#e6683c" />
+                          <stop offset="50%" stopColor="#dc2743" />
+                          <stop offset="75%" stopColor="#cc2366" />
+                          <stop offset="100%" stopColor="#bc1888" />
+                        </linearGradient>
+                      </defs>
+                      <path fill="url(#login-ig-g)" d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
+                    </svg>
+                  ),
+                },
+                {
                   provider: "x" as const,
                   label: "X / Twitter",
                   icon: (
@@ -605,11 +788,11 @@ export default function LoginContent() {
                   ),
                 },
                 {
-                  provider: "discord" as const,
-                  label: "Discord",
+                  provider: "tiktok" as const,
+                  label: "TikTok",
                   icon: (
-                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
-                      <path fill="#5865F2" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.373-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.121.1.247.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.076.076 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
+                    <svg className="h-5 w-5 [color:var(--text)]" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="currentColor" d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1V9.01a6.33 6.33 0 00-.79-.05 6.34 6.34 0 00-6.34 6.34 6.34 6.34 0 006.34 6.34 6.34 6.34 0 006.33-6.34V8.75a8.27 8.27 0 004.84 1.55V6.86a4.85 4.85 0 01-1.07-.17z" />
                     </svg>
                   ),
                 },
@@ -670,6 +853,22 @@ export default function LoginContent() {
                 </button>
               </div>
             )}
+
+            <div className="mt-6 flex items-center justify-center border-t pt-4" style={{ borderColor: "var(--border)" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdminError(null)
+                  setAdminRemaining(null)
+                  setAdminModalOpen(true)
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium transition hover:opacity-80"
+                style={{ color: "var(--muted)" }}
+              >
+                <Shield className="h-3.5 w-3.5" style={{ color: "var(--accent-purple)" }} />
+                Secure admin access
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 text-center text-sm" style={{ color: "var(--muted)" }}>
@@ -683,26 +882,8 @@ export default function LoginContent() {
             </Link>
           </div>
         </div>
+        </div>
       </main>
-
-      <button
-        type="button"
-        onClick={() => {
-          setAdminError(null)
-          setAdminRemaining(null)
-          setAdminModalOpen(true)
-        }}
-        className="fixed bottom-5 right-5 z-30 flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-md transition hover:opacity-90"
-        style={{
-          borderColor: "color-mix(in srgb, var(--accent-purple) 35%, var(--border))",
-          background: "color-mix(in srgb, var(--accent-purple) 12%, transparent)",
-          color: "var(--muted)",
-        }}
-        title="Admin access"
-        aria-label="Admin sign in"
-      >
-        <Shield className="h-5 w-5" />
-      </button>
 
       {adminModalOpen && (
         <div
@@ -804,14 +985,36 @@ export default function LoginContent() {
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        .login-card-hover {
+          transition: transform 200ms ease, box-shadow 200ms ease;
+        }
+        .login-card-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 28px -18px rgba(2, 6, 23, 0.35);
+        }
+        .login-live-pulse {
+          position: relative;
+        }
+        .login-live-pulse::before {
+          content: "";
+          position: absolute;
+          inset: -2px;
+          border-radius: 9999px;
+          border: 1px solid color-mix(in srgb, var(--accent-red) 55%, transparent);
+          animation: loginLivePulse 1.8s ease-out infinite;
+        }
+        @keyframes loginLivePulse {
+          0% { opacity: 0.6; transform: scale(1); }
+          100% { opacity: 0; transform: scale(1.4); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .login-card-hover { transition: none; }
+          .login-card-hover:hover { transform: none; }
+          .login-live-pulse::before { animation: none !important; opacity: 0.35; }
+        }
+      `}</style>
     </div>
   )
 }
-
-
-
-
-
-
-
-
