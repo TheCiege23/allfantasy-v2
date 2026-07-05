@@ -16,6 +16,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { UserMinus, UserPlus, X, Search, Link2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { DuplicateManagerWarningsSection } from '@/components/league-settings/DuplicateManagerWarningsSection'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -303,6 +304,8 @@ export function MemberSettingsCommissionerPanel({ leagueId }: Props) {
       {success && (
         <div className="rounded-lg border border-emerald-500/20 bg-emerald-950/20 px-3 py-2 text-xs text-emerald-300">{success}</div>
       )}
+
+      {canManageMembers && <DuplicateManagerWarningsSection leagueId={leagueId} />}
 
       {canManageMembers ? (
         <div className="flex flex-wrap items-center gap-2">
