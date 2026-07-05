@@ -204,13 +204,15 @@ Recommendation generation, acceptance scoring math, `FEATURE_WEIGHTS`, the sigmo
 - Full focused suite after this change: **44/44 passing** (`__tests__/trade-engine/`, `__tests__/league-trade-engine-validation.test.ts`, `__tests__/trade-league-analyze-api.test.ts`), plus **71/71 passing** on every Decision OS trade-slice test file, confirming zero cross-contamination.
 - `npm run typecheck`: 158 total errors repo-wide, identical to the pre-change baseline, zero touching any trade-engine/trade-learning/cron file.
 
-### Remaining before this can be enabled in production
+### Remaining before this can be enabled in production (as of Phase 1)
 1. **Real-world volume check** — `MIN_RECALIBRATION_SAMPLE` (30 outcomes) and `MIN_SEGMENT_SAMPLE`/`MIN_ISOTONIC_SAMPLE` (50 each) gates mean the flag can be flipped on with zero practical effect until enough real `TradeOutcomeEvent` rows accumulate; nobody has measured current real volume against these thresholds (carried over from `docs/DECISION_OS_CLOSED_LOOP_LEARNING_AUDIT.md`'s own open items).
 2. **Observation window before first promotion** — even once enabled, `promoteShadowB0()`'s 7-day maturity gate means the first real promotion cannot happen faster than a week after the flag goes on; operators should expect a quiet period before any `calibratedB0` movement is visible.
 3. **Decide who flips the flag, and when** — this document does not recommend a production rollout date; that is explicitly out of scope for this activation-implementation task.
-4. **`calibration-metrics.ts`'s orphaned health dashboard** (noted in the ADR §2) remains unwired — once this is live, someone will want to actually see the reliability-curve/ECE data it already knows how to compute.
+4. ~~`calibration-metrics.ts`'s orphaned health dashboard remains unwired~~ — **resolved in Phase 2** (see below): it is now reused (not duplicated) by the new diagnostics endpoint.
 
-## Files changed in this activation session
+**Items 1–3 above remain open after Phase 2** — this phase adds observability, not volume or a rollout date. See `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md` for the full operational checklist.
+
+## Files changed in the activation (Phase 1) session
 
 - `lib/trade-engine/accept-calibration.ts` (modified — retired the hardcoded-constant write, widened `CalibrationHistoryEntry.source`)
 - `lib/trade-engine/auto-recalibration.ts` (modified — added `isWeeklyRecalibrationEnabled()`/`runScheduledWeeklyRecalibration()`)
@@ -221,3 +223,68 @@ Recommendation generation, acceptance scoring math, `FEATURE_WEIGHTS`, the sigmo
 - `docs/TRADE_LEARNING_ACTIVATION_BLOCKERS.md` (this document, updated)
 
 No Decision OS code, AI Coach, Chimmy, Manager Intelligence, recommendation math, or public API was touched. `runWeeklyRecalibration()` and `calibrateInterceptFromOutcomes()` were not deleted. The system is implemented but **disabled by default** — `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` is not set in any environment as part of this change.
+
+---
+
+## Activation Phase 2 — shadow rollout observability
+
+Per the user's own framing: the architecture (Phase 1) being complete doesn't mean it's ready to flip on — an operator should be able to observe and reason about the system first. This phase adds monitoring; it changes no calibration math, no weights, and does not enable anything.
+
+### 1. Audit of the existing calibration-metrics subsystem
+
+`lib/trade-engine/calibration-metrics.ts` turned out to be **far more complete than the Phase 1 footnote suggested**: it's a fully-built dashboard-metrics engine — `computeCalibrationHealth()` (reliability curve, ECE, Brier score, prediction distribution, isotonic status), `computeSegmentDrift()`, `computeFeatureDrift()` (PSI/z-drift per feature), `computeRankingQuality()` (AUC, top-K hit rates, lift chart), `computeNarrativeIntegrity()`, `computeSummaryCards()`, `computeDrilldown()`, and `computeFullDashboard()` orchestrating all of them — with **zero callers anywhere in the codebase**, confirmed by repo-wide grep. None of it was rebuilt; `computeCalibrationHealth()` specifically (the calibration-quality subset directly relevant to weekly recalibration — ECE/Brier/reliability/isotonic) is now reused as-is by the new diagnostics endpoint below. `computeNarrativeIntegrity()`/`computeRankingQuality()`/`computeFeatureDrift()`/`computeSegmentDrift()` are AI-narrative-QA and ranking-quality concerns outside this phase's scope (trade-learning weekly recalibration specifically) and remain unwired — noted, not touched.
+
+### 2. Diagnostics endpoint
+
+**`GET /api/admin/trade-learning/diagnostics`** (`app/api/admin/trade-learning/diagnostics/route.ts`) — read-only, admin-authenticated via `requireAdminOrBearer()` (`lib/adminAuth.ts`, the same pattern already used by `/api/admin/metrics` and 20 other admin routes — admin session cookie, app session with an allow-listed admin email, or a bearer/admin-secret token for non-interactive checks). Only exports `GET`; no write handler exists. Accepts an optional `?season=` query param (defaults to 2025).
+
+Backed by a new pure assembly function, `buildTradeLearningDiagnostics()` (`lib/trade-engine/diagnostics.ts`), which reads `TradeLearningStats` and derives:
+- **`operational`**: is `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` currently set to `"true"`.
+- **`calibratedB0`**: current value, its documented sole owner (`promoteShadowB0()`, per the ownership ADR), and when `calibrateFromFeedback()` last touched the row.
+- **`shadow`**: pending shadow value, age in days, whether it has cleared the 7-day maturity gate, divergence from the active `calibratedB0`, whether that divergence is within the 0.40 cap, and sample size vs. the 30-row minimum — all four numbers/thresholds reused directly from `auto-recalibration.ts`'s own now-exported constants (`SHADOW_MATURITY_DAYS`, `MAX_SHADOW_DIVERGENCE`, `MIN_RECALIBRATION_SAMPLE`), never duplicated as separate literals.
+- **`promotion`**: whether any `calibrationHistory` entry has ever been tagged `source: 'auto-recalibration'`, and its timestamp/value if so.
+- **`scheduler`**: `lastRecalibrationAt`, days elapsed since, and a live, deterministic answer to "would a scheduled run proceed past the cadence gate right now, and if not, why" — computed the same way `runWeeklyRecalibration()`'s own internal cadence check works, reusing the same exported `RECALIBRATION_CADENCE_DAYS` constant, without re-invoking any write logic.
+- **`segments`** and **`recentHistory`**: reused directly from stored `TradeLearningStats.segmentB0s`/`.calibrationHistory`.
+- **`drift`**: a summary of the stored `driftReport` (written by the separate, already-reachable `runDriftDetection()` path) — overall severity, alert count, last-computed timestamp.
+- **`calibrationHealth`**: the reused `computeCalibrationHealth()` output (ECE, Brier score, reliability curve, isotonic status) over a rolling 30-day window.
+
+This endpoint performs **zero writes** — it only reads `TradeLearningStats` and calls the already-read-only `computeCalibrationHealth()`.
+
+### 3. Structured logging
+
+`runScheduledWeeklyRecalibration()` (`auto-recalibration.ts`) now logs, per invocation:
+- `[TradeLearningScheduler] invoked (flag=enabled|disabled)` — every call, immediately.
+- `[TradeLearningScheduler] skipped: <reason>` — when the flag is off (zero Prisma calls follow).
+- `[TradeLearningScheduler] complete — shadowComputed=…, promoted=…, segments=…, isotonic=…` — after a real run, summarizing the outcome in one line.
+
+`runWeeklyRecalibration()`'s own pre-existing logs (cadence-skip reason, shadow-computed values, promotion outcome, per-segment results, isotonic ECE before/after) are unchanged and complement the above — no new per-record log lines were added, keeping volume to a handful of lines per invocation.
+
+### 4. Constants exported (no values changed)
+
+`auto-recalibration.ts` now exports `DEFAULT_B0`, `MIN_RECALIBRATION_SAMPLE`, `MIN_SEGMENT_SAMPLE`, `MAX_B0_SHIFT`, `SHADOW_MATURITY_DAYS`, `MAX_SHADOW_DIVERGENCE`, `CURRENT_SEASON`, and a newly-named `RECALIBRATION_CADENCE_DAYS` (`= 6.5`, the same literal `runWeeklyRecalibration()`'s cadence check already used, now single-sourced so the diagnostics endpoint can never drift out of sync with the real check).
+
+### Tests added
+- `__tests__/trade-engine/diagnostics.test.ts` (9 tests) — flag reporting, safe defaults on an empty stats row, shadow maturity/divergence derivation, scheduler cadence derivation, promotion detection, and fail-safe behavior when the reused health computation throws.
+- `__tests__/admin-trade-learning-diagnostics-route.test.ts` (4 tests) — admin-gate enforcement, default/explicit season parameter handling, and confirmation that only `GET` is exported (no write handlers).
+
+### Verification
+- `__tests__/trade-engine/` + the above two new files: **59/59 passing**.
+- Every Decision OS trade-slice test file: **71/71 passing**, unchanged.
+- `npm run typecheck`: 158 total errors repo-wide, identical to the Phase 1 baseline, zero new errors in any touched file.
+
+### Remaining before production enablement (unchanged by this phase — this phase adds visibility, not readiness)
+1. Real-world `TradeOutcomeEvent` volume vs. the 30/50-row sample gates — still unmeasured.
+2. The 7-day maturity window still means no visible `calibratedB0` movement in the first week after enabling.
+3. Nobody has decided who flips the flag or when — see `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`'s operational checklist for what to check before that decision.
+
+## Files changed in the observability (Phase 2) session
+
+- `lib/trade-engine/auto-recalibration.ts` (modified — exported existing constants, added `RECALIBRATION_CADENCE_DAYS`, added scheduler-level structured logging)
+- `lib/trade-engine/diagnostics.ts` (new — `buildTradeLearningDiagnostics()`)
+- `app/api/admin/trade-learning/diagnostics/route.ts` (new — the read-only diagnostics endpoint)
+- `__tests__/trade-engine/diagnostics.test.ts` (new)
+- `__tests__/admin-trade-learning-diagnostics-route.test.ts` (new)
+- `docs/TRADE_LEARNING_ACTIVATION_BLOCKERS.md` (this document, updated)
+- `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md` (new — operator-facing rollout guide)
+
+No calibration math, weights, Bayesian formulas, recommendation algorithms, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment.

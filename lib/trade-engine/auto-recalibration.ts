@@ -3,13 +3,19 @@ import { Prisma } from '@prisma/client'
 import { invalidateCalibrationCache } from './accept-calibration'
 import { computeAndStoreIsotonicMap, type IsotonicMap } from './isotonic-calibrator'
 
-const DEFAULT_B0 = -1.10
-const MIN_RECALIBRATION_SAMPLE = 30
-const MIN_SEGMENT_SAMPLE = 50
-const MAX_B0_SHIFT = 0.60
-const SHADOW_MATURITY_DAYS = 7
-const MAX_SHADOW_DIVERGENCE = 0.40
-const CURRENT_SEASON = 2025
+// Exported (values unchanged) so diagnostics tooling can reference the real
+// thresholds instead of duplicating magic numbers. See lib/trade-engine/diagnostics.ts.
+export const DEFAULT_B0 = -1.10
+export const MIN_RECALIBRATION_SAMPLE = 30
+export const MIN_SEGMENT_SAMPLE = 50
+export const MAX_B0_SHIFT = 0.60
+export const SHADOW_MATURITY_DAYS = 7
+export const MAX_SHADOW_DIVERGENCE = 0.40
+export const CURRENT_SEASON = 2025
+// Mirrors the cadence guard inside runWeeklyRecalibration() itself
+// (daysSinceRecal < 6.5) — exported so diagnostics can report the same
+// "would it run right now" answer without re-implementing the check.
+export const RECALIBRATION_CADENCE_DAYS = 6.5
 
 export interface ShadowB0Metrics {
   computedB0: number
@@ -415,7 +421,7 @@ export async function runWeeklyRecalibration(
   const lastRecal = stats?.lastRecalibrationAt
   if (lastRecal) {
     const daysSinceRecal = (Date.now() - new Date(lastRecal).getTime()) / (1000 * 60 * 60 * 24)
-    if (daysSinceRecal < 6.5) {
+    if (daysSinceRecal < RECALIBRATION_CADENCE_DAYS) {
       console.log(`[AutoRecal] Only ${daysSinceRecal.toFixed(1)} days since last recalibration. Skipping (weekly cadence).`)
       return {
         shadow: { computed: false, shadowB0: null, metrics: null, promoted: false, promotedB0: null },
@@ -534,13 +540,22 @@ export async function runScheduledWeeklyRecalibration(
   env: NodeJS.ProcessEnv = process.env,
   season?: number,
 ): Promise<{ ran: boolean; reason?: string; result?: RecalibrationResult }> {
-  if (!isWeeklyRecalibrationEnabled(env)) {
-    return {
-      ran: false,
-      reason: 'disabled (TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED is not "true")',
-    }
+  const enabled = isWeeklyRecalibrationEnabled(env)
+  console.log(`[TradeLearningScheduler] invoked (flag=${enabled ? 'enabled' : 'disabled'})`)
+
+  if (!enabled) {
+    const reason = 'disabled (TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED is not "true")'
+    console.log(`[TradeLearningScheduler] skipped: ${reason}`)
+    return { ran: false, reason }
   }
 
   const result = season !== undefined ? await runWeeklyRecalibration(season) : await runWeeklyRecalibration()
+
+  console.log(
+    `[TradeLearningScheduler] complete — shadowComputed=${result.shadow.computed}, ` +
+      `promoted=${result.shadow.promoted}${result.shadow.promoted ? ` (newB0=${result.shadow.promotedB0})` : ''}, ` +
+      `segments=${result.segments.segmentCount}, isotonic=${result.isotonic.computed}`,
+  )
+
   return { ran: true, result }
 }
