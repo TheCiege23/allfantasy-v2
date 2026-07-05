@@ -27,7 +27,12 @@ interface CalibrationHistoryEntry {
   sampleSize: number
   avgPredicted: number
   observedRate: number
-  source: 'outcome' | 'feedback'
+  // 'outcome' is written only by the now-retired calibrateInterceptFromOutcomes()
+  // (kept for history-shape compatibility with any pre-existing rows).
+  // 'auto-recalibration' is written by promoteShadowB0() (auto-recalibration.ts),
+  // the sole current owner of calibratedB0 per
+  // docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md.
+  source: 'outcome' | 'feedback' | 'auto-recalibration'
 }
 
 interface FeedbackWeightAdj {
@@ -432,6 +437,25 @@ export function getIsotonicPoints(): IsotonicBinPoint[] | null {
   return cachedIsotonicPoints
 }
 
+/**
+ * Reads the current calibratedB0 without changing it. Per
+ * docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md, intercept calibration
+ * is now owned exclusively by promoteShadowB0() (auto-recalibration.ts),
+ * which calibrates against real TradeOutcomeEvent data. This function no
+ * longer shifts calibratedB0 toward the hardcoded OBSERVED_ACCEPT_RATE
+ * constant that calibrateInterceptFromOutcomes() targets.
+ */
+async function readCurrentB0Unchanged(
+  season: number,
+): Promise<{ newB0: number; sampleSize: number; avgPredicted: number; adjusted: boolean }> {
+  const stats = await prisma.tradeLearningStats.findUnique({
+    where: { season },
+    select: { calibratedB0: true },
+  })
+  const currentB0 = (stats?.calibratedB0 as number) ?? DEFAULT_B0
+  return { newB0: currentB0, sampleSize: 0, avgPredicted: 0, adjusted: false }
+}
+
 export async function runFullCalibration(
   season: number = CALIBRATION_SEASON,
 ): Promise<{
@@ -440,12 +464,17 @@ export async function runFullCalibration(
 }> {
   console.log('[Calibration] Starting full calibration cycle...')
 
-  const intercept = await calibrateInterceptFromOutcomes(season)
+  // Intercept calibration is retired from this orchestration per
+  // docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md — calibratedB0 is now
+  // written only by promoteShadowB0() (auto-recalibration.ts). This function
+  // still exists, is still exported, and remains independently callable/testable;
+  // it is simply no longer invoked by this default sequence.
+  const intercept = await readCurrentB0Unchanged(season)
   const feedback = await calibrateFromFeedback(season)
 
   invalidateCalibrationCache()
 
-  console.log(`[Calibration] Complete. b0=${intercept.newB0}, interceptAdj=${intercept.adjusted}, feedbackAdj=${feedback.adjusted}`)
+  console.log(`[Calibration] Complete. b0=${intercept.newB0} (intercept calibration retired — owned by promoteShadowB0), feedbackAdj=${feedback.adjusted}`)
 
   return {
     intercept: {

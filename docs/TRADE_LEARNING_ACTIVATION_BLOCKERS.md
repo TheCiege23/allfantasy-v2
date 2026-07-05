@@ -1,11 +1,17 @@
 # Trade Learning Activation Blockers
 
-**Status:** Investigation complete. Activation is **not safe today**. No production wiring, cron entry, feature flag, or `vercel.json` change was implemented.
+**Status:** **RESOLVED — activation implemented (disabled by default).** No production wiring, cron entry, feature flag, or `vercel.json` change was implemented in the *original* session that produced this document. All three items below have since landed. This document is preserved as a historical record of the investigation; see the "Activation complete" update for current state.
 **Branch:** `g15-event-foundation`
 **Scope:** Implementation-readiness review of `docs/DECISION_OS_CLOSED_LOOP_LEARNING_AUDIT.md` §7 Step 0 — "wire `runWeeklyRecalibration()` into a scheduled path."
-**Files touched this session:** one new regression test (`__tests__/trade-engine/auto-recalibration-activation-readiness.test.ts`), no other file created, modified, or deleted. No Decision OS code touched. No public API touched. No existing calibration code removed or modified.
+**Files touched in the original session:** one new regression test (`__tests__/trade-engine/auto-recalibration-activation-readiness.test.ts`), no other file created, modified, or deleted. No Decision OS code touched. No public API touched. No existing calibration code removed or modified.
 
-> **Update (follow-up session):** the primary blocker below — the `computeObservedAcceptRate()` case-mismatch bug (§4) — **has since been fixed** in `lib/trade-engine/auto-recalibration.ts`, with direct unit coverage in `__tests__/trade-engine/auto-recalibration-observed-accept-rate.test.ts` and updated assertions in the original readiness test. The fix only corrects the enum comparison; it does **not** activate `runWeeklyRecalibration()`, add cron wiring, or resolve the secondary shared-field conflict noted in §4/§6 item 3 (`calibratedB0` is still written by both the reachable, hardcoded-constant `calibrateInterceptFromOutcomes()` path and the still-orphaned, now-correct `promoteShadowB0()` path, with no coordination between them). The rest of this document — the entry-point audit, the "why was this never called" history, and the designed-but-unimplemented activation path — remains accurate and is preserved below as-written.
+> **Update 1 (enum bug fixed):** the primary blocker below — the `computeObservedAcceptRate()` case-mismatch bug (§4) — **was fixed** in `lib/trade-engine/auto-recalibration.ts` (commit `34a0d4fa8`), with direct unit coverage in `__tests__/trade-engine/auto-recalibration-observed-accept-rate.test.ts` and updated assertions in the original readiness test.
+>
+> **Update 2 (ownership resolved):** the secondary shared-field conflict (§4/§6 item 3) was resolved via `docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md` (commit `ac1507eb5`), which recommended retiring `calibrateInterceptFromOutcomes()`'s write in the *same* change that activates `runWeeklyRecalibration()`, so there is never a window with zero or two active writers.
+>
+> **Update 3 (activation complete — Decision OS Trade Learning Phase 1):** the ADR has been implemented exactly as written. `runFullCalibration()` (`lib/trade-engine/accept-calibration.ts`) no longer calls `calibrateInterceptFromOutcomes()` — that function remains fully intact, exported, and independently callable, simply no longer part of the default orchestration. `promoteShadowB0()` (`lib/trade-engine/auto-recalibration.ts`) is now the sole writer of `TradeLearningStats.calibratedB0`. `runWeeklyRecalibration()` is now reachable through a new, **disabled-by-default** operational flag, `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` (parsed via `isWeeklyRecalibrationEnabled()`, matching the `DECISION_OS_*_LIVE` convention), invoked via `runScheduledWeeklyRecalibration()` from a new cron route, `app/api/cron/trade-weekly-recalibration/route.ts` (auth via the standard `requireCronAuth()`, scheduled weekly in `vercel.json`, inert while the flag is off). See the "Activation Phase 1" section appended at the end of this document for the full implementation record. **This system has not been enabled in production** — the flag defaults to off and must be explicitly set by an operator.
+>
+> The rest of this document — the entry-point audit, the "why was this never called" history, and the originally-designed activation path — remains accurate as a historical record of the investigation that led here, and is preserved below as-written.
 
 ## TL;DR
 
@@ -164,9 +170,54 @@ Independent of the above: `calibrateInterceptFromOutcomes()` (the reachable, har
 
 ---
 
-## Files changed in this session
+## Files changed in the original session
 
 - `__tests__/trade-engine/auto-recalibration-activation-readiness.test.ts` (new — proves the blocker empirically)
 - `docs/TRADE_LEARNING_ACTIVATION_BLOCKERS.md` (this document, new)
 
-No other file was created, modified, or deleted. No cron entry, feature flag, or `vercel.json` change was made. No Decision OS code, public API, or existing calibration logic was touched or removed. Not committed — per this task's instructions, commit only if the activation path is proven safe (it is not).
+No other file was created, modified, or deleted in that session. Not committed at that point, since the activation path was not yet proven safe.
+
+---
+
+## Activation Phase 1 — implementation record
+
+Per `docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md`, implemented exactly as approved:
+
+### Ownership transition
+- `lib/trade-engine/accept-calibration.ts`: `runFullCalibration()` no longer calls `calibrateInterceptFromOutcomes()`. It now calls a small internal `readCurrentB0Unchanged()` helper that reads (but does not modify) the current `calibratedB0`, so `runFullCalibration()`'s return shape is unchanged (`intercept.adjusted` is now always `false` for this retired path; `calibrateFromFeedback()`'s half is untouched).
+- `calibrateInterceptFromOutcomes()` itself was **not deleted** — it remains exported and independently callable/testable, exactly as the ADR required.
+- `CalibrationHistoryEntry.source`'s type was widened from `'outcome' | 'feedback'` to `'outcome' | 'feedback' | 'auto-recalibration'`, matching the third value `promoteShadowB0()` already wrote at runtime (a pre-existing, now-fixed type-accuracy gap the ADR flagged).
+- `promoteShadowB0()` (`lib/trade-engine/auto-recalibration.ts`) is now the **sole** writer of `TradeLearningStats.calibratedB0`.
+
+### Operational activation (disabled by default)
+- New env flag: **`TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED`** — parsed by `isWeeklyRecalibrationEnabled(env)` in `lib/trade-engine/auto-recalibration.ts`, matching the exact `DECISION_OS_*_LIVE` convention (`String(env[...] ?? '').trim().toLowerCase() === 'true'`). **Unset/anything other than `"true"` means disabled.** Not set in any environment as part of this change — must be explicitly enabled by an operator.
+- New gate function `runScheduledWeeklyRecalibration(env, season?)` — no-ops with zero Prisma calls when the flag is off; calls the real, unmodified `runWeeklyRecalibration()` when on.
+- New cron route `app/api/cron/trade-weekly-recalibration/route.ts` — uses the repo's standard `requireCronAuth()` (same pattern as every other `/api/cron/*` route), calls `runScheduledWeeklyRecalibration()`.
+- New `vercel.json` cron entry, weekly cadence (`0 11 * * 1`) — inert while the flag is off, since the route no-ops immediately.
+
+### What is NOT changed
+Recommendation generation, acceptance scoring math, `FEATURE_WEIGHTS`, the sigmoid/logit formulas, isotonic calibration logic, drift detection, Manager Intelligence, Decision OS classifiers, AI Coach, Chimmy, and every public API are untouched. `calibrateFromFeedback()` — the real, `TradeFeedback`-driven half of `runFullCalibration()` — is unaffected and verified unchanged by regression test.
+
+### Tests added
+- `__tests__/trade-engine/accept-calibration-intercept-retirement.test.ts` (4 tests) — proves `runFullCalibration()` no longer writes `calibratedB0` even under the old trigger condition, proves `calibrateInterceptFromOutcomes()` remains directly callable and fully functional in isolation, and proves `calibrateFromFeedback()`'s behavior and write path are unchanged.
+- `__tests__/trade-engine/auto-recalibration-weekly-schedule.test.ts` (7 tests) — proves the flag parses correctly (off by default, on only for `"true"`), proves `runScheduledWeeklyRecalibration()` makes zero Prisma calls when disabled, proves it calls through to the real pipeline when enabled, and proves `promoteShadowB0()` is the one path that still writes `calibratedB0`.
+- Full focused suite after this change: **44/44 passing** (`__tests__/trade-engine/`, `__tests__/league-trade-engine-validation.test.ts`, `__tests__/trade-league-analyze-api.test.ts`), plus **71/71 passing** on every Decision OS trade-slice test file, confirming zero cross-contamination.
+- `npm run typecheck`: 158 total errors repo-wide, identical to the pre-change baseline, zero touching any trade-engine/trade-learning/cron file.
+
+### Remaining before this can be enabled in production
+1. **Real-world volume check** — `MIN_RECALIBRATION_SAMPLE` (30 outcomes) and `MIN_SEGMENT_SAMPLE`/`MIN_ISOTONIC_SAMPLE` (50 each) gates mean the flag can be flipped on with zero practical effect until enough real `TradeOutcomeEvent` rows accumulate; nobody has measured current real volume against these thresholds (carried over from `docs/DECISION_OS_CLOSED_LOOP_LEARNING_AUDIT.md`'s own open items).
+2. **Observation window before first promotion** — even once enabled, `promoteShadowB0()`'s 7-day maturity gate means the first real promotion cannot happen faster than a week after the flag goes on; operators should expect a quiet period before any `calibratedB0` movement is visible.
+3. **Decide who flips the flag, and when** — this document does not recommend a production rollout date; that is explicitly out of scope for this activation-implementation task.
+4. **`calibration-metrics.ts`'s orphaned health dashboard** (noted in the ADR §2) remains unwired — once this is live, someone will want to actually see the reliability-curve/ECE data it already knows how to compute.
+
+## Files changed in this activation session
+
+- `lib/trade-engine/accept-calibration.ts` (modified — retired the hardcoded-constant write, widened `CalibrationHistoryEntry.source`)
+- `lib/trade-engine/auto-recalibration.ts` (modified — added `isWeeklyRecalibrationEnabled()`/`runScheduledWeeklyRecalibration()`)
+- `app/api/cron/trade-weekly-recalibration/route.ts` (new)
+- `vercel.json` (modified — added the weekly cron entry)
+- `__tests__/trade-engine/accept-calibration-intercept-retirement.test.ts` (new)
+- `__tests__/trade-engine/auto-recalibration-weekly-schedule.test.ts` (new)
+- `docs/TRADE_LEARNING_ACTIVATION_BLOCKERS.md` (this document, updated)
+
+No Decision OS code, AI Coach, Chimmy, Manager Intelligence, recommendation math, or public API was touched. `runWeeklyRecalibration()` and `calibrateInterceptFromOutcomes()` were not deleted. The system is implemented but **disabled by default** — `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` is not set in any environment as part of this change.

@@ -511,3 +511,36 @@ export async function runWeeklyRecalibration(
     },
   }
 }
+
+/**
+ * Operational kill switch for weekly recalibration, per
+ * docs/TRADE_LEARNING_CALIBRATED_B0_OWNERSHIP_ADR.md and
+ * docs/DECISION_OS_CLOSED_LOOP_LEARNING_AUDIT.md §7 Step 0. Mirrors the
+ * DECISION_OS_*_LIVE convention (lib/decision-os/{lineup,waiver,trade,
+ * commissioner-health}/shadow.ts): disabled unless explicitly set to "true".
+ * Defaults to disabled — this must not run in production until explicitly
+ * enabled by an operator.
+ */
+export function isWeeklyRecalibrationEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return String(env['TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED'] ?? '').trim().toLowerCase() === 'true'
+}
+
+/**
+ * Controlled background entry point for runWeeklyRecalibration(). No-ops
+ * cleanly (zero Prisma calls) when the flag is off. This is the only place
+ * runWeeklyRecalibration() is invoked from outside its own module and tests.
+ */
+export async function runScheduledWeeklyRecalibration(
+  env: NodeJS.ProcessEnv = process.env,
+  season?: number,
+): Promise<{ ran: boolean; reason?: string; result?: RecalibrationResult }> {
+  if (!isWeeklyRecalibrationEnabled(env)) {
+    return {
+      ran: false,
+      reason: 'disabled (TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED is not "true")',
+    }
+  }
+
+  const result = season !== undefined ? await runWeeklyRecalibration(season) : await runWeeklyRecalibration()
+  return { ran: true, result }
+}
