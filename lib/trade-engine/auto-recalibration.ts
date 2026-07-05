@@ -86,14 +86,25 @@ function reconstructAcceptProbSimple(
   return Math.max(0.02, Math.min(0.95, sigmoid(z)))
 }
 
-function computeObservedAcceptRate(
+/**
+ * Binary-labels a TradeOutcomeEvent.outcome for acceptance-rate calibration.
+ * Real values are the Prisma `TradeOutcome` enum (ACCEPTED | REJECTED | EXPIRED |
+ * COUNTERED | UNKNOWN, schema.prisma) — uppercase, never 'accepted'/'completed'.
+ * Only ACCEPTED/REJECTED/EXPIRED carry a real accept/reject signal, matching the
+ * same convention already used by lib/trade-engine/model-metrics-etl.ts and
+ * lib/rankings-engine/{weekly-weight-learning,adaptive-weight-learning}.ts.
+ * COUNTERED/UNKNOWN are excluded rather than counted as non-accepted, since
+ * they don't indicate whether the trade would have been accepted or not.
+ */
+export function computeObservedAcceptRate(
   outcomes: Array<{ outcome: string }>,
 ): number | null {
-  if (outcomes.length === 0) return null
-  const accepted = outcomes.filter(o =>
-    o.outcome === 'accepted' || o.outcome === 'completed',
-  ).length
-  return accepted / outcomes.length
+  const labeled = outcomes.filter(
+    o => o.outcome === 'ACCEPTED' || o.outcome === 'REJECTED' || o.outcome === 'EXPIRED',
+  )
+  if (labeled.length === 0) return null
+  const accepted = labeled.filter(o => o.outcome === 'ACCEPTED').length
+  return accepted / labeled.length
 }
 
 function logOddsCorrection(observed: number, predicted: number): number {
