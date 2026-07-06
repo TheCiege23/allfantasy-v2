@@ -312,6 +312,62 @@ Unchanged from §10.4's original list, minus the season item it named (now resol
 
 ---
 
+## 12. Staging shadow-traffic rehearsal (Phase 11) — volume proven reachable, then cleaned up
+
+§11.6 left "real, organic trade activity still needs to accumulate on staging" as the sole remaining blocker before enabling anything. This phase did not (and structurally cannot) create *real* organic volume — only actual users making actual trade decisions can do that. What it did instead: proved, with real writes against the real staging schema, that once that volume exists, every downstream function (capture, calibration, diagnostics) handles it correctly at the required scale — a rehearsal, not a substitute.
+
+### 12.1 Staging state confirmed before generating anything
+
+- **App code**: this branch's `HEAD` (`980904e8e`) has `7fb69eb4d` (Phase 8) and `8f00bdba8` (Phase 9) as ancestors — confirmed via `git merge-base --is-ancestor`. No separately-deployed staging web application URL or Vercel/Railway API access was available this session (Railway MCP returned `Unauthorized`; no Vercel CLI; no staging app URL discoverable in the repo) to independently confirm a *deployed instance* is running this exact code — every prior phase in this workstream (4, 9) validated the same way: by running the current local codebase directly against the real staging database via `DATABASE_URL` override, not by hitting a deployed staging web server. This phase followed that same, already-established methodology.
+- **Migration**: `_prisma_migrations` on staging has `20260705010000_add_trade_learning_live_capture` recorded (`finished_at: 2026-07-05T16:48:44.872Z`); `pg_enum` confirms `LIVE_PROPOSAL` on `TradeOfferMode`; `information_schema.columns` confirms both `afLeagueTradeId` columns exist (nullable `text`) — all re-verified fresh this phase, matching Phase 9's original deployment record exactly.
+- **Pre-generation volume**: 0 `TradeOfferEvent`, 0 `TradeOutcomeEvent`, 0 `af_league_trades`, against 56 real leagues (`MAX(season) = 2026`) — confirming zero organic volume had accumulated since Phase 9's cleanup, exactly as §11.6 anticipated.
+
+### 12.2 Traffic plan (proposed, then approved before execution)
+
+4 dedicated, clearly-labeled test leagues (`platform: 'phase11_shadow_traffic'`, names prefixed `PHASE11 SHADOW TRAFFIC (DELETE ME)`, never touching any of the 56 real leagues), 2 SuperFlex + 2 1QB for basic scoring diversity, 8 test managers each (32 total, emails/usernames prefixed `phase11_...@phase11.invalid`), 42 real `AfLeagueTrade` + item rows using synthetic (non-resolvable) player references — relying on the same documented flat-fallback-value convention (`LIVE_CAPTURE_FALLBACK_VALUE = 200`) the capture pipeline already uses for any unresolvable asset, since staging's real `Player` table was found to be completely empty (0 rows) this session.
+
+**Outcome mix (42 total):** 20 `processed`→`ACCEPTED`, 12 `rejected`→`REJECTED`, 5 `countered`→`COUNTERED`, 3 `cancelled`→`UNKNOWN`, 2 `vetoed`→`UNKNOWN` — 32 labeled (ACCEPTED+REJECTED) outcomes, clearing `MIN_RECALIBRATION_SAMPLE` (30) with a small buffer, while still exercising every mapped status in the ADR's Decision 2 table except `expired` (excluded deliberately — no live code path produces it, per the already-documented gap).
+
+Executed by calling the real, unmodified `captureLiveTradeOffer()`/`captureLiveTradeOutcome()` functions directly (the same functions Phase 9 exercised, at greater volume) rather than driving the full `tradeService.ts` orchestration layer — mirroring Phase 9's deliberate scope decision to exercise 100% of the trade-learning capture code against real infrastructure without triggering unrelated side effects (notifications, websocket broadcasts) that the full service layer would also fire.
+
+### 12.3 Executed — real writes, real measurement
+
+Ran via a local script (never committed), `DATABASE_URL` explicitly overridden with the same `ep-winter-salad`-required / `ep-curly-block`-forbidden safety assertion used in every prior real-write phase. Result: **all 42 trades generated with zero offer-capture failures and zero outcome-capture failures.**
+
+**Real database counts, queried directly, immediately after generation:**
+
+| Metric | Value |
+|---|---|
+| `TradeOfferEvent` (mode `LIVE_PROPOSAL`) | 42 |
+| `TradeOutcomeEvent` (linked via `afLeagueTradeId`) | 42 |
+| `af_league_trades` created | 42 |
+| Outcome distribution | `ACCEPTED: 20`, `REJECTED: 12`, `COUNTERED: 5`, `UNKNOWN: 5` (3 cancelled + 2 vetoed, correctly merged per the ADR's Decision 2 mapping) |
+| `season` on every row | `2026` (uniform — confirms the Phase 10 resolver and `League.season` inheritance both worked correctly at volume, not just for Phase 9's single test league) |
+
+**Diagnostics/calibration validated against this real data, with no explicit season argument passed to anything** (proving the Phase 10 canonical resolver, not a hardcoded value, is what found this data):
+
+- `computeShadowB0()` → `sampleSize: 42` (clears the 30-sample gate), `observedRate: 0.625` (20/32, correct), `computedB0: -0.5` (an intercept correction of `+0.60` from the current `-1.10`, landing exactly on `MAX_B0_SHIFT`'s clamp ceiling — expected, not a bug, given the synthetic data's artificially high accept rate relative to its uniformly-low predicted probability). `mature: false` (correct — `computeShadowB0()` is a pure read, it does not persist; nothing calls `runWeeklyRecalibration()` unless the still-disabled flag is on, which it remains).
+- `buildTradeLearningDiagnostics()` → `season: 2026` (resolved automatically), `shadow.pending: false` (correct, same reason as above — no persistence happened), `scheduler.wouldRunIfInvokedNow: true`, `calibrationHealth.totalPaired: 32` (matches the labeled-outcome count exactly).
+- `calibrationHealth.alerts` flagged `critical: ECE exceeds critical threshold (0.375 > 0.12)`. **This is an expected artifact of the synthetic data, not a real calibration-quality finding**: every trade used non-resolvable fake player assets, so every prediction collapsed to the same flat fallback value (`predictedMean: 0.25` for all 42), against a synthetic accept rate (0.625) chosen for sample-size testing rather than realism. A real, organic trade population — real assets, real value spread — would not be expected to reproduce this degenerate pattern. Recorded here so a future operator isn't confused by a stale alert; it does not persist (nothing was left in `TradeLearningStats`, see §12.4).
+
+### 12.4 Cleanup — verified back to the exact pre-generation state
+
+All 42 `TradeOutcomeEvent`, 42 `TradeOfferEvent`, 84 `AfLeagueTradeItem`, 42 `AfLeagueTrade`, 32 `Roster`, 4 `League`, and 32 `AppUser` rows were deleted immediately after measurement, by exact ID (the full manifest was captured at generation time). Verified via direct query afterward: **0 remaining rows matching any of this run's IDs**, and a fresh independent count confirms staging is back to 0 `TradeOfferEvent` / 0 `TradeOutcomeEvent` / 0 `af_league_trades` / 56 leagues (unchanged) — identical to the pre-generation state in §12.1. This was a deliberate choice, not an oversight: leaving synthetic "organic-looking" data in the real calibration pool would corrupt whatever real volume measurement happens next (§11.6's still-open item), since `computeShadowB0()` cannot distinguish synthetic test data from real trades within the same season.
+
+### 12.5 Readiness assessment
+
+**Pipeline readiness: proven at the required scale.** Every function on the path from a real trade action to a calibration-ready sample — `captureLiveTradeOffer()`, `captureLiveTradeOutcome()`, the ADR's status mapping, `computeShadowB0()`, `buildTradeLearningDiagnostics()`, all resolving season through the single Phase 10 canonical path — now has direct evidence of working correctly at 42 real, linked, correctly-seasoned rows, not just Phase 9's original 5. Zero failures, zero data-integrity issues, zero season mismatches.
+
+**Data readiness: unchanged, still the sole blocker.** This phase could not and did not create real organic volume — that requires actual users making actual trade decisions on staging, which remains outside any single script's or session's control. `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`'s operational checklist item "let real, organic trade activity accumulate on staging" is still open.
+
+### 12.6 Remaining blockers before enabling weekly recalibration in staging
+
+- **Real, organic trade activity must still accumulate on staging** — the sole item carried forward from §11.6, unchanged by this phase (by design — synthetic rehearsal data cannot and should not substitute for it).
+- `AfLeagueTrade.status` still never transitions to `'expired'` anywhere in the codebase (unchanged, pre-existing Phase 8 finding).
+- The flag (`TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED`) remains unset in every environment, as required.
+
+---
+
 ## Files changed in this session
 
 - `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` (this document, updated with §9, then §10, then §11)
@@ -323,6 +379,7 @@ Unchanged from §10.4's original list, minus the season item it named (now resol
 - `lib/trade-engine/season-resolver.ts` (new, Phase 10 — the canonical season resolver)
 - `lib/trade-engine/{accept-calibration,auto-recalibration,isotonic-calibrator,diagnostics,calibration-metrics,drift-detection,trade-event-logger}.ts`, `lib/trade-learning.ts`, `app/api/admin/trade-learning/diagnostics/route.ts` (Phase 10 — hardcoded season constants/defaults removed, routed through the resolver)
 - `__tests__/trade-engine/season-resolver.test.ts`, `__tests__/trade-engine/canonical-season-resolution-integration.test.ts` (new, Phase 10); `__tests__/admin-trade-learning-diagnostics-route.test.ts` (updated, Phase 10)
-- `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md` (updated, Phase 10 — canonical season ownership documented, checklist item resolved)
+- `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md` (updated, Phase 10 — canonical season ownership documented, checklist item resolved; updated again Phase 11 — shadow-traffic rehearsal record)
+- Phase 11 touched no application code — only this document (§12) and `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`. All Phase 11 activity was real staging writes (42 trades + fixtures, generated then fully deleted) via uncommitted local scripts, plus read-only measurement queries.
 
-No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Staging was written to in Phase 9 (migration + test data) with explicit user approval, then restored to a clean state; Phase 10 made no database writes and touched no environment beyond the local working tree; production was never touched at any point in this workstream.
+No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Staging was written to in Phase 9 (migration + test data, cleaned up) and Phase 11 (42-trade shadow-traffic rehearsal, cleaned up) with explicit user approval each time; Phase 10 made no database writes; production was never touched at any point in this workstream.
