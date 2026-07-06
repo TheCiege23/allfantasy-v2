@@ -37,11 +37,13 @@ import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'
 import { Swords, Sparkles, Crown } from 'lucide-react'
 import { ActionCenter, countActionItems } from './warroom/ActionCenter'
 import { TodayTimeline } from './warroom/TodayTimeline'
-import { MyLeagueCard } from './warroom/MyLeagueCard'
+import { MyLeagueCard, rawStage } from './warroom/MyLeagueCard'
 import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
 import { CommissionerHub } from './warroom/CommissionerHub'
 import { ManagerHub } from './warroom/ManagerHub'
 import { useGreetingPeriod } from './warroom/useGreeting'
+import { CoachNotes } from './warroom/CoachNotes'
+import { SeasonJourney } from './warroom/SeasonJourney'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -146,6 +148,10 @@ export function DashboardOverview({
   const [todayPrimaryLeagueId, setTodayPrimaryLeagueId] = useState<string | null>(null)
   /** Waiver process timing from DB league fields when resolved. */
   const [todayWaiverTiming, setTodayWaiverTiming] = useState<TodayActionsEngineResponse['waiverTiming'] | null>(null)
+  /** Native (non-Sleeper) trades expiring within 48h, from `/api/dashboard/today-actions`. */
+  const [expiringNativeTrades, setExpiringNativeTrades] = useState<TodayActionsEngineResponse['expiringNativeTrades']>(
+    [],
+  )
   /** AI Auto Start/Sit Protection snapshot (swap counts + global toggle). */
   const [todayAutoProtection, setTodayAutoProtection] = useState<
     TodayActionsEngineResponse['autoStartSitProtection'] | null
@@ -196,6 +202,7 @@ export function DashboardOverview({
           setTodayCounts(data.counts)
           setTodayPrimaryLeagueId(data.primaryLeagueId ?? null)
           setTodayWaiverTiming(data.waiverTiming ?? null)
+          setExpiringNativeTrades(data.expiringNativeTrades ?? [])
           setTodayAutoProtection(data.autoStartSitProtection ?? null)
           setStripTimeContext(data.aiTimeContext ?? null)
           stripFetchedAt.current = Date.now()
@@ -206,6 +213,7 @@ export function DashboardOverview({
           setTodayCounts(null)
           setTodayPrimaryLeagueId(null)
           setTodayWaiverTiming(null)
+          setExpiringNativeTrades([])
           setTodayAutoProtection(null)
           setStripTimeContext(null)
           stripFetchedAt.current = Date.now()
@@ -220,6 +228,7 @@ export function DashboardOverview({
         setTodayCounts(null)
         setTodayPrimaryLeagueId(null)
         setTodayWaiverTiming(null)
+        setExpiringNativeTrades([])
         setTodayAutoProtection(null)
         setStripTimeContext(null)
         stripFetchedAt.current = Date.now()
@@ -402,6 +411,7 @@ export function DashboardOverview({
         setTodayCounts(data.counts)
         setTodayPrimaryLeagueId(data.primaryLeagueId ?? null)
         setTodayWaiverTiming(data.waiverTiming ?? null)
+        setExpiringNativeTrades(data.expiringNativeTrades ?? [])
         setTodayAutoProtection(data.autoStartSitProtection ?? null)
         setStripTimeContext(data.aiTimeContext ?? null)
         stripFetchedAt.current = Date.now()
@@ -488,6 +498,7 @@ export function DashboardOverview({
           setTodayCounts(d.counts)
           setTodayPrimaryLeagueId(d.primaryLeagueId ?? null)
           setTodayWaiverTiming(d.waiverTiming ?? null)
+          setExpiringNativeTrades(d.expiringNativeTrades ?? [])
           setTodayAutoProtection(d.autoStartSitProtection ?? null)
           setStripTimeContext(d.aiTimeContext ?? null)
           stripFetchedAt.current = Date.now()
@@ -519,6 +530,14 @@ export function DashboardOverview({
   }, [todayCounts, lineupData])
 
   const pendingTradeChipCount = tradeData?.totalPending ?? 0
+
+  /** Leagues in pre_draft with a real, future draftDate — purely client-side, no new fetch. */
+  const upcomingDrafts = useMemo(() => {
+    const now = Date.now()
+    return leagues
+      .filter((l) => rawStage(l) === 'pre_draft' && l.draftDate && new Date(l.draftDate).getTime() > now)
+      .map((l) => ({ leagueId: l.id, leagueName: l.name, draftDate: l.draftDate as string }))
+  }, [leagues])
 
   const urgentTodayCount = useMemo(
     () => countActionItems(lineupData?.actions ?? [], waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview),
@@ -575,7 +594,10 @@ export function DashboardOverview({
           waiverTiming={todayWaiverTiming}
           autoSwapsLast24h={todayAutoProtection?.autoSwapsLast24h ?? 0}
           pendingTradeCount={pendingTradeChipCount}
+          upcomingDrafts={upcomingDrafts}
+          expiringNativeTrades={expiringNativeTrades}
         />
+        <CoachNotes lineupActions={lineupData?.actions ?? []} pendingTrades={tradeData?.trades ?? []} />
         {allDone ? (
           <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
         ) : checklistExpanded ? (
@@ -869,6 +891,15 @@ export function DashboardOverview({
           onOpenWaiverAll={handleWaiverClick}
         />
 
+        {selectedLeague ? (
+          <SeasonJourney
+            lifecycleState={rawStage(selectedLeague)}
+            currentWeek={selectedLeague.currentWeek ?? null}
+            tradeDeadlineWeek={selectedLeague.tradeDeadlineWeek ?? null}
+            playoffStartWeek={selectedLeague.playoffStartWeek ?? null}
+          />
+        ) : null}
+
         {leaguesLoading ? (
           <section className="space-y-2.5">
             <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
@@ -890,7 +921,12 @@ export function DashboardOverview({
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               {leagues.map((l) => (
-                <MyLeagueCard key={l.id} league={l} userId={userId} />
+                <MyLeagueCard
+                  key={l.id}
+                  league={l}
+                  userId={userId}
+                  waiverTiming={l.id === todayPrimaryLeagueId ? todayWaiverTiming : null}
+                />
               ))}
             </div>
           </section>
