@@ -15,17 +15,18 @@ import { buildTradeLearningDiagnostics } from '@/lib/trade-engine/diagnostics'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const DEFAULT_SEASON = 2025
-
 export async function GET(request: Request) {
   const gate = await requireAdminOrBearer(request)
   if (!gate.ok) return gate.res
 
   const url = new URL(request.url)
   const seasonParam = url.searchParams.get('season')
-  const season = seasonParam ? Number(seasonParam) : DEFAULT_SEASON
+  // No explicit ?season= override → let buildTradeLearningDiagnostics resolve
+  // the canonical current season itself (lib/trade-engine/season-resolver.ts),
+  // rather than defaulting here to a second, independent hardcoded value.
+  const season = seasonParam ? Number(seasonParam) : undefined
 
-  if (!Number.isFinite(season)) {
+  if (season !== undefined && !Number.isFinite(season)) {
     return NextResponse.json({ ok: false, error: 'Invalid season parameter' }, { status: 400 })
   }
 

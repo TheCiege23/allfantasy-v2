@@ -32,11 +32,11 @@ describe("admin trade-learning diagnostics route", () => {
     expect(mocks.buildTradeLearningDiagnostics).not.toHaveBeenCalled()
   })
 
-  it("returns diagnostics for authenticated admins, defaulting to season 2025", async () => {
+  it("returns diagnostics for authenticated admins, leaving season resolution to buildTradeLearningDiagnostics()'s canonical resolver when no ?season= is given", async () => {
     mocks.requireAdminOrBearer.mockResolvedValueOnce({ ok: true, user: { role: "admin" } })
     mocks.buildTradeLearningDiagnostics.mockResolvedValueOnce({
       generatedAt: "2026-07-05T00:00:00.000Z",
-      season: 2025,
+      season: 2026,
       operational: { weeklyRecalibrationEnabled: false, envVar: "TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED" },
       calibratedB0: { current: -1.10, owner: "promoteShadowB0", lastCalibratedAt: null },
       shadow: {
@@ -60,7 +60,10 @@ describe("admin trade-learning diagnostics route", () => {
     const body = await res.json()
 
     expect(res.status).toBe(200)
-    expect(mocks.buildTradeLearningDiagnostics).toHaveBeenCalledWith(2025)
+    // No ?season= query param -> the route must pass `undefined` through, not
+    // its own hardcoded default, so buildTradeLearningDiagnostics() resolves
+    // the season via the one canonical resolver (lib/trade-engine/season-resolver.ts).
+    expect(mocks.buildTradeLearningDiagnostics).toHaveBeenCalledWith(undefined)
     expect(body.ok).toBe(true)
     expect(body.operational.weeklyRecalibrationEnabled).toBe(false)
     expect(body.calibratedB0.current).toBe(-1.10)

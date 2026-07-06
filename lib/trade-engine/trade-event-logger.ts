@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import type { TradeOfferMode as PrismaTradeOfferMode } from '@prisma/client'
 import { prisma } from '../prisma'
+import { resolveCurrentTradeLearningSeason } from './season-resolver'
 
 export const CURRENT_MODEL_VERSION = 'v2.1.0'
 
@@ -189,13 +190,14 @@ export async function logTradeOutcomeEvent(input: TradeOutcomeEventInput): Promi
 }
 
 export async function logAcceptedTradesAsOutcomes(
-  season: number = 2025,
+  season?: number,
 ): Promise<number> {
   try {
+    const resolvedSeason = season ?? await resolveCurrentTradeLearningSeason()
     const trades = await prisma.leagueTrade.findMany({
       where: {
         analyzed: true,
-        season,
+        season: resolvedSeason,
         valueGiven: { not: null },
         valueReceived: { not: null },
       },

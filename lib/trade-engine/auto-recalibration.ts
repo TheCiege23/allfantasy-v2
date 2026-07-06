@@ -2,6 +2,7 @@ import { prisma } from '../prisma'
 import { Prisma } from '@prisma/client'
 import { invalidateCalibrationCache } from './accept-calibration'
 import { computeAndStoreIsotonicMap, type IsotonicMap } from './isotonic-calibrator'
+import { resolveCurrentTradeLearningSeason } from './season-resolver'
 
 // Exported (values unchanged) so diagnostics tooling can reference the real
 // thresholds instead of duplicating magic numbers. See lib/trade-engine/diagnostics.ts.
@@ -11,7 +12,6 @@ export const MIN_SEGMENT_SAMPLE = 50
 export const MAX_B0_SHIFT = 0.60
 export const SHADOW_MATURITY_DAYS = 7
 export const MAX_SHADOW_DIVERGENCE = 0.40
-export const CURRENT_SEASON = 2025
 // Mirrors the cadence guard inside runWeeklyRecalibration() itself
 // (daysSinceRecal < 6.5) — exported so diagnostics can report the same
 // "would it run right now" answer without re-implementing the check.
@@ -122,11 +122,12 @@ function logOddsCorrection(observed: number, predicted: number): number {
 }
 
 export async function computeShadowB0(
-  season: number = CURRENT_SEASON,
+  season?: number,
 ): Promise<ShadowB0Metrics | null> {
+  const resolvedSeason = season ?? await resolveCurrentTradeLearningSeason()
   const outcomes = await prisma.tradeOutcomeEvent.findMany({
     where: {
-      season,
+      season: resolvedSeason,
       offerEventId: { not: null },
     },
     select: { offerEventId: true, outcome: true },
@@ -153,7 +154,7 @@ export async function computeShadowB0(
   const offerMap = new Map(offers.map(o => [o.id, o]))
 
   const stats = await prisma.tradeLearningStats.findUnique({
-    where: { season },
+    where: { season: resolvedSeason },
     select: { calibratedB0: true },
   })
 
@@ -181,7 +182,7 @@ export async function computeShadowB0(
     const trades = await prisma.leagueTrade.findMany({
       where: {
         analyzed: true,
-        season,
+        season: resolvedSeason,
         valueGiven: { not: null },
         valueReceived: { not: null },
       },
@@ -229,10 +230,11 @@ export async function computeShadowB0(
 }
 
 export async function promoteShadowB0(
-  season: number = CURRENT_SEASON,
+  season?: number,
 ): Promise<{ promoted: boolean; newB0: number | null; reason: string }> {
+  const resolvedSeason = season ?? await resolveCurrentTradeLearningSeason()
   const stats = await prisma.tradeLearningStats.findUnique({
-    where: { season },
+    where: { season: resolvedSeason },
   })
 
   if (!stats) {
@@ -282,7 +284,7 @@ export async function promoteShadowB0(
   }
 
   await prisma.tradeLearningStats.update({
-    where: { season },
+    where: { season: resolvedSeason },
     data: {
       calibratedB0: shadowB0,
       calibrationSampleSize: shadowMetrics.sampleSize,
@@ -304,11 +306,12 @@ export async function promoteShadowB0(
 }
 
 export async function computeSegmentB0s(
-  season: number = CURRENT_SEASON,
+  season?: number,
 ): Promise<SegmentB0Entry[]> {
+  const resolvedSeason = season ?? await resolveCurrentTradeLearningSeason()
   const outcomes = await prisma.tradeOutcomeEvent.findMany({
     where: {
-      season,
+      season: resolvedSeason,
       offerEventId: { not: null },
     },
     select: { offerEventId: true, outcome: true },
@@ -370,7 +373,7 @@ export async function computeSegmentB0s(
   }
 
   const stats = await prisma.tradeLearningStats.findUnique({
-    where: { season },
+    where: { season: resolvedSeason },
     select: { calibratedB0: true },
   })
   const globalB0 = (stats?.calibratedB0 as number) ?? DEFAULT_B0
@@ -410,12 +413,18 @@ export async function computeSegmentB0s(
 }
 
 export async function runWeeklyRecalibration(
-  season: number = CURRENT_SEASON,
+  season?: number,
 ): Promise<RecalibrationResult> {
   console.log('[AutoRecal] Starting weekly recalibration...')
 
+  // Resolved once, here, and threaded explicitly through every downstream
+  // call below — guarantees the entire weekly cycle (promotion, shadow
+  // computation, segments, isotonic) operates on exactly one season value,
+  // even though resolveCurrentTradeLearningSeason() is itself cached.
+  const resolvedSeason = season ?? await resolveCurrentTradeLearningSeason()
+
   const stats = await prisma.tradeLearningStats.findUnique({
-    where: { season },
+    where: { season: resolvedSeason },
   })
 
   const lastRecal = stats?.lastRecalibrationAt
@@ -435,7 +444,7 @@ export async function runWeeklyRecalibration(
   let promotedB0: number | null = null
 
   if (stats?.shadowB0 != null && stats.shadowB0ComputedAt) {
-    const promoResult = await promoteShadowB0(season)
+    const promoResult = await promoteShadowB0(resolvedSeason)
     promoted = promoResult.promoted
     promotedB0 = promoResult.newB0
     if (!promoted) {
@@ -443,13 +452,13 @@ export async function runWeeklyRecalibration(
     }
   }
 
-  const shadowMetrics = await computeShadowB0(season)
+  const shadowMetrics = await computeShadowB0(resolvedSeason)
 
   if (shadowMetrics) {
     await prisma.tradeLearningStats.upsert({
-      where: { season },
+      where: { season: resolvedSeason },
       create: {
-        season,
+        season: resolvedSeason,
         shadowB0: shadowMetrics.computedB0,
         shadowB0SampleSize: shadowMetrics.sampleSize,
         shadowB0ComputedAt: new Date(),
@@ -466,7 +475,7 @@ export async function runWeeklyRecalibration(
     })
   }
 
-  const segmentEntries = await computeSegmentB0s(season)
+  const segmentEntries = await computeSegmentB0s(resolvedSeason)
 
   if (segmentEntries.length > 0) {
     const segmentMap: SegmentB0Map = {
@@ -475,9 +484,9 @@ export async function runWeeklyRecalibration(
     }
 
     await prisma.tradeLearningStats.upsert({
-      where: { season },
+      where: { season: resolvedSeason },
       create: {
-        season,
+        season: resolvedSeason,
         segmentB0s: segmentMap as any,
         lastRecalibrationAt: new Date(),
       },
@@ -488,7 +497,7 @@ export async function runWeeklyRecalibration(
     })
   }
 
-  const isotonicMap = await computeAndStoreIsotonicMap(season)
+  const isotonicMap = await computeAndStoreIsotonicMap(resolvedSeason)
 
   if (isotonicMap) {
     invalidateCalibrationCache()

@@ -245,13 +245,84 @@ All test data (5 `AfLeagueTrade` + items, 5 `TradeOfferEvent`, 4 `TradeOutcomeEv
 
 ---
 
+## 11. Canonical season resolution (Phase 10) — the §10.4 finding, resolved architecturally
+
+§10.4 above documented a real, load-bearing gap left deliberately unfixed at the time: `computeShadowB0()`/`getCalibratedWeights()`/etc. defaulted to a hardcoded `season` (`CURRENT_SEASON`/`CALIBRATION_SEASON`, both `2025`), independently duplicated across five files, while real `League.season` already defaulted to `2026`. Rather than a one-line default-value edit, this phase eliminated the concept of a hardcoded calibration season entirely, per explicit user instruction: *"this is the right point to make season ownership deterministic"* — read with an eye to the Decision OS being a long-lived platform, not a single-season project.
+
+### 11.1 Complete inventory (before any change)
+
+Every hardcoded season location in the trade-learning subsystem, found via exhaustive grep across `lib/trade-engine/`, `lib/trade-learning.ts`, and the diagnostics route:
+
+| File | Location | Form |
+|---|---|---|
+| `lib/trade-engine/accept-calibration.ts` | `CALIBRATION_SEASON = 2025` | named constant, 5 default-param usages |
+| `lib/trade-engine/auto-recalibration.ts` | `export const CURRENT_SEASON = 2025` | named constant (confirmed: zero external importers), 4 default-param usages |
+| `lib/trade-engine/isotonic-calibrator.ts` | `const CURRENT_SEASON = 2025` | **separate, independently-defined constant** despite the identical name to the one above — not the same binding |
+| `lib/trade-engine/diagnostics.ts` | `const DEFAULT_SEASON = 2025` | named constant, 1 default-param usage |
+| `lib/trade-engine/calibration-metrics.ts` | `where: { season: 2025 }` | raw literal, no named constant, inside `computeCalibrationHealth()`'s isotonic-status lookup |
+| `lib/trade-engine/drift-detection.ts` | `season: number = 2025` | raw literal default, no named constant |
+| `lib/trade-engine/trade-event-logger.ts` | `season: number = 2025` | raw literal default, no named constant |
+| `lib/trade-learning.ts` | `season: number = 2025` ×2, plus 4 explicit `(2025)` call-site literals inside `runBackgroundTradeAnalysis()` | mixed |
+| `app/api/admin/trade-learning/diagnostics/route.ts` | `const DEFAULT_SEASON = 2025` | a **second, independent** hardcoded default, one layer above `buildTradeLearningDiagnostics()`, found during implementation — not in the original grep pass, added to this inventory for completeness |
+
+Also confirmed via exhaustive search: **no pre-existing canonical "current platform season" resolver existed anywhere in the codebase.** Checked and ruled out: Decision OS's own `lib/decision-os/world/facts.ts` (`LeagueFacts.season` is a pure per-league pass-through of the real `League.season` field, not a platform-wide resolver — reused as the data source, not duplicated); `lib/sportConfig/` (only has `seasonWeeks`, unrelated); `lib/workers/sports-data-importer.ts` (a private, non-exported, naive `currentSeasonForSport(): number { return new Date().getFullYear() }` — not reusable, and doesn't account for the NFL season-year boundary correctly). Two other, unrelated `CURRENT_SEASON`-named constants exist in different subsystems (`lib/draft-room/rookieFilterPredicate.ts`'s `CURRENT_SEASON_YEAR`, `lib/rankings-engine/sleeper-matchup-cache.ts`'s own separate `CURRENT_SEASON = 2025`) — both are out of scope for this trade-learning-focused phase and were left untouched.
+
+### 11.2 Canonical ownership
+
+**`resolveCurrentTradeLearningSeason()`, exported from the new `lib/trade-engine/season-resolver.ts`, is now the single canonical season-resolution path for the entire trade-learning subsystem.** Design:
+
+- **Primary:** `MAX(League.season)` — reuses the real, already-canonical per-league value every live trade capture writes (Phase 8/9), rather than inventing a second season concept. As real seasons roll over, new `League` rows carry the new value and this resolver picks it up automatically — zero code changes needed at rollover, which is exactly the "long-lived platform" property this phase set out to establish.
+- **Fallback** (cold start with zero `League` rows, or if the query itself throws): `computeSeasonFromDate()`, a deterministic, provider-agnostic, database-free NFL-style Sept–Aug season-year computation. Fails safe, never throws — matches this workstream's established convention for every other capture/logging function.
+- **Cached** 1 hour, mirroring `accept-calibration.ts`'s pre-existing `CACHE_TTL_MS` pattern. `invalidateSeasonResolverCache()` exported for tests/ops.
+
+Every function that used to default to a hardcoded season now takes `season?: number` and resolves internally with `season ?? await resolveCurrentTradeLearningSeason()` — JS/TS forbids `await` in a default-parameter expression, so resolution happens in the function body, not the signature. An explicit argument always overrides the resolver, which is also how historical/manual season lookups work (e.g. the new integration test proves `computeShadowB0(2024)` never touches the resolver at all).
+
+### 11.3 Files changed and hardcoded references removed
+
+- **New:** `lib/trade-engine/season-resolver.ts` (`computeSeasonFromDate`, `resolveCurrentTradeLearningSeason`, `invalidateSeasonResolverCache`).
+- `lib/trade-engine/accept-calibration.ts` — `CALIBRATION_SEASON` constant removed; `calibrateInterceptFromOutcomes`, `calibrateFromFeedback`, `getCalibratedWeights`, `calibrateAcceptProbability`, `runFullCalibration` all now `season?: number`.
+- `lib/trade-engine/auto-recalibration.ts` — `CURRENT_SEASON` constant removed; `computeShadowB0`, `promoteShadowB0`, `computeSegmentB0s`, `runWeeklyRecalibration` all now `season?: number`. `runWeeklyRecalibration()` resolves once at the top and threads the single resolved value through every downstream call (promotion, shadow, segments, isotonic) — verified by a dedicated integration test asserting `league.aggregate` is called exactly once per cycle.
+- `lib/trade-engine/isotonic-calibrator.ts` — its own separate `CURRENT_SEASON` constant removed; `computeAndStoreIsotonicMap` now `season?: number`.
+- `lib/trade-engine/diagnostics.ts` — `DEFAULT_SEASON` constant removed; `buildTradeLearningDiagnostics` now `season?: number`; passes the resolved season through to `computeCalibrationHealth()` explicitly rather than letting it re-resolve independently.
+- `lib/trade-engine/calibration-metrics.ts` — the raw `where: { season: 2025 }` literal replaced; `computeCalibrationHealth` gained an optional `season` parameter.
+- `lib/trade-engine/drift-detection.ts` — `runDriftDetection` now `season?: number`.
+- `lib/trade-engine/trade-event-logger.ts` — `logAcceptedTradesAsOutcomes` now `season?: number`.
+- `lib/trade-learning.ts` — `aggregateTradeLearningInsights`, `getLearningContextForAI` now `season?: number`; `runBackgroundTradeAnalysis()`'s four explicit `(2025)` call-site literals replaced with one `resolveCurrentTradeLearningSeason()` call, resolved once and threaded through insights aggregation, calibration, drift detection, and outcome backfill for the whole background cycle.
+- `app/api/admin/trade-learning/diagnostics/route.ts` — its own independent `DEFAULT_SEASON` fallback removed; when no `?season=` query param is given, `undefined` is passed through so `buildTradeLearningDiagnostics()` resolves the season itself, rather than the route pre-empting it with a second, competing default.
+
+**Real-world effect, reasoned through and accepted as in-scope:** all 8 real, live production trade-evaluation routes (`quick-evaluate`, `league-analyze`, `goal-proposals`, `analyze`, `trade-value-console`, `core-engine.ts`, `trade-evaluator`, `instant/trade`) call `getCalibratedWeights()`/`calibrateAcceptProbability()` with no season argument — they now resolve through the canonical path instead of the stale `2025` default. This changes *which season's row gets read*, not any calibration formula, threshold, or recommendation logic, so it stays within this phase's scope. It has no observable effect today, since no season has any real promoted calibration data yet.
+
+### 11.4 Regression tests added
+
+- `__tests__/trade-engine/season-resolver.test.ts` — direct unit coverage: `computeSeasonFromDate()`'s Sept–Aug boundary (including the January-rolls-back-to-prior-year case), `resolveCurrentTradeLearningSeason()`'s primary path, caching, cache invalidation, cold-start fallback, and fail-safe behavior when the query throws.
+- `__tests__/trade-engine/canonical-season-resolution-integration.test.ts` — cross-component wiring proof: `computeShadowB0()`, `getCalibratedWeights()`, `buildTradeLearningDiagnostics()`, and `runWeeklyRecalibration()` (the actual scheduler entry point) each resolve through the same real (unmocked) `resolveCurrentTradeLearningSeason()`, backed only by a mocked `prisma.league.aggregate` — and an explicit season argument is proven to bypass the resolver entirely (`computeShadowB0(2024)` never calls `league.aggregate`).
+- `__tests__/admin-trade-learning-diagnostics-route.test.ts` — updated: the "defaults to season 2025" assertion (testing the route's own since-removed hardcoded default) replaced with an assertion that the route passes `undefined` through when no `?season=` is given, leaving resolution to the canonical resolver.
+
+### 11.5 Verification
+
+`npx tsc --noEmit` (full project, heap increased to work around the pre-existing Windows/Next.js OOM issue documented separately) completed with its existing, unrelated baseline error set unchanged — zero new errors in any file touched this phase. `npx vitest run __tests__/trade-engine/` (11 files, 78 tests), the three other trade-learning-adjacent top-level test files (29 tests), and all 9 Decision OS trade-slice test files (122 tests) — **229 tests total, all green.**
+
+### 11.6 Remaining blockers before enabling weekly recalibration in staging
+
+Unchanged from §10.4's original list, minus the season item it named (now resolved):
+
+- Real, organic trade activity still needs to accumulate on staging — this phase changed *which* season gets queried, it did not create new trade volume.
+- `AfLeagueTrade.status` still never transitions to `'expired'` anywhere in the codebase (a pre-existing, documented gap from Phase 8, out of scope for every phase so far).
+- The flag (`TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED`) remains unset in every environment, as required.
+
+---
+
 ## Files changed in this session
 
-- `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` (this document, updated with §9, then §10)
+- `docs/TRADE_LEARNING_PRE_ENABLEMENT_AUDIT.md` (this document, updated with §9, then §10, then §11)
 - `lib/trade-engine/trade-event-logger.ts` (bug fix — `computeInputHash()` now folds in `afLeagueTradeId`)
 - `lib/league-trade-engine/tradeLearningCapture.ts` (bug fix — `season` now populated on both offer and outcome capture)
 - `__tests__/trade-engine/trade-event-logger-live-capture-hash.test.ts` (new — regression test for the inputHash fix)
 - `__tests__/trade-engine/trade-learning-capture.test.ts` (updated — regression tests for the season fix)
 - `prisma/migrations/20260705010000_add_trade_learning_live_capture/` — **deployed to staging** (not production)
+- `lib/trade-engine/season-resolver.ts` (new, Phase 10 — the canonical season resolver)
+- `lib/trade-engine/{accept-calibration,auto-recalibration,isotonic-calibrator,diagnostics,calibration-metrics,drift-detection,trade-event-logger}.ts`, `lib/trade-learning.ts`, `app/api/admin/trade-learning/diagnostics/route.ts` (Phase 10 — hardcoded season constants/defaults removed, routed through the resolver)
+- `__tests__/trade-engine/season-resolver.test.ts`, `__tests__/trade-engine/canonical-season-resolution-integration.test.ts` (new, Phase 10); `__tests__/admin-trade-learning-diagnostics-route.test.ts` (updated, Phase 10)
+- `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md` (updated, Phase 10 — canonical season ownership documented, checklist item resolved)
 
-No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Staging was written to (migration + test data) with explicit user approval, then restored to a clean state; production was never touched.
+No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Staging was written to in Phase 9 (migration + test data) with explicit user approval, then restored to a clean state; Phase 10 made no database writes and touched no environment beyond the local working tree; production was never touched at any point in this workstream.

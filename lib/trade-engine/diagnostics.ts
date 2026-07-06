@@ -18,8 +18,8 @@ import {
   RECALIBRATION_CADENCE_DAYS,
 } from './auto-recalibration'
 import { computeCalibrationHealth, type CalibrationHealthMetrics } from './calibration-metrics'
+import { resolveCurrentTradeLearningSeason } from './season-resolver'
 
-const DEFAULT_SEASON = 2025
 const CALIBRATION_HEALTH_WINDOW_DAYS = 30
 
 interface CalibrationHistoryEntryShape {
@@ -86,10 +86,11 @@ export interface TradeLearningDiagnostics {
 }
 
 export async function buildTradeLearningDiagnostics(
-  season: number = DEFAULT_SEASON,
+  season?: number,
   env: NodeJS.ProcessEnv = process.env,
 ): Promise<TradeLearningDiagnostics> {
-  const stats = await prisma.tradeLearningStats.findUnique({ where: { season } })
+  const resolvedSeason = season ?? await resolveCurrentTradeLearningSeason()
+  const stats = await prisma.tradeLearningStats.findUnique({ where: { season: resolvedSeason } })
   const now = Date.now()
 
   const calibratedB0 = (stats?.calibratedB0 as number | null | undefined) ?? DEFAULT_B0
@@ -121,14 +122,14 @@ export async function buildTradeLearningDiagnostics(
 
   let calibrationHealth: CalibrationHealthMetrics | null = null
   try {
-    calibrationHealth = await computeCalibrationHealth(CALIBRATION_HEALTH_WINDOW_DAYS)
+    calibrationHealth = await computeCalibrationHealth(CALIBRATION_HEALTH_WINDOW_DAYS, resolvedSeason)
   } catch {
     calibrationHealth = null
   }
 
   return {
     generatedAt: new Date().toISOString(),
-    season,
+    season: resolvedSeason,
     operational: {
       weeklyRecalibrationEnabled: isWeeklyRecalibrationEnabled(env),
       envVar: 'TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED',
