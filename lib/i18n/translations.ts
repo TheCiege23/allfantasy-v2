@@ -2790,7 +2790,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "{{n}} War Room decisions to review",
     "dashboard.warroom.actionCenter.warRoomDetail": "New strategy recommendations",
 
-    "dashboard.warroom.today.title": "Today",
+    "dashboard.warroom.today.title": "Today's Fantasy Agenda",
     "dashboard.warroom.today.lineupLocks": "{{league}} lineup locks",
     "dashboard.warroom.today.waiversProcess": "Waivers process",
     "dashboard.warroom.today.autoSwapOne": "1 automatic lineup protection applied",
@@ -2856,8 +2856,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "Waiver Wire",
     "dashboard.warroom.waiverWire.viewAll": "View all →",
 
-    "dashboard.warroom.activityFeed.title": "League Activity",
-    "dashboard.warroom.coachNotes.title": "Coach's Notes",
+    "dashboard.warroom.activityFeed.title": "League Buzz",
+    "dashboard.warroom.coachNotes.title": "This Week's Game Plan",
     "dashboard.warroom.activityFeed.loading": "Loading activity...",
 
     "dashboard.warroom.hero.todayCount": "{{n}} today",
@@ -4550,7 +4550,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "{{n}} decisiones del War Room por revisar",
     "dashboard.warroom.actionCenter.warRoomDetail": "Nuevas recomendaciones de estrategia",
 
-    "dashboard.warroom.today.title": "Hoy",
+    "dashboard.warroom.today.title": "Agenda Fantasy de Hoy",
     "dashboard.warroom.today.lineupLocks": "La alineación de {{league}} se bloquea",
     "dashboard.warroom.today.waiversProcess": "Se procesan los waivers",
     "dashboard.warroom.today.autoSwapOne": "1 protección automática de alineación aplicada",
@@ -4616,8 +4616,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "Mercado de Waivers",
     "dashboard.warroom.waiverWire.viewAll": "Ver todo →",
 
-    "dashboard.warroom.activityFeed.title": "Actividad de la Liga",
-    "dashboard.warroom.coachNotes.title": "Notas del Entrenador",
+    "dashboard.warroom.activityFeed.title": "El Rumor de la Liga",
+    "dashboard.warroom.coachNotes.title": "Plan de Juego de la Semana",
     "dashboard.warroom.activityFeed.loading": "Cargando actividad...",
 
     "dashboard.warroom.hero.todayCount": "{{n}} hoy",
@@ -4745,7 +4745,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "有 {{n}} 项作战室决策待审阅",
     "dashboard.warroom.actionCenter.warRoomDetail": "新的策略建议",
 
-    "dashboard.warroom.today.title": "今日",
+    "dashboard.warroom.today.title": "今日梦幻议程",
     "dashboard.warroom.today.lineupLocks": "{{league}} 阵容即将锁定",
     "dashboard.warroom.today.waiversProcess": "补强名单处理中",
     "dashboard.warroom.today.autoSwapOne": "已自动执行 1 次阵容保护",
@@ -4811,8 +4811,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "补强名单",
     "dashboard.warroom.waiverWire.viewAll": "查看全部 →",
 
-    "dashboard.warroom.activityFeed.title": "联盟动态",
-    "dashboard.warroom.coachNotes.title": "教练笔记",
+    "dashboard.warroom.activityFeed.title": "联盟热议",
+    "dashboard.warroom.coachNotes.title": "本周战术",
     "dashboard.warroom.activityFeed.loading": "正在加载动态...",
 
     "dashboard.warroom.hero.todayCount": "今日 {{n}} 项",
@@ -4940,7 +4940,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "{{n}} desisyon sa War Room ang dapat suriin",
     "dashboard.warroom.actionCenter.warRoomDetail": "Bagong rekomendasyon sa estratehiya",
 
-    "dashboard.warroom.today.title": "Ngayon",
+    "dashboard.warroom.today.title": "Fantasy Agenda Ngayon",
     "dashboard.warroom.today.lineupLocks": "Mag-lo-lock na ang lineup ng {{league}}",
     "dashboard.warroom.today.waiversProcess": "Ipoproseso ang mga waiver",
     "dashboard.warroom.today.autoSwapOne": "1 automatikong proteksyon sa lineup ang naisagawa",
@@ -5006,8 +5006,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "Waiver Wire",
     "dashboard.warroom.waiverWire.viewAll": "Tingnan lahat →",
 
-    "dashboard.warroom.activityFeed.title": "Aktibidad ng Liga",
-    "dashboard.warroom.coachNotes.title": "Mga Tala ng Coach",
+    "dashboard.warroom.activityFeed.title": "Chika ng Liga",
+    "dashboard.warroom.coachNotes.title": "Game Plan Ngayong Linggo",
     "dashboard.warroom.activityFeed.loading": "Nilo-load ang aktibidad...",
 
     "dashboard.warroom.hero.todayCount": "{{n}} ngayong araw",
@@ -5135,7 +5135,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "Có {{n}} quyết định War Room cần xem xét",
     "dashboard.warroom.actionCenter.warRoomDetail": "Đề xuất chiến lược mới",
 
-    "dashboard.warroom.today.title": "Hôm Nay",
+    "dashboard.warroom.today.title": "Lịch Trình Fantasy Hôm Nay",
     "dashboard.warroom.today.lineupLocks": "Đội hình {{league}} sắp khóa",
     "dashboard.warroom.today.waiversProcess": "Waiver sắp được xử lý",
     "dashboard.warroom.today.autoSwapOne": "Đã áp dụng 1 lần bảo vệ đội hình tự động",
@@ -5201,8 +5201,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "Thị Trường Waiver",
     "dashboard.warroom.waiverWire.viewAll": "Xem tất cả →",
 
-    "dashboard.warroom.activityFeed.title": "Hoạt Động Giải Đấu",
-    "dashboard.warroom.coachNotes.title": "Ghi Chú Của Huấn Luyện Viên",
+    "dashboard.warroom.activityFeed.title": "Bàn Tán Giải Đấu",
+    "dashboard.warroom.coachNotes.title": "Kế Hoạch Thi Đấu Tuần Này",
     "dashboard.warroom.activityFeed.loading": "Đang tải hoạt động...",
 
     "dashboard.warroom.hero.todayCount": "{{n}} hôm nay",

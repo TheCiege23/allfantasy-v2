@@ -13,7 +13,7 @@ type Note = { key: string; leagueName: string; message: string }
 const MAX_NOTES = 4
 
 /**
- * "Coach's Notes" — calm, plain-language commentary, deliberately not framed as AI/chat.
+ * "This Week's Game Plan" — calm, plain-language commentary, deliberately not framed as AI/chat.
  * Reuses two sources already fetched for the dashboard rather than calling any new
  * recommendation engine: `LineupActionItem.message` (severity: 'info' only — anything
  * critical/warning is already surfaced by ActionCenter, so this stays non-duplicative
