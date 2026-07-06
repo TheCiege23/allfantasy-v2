@@ -9,10 +9,7 @@ import type { TodayActionsEngineResponse } from '@/lib/today-actions-engine'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import type { ChecklistStep, UserLeague } from '../types'
 import { AIToolsGrid } from '@/components/ai-tools/AIToolsGrid'
-import { PowerRankingsMiniCard } from '@/components/ai-tools/PowerRankingsMiniCard'
-import { InjuryImpactMiniCard } from '@/components/ai-tools/InjuryImpactMiniCard'
 import { WarRoomMiniCard } from '@/components/ai-tools/WarRoomMiniCard'
-import { MatchupPrepMiniCard } from '@/components/ai-tools/MatchupPrepMiniCard'
 import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
@@ -38,12 +35,13 @@ import { WarRoomPreviewBlock } from './WarRoomPreviewBlock'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
 import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'
 import { Swords, Sparkles, Crown } from 'lucide-react'
-import { ActionCenter } from './warroom/ActionCenter'
+import { ActionCenter, countActionItems } from './warroom/ActionCenter'
 import { TodayTimeline } from './warroom/TodayTimeline'
 import { MyLeagueCard } from './warroom/MyLeagueCard'
-import { MatchupPreviewCard } from './warroom/MatchupPreviewCard'
-import { WaiverWirePreview } from './warroom/WaiverWirePreview'
 import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
+import { CommissionerHub } from './warroom/CommissionerHub'
+import { ManagerHub } from './warroom/ManagerHub'
+import { useGreetingPeriod } from './warroom/useGreeting'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -60,6 +58,9 @@ type DashboardOverviewProps = {
   userId: string
   userName: string
   leagues: UserLeague[]
+  /** True until the first `/api/league/list` response (SSR or client) resolves — lets My Leagues
+   *  show a loading skeleton instead of looking indistinguishable from "zero leagues." */
+  leaguesLoading?: boolean
   onTriggerImport: () => void
   onOpenChimmy: () => void
   /** SSR snapshot of `/api/user/rank` — rankings card renders without a client fetch round-trip. */
@@ -108,6 +109,7 @@ export function DashboardOverview({
   userId,
   userName,
   leagues,
+  leaguesLoading = false,
   onTriggerImport,
   onOpenChimmy: _onOpenChimmy,
   initialUserRankPayload = null,
@@ -115,6 +117,7 @@ export function DashboardOverview({
   const router = useRouter()
   const { t, tInterpolate } = useLanguage()
   const { hasPro } = useEntitlements()
+  const greetingPeriod = useGreetingPeriod()
   const { selectedLeagueId, selectedLeague, setSelectedLeagueId } = useDashboardToolLeague(leagues)
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
@@ -517,6 +520,11 @@ export function DashboardOverview({
 
   const pendingTradeChipCount = tradeData?.totalPending ?? 0
 
+  const urgentTodayCount = useMemo(
+    () => countActionItems(lineupData?.actions ?? [], waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview),
+    [lineupData, waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview],
+  )
+
   const handleAiShortcut = useCallback((_prompt: string) => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent('af-dashboard-focus-left-chimmy'))
@@ -722,9 +730,21 @@ export function DashboardOverview({
                 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.16) 0%, transparent 70%)',
             }}
           />
-          <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">
-            AllFantasy Command Center
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">
+              AllFantasy Command Center
+            </p>
+            {urgentTodayCount > 0 ? (
+              <span className="shrink-0 rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-red-300">
+                {tInterpolate('dashboard.warroom.hero.todayCount', { n: urgentTodayCount })}
+              </span>
+            ) : null}
+          </div>
+          {greetingPeriod ? (
+            <p className="mt-2 text-[13px] font-semibold text-white/70">
+              {tInterpolate(`dashboard.warroom.hero.greeting.${greetingPeriod}`, { name: userName })}
+            </p>
+          ) : null}
           <h1 className="mt-1.5 text-[26px] font-black leading-tight tracking-tight text-white sm:text-[30px]">
             Your fantasy command center is live.
           </h1>
@@ -837,95 +857,48 @@ export function DashboardOverview({
 
         <WarRoomPreviewBlock />
 
-        <WaiverWirePreview data={waiverData} onOpenAll={handleWaiverClick} />
+        <CommissionerHub leagues={leagues} />
 
-        {leagues.length > 0 ? (
+        <ManagerHub
+          leagues={leagues}
+          userId={userId}
+          selectedLeagueId={selectedLeagueId}
+          selectedLeague={selectedLeague}
+          onSelectLeagueId={setSelectedLeagueId}
+          waiverData={waiverData}
+          onOpenWaiverAll={handleWaiverClick}
+        />
+
+        {leaguesLoading ? (
+          <section className="space-y-2.5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+              {t('dashboard.warroom.myLeagues.title')}
+            </p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {[0, 1].map((i) => (
+                <div key={i} className="warroom-card h-[168px] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
+              ))}
+            </div>
+          </section>
+        ) : leagues.length > 0 ? (
           <section className="space-y-2.5">
             <div className="flex items-center gap-1.5">
               <Crown className="h-3.5 w-3.5 text-amber-400/80" aria-hidden />
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">My Leagues</p>
-              <Link
-                href="/commissioner-hub"
-                className="ml-auto text-[11px] font-semibold text-white/30 transition hover:text-white/60"
-              >
-                View all →
-              </Link>
+              <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+                {t('dashboard.warroom.myLeagues.title')}
+              </p>
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
-              {leagues.slice(0, 6).map((l) => (
+              {leagues.map((l) => (
                 <MyLeagueCard key={l.id} league={l} userId={userId} />
               ))}
             </div>
           </section>
         ) : null}
 
-        {leagues.some((l) => l.status === 'in_season') ? (
-          <section className="space-y-2.5">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">Today&apos;s Matchups</p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {leagues
-                .filter((l) => l.status === 'in_season')
-                .slice(0, 4)
-                .map((l) => (
-                  <MatchupPreviewCard key={l.id} league={l} userId={userId} />
-                ))}
-            </div>
-          </section>
-        ) : null}
-
         <LeagueActivityFeed />
 
-        <section className="space-y-3">
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">
-              {t('dashboard.overview.leagueIntelligenceTitle')}
-            </p>
-            <p className="mt-1 max-w-xl text-[11px] leading-snug text-white/45">
-              {t('dashboard.overview.leagueIntelligenceSubtitle')}
-            </p>
-          </div>
-
-          {leagues.length > 1 ? (
-            <label className="block max-w-md text-[10px] font-bold uppercase tracking-wide text-white/40">
-              {t('dashboard.overview.leagueSelectorLabel')}
-              <select
-                value={selectedLeagueId ?? ''}
-                onChange={(e) => {
-                  const id = e.target.value
-                  setSelectedLeagueId(id)
-                  try {
-                    const url = new URL(window.location.href)
-                    url.searchParams.set('league', id)
-                    window.history.replaceState({}, '', url.toString())
-                  } catch {
-                    /* ignore */
-                  }
-                }}
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#0a1220] px-3 py-2 text-[13px] text-white/90"
-              >
-                {leagues.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name} ({l.sport})
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : leagues.length === 1 && selectedLeague ? (
-            <p className="text-[11px] text-cyan-200/85">
-              <span className="inline-flex max-w-full items-center truncate rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-semibold text-white/90">
-                {selectedLeague.name}
-              </span>{' '}
-              <span className="text-white/45">{String(selectedLeague.sport)}</span>
-            </p>
-          ) : null}
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <PowerRankingsMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-            <InjuryImpactMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-            <WarRoomMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-            <MatchupPrepMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-          </div>
-        </section>
+        <WarRoomMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
 
         <AIToolsGrid leagues={leagues} selectedLeagueId={selectedLeagueId} />
 

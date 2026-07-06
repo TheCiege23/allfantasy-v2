@@ -3,6 +3,7 @@
 import { AlertTriangle, ArrowRightLeft, Flame, Swords, UserPlus } from 'lucide-react'
 import type { LineupActionItem } from '@/lib/lineup-actions/types'
 import { WarRoomCard } from './WarRoomCard'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 type PriorityTier = 'urgent' | 'high' | 'normal'
 
@@ -15,16 +16,34 @@ type ActionRow = {
   onClick: () => void
 }
 
-const TIER_STYLE: Record<PriorityTier, { color: string; badge: string }> = {
-  urgent: { color: '#f87171', badge: 'Urgent' },
-  high: { color: '#fbbf24', badge: 'Soon' },
-  normal: { color: '#22d3ee', badge: 'Open' },
+const TIER_COLOR: Record<PriorityTier, string> = {
+  urgent: '#f87171',
+  high: '#fbbf24',
+  normal: '#22d3ee',
 }
 
 function urgencyTier(severity: LineupActionItem['severity']): PriorityTier {
   if (severity === 'critical') return 'urgent'
   if (severity === 'warning') return 'high'
   return 'normal'
+}
+
+/**
+ * Same row-count logic as the component body below (kept as a pure, i18n-free
+ * function so the hero's "today" badge can share it without recomputing or
+ * duplicating the filter/slice rules — see DashboardOverview.tsx).
+ */
+export function countActionItems(
+  lineupActions: LineupActionItem[],
+  waiverPickupSuggestions: number,
+  pendingTradeCount: number,
+  warRoomDecisionsToReview: number,
+): number {
+  const lineupCount = lineupActions.filter((a) => a.severity !== 'info').slice(0, 4).length
+  const waiverCount = waiverPickupSuggestions > 0 ? 1 : 0
+  const tradeCount = pendingTradeCount > 0 ? 1 : 0
+  const warRoomCount = warRoomDecisionsToReview > 0 ? 1 : 0
+  return lineupCount + waiverCount + tradeCount + warRoomCount
 }
 
 export function ActionCenter({
@@ -46,6 +65,14 @@ export function ActionCenter({
   onTradesClick: () => void
   onWarRoomClick: () => void
 }) {
+  const { t, tInterpolate } = useLanguage()
+
+  const TIER_BADGE: Record<PriorityTier, string> = {
+    urgent: t('dashboard.warroom.actionCenter.tierUrgent'),
+    high: t('dashboard.warroom.actionCenter.tierSoon'),
+    normal: t('dashboard.warroom.actionCenter.tierOpen'),
+  }
+
   const rows: ActionRow[] = []
 
   // Real per-slot lineup issues first, worst severity first (data already scanned in DashboardOverview).
@@ -59,8 +86,12 @@ export function ActionCenter({
       key: `lineup-${action.leagueId}-${action.slotId ?? action.playerId ?? action.slotIndex}`,
       tier: urgencyTier(action.severity),
       icon: AlertTriangle,
-      label: action.playerName ? `${action.recommendedAction ?? 'Review'}: ${action.playerName}` : action.message,
-      detail: `${action.leagueName}${action.lockTime ? ` · locks soon` : ''}`,
+      label: action.playerName
+        ? `${action.recommendedAction ?? t('dashboard.warroom.actionCenter.review')}: ${action.playerName}`
+        : action.message,
+      detail: action.lockTime
+        ? `${action.leagueName} · ${t('dashboard.warroom.actionCenter.locksSoon')}`
+        : action.leagueName,
       onClick: onLineupIssuesClick,
     })
   }
@@ -72,9 +103,9 @@ export function ActionCenter({
       icon: UserPlus,
       label:
         waiverPickupSuggestions === 1
-          ? '1 waiver pickup suggestion'
-          : `${waiverPickupSuggestions} waiver pickup suggestions`,
-      detail: 'Review recommended adds',
+          ? t('dashboard.warroom.actionCenter.waiverSuggestionOne')
+          : tInterpolate('dashboard.warroom.actionCenter.waiverSuggestionMany', { n: waiverPickupSuggestions }),
+      detail: t('dashboard.warroom.actionCenter.waiverDetail'),
       onClick: onWaiverClick,
     })
   }
@@ -84,8 +115,11 @@ export function ActionCenter({
       key: 'trade',
       tier: 'normal',
       icon: ArrowRightLeft,
-      label: pendingTradeCount === 1 ? '1 trade offer pending' : `${pendingTradeCount} trade offers pending`,
-      detail: 'Accept, counter, or decline',
+      label:
+        pendingTradeCount === 1
+          ? t('dashboard.warroom.actionCenter.tradeOfferOne')
+          : tInterpolate('dashboard.warroom.actionCenter.tradeOfferMany', { n: pendingTradeCount }),
+      detail: t('dashboard.warroom.actionCenter.tradeDetail'),
       onClick: onTradesClick,
     })
   }
@@ -97,9 +131,9 @@ export function ActionCenter({
       icon: Swords,
       label:
         warRoomDecisionsToReview === 1
-          ? '1 War Room decision to review'
-          : `${warRoomDecisionsToReview} War Room decisions to review`,
-      detail: 'Draft picks, lineup calls, and more',
+          ? t('dashboard.warroom.actionCenter.warRoomOne')
+          : tInterpolate('dashboard.warroom.actionCenter.warRoomMany', { n: warRoomDecisionsToReview }),
+      detail: t('dashboard.warroom.actionCenter.warRoomDetail'),
       onClick: onWarRoomClick,
     })
   }
@@ -107,8 +141,8 @@ export function ActionCenter({
   if (rows.length === 0) {
     return (
       <WarRoomCard className="p-4 text-center" accentBorder="rgba(52,211,153,0.2)">
-        <p className="text-[13px] font-semibold text-emerald-300">You&apos;re all caught up 🎉</p>
-        <p className="mt-1 text-[11px] text-white/45">No urgent decisions across your leagues right now.</p>
+        <p className="text-[13px] font-semibold text-emerald-300">{t('dashboard.warroom.actionCenter.allCaughtUp')}</p>
+        <p className="mt-1 text-[11px] text-white/45">{t('dashboard.warroom.actionCenter.noUrgentDecisions')}</p>
       </WarRoomCard>
     )
   }
@@ -116,12 +150,14 @@ export function ActionCenter({
   return (
     <WarRoomCard className="overflow-hidden" accentBorder="rgba(255,255,255,0.08)">
       <div className="border-b border-white/[0.06] px-4 py-2.5">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-white/40">Action Center</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-white/40">
+          {t('dashboard.warroom.actionCenter.title')}
+        </p>
       </div>
       <ul>
         {rows.map((row) => {
           const Icon = row.icon
-          const style = TIER_STYLE[row.tier]
+          const color = TIER_COLOR[row.tier]
           return (
             <li key={row.key} className="border-b border-white/[0.04] last:border-b-0">
               <button
@@ -131,7 +167,7 @@ export function ActionCenter({
               >
                 <span
                   className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg"
-                  style={{ background: `${style.color}1f`, color: style.color }}
+                  style={{ background: `${color}1f`, color }}
                 >
                   <Icon className="h-4 w-4" aria-hidden />
                 </span>
@@ -141,9 +177,9 @@ export function ActionCenter({
                 </span>
                 <span
                   className="shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-                  style={{ color: style.color, background: `${style.color}1a` }}
+                  style={{ color, background: `${color}1a` }}
                 >
-                  {style.badge}
+                  {TIER_BADGE[row.tier]}
                 </span>
               </button>
             </li>

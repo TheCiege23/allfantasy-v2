@@ -798,6 +798,7 @@ export function DashboardShell({
               userId={userId}
               userName={userName}
               leagues={leagues}
+              leaguesLoading={leaguesLoading}
               onTriggerImport={handleTriggerImport}
               onOpenChimmy={handleOpenChimmy}
               initialUserRankPayload={initialUserRankPayload}

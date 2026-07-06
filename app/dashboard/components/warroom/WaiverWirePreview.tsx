@@ -3,6 +3,7 @@
 import { UserPlus } from 'lucide-react'
 import type { WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import { WarRoomCard } from './WarRoomCard'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 export function WaiverWirePreview({
   data,
@@ -11,6 +12,7 @@ export function WaiverWirePreview({
   data: WaiverDashboardResponse | null
   onOpenAll: () => void
 }) {
+  const { t } = useLanguage()
   const rows = (data?.recommendations ?? []).flatMap((rec) =>
     rec.pickups.slice(0, 2).map((p) => ({ ...p, leagueName: rec.leagueName })),
   )
@@ -20,9 +22,11 @@ export function WaiverWirePreview({
   return (
     <WarRoomCard className="overflow-hidden" accentBorder="rgba(255,255,255,0.08)">
       <div className="flex items-center justify-between border-b border-white/[0.06] px-4 py-2.5">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-white/40">Waiver Wire</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-white/40">
+          {t('dashboard.warroom.waiverWire.title')}
+        </p>
         <button type="button" onClick={onOpenAll} className="text-[11px] font-semibold text-cyan-300/80 hover:text-cyan-200">
-          View all →
+          {t('dashboard.warroom.waiverWire.viewAll')}
         </button>
       </div>
       <ul className="grid gap-px bg-white/[0.03] sm:grid-cols-2">

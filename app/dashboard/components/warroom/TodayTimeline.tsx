@@ -3,6 +3,8 @@
 import { Clock, DollarSign, ShieldAlert, Sparkles } from 'lucide-react'
 import type { LineupActionItem } from '@/lib/lineup-actions/types'
 import { WarRoomCard } from './WarRoomCard'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import type { InterpolationVars } from '@/lib/i18n/tInterpolate'
 
 type TimelineEntry = {
   key: string
@@ -13,16 +15,21 @@ type TimelineEntry = {
   atMs: number | null
 }
 
-function formatRelativeTime(iso: string): string {
+function formatRelativeTime(iso: string, tInterpolate: (key: string, vars?: InterpolationVars) => string): string {
   const target = new Date(iso).getTime()
   const now = Date.now()
   const diffMs = target - now
+  const future = diffMs >= 0
   const absMin = Math.round(Math.abs(diffMs) / 60000)
-  if (absMin < 60) return diffMs >= 0 ? `in ${absMin}m` : `${absMin}m ago`
+  if (absMin < 60) {
+    return tInterpolate(future ? 'dashboard.warroom.time.inMinutes' : 'dashboard.warroom.time.minutesAgo', { n: absMin })
+  }
   const hours = Math.round(absMin / 60)
-  if (hours < 24) return diffMs >= 0 ? `in ${hours}h` : `${hours}h ago`
+  if (hours < 24) {
+    return tInterpolate(future ? 'dashboard.warroom.time.inHours' : 'dashboard.warroom.time.hoursAgo', { n: hours })
+  }
   const days = Math.round(hours / 24)
-  return diffMs >= 0 ? `in ${days}d` : `${days}d ago`
+  return tInterpolate(future ? 'dashboard.warroom.time.inDays' : 'dashboard.warroom.time.daysAgo', { n: days })
 }
 
 export function TodayTimeline({
@@ -36,6 +43,7 @@ export function TodayTimeline({
   autoSwapsLast24h: number
   pendingTradeCount: number
 }) {
+  const { t, tInterpolate } = useLanguage()
   const entries: TimelineEntry[] = []
 
   const nextLock = lineupActions
@@ -48,8 +56,8 @@ export function TodayTimeline({
     entries.push({
       key: 'lineup-lock',
       icon: Clock,
-      label: `Lineup locks — ${nextLock.a.leagueName}`,
-      detail: formatRelativeTime(nextLock.a.lockTime as string),
+      label: tInterpolate('dashboard.warroom.today.lineupLocks', { league: nextLock.a.leagueName }),
+      detail: formatRelativeTime(nextLock.a.lockTime as string, tInterpolate),
       atMs: nextLock.ms,
     })
   }
@@ -58,8 +66,8 @@ export function TodayTimeline({
     entries.push({
       key: 'waivers',
       icon: DollarSign,
-      label: 'Waivers process',
-      detail: formatRelativeTime(waiverTiming.nextWaiverProcessIsoUtc),
+      label: t('dashboard.warroom.today.waiversProcess'),
+      detail: formatRelativeTime(waiverTiming.nextWaiverProcessIsoUtc, tInterpolate),
       atMs: new Date(waiverTiming.nextWaiverProcessIsoUtc).getTime(),
     })
   }
@@ -70,9 +78,9 @@ export function TodayTimeline({
       icon: ShieldAlert,
       label:
         autoSwapsLast24h === 1
-          ? 'Auto lineup protection made 1 swap'
-          : `Auto lineup protection made ${autoSwapsLast24h} swaps`,
-      detail: 'Last 24 hours',
+          ? t('dashboard.warroom.today.autoSwapOne')
+          : tInterpolate('dashboard.warroom.today.autoSwapMany', { n: autoSwapsLast24h }),
+      detail: t('dashboard.warroom.today.last24Hours'),
       atMs: null,
     })
   }
@@ -81,8 +89,11 @@ export function TodayTimeline({
     entries.push({
       key: 'trades-open',
       icon: Sparkles,
-      label: pendingTradeCount === 1 ? '1 trade offer open' : `${pendingTradeCount} trade offers open`,
-      detail: 'No deadline set',
+      label:
+        pendingTradeCount === 1
+          ? t('dashboard.warroom.today.tradeOpenOne')
+          : tInterpolate('dashboard.warroom.today.tradeOpenMany', { n: pendingTradeCount }),
+      detail: t('dashboard.warroom.today.noDeadlineSet'),
       atMs: null,
     })
   }
@@ -99,7 +110,9 @@ export function TodayTimeline({
   return (
     <WarRoomCard className="overflow-hidden" accentBorder="rgba(255,255,255,0.08)">
       <div className="border-b border-white/[0.06] px-4 py-2.5">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-white/40">Today</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-white/40">
+          {t('dashboard.warroom.today.title')}
+        </p>
       </div>
       <ul className="flex flex-col divide-y divide-white/[0.04]">
         {sorted.map((entry) => {
