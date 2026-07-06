@@ -179,6 +179,8 @@ const filesToKeep = new Set([
   path.join('app', 'api', 'admin', 'world-cup', 'actions', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'fantasy-data', 'import', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'fantasy-data', 'status', 'route.ts').replace(/\\/g, '/'),
+  // Duplicate-manager fraud-hardening verification tool — used from /admin/duplicate-manager-verify.
+  path.join('app', 'api', 'admin', 'duplicate-manager-verify', 'route.ts').replace(/\\/g, '/'),
 ])
 
 function directoryExists(targetPath) {
