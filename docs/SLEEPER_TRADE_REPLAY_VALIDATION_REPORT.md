@@ -177,11 +177,38 @@ The central Phase 5 finding — real accepted trades cluster at a striking ~0.25
 
 ---
 
+## 10. Phase 8 — Acceptance Probability Audit: the definitive root cause
+
+§9.5's "most plausibly explained by cancelling out" language is **superseded by this section** — Phase 8 traced the exact mechanism with source-level certainty and real diagnostic data, rather than leaving it as an inference.
+
+**Full architectural analysis:** `docs/TRADE_ENGINE_ACCEPT_PROBABILITY_ARCHITECTURE_NOTE.md`.
+
+### 10.1 Two confirmed, independent facts
+
+1. **`computeSmartAcceptProbability()`'s `vorpDeltaThem` parameter (and, discovered in this pass, also `behaviorScore` and `marketScore`) are never read in the function body** — confirmed by direct source inspection (each appears exactly once, in its own parameter declaration). VORP data has *no code path at all* into `acceptProbability`, regardless of its value.
+2. **The lineup-delta channel (`x1`/`x2`, from `deltaThem`/`needFitPPGThem`) is real and gated only on `hasLineupData`** — independent of `hasVorpData`. A read-only diagnostic re-run of `computeTradeDrivers()` against 6 real staging replay rows found `deltaThem = 0` in 5 of 6 — the counterparty's actual best-possible starting lineup simply doesn't change for these real dynasty bench-depth trades, on either side of the deal. This is a genuine property of the real trade population, not a broken pipeline.
+
+Both facts are now proven by dedicated, unmocked tests against the real trade-engine (`__tests__/trade-engine/accept-prob-vorp-lineup-separation.test.ts`, 3 tests): varying `vorpValue` alone leaves `acceptProbability` byte-identical while `vorpScore` changes; constructing a roster where the trade *does* raise the counterparty's best lineup produces a *different* `acceptProbability` than one where it doesn't — proving the lineup channel is functional and the flat staging result is a data property, not a pipeline defect.
+
+### 10.2 Intended architecture or a bug?
+
+Reasoned assessment (not certain — see the architecture note §4 for full reasoning): more likely **incomplete/vestigial wiring than deliberate design**. `vorpDeltaThem` is computed for real and even exposed on the final result object for display, which is unusual plumbing for a value nobody consumes; the same unused-parameter pattern recurs for two more composite scores (`behaviorScore`, `marketScore`), suggesting a leftover calling convention rather than three independent deliberate omissions; and no comment anywhere in the codebase documents an intentional fairness-vs-acceptance separation, unlike every other deliberate design decision in this workstream.
+
+### 10.3 No fix implemented — recommendation only
+
+Per this phase's explicit scope, nothing was changed. If ever addressed, the smallest safe fix would be an additive `x8`/`w8` term inside `computeSmartAcceptProbability()`, mirroring how `x7`/`w7` (`isDeadlineWindow`) already extends the formula without disturbing `x1`–`x6` — not proposed for implementation now.
+
+### 10.4 Recommended Phase 9
+
+Not fixing the dead parameters — expanding the real-data evidence base first: ingest a larger, more diverse sample (especially active-roster trades, not just bench-depth dynasty churn) to see whether the lineup channel's real-world influence on `acceptProbability` is larger outside this specific bench-heavy sample. Only after that would a separate, explicitly-approved, ADR-governed phase be the right place to consider folding VORP into `acceptProbability` at all.
+
+---
+
 ## Files changed in this session
 
 - `lib/replay-framework/metrics/tradeReplayMetrics.ts` (Phase 5, new)
 - `__tests__/replay-framework/tradeReplayMetrics.test.ts` (Phase 5, new, 9 tests)
-- `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md` (this document — Phase 5 new, updated with §8 then §9)
+- `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md` (this document — Phase 5 new, updated with §8, §9, then §10)
 - `lib/replay-framework/types.ts` (Phase 6 — additive: `TradeReplayRosterAsset`, `proposerRoster`/`counterpartyRoster` on `TradeReplayPayload`; Phase 7 — additive `vorpValue` on every asset shape)
 - `lib/replay-framework/normalize/sleeperTradeNormalizer.ts` (Phase 6 — resolves full real rosters, adds position resolution; Phase 7 — computes real `vorpValue` via the VORP resolver)
 - `lib/replay-framework/backtest/tradeBacktestExecutor.ts` (Phase 6 — builds and passes a real `rosterCtx`; Phase 7 — threads `vorpValue` onto every `Asset`)
@@ -189,6 +216,8 @@ The central Phase 5 finding — real accepted trades cluster at a striking ~0.25
 - `lib/replay-framework/valuation/vorpResolver.ts` (Phase 7, new — reuses `computePlayerVorp()`, derives a real `LeagueRosterConfig`)
 - `__tests__/replay-framework/{sleeperTradeNormalizer,tradeBacktestExecutor,ingestSleeperTradesForLeague}.test.ts` (Phase 6 — 7 new tests; Phase 7 — 3 more added)
 - `__tests__/replay-framework/vorpResolver.test.ts` (Phase 7, new, 6 tests)
+- `docs/TRADE_ENGINE_ACCEPT_PROBABILITY_ARCHITECTURE_NOTE.md` (Phase 8, new — the full architectural note)
+- `__tests__/trade-engine/accept-prob-vorp-lineup-separation.test.ts` (Phase 8, new, 3 tests against the real, unmocked trade-engine)
 - `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (updated with a pointer to this report)
 
-No trade-engine file was modified. No calibration math, threshold, or weight was changed. No database (staging or production) was written to — only read-only aggregate queries were run. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.
+No trade-engine file was modified at any phase. No calibration math, threshold, or weight was changed. No database (staging or production) was written to — only read-only aggregate/diagnostic queries were run (Phase 8's diagnostic script re-computed `computeTradeDrivers()` in-process against already-staged real data, no new rows written). `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.
