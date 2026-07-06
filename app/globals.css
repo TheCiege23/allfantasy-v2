@@ -1765,6 +1765,53 @@ select, option {
   .draft-live-focus-ring {
     transition: none !important;
   }
+  .warroom-card,
+  .warroom-fade-in-stagger,
+  .warroom-glow-pulse {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* Dashboard "war room" cards — dark, fixed-theme (not toggled by light/dark mode) */
+.warroom-card {
+  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+}
+
+.warroom-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
+}
+
+@keyframes warroom-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.warroom-fade-in-stagger {
+  animation: warroom-fade-in 0.45s ease-out both;
+}
+
+@keyframes warroom-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px currentColor inset, 0 0 18px -6px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 0 1px currentColor inset, 0 0 26px -4px currentColor;
+  }
+}
+
+.warroom-glow-pulse {
+  animation: warroom-glow-pulse 2.4s ease-in-out infinite;
 }
 
 /* Zombie event animations — non-blocking; pair with SSE `zombie_event_animation` payloads */

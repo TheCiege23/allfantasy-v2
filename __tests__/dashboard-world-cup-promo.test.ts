@@ -37,11 +37,11 @@ describe('dashboard World Cup promo', () => {
 
     const promoIndex = OVERVIEW_SRC.indexOf('<WorldCupDashboardPromo />')
     const railIndex = OVERVIEW_SRC.indexOf('<DashboardIntelligenceRail')
-    const missionIndex = OVERVIEW_SRC.indexOf('<TodaysMissionStrip')
+    const actionCenterIndex = OVERVIEW_SRC.indexOf('<ActionCenter')
 
     expect(promoIndex).toBeGreaterThan(0)
     expect(railIndex).toBeGreaterThan(promoIndex)
-    expect(missionIndex).toBeGreaterThan(promoIndex)
+    expect(actionCenterIndex).toBeGreaterThan(promoIndex)
   })
 
   it('uses the existing World Cup, Pro, and token routes', () => {

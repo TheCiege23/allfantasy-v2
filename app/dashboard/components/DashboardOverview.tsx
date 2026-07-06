@@ -17,7 +17,6 @@ import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
 import { RankingsCard } from './RankingsCard'
-import { TodayStrip } from './TodayStrip'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
 import { FavoriteSportsOnboardingModal } from './FavoriteSportsOnboardingModal'
 import { StandingsWidget } from '@/components/sports/StandingsWidget'
@@ -31,16 +30,20 @@ import {
 } from '@/lib/dashboard/favorite-sports-storage'
 import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { tInterpolate as interpolateI18nMessage } from '@/lib/i18n/tInterpolate'
 import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
 import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
 import { DashboardIntelligenceRail } from './DashboardIntelligenceRail'
-import { TodaysMissionStrip } from './TodaysMissionStrip'
 import { WarRoomPreviewBlock } from './WarRoomPreviewBlock'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
 import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'
-import { Swords, Sparkles, Crown, Trophy } from 'lucide-react'
+import { Swords, Sparkles, Crown } from 'lucide-react'
+import { ActionCenter } from './warroom/ActionCenter'
+import { TodayTimeline } from './warroom/TodayTimeline'
+import { MyLeagueCard } from './warroom/MyLeagueCard'
+import { MatchupPreviewCard } from './warroom/MatchupPreviewCard'
+import { WaiverWirePreview } from './warroom/WaiverWirePreview'
+import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -54,6 +57,7 @@ type OnboardingState = {
 }
 
 type DashboardOverviewProps = {
+  userId: string
   userName: string
   leagues: UserLeague[]
   onTriggerImport: () => void
@@ -101,6 +105,7 @@ function writeOnboardingState(value: OnboardingState) {
 }
 
 export function DashboardOverview({
+  userId,
   userName,
   leagues,
   onTriggerImport,
@@ -406,20 +411,6 @@ export function DashboardOverview({
     [selectedLeagueId, todayPrimaryLeagueId],
   )
 
-  const stripWaiverTimingHint = useMemo(() => {
-    const w = todayWaiverTiming
-    if (!w?.nextWaiverProcessKnown || !w.waiverTimingHint?.trim()) return null
-    return w.waiverTimingHint.trim()
-  }, [todayWaiverTiming])
-
-  const stripProtectionActivityHint = useMemo(() => {
-    const p = todayAutoProtection
-    if (!p || p.autoSwapsLast24h <= 0) return null
-    return p.autoSwapsLast24h === 1
-      ? '1 AI lineup protection swap in the last 24 hours (see Settings → AI protection for history).'
-      : `${p.autoSwapsLast24h} AI lineup protection swaps in the last 24 hours (see Settings → AI protection for history).`
-  }, [todayAutoProtection])
-
   const handleLineupIssuesClick = useCallback(() => {
     setLineupModalOpen(true)
     const now = Date.now()
@@ -471,26 +462,6 @@ export function DashboardOverview({
       .finally(() => setTradeLoading(false))
   }, [tradeData, refreshTodayActionsBundle])
 
-  const handleInjuryToolClick = useCallback(() => {
-    if (typeof window === 'undefined') return
-    document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.dispatchEvent(
-      new CustomEvent('af-open-ai-tool', {
-        detail: { tool: 'injury', ...(aiToolFocusLeagueId ? { focusLeagueId: aiToolFocusLeagueId } : {}) },
-      }),
-    )
-  }, [aiToolFocusLeagueId])
-
-  const handleMatchupPrepToolClick = useCallback(() => {
-    if (typeof window === 'undefined') return
-    document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.dispatchEvent(
-      new CustomEvent('af-open-ai-tool', {
-        detail: { tool: 'matchupPrep', ...(aiToolFocusLeagueId ? { focusLeagueId: aiToolFocusLeagueId } : {}) },
-      }),
-    )
-  }, [aiToolFocusLeagueId])
-
   const handleWarRoomToolClick = useCallback(() => {
     if (typeof window === 'undefined') return
     document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -532,82 +503,11 @@ export function DashboardOverview({
     }
   }, [leagues, setSelectedLeagueId])
 
-  const lineupPrimaryLabel = useMemo(() => {
-    if (!lineupData) return ''
-    return interpolateI18nMessage(
-      t,
-      lineupData.displayLabelKey,
-      lineupData.displayLabelParams as Record<string, string | number>,
-    )
-  }, [lineupData, t])
-
-  const lineupSecondaryFromApi = useMemo(() => {
-    if (!lineupData?.displaySubtextKey || !lineupData.displaySubtextParams) return null
-    return interpolateI18nMessage(
-      t,
-      lineupData.displaySubtextKey,
-      lineupData.displaySubtextParams as Record<string, string | number>,
-    )
-  }, [lineupData, t])
-
-  const lineupUrgentHint = useMemo(() => {
-    if (!lineupData?.urgentSubtextKey || !lineupData.urgentSubtextParams) return null
-    return interpolateI18nMessage(
-      t,
-      lineupData.urgentSubtextKey,
-      lineupData.urgentSubtextParams as Record<string, string | number>,
-    )
-  }, [lineupData, t])
-
-  const lineupClearSubtext = useMemo(() => {
-    if (!lineupData) return null
-    if ((lineupData.totalUnresolvedSlotActions ?? 0) > 0 || (lineupData.scanWarningLeagues ?? 0) > 0) return null
-    const n = lineupData.scannedLeagues ?? 0
-    if (n <= 0) return null
-    return n === 1
-      ? t('dashboard.today.lineupScannedLeaguesOne')
-      : tInterpolate('dashboard.today.lineupScannedLeaguesMany', { n })
-  }, [lineupData, t, tInterpolate])
-
-  const lineupChipState = useMemo(() => {
-    if (!lineupReady || !lineupData) return 'loading' as const
-    const unresolved = lineupData.totalUnresolvedSlotActions ?? lineupData.totalIssues ?? 0
-    const warn = lineupData.scanWarningLeagues ?? 0
-    if (unresolved > 0 || warn > 0) return 'issues' as const
-    return 'clear' as const
-  }, [lineupReady, lineupData])
-
-  const lineupChipSubtext =
-    lineupChipState === 'clear' ? lineupClearSubtext : lineupSecondaryFromApi
-
   const waiverChipCount = useMemo(() => {
     if (todayCounts) return todayCounts.waiverPickupSuggestions
     if (!waiverData?.recommendations?.length) return 0
     return waiverData.recommendations.reduce((n, r) => n + (r.pickups?.length ?? 0), 0)
   }, [todayCounts, waiverData])
-
-  const lineupInjuryDecisionsToReview = useMemo(() => {
-    if (todayCounts) return todayCounts.lineupInjuryDecisionsToReview
-    const actions = lineupData?.actions ?? []
-    const inj = new Set(['injured_starter', 'questionable_starter', 'doubtful_starter'])
-    return actions.filter((a) => inj.has(a.reasonType) && a.severity !== 'info').length
-  }, [todayCounts, lineupData])
-
-  const injuryReportRowsInUserSports = useMemo(() => {
-    if (todayCounts) return todayCounts.injuryReportRowsInUserSports
-    return waiverData?.injuryPulse?.length ?? 0
-  }, [todayCounts, waiverData])
-
-  const matchupPrepDecisionsToReview = useMemo(() => {
-    if (todayCounts) return todayCounts.matchupPrepDecisionsToReview
-    const actions = lineupData?.actions ?? []
-    return actions.filter((a) => a.reasonType === 'matchup_prep' || a.sourceModule === 'MatchupPrep').length
-  }, [todayCounts, lineupData])
-
-  const leaguesWithSyncedMatchupData = useMemo(() => {
-    if (todayCounts) return todayCounts.leaguesWithSyncedWeeklyMatchupData
-    return 0
-  }, [todayCounts])
 
   const warRoomDecisionsToReview = useMemo(() => {
     if (todayCounts) return todayCounts.warRoomDecisionsToReview
@@ -616,30 +516,6 @@ export function DashboardOverview({
   }, [todayCounts, lineupData])
 
   const pendingTradeChipCount = tradeData?.totalPending ?? 0
-
-  const todayTimeAuthorityHint = useMemo(() => {
-    const tc = stripTimeContext
-    if (!tc) return null
-    const parts: string[] = []
-    if (tc.timezoneMismatch) {
-      parts.push(
-        `Account timezone (${tc.userTimezone}) differs from this device — lineup locks use server time as source of truth.`,
-      )
-    }
-    if (tc.deviceClockMismatch && tc.clockSkewSeconds != null) {
-      parts.push(`Device clock skew ~${Math.abs(Math.round(tc.clockSkewSeconds))}s detected.`)
-    }
-    if (
-      tc.nextLockTimeUTC &&
-      tc.timeUntilNextLockMs != null &&
-      tc.timeUntilNextLockMs >= 0 &&
-      tc.timeUntilNextLockMs < 1000 * 60 * 60 * 72
-    ) {
-      const m = Math.max(1, Math.floor(tc.timeUntilNextLockMs / 60000))
-      parts.push(`Next lock ~${m}m · local ${tc.userLocalTime}.`)
-    }
-    return parts.length ? parts.join(' ') : null
-  }, [stripTimeContext])
 
   const handleAiShortcut = useCallback((_prompt: string) => {
     if (typeof window === 'undefined') return
@@ -676,14 +552,21 @@ export function DashboardOverview({
           leagueSport={selectedLeague?.sport ?? null}
           leagueType={selectedLeague?.leagueType ?? null}
         />
-        <TodaysMissionStrip
-          warRoomDecisions={warRoomDecisionsToReview}
-          pendingTrades={pendingTradeChipCount}
-          waiverSuggestions={waiverChipCount}
-          onWarRoomClick={handleWarRoomToolClick}
-          onChimmyClick={() => handleAiShortcut('')}
-          onTradesClick={handleTradeClick}
+        <ActionCenter
+          lineupActions={lineupData?.actions ?? []}
+          waiverPickupSuggestions={waiverChipCount}
+          pendingTradeCount={pendingTradeChipCount}
+          warRoomDecisionsToReview={warRoomDecisionsToReview}
+          onLineupIssuesClick={handleLineupIssuesClick}
           onWaiverClick={handleWaiverClick}
+          onTradesClick={handleTradeClick}
+          onWarRoomClick={handleWarRoomToolClick}
+        />
+        <TodayTimeline
+          lineupActions={lineupData?.actions ?? []}
+          waiverTiming={todayWaiverTiming}
+          autoSwapsLast24h={todayAutoProtection?.autoSwapsLast24h ?? 0}
+          pendingTradeCount={pendingTradeChipCount}
         />
         {allDone ? (
           <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
@@ -952,110 +835,45 @@ export function DashboardOverview({
           </div>
         </section>
 
-        <TodayStrip
-          leagues={leagues}
-          lineupChipState={lineupChipState}
-          lineupPrimaryLabel={lineupPrimaryLabel}
-          lineupSubtext={lineupChipSubtext}
-          lineupUrgentHint={lineupUrgentHint}
-          lineupTooltip={t('dashboard.today.lineupChipTooltipDefault')}
-          onLineupIssuesClick={handleLineupIssuesClick}
-          waiverPickupSuggestions={waiverChipCount}
-          onWaiverClick={handleWaiverClick}
-          lineupInjuryDecisionsToReview={lineupInjuryDecisionsToReview}
-          injuryReportRowsInUserSports={injuryReportRowsInUserSports}
-          onInjuryClick={handleInjuryToolClick}
-          matchupPrepDecisionsToReview={matchupPrepDecisionsToReview}
-          leaguesWithSyncedMatchupData={leaguesWithSyncedMatchupData}
-          onMatchupPrepClick={handleMatchupPrepToolClick}
-          pendingTradeCount={pendingTradeChipCount}
-          onTradesClick={handleTradeClick}
-          warRoomDecisionsToReview={warRoomDecisionsToReview}
-          onWarRoomClick={handleWarRoomToolClick}
-          timeAuthorityHint={todayTimeAuthorityHint}
-          waiverTimingHint={stripWaiverTimingHint}
-          protectionActivityHint={stripProtectionActivityHint}
-        />
-
         <WarRoomPreviewBlock />
 
-        {(() => {
-          const commLeagues = leagues.filter((l) => l.isCommissioner)
-          const memberLeagues = leagues.filter((l) => !l.isCommissioner)
-          if (leagues.length === 0) return null
-          return (
-            <section className="space-y-4">
-              {commLeagues.length > 0 && (
-                <div>
-                  <div className="mb-2.5 flex items-center gap-1.5">
-                    <Crown className="h-3.5 w-3.5 text-amber-400" aria-hidden />
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-amber-400/80">
-                      Leagues I Manage
-                    </p>
-                    <Link
-                      href="/commissioner-hub"
-                      className="ml-auto text-[11px] font-semibold text-amber-400/50 transition hover:text-amber-300"
-                    >
-                      Commissioner Hub →
-                    </Link>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {commLeagues.slice(0, 4).map((l) => (
-                      <Link
-                        key={l.id}
-                        href={`/league/${l.id}`}
-                        className="group flex items-center gap-2.5 rounded-xl border border-amber-500/[0.12] bg-amber-500/[0.04] px-3 py-2.5 transition hover:border-amber-500/25 hover:bg-amber-500/[0.07]"
-                      >
-                        <Crown className="h-3.5 w-3.5 shrink-0 text-amber-400/60" aria-hidden />
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/80 group-hover:text-white">
-                          {l.name}
-                        </span>
-                        <span className="shrink-0 text-[11px] text-white/30">{l.sport}</span>
-                      </Link>
-                    ))}
-                    {commLeagues.length > 4 && (
-                      <Link
-                        href="/commissioner-hub"
-                        className="flex items-center justify-center gap-1 rounded-xl border border-amber-500/15 px-3 py-2.5 text-[12px] text-amber-400/50 transition hover:border-amber-500/25 hover:text-amber-300"
-                      >
-                        +{commLeagues.length - 4} more in Commissioner Hub
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              )}
-              {memberLeagues.length > 0 && (
-                <div>
-                  <div className="mb-2.5 flex items-center gap-1.5">
-                    <Trophy className="h-3.5 w-3.5 text-cyan-400/70" aria-hidden />
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-white/35">
-                      Leagues I Play In
-                    </p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {memberLeagues.slice(0, 4).map((l) => (
-                      <Link
-                        key={l.id}
-                        href={`/league/${l.id}`}
-                        className="group flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 transition hover:border-cyan-500/20 hover:bg-white/[0.04]"
-                      >
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/70 group-hover:text-white/90">
-                          {l.name}
-                        </span>
-                        <span className="shrink-0 text-[11px] text-white/30">{l.sport}</span>
-                      </Link>
-                    ))}
-                    {memberLeagues.length > 4 && (
-                      <span className="flex items-center justify-center gap-1 rounded-xl border border-white/[0.06] px-3 py-2.5 text-[12px] text-white/30">
-                        +{memberLeagues.length - 4} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </section>
-          )
-        })()}
+        <WaiverWirePreview data={waiverData} onOpenAll={handleWaiverClick} />
+
+        {leagues.length > 0 ? (
+          <section className="space-y-2.5">
+            <div className="flex items-center gap-1.5">
+              <Crown className="h-3.5 w-3.5 text-amber-400/80" aria-hidden />
+              <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">My Leagues</p>
+              <Link
+                href="/commissioner-hub"
+                className="ml-auto text-[11px] font-semibold text-white/30 transition hover:text-white/60"
+              >
+                View all →
+              </Link>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {leagues.slice(0, 6).map((l) => (
+                <MyLeagueCard key={l.id} league={l} userId={userId} />
+              ))}
+            </div>
+          </section>
+        ) : null}
+
+        {leagues.some((l) => l.status === 'in_season') ? (
+          <section className="space-y-2.5">
+            <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">Today&apos;s Matchups</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {leagues
+                .filter((l) => l.status === 'in_season')
+                .slice(0, 4)
+                .map((l) => (
+                  <MatchupPreviewCard key={l.id} league={l} userId={userId} />
+                ))}
+            </div>
+          </section>
+        ) : null}
+
+        <LeagueActivityFeed />
 
         <section className="space-y-3">
           <div>

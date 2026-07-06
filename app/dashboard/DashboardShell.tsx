@@ -795,6 +795,7 @@ export function DashboardShell({
             />
           ) : (
             <DashboardOverview
+              userId={userId}
               userName={userName}
               leagues={leagues}
               onTriggerImport={handleTriggerImport}
