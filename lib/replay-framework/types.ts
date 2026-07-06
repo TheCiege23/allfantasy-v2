@@ -43,12 +43,13 @@ export interface BacktestResultInput {
   realOutcome: unknown | null
 }
 
-/** A roster player/pick usable as trade-engine `Asset` input — a subset of `Asset`'s fields, just enough for `computeTradeDrivers()`'s roster-context lineup math (`pos` is required for a player to count toward `computeBestLineupPPG()`). */
+/** A roster player/pick usable as trade-engine `Asset` input — a subset of `Asset`'s fields, just enough for `computeTradeDrivers()`'s roster-context lineup math (`pos` is required for a player to count toward `computeBestLineupPPG()`). `vorpValue` is additive (Phase 7) — required for `computeTradeDrivers()`'s richer `hasVorpData` scoring branch to activate at all. */
 export interface TradeReplayRosterAsset {
   name: string
   value: number
   type: string
   pos?: string
+  vorpValue?: number
 }
 
 /**
@@ -57,10 +58,11 @@ export interface TradeReplayRosterAsset {
  * per docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md §11) — rows ingested
  * before Phase 6 simply have them `undefined`, handled gracefully by the
  * backtest executor (falls back to no roster context, exactly like before).
+ * `vorpValue` on every asset array is additive (Phase 7).
  */
 export interface TradeReplayPayload {
-  assetsGiven: Array<{ name: string; value: number; type: string }>
-  assetsReceived: Array<{ name: string; value: number; type: string }>
+  assetsGiven: Array<{ name: string; value: number; type: string; vorpValue?: number }>
+  assetsReceived: Array<{ name: string; value: number; type: string; vorpValue?: number }>
   proposerRoster?: TradeReplayRosterAsset[]
   counterpartyRoster?: TradeReplayRosterAsset[]
 }

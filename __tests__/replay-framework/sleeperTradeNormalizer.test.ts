@@ -213,6 +213,52 @@ describe('normalizeSleeperTrade', () => {
     const payload = result.payload as { counterpartyRoster?: unknown }
     expect(payload.counterpartyRoster).toBeUndefined()
   })
+
+  it('Phase 7: populates vorpValue via the real VORP resolver when a player resolves against FantasyCalc', () => {
+    const fcPlayers = [
+      {
+        player: { name: 'Real Player One', position: 'RB', sleeperId: '1001' },
+        value: 5000, overallRank: 10, positionRank: 3, trend30Day: 0,
+        redraftDynastyValueDifference: 0, redraftDynastyValuePercDifference: 0,
+        redraftValue: 4500, combinedValue: 5000,
+        maybeMovingStandardDeviation: null, maybeMovingStandardDeviationPerc: null, maybeMovingStandardDeviationAdjusted: null,
+        displayTrend: false, maybeOwner: null, starter: true, maybeTier: null, maybeAdp: null, maybeTradeFrequency: null,
+      },
+    ] as any
+
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade(),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers,
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    const payload = result.payload as { assetsReceived: Array<{ name: string; vorpValue?: number }> }
+    const receivedPlayerOne = payload.assetsReceived.find((a) => a.name === 'Real Player One')
+    expect(receivedPlayerOne?.vorpValue).toBeTypeOf('number')
+    expect(receivedPlayerOne?.vorpValue).toBeGreaterThanOrEqual(0)
+  })
+
+  it('Phase 7: defaults vorpValue to 0 when no FantasyCalc data is available — never fabricated, never throws', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade(),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [], // no FantasyCalc data at all
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    const payload = result.payload as { assetsGiven: Array<{ vorpValue?: number }>; assetsReceived: Array<{ vorpValue?: number }> }
+    expect(payload.assetsGiven.every((a) => a.vorpValue === 0)).toBe(true)
+    expect(payload.assetsReceived.every((a) => a.vorpValue === 0)).toBe(true)
+  })
 })
 
 describe('mapSleeperStatusToOutcome', () => {

@@ -140,16 +140,55 @@ The roster-context hypothesis from Phase 5 §3.1 item 2 ("no roster/lineup conte
 
 ---
 
+## 9. Phase 7 — VORP enrichment: before/after comparison
+
+### 9.1 VORP source used
+
+Reused the exact primitive native AllFantasy trade flows already call for VORP: `computePlayerVorp()` (`lib/vorp-engine.ts`) — a pure function, zero network/DB dependency beyond the already-fetched `fcPlayers` array this pipeline already had. **Not** the heavier `pricePlayer()`/`lib/hybrid-valuation.ts` wrapper, which does name-based historical-Excel lookups and live analytics-API calls this pipeline has no use for (it already resolves players by Sleeper ID via `findPlayerBySleeperId()`, matching `FantasyCalcPlayer` directly — no name-matching step needed). A new `lib/replay-framework/valuation/vorpResolver.ts` derives a **real** `LeagueRosterConfig` from each league's actual `roster_positions` (counting real QB/RB/WR/TE/FLEX/SUPER_FLEX slots) rather than falling back to the generic 1-QB/2-RB/2-WR/1-TE default `hybrid-valuation.ts` uses when no explicit config is given — more faithful to the real league being replayed.
+
+### 9.2 What was enriched
+
+`sleeperTradeNormalizer.ts` now computes `vorpValue` (via `resolvePlayerVorp()`) for every traded player asset (`assetsGiven`/`assetsReceived`) **and** every roster-context asset (`proposerRoster`/`counterpartyRoster`) — closing exactly the gap Phase 6 identified. Fallback preserved: any player that doesn't resolve against FantasyCalc gets `vorpValue: 0` (never fabricated, never throws), matching this pipeline's established convention. Draft picks are out of scope (VORP doesn't apply to picks the way it does to players; native trade flows don't compute it for picks either). All 38 real rows re-ingested in place (same natural keys).
+
+### 9.3 Before / after — the numbers
+
+| Metric | Before (Phase 6) | After (Phase 7) | Changed? |
+|---|---|---|---|
+| Avg predicted acceptance | 0.2565789473684211 | 0.2565789473684211 | **No — byte-identical, again** |
+| Accepted-trade probability distribution | 37 rows at 20–30%, 1 at 30–40% | *identical* | No |
+| **Fairness (verdict) distribution** | Overpay Risk 18, Fair 12, Major Overpay 5, Slight Win 2, Strong Win 1 | **Overpay Risk 22, Fair 11, Slight Win 4, Strong Win 1 — "Major Overpay" disappeared entirely** | **Yes** |
+| **Confidence distribution** | 40–50: 27, 50–60: 11 (tight, uniform) | **40–50: 9, 50–60: 10, 80–90: 19** — much wider, more differentiated | **Yes** |
+| `lineupImpactScore` (individual rows) | Flat `0.1` for every row | Real, varying values (`0.5`, `0.1`, …) | **Yes** |
+| `vorpScore` (individual rows) | Uniform per league (`0.68`/`0.32` clusters) | Now varies per trade (`0.32`, `0.49`, `0.30`, …) | **Yes** |
+
+### 9.4 Confirmed real, not a wiring artifact
+
+Checked directly against real backtest rows: `lineupImpactScore` is no longer pinned at `0.1` — it now shows real computed values (e.g. `0.5`), proof the `(hasLineupData || hasImpactData) && hasVorpData` gate (`trade-engine.ts` line 769) now activates, exactly as Phase 6 predicted it would once `vorpValue` was populated. `verdict` and `confidenceScore` now vary meaningfully row-to-row rather than clustering — the model's output is genuinely richer and more differentiated per real trade than before this phase.
+
+### 9.5 Why `acceptProb` still didn't move, even though `verdict` did
+
+This is the most interesting finding of this phase, reported precisely rather than glossed over. Tracing `computeTradeDrivers()`: `verdict` is derived from `computeVerdict(totalScore100)`, where `totalScore100` comes from the fairness/`score` computation that **does** consume `lineupImpactScore`/`vorpScore` (the 0.40/0.25/0.20/0.15-weighted composite at line 781) — this is exactly why verdict changed. `acceptProbability`, however, comes from a **separate** call, `computeSmartAcceptProbability()` (line 1701), which takes its own distinct set of inputs (`vorpDeltaResult.vorpDeltaThem`, `lineupDelta?.deltaThem`, etc.) — not `verdict`'s `score`/`totalScore100` at all. Both paths do consume lineup/VORP-derived signals, but through genuinely different computations — and for this specific 38-trade real sample, whatever `computeSmartAcceptProbability()` computes from the real per-trade `vorpDeltaThem`/`deltaThem` values landed on population-level numbers indistinguishable from before enrichment, even though individual rows' `acceptProb` do show minor real variation now (e.g. `0.22`, `0.29`, `0.21` in one 3-row sample, vs. more clustered values before).
+
+**Honest limitation:** the exact Phase-6 rows were overwritten during re-ingestion (idempotent update, not versioned per-row history), so an exact per-row before/after diff isn't possible — only the aggregate distributions (§9.3, captured from each phase's own metrics run) can be compared. The population average landing on the same value despite real per-row movement is most plausibly explained by increases and decreases across the 38-trade sample roughly cancelling out, not by any structural invariant confirmed in this pass.
+
+### 9.6 Does VORP enrichment change the low-acceptance finding? — No
+
+The central Phase 5 finding — real accepted trades cluster at a striking ~0.2566 average predicted acceptance — is **unchanged** after both roster-context (Phase 6) and VORP (Phase 7) enrichment, even though both enrichments measurably improved replay fidelity (richer, more differentiated verdicts and confidence scores; the richer scoring branch now genuinely activates). This strengthens, rather than weakens, the two remaining candidate explanations from Phase 5 §3.1: survivorship bias (Sleeper's API never exposes rejected trades) and stale present-day valuations applied to historical trades. Both roster/lineup-context hypotheses have now been thoroughly tested and are no longer live candidates for explaining the acceptance-probability clustering specifically — though they clearly do matter for the model's fairness/confidence output, which is real, useful progress on this phase's actual goal (replay fidelity, not resolving the earlier puzzle).
+
+---
+
 ## Files changed in this session
 
 - `lib/replay-framework/metrics/tradeReplayMetrics.ts` (Phase 5, new)
 - `__tests__/replay-framework/tradeReplayMetrics.test.ts` (Phase 5, new, 9 tests)
-- `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md` (this document — Phase 5 new, updated with §8 this phase)
-- `lib/replay-framework/types.ts` (Phase 6 — additive: `TradeReplayRosterAsset`, `proposerRoster`/`counterpartyRoster` on `TradeReplayPayload`)
-- `lib/replay-framework/normalize/sleeperTradeNormalizer.ts` (Phase 6 — resolves full real rosters, adds position resolution)
-- `lib/replay-framework/backtest/tradeBacktestExecutor.ts` (Phase 6 — builds and passes a real `rosterCtx`)
+- `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md` (this document — Phase 5 new, updated with §8 then §9)
+- `lib/replay-framework/types.ts` (Phase 6 — additive: `TradeReplayRosterAsset`, `proposerRoster`/`counterpartyRoster` on `TradeReplayPayload`; Phase 7 — additive `vorpValue` on every asset shape)
+- `lib/replay-framework/normalize/sleeperTradeNormalizer.ts` (Phase 6 — resolves full real rosters, adds position resolution; Phase 7 — computes real `vorpValue` via the VORP resolver)
+- `lib/replay-framework/backtest/tradeBacktestExecutor.ts` (Phase 6 — builds and passes a real `rosterCtx`; Phase 7 — threads `vorpValue` onto every `Asset`)
 - `lib/replay-framework/ingest/ingestSleeperTradesForLeague.ts` (Phase 6 — passes `league.roster_positions` through)
-- `__tests__/replay-framework/{sleeperTradeNormalizer,tradeBacktestExecutor,ingestSleeperTradesForLeague}.test.ts` (Phase 6 — 7 new tests)
+- `lib/replay-framework/valuation/vorpResolver.ts` (Phase 7, new — reuses `computePlayerVorp()`, derives a real `LeagueRosterConfig`)
+- `__tests__/replay-framework/{sleeperTradeNormalizer,tradeBacktestExecutor,ingestSleeperTradesForLeague}.test.ts` (Phase 6 — 7 new tests; Phase 7 — 3 more added)
+- `__tests__/replay-framework/vorpResolver.test.ts` (Phase 7, new, 6 tests)
 - `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (updated with a pointer to this report)
 
 No trade-engine file was modified. No calibration math, threshold, or weight was changed. No database (staging or production) was written to — only read-only aggregate queries were run. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.

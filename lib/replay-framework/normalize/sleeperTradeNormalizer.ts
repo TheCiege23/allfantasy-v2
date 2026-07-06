@@ -12,6 +12,7 @@
  * small, parallel copy is used here instead.
  */
 import { findPlayerBySleeperId, getPickValue, type FantasyCalcPlayer } from '@/lib/fantasycalc'
+import type { LeagueRosterConfig } from '@/lib/vorp-engine'
 import type {
   SleeperLeague,
   SleeperRoster,
@@ -20,6 +21,7 @@ import type {
 } from '@/lib/sleeper-client'
 import { getPlayerName } from '@/lib/sleeper-client'
 import type { ReplayImportInput, TradeReplayPayload, TradeReplayRosterAsset } from '../types'
+import { deriveLeagueRosterConfig, resolvePlayerVorp } from '../valuation/vorpResolver'
 
 const REPLAY_FALLBACK_VALUE = 200
 
@@ -30,12 +32,14 @@ interface ResolvedAsset {
   value: number
   type: 'player' | 'pick'
   pos?: string
+  vorpValue?: number
 }
 
 function resolveDropOrAddAsset(
   playerId: string,
   players: PlayerDirectory,
   fcPlayers: FantasyCalcPlayer[],
+  rosterConfig: LeagueRosterConfig,
 ): ResolvedAsset {
   const fc = findPlayerBySleeperId(fcPlayers, playerId)
   return {
@@ -47,6 +51,11 @@ function resolveDropOrAddAsset(
     // prefer FantasyCalc's own position, fall back to Sleeper's player
     // directory, matching the same fallback-chain convention used for value.
     pos: fc?.player.position ?? players[playerId]?.position,
+    // vorpValue (Phase 7) — reuses the same computePlayerVorp() primitive
+    // native trade flows call; 0 for any player that doesn't resolve against
+    // FantasyCalc, matching this pipeline's established graceful-fallback
+    // convention (never fabricated, never blocks the rest of the trade).
+    vorpValue: resolvePlayerVorp(fc, rosterConfig, fcPlayers),
   }
 }
 
@@ -62,11 +71,12 @@ function resolveFullRoster(
   roster: SleeperRoster | undefined,
   players: PlayerDirectory,
   fcPlayers: FantasyCalcPlayer[],
+  rosterConfig: LeagueRosterConfig,
 ): TradeReplayRosterAsset[] {
   if (!roster) return []
   return (roster.players ?? []).map((playerId) => {
-    const asset = resolveDropOrAddAsset(playerId, players, fcPlayers)
-    return { name: asset.name, value: asset.value, type: asset.type, pos: asset.pos }
+    const asset = resolveDropOrAddAsset(playerId, players, fcPlayers, rosterConfig)
+    return { name: asset.name, value: asset.value, type: asset.type, pos: asset.pos, vorpValue: asset.vorpValue }
   })
 }
 
@@ -112,6 +122,7 @@ export function normalizeSleeperTrade(input: {
   const isDynasty = league.settings?.type === 2 || league.settings?.type === 1
   const numQb = (league.roster_positions ?? []).filter((p) => p === 'QB' || p === 'SUPER_FLEX').length
   const isSuperFlex = numQb >= 2
+  const rosterConfig = deriveLeagueRosterConfig(league.roster_positions ?? [], league.total_rosters, isSuperFlex)
 
   // Canonical "proposer" perspective for give/receive framing — the first
   // roster in the transaction's roster_ids array. Arbitrary but consistent,
@@ -125,7 +136,7 @@ export function normalizeSleeperTrade(input: {
   const drops = tx.drops ?? {}
 
   for (const [playerId, toRosterId] of Object.entries(adds)) {
-    const asset = resolveDropOrAddAsset(playerId, players, fcPlayers)
+    const asset = resolveDropOrAddAsset(playerId, players, fcPlayers, rosterConfig)
     if (toRosterId === proposerRosterId) received.push(asset)
     else given.push(asset)
   }
@@ -133,8 +144,8 @@ export function normalizeSleeperTrade(input: {
     // A player appearing in `drops` for the proposer means the proposer gave
     // it up; guard against double-counting if it also appeared in `adds`
     // (shouldn't happen for the same player, but stay defensive).
-    if (fromRosterId === proposerRosterId && !given.some((g) => g.name === resolveDropOrAddAsset(playerId, players, fcPlayers).name)) {
-      given.push(resolveDropOrAddAsset(playerId, players, fcPlayers))
+    if (fromRosterId === proposerRosterId && !given.some((g) => g.name === resolveDropOrAddAsset(playerId, players, fcPlayers, rosterConfig).name)) {
+      given.push(resolveDropOrAddAsset(playerId, players, fcPlayers, rosterConfig))
     }
   }
 
@@ -149,14 +160,14 @@ export function normalizeSleeperTrade(input: {
   // `computeTradeDrivers()`'s `rosterCtx.theirRoster` is already used
   // elsewhere in the codebase (a single counterparty roster, not N-way).
   const counterpartyRosterId = tx.roster_ids.find((id) => id !== proposerRosterId)
-  const proposerRoster = resolveFullRoster(rosterById.get(proposerRosterId), players, fcPlayers)
+  const proposerRoster = resolveFullRoster(rosterById.get(proposerRosterId), players, fcPlayers, rosterConfig)
   const counterpartyRoster = counterpartyRosterId !== undefined
-    ? resolveFullRoster(rosterById.get(counterpartyRosterId), players, fcPlayers)
+    ? resolveFullRoster(rosterById.get(counterpartyRosterId), players, fcPlayers, rosterConfig)
     : []
 
   const payload: TradeReplayPayload = {
-    assetsGiven: given.map((a) => ({ name: a.name, value: a.value, type: a.type })),
-    assetsReceived: received.map((a) => ({ name: a.name, value: a.value, type: a.type })),
+    assetsGiven: given.map((a) => ({ name: a.name, value: a.value, type: a.type, vorpValue: a.vorpValue })),
+    assetsReceived: received.map((a) => ({ name: a.name, value: a.value, type: a.type, vorpValue: a.vorpValue })),
     proposerRoster: proposerRoster.length > 0 ? proposerRoster : undefined,
     counterpartyRoster: counterpartyRoster.length > 0 ? counterpartyRoster : undefined,
   }

@@ -146,4 +146,27 @@ describe('runTradeBacktest', () => {
     const rosterCtxArg = mockComputeTradeDrivers.mock.calls[0][6]
     expect(rosterCtxArg).toBeUndefined()
   })
+
+  it('Phase 7: passes vorpValue through onto every give/receive and roster Asset object', async () => {
+    mockGetCalibratedWeights.mockResolvedValue({ b0: -1.1, w1: 1.25, w2: 0.7, w3: 0.9, w4: 0.15, w5: 0.25, w6: 0.85, w7: 0.2 })
+    mockComputeTradeDrivers.mockReturnValue({ acceptProbability: 0.4, verdict: 'Fair', confidenceScore: 60, lineupImpactScore: 1, vorpScore: 2, marketScore: 0.55, behaviorScore: 3 })
+    mockCalibrateAcceptProbability.mockResolvedValue({ calibrated: 0.4, raw: 0.4, isotonicApplied: false })
+
+    await runTradeBacktest({
+      ...BASE_INPUT,
+      payload: {
+        assetsGiven: [{ name: 'Player A', value: 100, type: 'player', vorpValue: 12.5 }],
+        assetsReceived: [{ name: 'Player B', value: 120, type: 'player', vorpValue: 8.2 }],
+        proposerRoster: [{ name: 'Bench Player', value: 200, type: 'player', pos: 'QB', vorpValue: 5 }],
+        counterpartyRoster: [{ name: 'Their Bench Player', value: 150, type: 'player', pos: 'WR', vorpValue: 3 }],
+      },
+      rosterPositions: ['QB', 'RB', 'WR', 'BN'],
+    })
+
+    const [give, receive, , , , , rosterCtxArg] = mockComputeTradeDrivers.mock.calls[0]
+    expect(give[0].vorpValue).toBe(12.5)
+    expect(receive[0].vorpValue).toBe(8.2)
+    expect(rosterCtxArg.yourRoster[0].vorpValue).toBe(5)
+    expect(rosterCtxArg.theirRoster[0].vorpValue).toBe(3)
+  })
 })

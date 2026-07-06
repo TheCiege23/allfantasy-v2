@@ -25,6 +25,11 @@ function toAssets(items: TradeReplayPayload['assetsGiven']): Asset[] {
     type: item.type === 'pick' ? 'PICK' : 'PLAYER',
     value: item.value,
     name: item.name,
+    // vorpValue (Phase 7) — required for computeTradeDrivers()'s hasVorpData
+    // gate; 0/undefined for any asset that didn't resolve one (picks, or
+    // players that failed to match FantasyCalc), matching this pipeline's
+    // established graceful-fallback convention.
+    vorpValue: item.vorpValue,
   }))
 }
 
@@ -35,6 +40,7 @@ function toRosterAssets(items: TradeReplayPayload['proposerRoster']): Asset[] {
     value: item.value,
     name: item.name,
     pos: item.pos,
+    vorpValue: item.vorpValue,
   }))
 }
 
