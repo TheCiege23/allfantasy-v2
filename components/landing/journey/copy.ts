@@ -16,7 +16,7 @@ export const LANDING_COPY = {
       titleTop: 'Run Your League.',
       titleBottom: 'Win Your League.',
       subtitle:
-        'Commissioner-first. AI-powered. 100% fantasy sports — no sportsbook, no gambling. Import any league format and get every manager competing in minutes.',
+        'Commissioner-first. 100% fantasy sports — no sportsbook, no gambling. Import any league format and get every manager competing in minutes.',
       primary: 'Get Started Free →',
       commissionerPrimary: 'Start a League',
       secondary: 'Sign In',
@@ -27,9 +27,9 @@ export const LANDING_COPY = {
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
     trust: [
       { icon: '🚫', text: 'No gambling · fantasy sports only' },
-      { icon: '⚡', text: '13+ league formats' },
+      { icon: '⚡', text: 'Live scoring & real-time updates' },
       { icon: '📡', text: 'Import from Sleeper, Yahoo & ESPN' },
-      { icon: '🤖', text: 'AI optional — fun either way' },
+      { icon: '🏆', text: 'Built for commissioners and their leagues' },
     ],
     commissioner: {
       eyebrow: 'For Commissioners',
@@ -66,7 +66,7 @@ export const LANDING_COPY = {
     stats: [
       { value: '13+', label: 'League formats' },
       { value: '7', label: 'Sports covered' },
-      { value: '1M+', label: 'AI analyses run' },
+      { value: '1M+', label: 'Fairness checks run' },
     ],
     journey: {
       buildLeague: {
@@ -147,6 +147,7 @@ export const LANDING_COPY = {
         title: 'Win And\nYou\'re In.',
         subtitle: 'Every week narrows the field. Track standings, clinch scenarios, and who controls their own destiny.',
         standingsLabel: 'Standings',
+        tensionTag: 'Final Week',
         clinchLabel: 'Win and in',
         mockStandings: [
           { team: 'Dynasty Dragons', record: '9-3', status: 'Clinched' },
@@ -179,7 +180,7 @@ export const LANDING_COPY = {
     cta: {
       title: 'Your League. Your Rules.',
       body:
-        "Commissioners get a dedicated control room. Players get AI that knows their roster. Everyone wins.",
+        "Commissioners get a dedicated control room. Every manager gets a fair, competitive season. Everyone wins.",
       primary: 'Create Free Account',
       commissionerPrimary: 'Start a League',
       secondary: 'Sign In',
@@ -214,7 +215,7 @@ export const LANDING_COPY = {
       titleTop: 'Dirige tu liga.',
       titleBottom: 'Gana tu liga.',
       subtitle:
-        'Comisionado primero. IA integrada. 100% fantasy deportivo — sin apuestas ni casas de apuesta. Importa cualquier liga y empieza a competir en minutos.',
+        'Comisionado primero. 100% fantasy deportivo — sin apuestas ni casas de apuesta. Importa cualquier liga y empieza a competir en minutos.',
       primary: 'Empezar gratis →',
       commissionerPrimary: 'Crear una liga',
       secondary: 'Iniciar sesión',
@@ -225,9 +226,9 @@ export const LANDING_COPY = {
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
     trust: [
       { icon: '🚫', text: 'Sin apuestas · solo fantasy deportivo' },
-      { icon: '⚡', text: '13+ formatos de liga' },
+      { icon: '⚡', text: 'Puntuación en vivo y en tiempo real' },
       { icon: '📡', text: 'Importa de Sleeper, Yahoo y ESPN' },
-      { icon: '🤖', text: 'IA opcional — divertido de todas formas' },
+      { icon: '🏆', text: 'Hecho para comisionados y sus ligas' },
     ],
     commissioner: {
       eyebrow: 'Para comisionados',
@@ -264,7 +265,7 @@ export const LANDING_COPY = {
     stats: [
       { value: '13+', label: 'Formatos de liga' },
       { value: '7', label: 'Deportes cubiertos' },
-      { value: '1M+', label: 'Análisis IA realizados' },
+      { value: '1M+', label: 'Revisiones de equidad realizadas' },
     ],
     journey: {
       buildLeague: {
@@ -345,6 +346,7 @@ export const LANDING_COPY = {
         title: 'Gana y\nestás dentro.',
         subtitle: 'Cada semana reduce el campo. Sigue las posiciones, los escenarios de clasificación y quién controla su propio destino.',
         standingsLabel: 'Posiciones',
+        tensionTag: 'Última semana',
         clinchLabel: 'Gana y estás dentro',
         mockStandings: [
           { team: 'Dynasty Dragons', record: '9-3', status: 'Clasificado' },
@@ -377,7 +379,7 @@ export const LANDING_COPY = {
     cta: {
       title: 'Tu liga. Tus reglas.',
       body:
-        'Los comisionados obtienen un panel de control. Los jugadores obtienen IA que conoce su roster. Todos ganan.',
+        'Los comisionados obtienen un panel de control dedicado. Cada manager consigue una temporada justa y competitiva. Todos ganan.',
       primary: 'Crear cuenta gratis',
       commissionerPrimary: 'Crear una liga',
       secondary: 'Iniciar sesión',
@@ -412,7 +414,7 @@ export const LANDING_COPY = {
       titleTop: '管理你的联赛。',
       titleBottom: '赢得你的联赛。',
       subtitle:
-        '赛区长优先。AI 驱动。100% 幻想运动 — 无体育博彩，无赌博。导入任何联赛格式，让每位管理员在几分钟内开始竞争。',
+        '赛区长优先。100% 幻想运动 — 无体育博彩，无赌博。导入任何联赛格式，让每位管理员在几分钟内开始竞争。',
       primary: '免费开始 →',
       commissionerPrimary: '创建联赛',
       secondary: '登录',
@@ -423,9 +425,9 @@ export const LANDING_COPY = {
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', '足球'],
     trust: [
       { icon: '🚫', text: '无赌博 · 仅限幻想运动' },
-      { icon: '⚡', text: '13+ 联赛格式' },
+      { icon: '⚡', text: '实时比分，即时更新' },
       { icon: '📡', text: '从 Sleeper、Yahoo 和 ESPN 导入' },
-      { icon: '🤖', text: 'AI 可选 — 任何方式都很有趣' },
+      { icon: '🏆', text: '为赛区长和他们的联赛打造' },
     ],
     commissioner: {
       eyebrow: '专为赛区长',
@@ -462,7 +464,7 @@ export const LANDING_COPY = {
     stats: [
       { value: '13+', label: '联赛格式' },
       { value: '7', label: '覆盖运动' },
-      { value: '1M+', label: 'AI 分析次数' },
+      { value: '1M+', label: '已完成的公平性检查' },
     ],
     journey: {
       buildLeague: {
@@ -543,6 +545,7 @@ export const LANDING_COPY = {
         title: '赢了\n就晋级。',
         subtitle: '每一周都在缩小范围。追踪排名、晋级情形，以及谁掌握着自己的命运。',
         standingsLabel: '排名',
+        tensionTag: '最后一周',
         clinchLabel: '赢了就晋级',
         mockStandings: [
           { team: 'Dynasty Dragons', record: '9-3', status: '已锁定席位' },
@@ -575,7 +578,7 @@ export const LANDING_COPY = {
     cta: {
       title: '你的联赛。你的规则。',
       body:
-        '赛区长获得专属控制室。玩家获得了解其名单的 AI。人人受益。',
+        '赛区长获得专属控制室。每位管理员都能享有公平、有竞争力的赛季。人人受益。',
       primary: '创建免费账户',
       commissionerPrimary: '创建联赛',
       secondary: '登录',
@@ -610,7 +613,7 @@ export const LANDING_COPY = {
       titleTop: 'Pamahalaan ang iyong liga.',
       titleBottom: 'Manalo sa iyong liga.',
       subtitle:
-        'Commissioner-una. Pinapagana ng AI. 100% fantasy sports — walang sportsbook, walang pagsusugal. I-import ang anumang format ng liga at simulan ang kompetisyon sa loob ng ilang minuto.',
+        'Commissioner-una. 100% fantasy sports — walang sportsbook, walang pagsusugal. I-import ang anumang format ng liga at simulan ang kompetisyon sa loob ng ilang minuto.',
       primary: 'Magsimula nang Libre →',
       commissionerPrimary: 'Magsimula ng Liga',
       secondary: 'Mag-sign In',
@@ -621,9 +624,9 @@ export const LANDING_COPY = {
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
     trust: [
       { icon: '🚫', text: 'Walang pagsusugal · fantasy sports lamang' },
-      { icon: '⚡', text: '13+ na format ng liga' },
+      { icon: '⚡', text: 'Live scoring, real-time na update' },
       { icon: '📡', text: 'I-import mula sa Sleeper, Yahoo at ESPN' },
-      { icon: '🤖', text: 'AI opsyonal — masaya sa alinmang paraan' },
+      { icon: '🏆', text: 'Ginawa para sa mga commissioner at sa kanilang liga' },
     ],
     commissioner: {
       eyebrow: 'Para sa mga Commissioner',
@@ -660,7 +663,7 @@ export const LANDING_COPY = {
     stats: [
       { value: '13+', label: 'Mga format ng liga' },
       { value: '7', label: 'Mga palakasang nsaklaw' },
-      { value: '1M+', label: 'Mga AI analysis na naisagawa' },
+      { value: '1M+', label: 'Mga fairness check na naisagawa' },
     ],
     journey: {
       buildLeague: {
@@ -741,6 +744,7 @@ export const LANDING_COPY = {
         title: 'Manalo At\nPapasok Ka.',
         subtitle: 'Bawat linggo ay lumiliit ang larangan. Subaybayan ang standings, mga clinch scenario, at kung sino ang kumokontrol sa kanilang sariling kapalaran.',
         standingsLabel: 'Standings',
+        tensionTag: 'Huling Linggo',
         clinchLabel: 'Manalo at papasok ka',
         mockStandings: [
           { team: 'Dynasty Dragons', record: '9-3', status: 'Naka-clinch na' },
@@ -773,7 +777,7 @@ export const LANDING_COPY = {
     cta: {
       title: 'Ang Iyong Liga. Ang Iyong Mga Panuntunan.',
       body:
-        'Nakakakuha ang mga commissioner ng dedicated na control room. Nakakakuha ang mga manlalaro ng AI na nakakaalam ng kanilang roster. Lahat ay nananalunan.',
+        'Nakakakuha ang mga commissioner ng dedicated na control room. Bawat manager ay nakakakuha ng patas at kompetitibong season. Lahat ay nananalunan.',
       primary: 'Gumawa ng Libreng Account',
       commissionerPrimary: 'Magsimula ng Liga',
       secondary: 'Mag-sign In',
@@ -808,7 +812,7 @@ export const LANDING_COPY = {
       titleTop: 'Quản lý giải đấu của bạn.',
       titleBottom: 'Chiến thắng giải đấu của bạn.',
       subtitle:
-        'Ưu tiên Commissioner. Được hỗ trợ bởi AI. 100% fantasy sports — không có sportsbook, không cờ bạc. Nhập bất kỳ định dạng giải đấu nào và bắt đầu cạnh tranh trong vài phút.',
+        'Ưu tiên Commissioner. 100% fantasy sports — không có sportsbook, không cờ bạc. Nhập bất kỳ định dạng giải đấu nào và bắt đầu cạnh tranh trong vài phút.',
       primary: 'Bắt đầu Miễn Phí →',
       commissionerPrimary: 'Tạo Giải Đấu',
       secondary: 'Đăng nhập',
@@ -819,9 +823,9 @@ export const LANDING_COPY = {
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Bóng đá'],
     trust: [
       { icon: '🚫', text: 'Không cờ bạc · chỉ fantasy sports' },
-      { icon: '⚡', text: '13+ định dạng giải đấu' },
+      { icon: '⚡', text: 'Tính điểm trực tiếp, cập nhật theo thời gian thực' },
       { icon: '📡', text: 'Nhập từ Sleeper, Yahoo và ESPN' },
-      { icon: '🤖', text: 'AI tùy chọn — vui dù cách nào' },
+      { icon: '🏆', text: 'Được xây dựng cho commissioner và giải đấu của họ' },
     ],
     commissioner: {
       eyebrow: 'Dành cho Commissioner',
@@ -858,7 +862,7 @@ export const LANDING_COPY = {
     stats: [
       { value: '13+', label: 'Định dạng giải đấu' },
       { value: '7', label: 'Môn thể thao được bao gồm' },
-      { value: '1M+', label: 'Phân tích AI đã thực hiện' },
+      { value: '1M+', label: 'Lượt kiểm tra công bằng đã chạy' },
     ],
     journey: {
       buildLeague: {
@@ -939,6 +943,7 @@ export const LANDING_COPY = {
         title: 'Thắng Là\nVào.',
         subtitle: 'Mỗi tuần thu hẹp bảng đấu. Theo dõi bảng xếp hạng, các kịch bản giành vé, và ai đang tự quyết định số phận của mình.',
         standingsLabel: 'Bảng Xếp Hạng',
+        tensionTag: 'Tuần Cuối',
         clinchLabel: 'Thắng là vào',
         mockStandings: [
           { team: 'Dynasty Dragons', record: '9-3', status: 'Đã giành vé' },
@@ -971,7 +976,7 @@ export const LANDING_COPY = {
     cta: {
       title: 'Giải Đấu Của Bạn. Quy Tắc Của Bạn.',
       body:
-        'Commissioner nhận được phòng điều khiển chuyên dụng. Người chơi nhận được AI biết danh sách của họ. Tất cả đều thắng.',
+        'Commissioner nhận được phòng điều khiển chuyên dụng. Mỗi manager có một mùa giải công bằng, cạnh tranh. Tất cả đều thắng.',
       primary: 'Tạo Tài Khoản Miễn Phí',
       commissionerPrimary: 'Tạo Giải Đấu',
       secondary: 'Đăng nhập',

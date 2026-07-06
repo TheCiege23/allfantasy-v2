@@ -12,38 +12,43 @@ function prefersReducedMotion(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches
 }
 
-function ActivityTicker({ items }: { items: readonly string[] }) {
-  const [index, setIndex] = useState(0)
+const FEED_ICONS = ['📈', '⚠️', '🔄', '📣'] as const
+
+function ActivityFeed({ items }: { items: readonly string[] }) {
   const [reduced, setReduced] = useState(false)
 
   useEffect(() => {
     setReduced(prefersReducedMotion())
   }, [])
 
-  useEffect(() => {
-    if (reduced || items.length <= 1) return
-    const id = setInterval(() => setIndex((i) => (i + 1) % items.length), 4200)
-    return () => clearInterval(id)
-  }, [reduced, items.length])
-
-  const visible = reduced ? items.slice(-1) : [items[index]]
-
   return (
-    <div className="space-y-1.5" role="status" aria-live="polite">
-      {visible.map((item, i) => (
+    <div className="space-y-2">
+      {items.map((item, i) => (
         <div
-          key={item ?? i}
-          className={reduced ? undefined : 'landing-fade-in'}
+          key={item}
+          className={reduced ? undefined : 'landing-fade-in-stagger'}
           style={{
+            animationDelay: reduced ? undefined : `${i * 130}ms`,
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
             fontSize: '12px',
             fontWeight: 500,
             color: 'var(--muted)',
-            padding: '6px 10px',
+            padding: '7px 10px',
             borderRadius: '8px',
             background: 'color-mix(in srgb, var(--panel2) 60%, transparent)',
           }}
         >
-          {item}
+          <span aria-hidden="true">{FEED_ICONS[i % FEED_ICONS.length]}</span>
+          <span style={{ flex: 1 }}>{item}</span>
+          {i === 0 && (
+            <span
+              className={reduced ? undefined : 'landing-live-pulse'}
+              style={{ width: 6, height: 6, marginTop: 4, flexShrink: 0, borderRadius: '50%', background: 'var(--accent-red-strong)' }}
+              aria-hidden="true"
+            />
+          )}
         </div>
       ))}
     </div>
@@ -84,7 +89,7 @@ export function GameDaySection({ copy }: { copy: LandingCopy['journey']['gameDay
 
         <GlassCard className="p-5" accentBorder="color-mix(in srgb, var(--border) 100%, transparent)">
           <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.12em]" style={{ color: 'var(--muted)' }}>{copy.liveActivityLabel}</p>
-          <ActivityTicker items={copy.tickerItems} />
+          <ActivityFeed items={copy.tickerItems} />
         </GlassCard>
       </div>
     </section>
