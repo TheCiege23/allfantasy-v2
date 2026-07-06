@@ -48,8 +48,8 @@ export function BuildLeagueSection({
         </p>
       </div>
 
-      {/* Illustrative setup stepper */}
-      <GlassCard className="relative mb-8 p-5 sm:p-6" accentBorder="color-mix(in srgb, #f59e0b 22%, var(--border))">
+      {/* Moment 1 — Illustrative setup stepper (the "effortless" beat) */}
+      <GlassCard className="relative mb-12 p-5 sm:p-6" accentBorder="color-mix(in srgb, #f59e0b 22%, var(--border))">
         <div className="flex flex-col gap-4 sm:flex-row sm:gap-3">
           {copy.steps.map((step, i) => (
             <div key={step.label} className="flex-1 landing-stagger-in" style={{ animationDelay: `${i * 120}ms` }}>
@@ -71,19 +71,22 @@ export function BuildLeagueSection({
         </div>
       </GlassCard>
 
-      <div className="grid gap-px overflow-hidden rounded-2xl border sm:grid-cols-2" style={{ borderColor: 'var(--border)', background: 'var(--border)' }}>
-        {copy.features.map((feat) => (
-          <div key={feat.title} className="px-6 py-6" style={{ background: 'var(--bg)' }}>
-            <div className="mb-3 flex h-9 w-9 items-center justify-center rounded-xl border text-lg" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)', borderColor: 'color-mix(in srgb, #f59e0b 20%, transparent)' }}>
+      {/* Moment 2 — Commissioner toolkit, presented light and open (no dense grid chrome) */}
+      <div className="grid gap-x-8 gap-y-6 sm:grid-cols-2">
+        {copy.features.map((feat, i) => (
+          <div key={feat.title} className="landing-fade-in-stagger flex items-start gap-4" style={{ animationDelay: `${i * 90}ms` }}>
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-lg" style={{ background: 'color-mix(in srgb, #f59e0b 10%, transparent)' }}>
               {feat.icon}
             </div>
-            <h3 className="mb-1.5 text-sm font-semibold" style={{ color: 'var(--text)' }}>{feat.title}</h3>
-            <p className="text-sm leading-6" style={{ color: 'var(--muted)' }}>{feat.body}</p>
+            <div>
+              <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--text)' }}>{feat.title}</h3>
+              <p className="text-sm leading-6" style={{ color: 'var(--muted)' }}>{feat.body}</p>
+            </div>
           </div>
         ))}
       </div>
 
-      <div className="relative mt-8 flex flex-col items-center gap-3 text-center">
+      <div className="relative mt-10 flex flex-col items-center gap-3 text-center">
         <div className="flex flex-col items-center gap-3 sm:flex-row sm:flex-wrap sm:justify-center">
           <Link
             href={ctaHref}
