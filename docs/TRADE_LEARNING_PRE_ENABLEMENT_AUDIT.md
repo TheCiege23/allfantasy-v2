@@ -381,5 +381,61 @@ All 42 `TradeOutcomeEvent`, 42 `TradeOfferEvent`, 84 `AfLeagueTradeItem`, 42 `Af
 - `__tests__/trade-engine/season-resolver.test.ts`, `__tests__/trade-engine/canonical-season-resolution-integration.test.ts` (new, Phase 10); `__tests__/admin-trade-learning-diagnostics-route.test.ts` (updated, Phase 10)
 - `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md` (updated, Phase 10 — canonical season ownership documented, checklist item resolved; updated again Phase 11 — shadow-traffic rehearsal record)
 - Phase 11 touched no application code — only this document (§12) and `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`. All Phase 11 activity was real staging writes (42 trades + fixtures, generated then fully deleted) via uncommitted local scripts, plus read-only measurement queries.
+- Phase 12 touched no application code — only this document (§13) and `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`. All Phase 12 activity was read-only measurement queries against staging; no writes were made.
 
-No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Staging was written to in Phase 9 (migration + test data, cleaned up) and Phase 11 (42-trade shadow-traffic rehearsal, cleaned up) with explicit user approval each time; Phase 10 made no database writes; production was never touched at any point in this workstream.
+No calibration math, thresholds, recommendation logic, Decision OS classifiers, AI Coach, Chimmy, Manager Intelligence, or public API was touched. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset in every environment. Staging was written to in Phase 9 (migration + test data, cleaned up) and Phase 11 (42-trade shadow-traffic rehearsal, cleaned up) with explicit user approval each time; Phase 10 and Phase 12 made no database writes; production was never touched at any point in this workstream.
+
+---
+
+## 13. Staging shadow enablement readiness decision (Phase 12) — NO-GO
+
+Phase 11 closed with one open item: real, organic trade activity accumulating on staging. This phase re-measured that item directly, to produce a go/no-go recommendation on enabling `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` in staging.
+
+### 13.1 Staging state re-confirmed
+
+- **Code**: current `HEAD` (`3f68617cc`) has `7fb69eb4d`/`8f00bdba8`/`980904e8e` as ancestors — confirmed via `git merge-base --is-ancestor`, same methodology as Phase 11 (no deployed staging web app URL or Vercel/Railway API access available to check independently).
+- **Migration**: `_prisma_migrations` still shows `20260705010000_add_trade_learning_live_capture` applied (`finished_at: 2026-07-05T16:48:44.872Z`), unchanged since Phase 9/11.
+- **Phase 11 leftovers**: 0 — `leagues WHERE platform = 'phase11_shadow_traffic'` returns 0 rows, confirming the Phase 11 rehearsal's cleanup held.
+
+### 13.2 Real organic volume — measured, unchanged since before Phase 11
+
+| Metric | Value |
+|---|---|
+| `TradeOfferEvent` count | **0** |
+| `TradeOutcomeEvent` count | **0** |
+| Outcome distribution | *(no rows — nothing to distribute)* |
+| Season distribution | *(no rows)* |
+| Oldest / newest event timestamp | *(null / null — no rows exist)* |
+| Real leagues on staging | 56 (`MAX(season) = 2026`, unchanged) |
+
+No real trade has produced a live-captured event on staging since Phase 9/11's synthetic data was deleted. This is expected, not a regression — nothing in this workstream deploys traffic-generating users to staging; only an actual deployed instance receiving actual user trade actions can create this data, and that has not happened yet.
+
+### 13.3 Diagnostics — called with no explicit season argument
+
+`computeShadowB0()` → `null` (correctly short-circuits: `[AutoRecal] Only 0 outcomes, need 30. Skipping shadow b0.`). `computeObservedAcceptRate()` → `null` (no outcomes to label). `buildTradeLearningDiagnostics()` → resolves `season: 2026` correctly via the Phase 10 canonical resolver even with zero trade-learning data present (proving the resolver's `MAX(League.season)` path is independent of trade-learning volume itself — it only needs real `League` rows, which exist) — every other field honestly reports empty (`shadow.pending: false`, `calibrationHealth.totalPaired: 0`, `alerts: []`, `promotion.hasEverBeenPromoted: false`). No fabricated or stale data anywhere in the output.
+
+### 13.4 Gate comparison
+
+| Gate | Threshold | Current value | Result |
+|---|---|---|---|
+| `MIN_RECALIBRATION_SAMPLE` | 30 | 0 | **FAIL** |
+| `MIN_SEGMENT_SAMPLE` | 50 (per segment) | 0 | **FAIL** |
+| `SHADOW_MATURITY_DAYS` | 7 | N/A — no shadow value has ever been computed to mature | **FAIL** (nothing to mature) |
+| `MAX_SHADOW_DIVERGENCE` | 0.40 | N/A — no shadow value exists to compare against `calibratedB0` | **FAIL** (nothing to compare) |
+| `RECALIBRATION_CADENCE_DAYS` | 6.5 | N/A — never run (`lastRecalibrationAt: null`) | Not a blocker by itself (`wouldRunIfInvokedNow: true`) — but running it would immediately hit the sample-size gate above and no-op |
+
+### 13.5 Go/no-go recommendation: **NO-GO**
+
+Enabling `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` in staging right now would have **zero effect** other than a weekly log line — the very first gate (`MIN_RECALIBRATION_SAMPLE`) fails by the full margin (0 of 30 required), and every downstream gate depends on clearing it first. Per this phase's explicit instruction, the flag was **not** enabled, and no environment-variable change was applied anywhere.
+
+**The exact flag change, prepared for if/when real volume clears the gate (not applied):**
+
+```
+TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED=true
+```
+
+Set in the staging environment only, never production. No code deploy is required to apply it — per `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`'s existing "How to enable it" section, this is a pure environment-variable flip against already-deployed, already-inert code.
+
+### 13.6 Remaining blocker (sole item)
+
+- **Real, organic trade activity must accumulate on staging** — unchanged from §11.6/§12.5. This requires an actual deployed instance of this code receiving actual user trade actions; no script or measurement performed in this workstream can substitute for it, and per this phase's explicit scope, no synthetic rows were seeded as if they were real evidence. Once ≥30 real, linked `TradeOutcomeEvent` rows with a labeled (`ACCEPTED`/`REJECTED`/`EXPIRED`) outcome exist for the current season, re-run this same measurement — if the gate clears, the prepared flag change above can be applied with a fresh go/no-go check against the other four gates at that time.
