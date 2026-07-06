@@ -1,6 +1,6 @@
 # ADR — Sleeper Trade Replay Architecture
 
-**Status:** Proposed and **implemented as generic infrastructure (Replay Framework Phase 3)** — schema authored (additive migration, not deployed to any environment), ingestion/normalization/backtest infrastructure built and unit-tested, no real Sleeper data imported, no database (staging or production) touched.
+**Status:** Proposed, implemented (Phase 3), and **deployed + validated on staging with real data (Phase 4)** — the migration is live on staging (never production), and 38 real Sleeper trades across 3 leagues have been ingested and backtested, with isolation from live calibration confirmed against real data, not just mocks.
 **Branch:** `g15-event-foundation`
 **Follows:** `docs/SLEEPER_TRADE_INGESTION_AUDIT.md` (the real-data audit this ADR turns into a design), `docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md` (the precedent this document's format and governance approach deliberately mirrors), `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`, `docs/DECISION_OS_RECOMMENDATION_CONSOLIDATION_PLAN.md`.
 **Constraint honored (original ADR turn):** this document proposed no migration, no import job, no calibration-math change — a human reviewed the design questions before any implementation phase touched real Sleeper data or the database.
@@ -177,19 +177,55 @@ Two complementary proofs, both passing: `__tests__/replay-framework/writer.test.
 
 ### 9.7 Remaining work before the first real Sleeper replay import
 
-- **Deploy the migration to staging** — not done this phase, requires its own explicit same-turn approval per this workstream's established discipline (exactly like Trade Learning Phase 8 → Phase 9's separation).
-- **Actually invoke `ingestSleeperTradesForLeague()` against a real league** — the orchestrator has never been called with real network/database access; only mocked unit tests have exercised its logic.
-- **Decide which leagues/accounts to ingest first** — this phase built the capability, not an ingestion plan; `docs/SLEEPER_TRADE_INGESTION_AUDIT.md`'s 31 already-sampled leagues are the natural starting candidates.
-- **Build the validation-metrics queries from §5** — the schema supports them (read-only aggregates over `ReplayImport`/`ReplayBacktestResult`), but no query/report code exists yet.
-- **Future replay types** (waiver, draft, lineup, commissioner_action, roster_move) — explicitly out of scope this phase; each needs its own normalizer + backtest executor, reusing the same `ReplayImport`/`ReplayBacktestResult` tables with a new `decisionType` value and zero schema changes.
+- ~~Deploy the migration to staging~~ — **done, Phase 4** (§10 below).
+- ~~Actually invoke `ingestSleeperTradesForLeague()` against a real league~~ — **done, Phase 4**.
+- ~~Decide which leagues/accounts to ingest first~~ — **done, Phase 4**: 3 leagues from the Phase 1 audit's already-sampled set.
+- **Build the validation-metrics queries from §5** — still not done; the schema supports them (read-only aggregates over `ReplayImport`/`ReplayBacktestResult`), and Phase 4's real backtest data is now available to query, but no query/report code exists yet.
+- **Future replay types** (waiver, draft, lineup, commissioner_action, roster_move) — still explicitly out of scope; each needs its own normalizer + backtest executor, reusing the same `ReplayImport`/`ReplayBacktestResult` tables with a new `decisionType` value and zero schema changes.
+- **Import the remaining 28 already-audited leagues (or the other 82 leagues never sampled)** — Phase 4 deliberately ingested only 3 leagues as a small controlled first run; broader ingestion is a natural next step, not yet done.
+
+---
+
+## 10. Staging deployment and first real ingestion (Replay Framework Phase 4)
+
+### 10.1 Migration deployed
+
+`prisma/migrations/20260706000000_add_replay_framework/migration.sql` was applied to staging one statement at a time via the Neon SQL tool (both `CREATE TABLE`s, all 5 indexes, the FK constraint), then recorded in `_prisma_migrations` (checksum computed locally via `sha256sum`, matching this workstream's established convention). Verified after deployment: `information_schema.tables` confirms both `replay_imports`/`replay_backtest_results` exist; `pg_indexes` confirms both unique constraints and all 3 non-unique indexes exist exactly as the migration defines them; `pg_constraint` confirms the `replay_backtest_results → replay_imports` foreign key exists. **Not touched:** the `production` branch, at any point.
+
+### 10.2 First real ingestion — 3 leagues, 38 real trades, zero failures
+
+Ran `ingestSleeperTradesForLeague()` for real against 3 leagues selected from the Phase 1 audit's already-sampled set (not new leagues — reusing already-verified data shape): `Going Deep League` (2025, complete season, 21 real trades), `Nfl Dreaming 2!` (2025, complete season, 14 real trades), `Dynasty for life!` (2026, in-season/offseason dynasty trading, 3 real trades).
+
+| Metric | Result |
+|---|---|
+| Leagues ingested | 3 |
+| Real trade transactions found | 38 |
+| `ReplayImport` rows written | 38 |
+| `ReplayBacktestResult` rows written | 38 |
+| Failures | 0 |
+| Model version used | `trade-engine-deterministic-v1` (`engineVersionHash: "dev"` — no `BUILD_SHA`/`VERCEL_GIT_COMMIT_SHA` set in this local-script run, correctly falling back per `resolveEngineVersionHash()`'s design) |
+| Season coverage | 35 trades at `season: 2025`, 3 at `season: 2026` — matches the 2 ingested 2025 leagues + 1 ingested 2026 league exactly |
+| `providerStatus` coverage | All 38 `complete` — no pending trades encountered in this real ingestion, consistent with the Phase 1 audit's own finding that pending status is transient and rarely caught in any single pass |
+
+**Idempotency proved against real data, not just mocks:** the first league (`Going Deep League`) was deliberately re-ingested a second time in the same run. `replayCount`/`backtestCount`, measured *after* the re-ingestion, were still exactly 38/38 — not 59/59 — confirming the real unique constraints correctly upserted the same 21 rows in place rather than creating duplicates.
+
+**Sample real backtest output** (one of the 38 rows): a real historical trade the deterministic engine scored `verdict: "Major Overpay"`, `acceptProb: 0.22` against a real outcome of `ACCEPTED` — an honest, unmassaged data point for the future validation-metrics work in §5, not something this phase interprets further (that analysis is explicitly what the still-outstanding §5 metrics queries are for).
+
+### 10.3 Isolation confirmed against real data
+
+Measured directly, immediately after the real ingestion run: `TradeOfferEvent` count `0`, `TradeOutcomeEvent` count `0`, `TradeLearningStats` count `0` — the real ingestion run wrote to `replay_imports`/`replay_backtest_results` only, exactly as designed and as the mocked isolation tests already predicted. This is the first time that isolation guarantee was verified against a real database and real Sleeper data, not just mocked unit tests.
+
+### 10.4 No cleanup performed — this data is the deliverable, not a disposable fixture
+
+Unlike Trade Learning's live-capture validation runs (Phase 9, Phase 11), which used clearly-synthetic, isolated test leagues explicitly deleted afterward to keep the *real calibration pool* uncontaminated for a later organic-volume measurement, this replay data is real, genuinely useful, and structurally incapable of contaminating anything — it lives in its own tables, has no bearing on `computeShadowB0()`/`calibratedB0`, and is intentionally meant to accumulate into an ongoing validation corpus over time. It was left in staging.
 
 ---
 
 ## Files changed in this session
 
-- `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (this document, updated with §9)
+- `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (this document, updated with §9, then §10)
 - `prisma/schema.prisma` (modified — additive: `ReplayImport`, `ReplayBacktestResult` models)
-- `prisma/migrations/20260706000000_add_replay_framework/migration.sql` (new, not deployed)
+- `prisma/migrations/20260706000000_add_replay_framework/migration.sql` — **deployed to staging** (not production)
 - `lib/replay-framework/types.ts`, `versioning.ts`, `writer.ts` (new)
 - `lib/replay-framework/normalize/sleeperTradeNormalizer.ts` (new)
 - `lib/replay-framework/backtest/tradeBacktestExecutor.ts` (new)
