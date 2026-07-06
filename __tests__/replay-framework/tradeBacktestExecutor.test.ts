@@ -97,4 +97,53 @@ describe('runTradeBacktest', () => {
 
     expect(first.deterministicConfigVersion).not.toBe(second.deterministicConfigVersion)
   })
+
+  it('Phase 6: builds and passes a real rosterCtx to computeTradeDrivers() when roster context and rosterPositions are both present', async () => {
+    mockGetCalibratedWeights.mockResolvedValue({ b0: -1.1, w1: 1.25, w2: 0.7, w3: 0.9, w4: 0.15, w5: 0.25, w6: 0.85, w7: 0.2 })
+    mockComputeTradeDrivers.mockReturnValue({ acceptProbability: 0.4, verdict: 'Fair', confidenceScore: 60, lineupImpactScore: 1, vorpScore: 2, marketScore: 0.55, behaviorScore: 3 })
+    mockCalibrateAcceptProbability.mockResolvedValue({ calibrated: 0.4, raw: 0.4, isotonicApplied: false })
+
+    await runTradeBacktest({
+      ...BASE_INPUT,
+      payload: {
+        ...BASE_INPUT.payload,
+        proposerRoster: [{ name: 'Bench Player', value: 200, type: 'player', pos: 'QB' }],
+        counterpartyRoster: [{ name: 'Their Bench Player', value: 150, type: 'player', pos: 'WR' }],
+      },
+      rosterPositions: ['QB', 'RB', 'WR', 'BN'],
+    })
+
+    const rosterCtxArg = mockComputeTradeDrivers.mock.calls[0][6]
+    expect(rosterCtxArg).toBeDefined()
+    expect(rosterCtxArg.yourRoster).toHaveLength(1)
+    expect(rosterCtxArg.yourRoster[0].pos).toBe('QB')
+    expect(rosterCtxArg.theirRoster).toHaveLength(1)
+    expect(rosterCtxArg.rosterPositions).toEqual(['QB', 'RB', 'WR', 'BN'])
+  })
+
+  it('Phase 6: omits rosterCtx (passes undefined) when the payload has no roster context — backward-compatible with pre-Phase-6 replay rows', async () => {
+    mockGetCalibratedWeights.mockResolvedValue({ b0: -1.1, w1: 1.25, w2: 0.7, w3: 0.9, w4: 0.15, w5: 0.25, w6: 0.85, w7: 0.2 })
+    mockComputeTradeDrivers.mockReturnValue({ acceptProbability: 0.4, verdict: 'Fair', confidenceScore: 40, lineupImpactScore: 1, vorpScore: 2, marketScore: 0.55, behaviorScore: 3 })
+    mockCalibrateAcceptProbability.mockResolvedValue({ calibrated: 0.4, raw: 0.4, isotonicApplied: false })
+
+    await runTradeBacktest(BASE_INPUT) // no proposerRoster/counterpartyRoster/rosterPositions
+
+    const rosterCtxArg = mockComputeTradeDrivers.mock.calls[0][6]
+    expect(rosterCtxArg).toBeUndefined()
+  })
+
+  it('Phase 6: omits rosterCtx when roster context exists but rosterPositions is missing', async () => {
+    mockGetCalibratedWeights.mockResolvedValue({ b0: -1.1, w1: 1.25, w2: 0.7, w3: 0.9, w4: 0.15, w5: 0.25, w6: 0.85, w7: 0.2 })
+    mockComputeTradeDrivers.mockReturnValue({ acceptProbability: 0.4, verdict: 'Fair', confidenceScore: 40, lineupImpactScore: 1, vorpScore: 2, marketScore: 0.55, behaviorScore: 3 })
+    mockCalibrateAcceptProbability.mockResolvedValue({ calibrated: 0.4, raw: 0.4, isotonicApplied: false })
+
+    await runTradeBacktest({
+      ...BASE_INPUT,
+      payload: { ...BASE_INPUT.payload, proposerRoster: [{ name: 'X', value: 100, type: 'player', pos: 'QB' }] },
+      // rosterPositions intentionally omitted
+    })
+
+    const rosterCtxArg = mockComputeTradeDrivers.mock.calls[0][6]
+    expect(rosterCtxArg).toBeUndefined()
+  })
 })

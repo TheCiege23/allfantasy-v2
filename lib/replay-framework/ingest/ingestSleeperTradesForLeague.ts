@@ -82,6 +82,7 @@ export async function ingestSleeperTradesForLeague(
         isSuperFlex: normalized.isSuperFlex ?? false,
         providerStatus: normalized.providerStatus,
         resolvedAt: normalized.resolvedAt,
+        rosterPositions: league.roster_positions,
       })
       await upsertBacktestResult(backtestInput)
       backtestsWritten++

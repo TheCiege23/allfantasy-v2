@@ -223,6 +223,12 @@ Unlike Trade Learning's live-capture validation runs (Phase 9, Phase 11), which 
 
 A read-only metrics module (`lib/replay-framework/metrics/tradeReplayMetrics.ts`) was built and run against this real data — full analysis in `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md`. Headline finding: real accepted trades in this corpus cluster at a striking 20–30% predicted acceptance (avg 0.2566 across all 38), a genuine signal worth investigating further, but one confounded by three structural factors specific to this replay pipeline (survivorship bias — only `complete` trades are ever observed; no roster/lineup context during backtesting; present-day valuations applied to historical trades) rather than clear evidence of trade-engine miscalibration. See the report for the full breakdown and honest caveats.
 
+### 10.6 Roster context enrichment (Phase 6)
+
+`TradeReplayPayload` gained optional `proposerRoster`/`counterpartyRoster` fields (each side's full real roster, resolved from Sleeper's own `roster.players`, not just the traded assets); `tradeBacktestExecutor.ts` now builds and passes a real `rosterCtx` to `computeTradeDrivers()` instead of `undefined`. All 38 real rows were re-ingested in place (same natural keys — idempotent update, not new rows) with real roster sizes (e.g. 39/34 players resolved per side on one real trade).
+
+**Result, precisely root-caused, not guessed:** confidence scores rose by exactly +10 across all 38 rows (the engine's flat data-completeness bonus for `hasLineupData` firing correctly), but `acceptProb`/verdict/`lineupImpactScore` were **byte-identical** before and after. Traced to `computeTradeDrivers()`'s own gate (`(hasLineupData || hasImpactData) && hasVorpData`, `trade-engine.ts` line 769): the richer scoring branch that would actually consume the real lineup delta also requires `Asset.vorpValue` to be populated, which neither this replay pipeline's traded-asset resolver nor its new roster resolver ever sets (only the FantasyCalc-derived `value` field). This is not a trade-engine bug and not a wiring bug in this phase — it precisely narrows the next real enrichment item (populate `vorpValue`, not just `value`) and **disconfirms** Phase 5's speculation that missing roster context was depressing acceptance probability specifically. Full before/after numbers and the confirming query in `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md` §8.
+
 ---
 
 ## Files changed in this session

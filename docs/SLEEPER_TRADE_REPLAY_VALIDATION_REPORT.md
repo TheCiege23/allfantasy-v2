@@ -1,8 +1,8 @@
 # Sleeper Trade Replay — Validation Metrics Report
 
-**Status:** Analysis only. Read-only aggregate queries against the real replay corpus deployed to staging in Phase 4 (`docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` §10). No trade-engine math, calibration, or scoring changed. No writes.
+**Status:** Analysis only. Read-only aggregate queries against the real replay corpus deployed to staging in Phase 4 (`docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` §10), **re-measured after Phase 6's roster-context enrichment (§8)**. No trade-engine math, calibration, or scoring changed at any point. No writes beyond the replay corpus itself.
 **Branch:** `g15-event-foundation`
-**Data source:** the 38 real, backtested Sleeper trades (3 leagues, 2 seasons) ingested in Phase 4 — staging only, never production.
+**Data source:** the 38 real, backtested Sleeper trades (3 leagues, 2 seasons) ingested in Phase 4, re-ingested in place (same natural keys, idempotent update) with roster context in Phase 6 — staging only, never production.
 
 ---
 
@@ -95,24 +95,61 @@ Measured directly, immediately after running the real metrics query against stag
 
 ---
 
-## 7. Recommended next phase
+## 7. Recommended next phase (as of Phase 5 — see §8 for what Phase 6 actually did and found)
 
 Not this phase's decision to make, but the natural candidates surfaced by this analysis, roughly in order of leverage:
 
-1. **Enrich the normalizer with real roster context** (§3.1 item 2, §5) — the single highest-leverage fix to make future backtests more comparable to what the live model actually sees, since roster context is already available from an endpoint this pipeline already calls.
+1. ~~Enrich the normalizer with real roster context~~ (§3.1 item 2, §5) — **done, Phase 6, see §8.** Confirmed the highest-leverage item to try, though the result was more nuanced than "fixes the low-acceptance finding" (it didn't — see §8.3).
 2. **Ingest more leagues** — the current 3-league, 38-trade sample is real but small; the remaining 28 already-audited leagues (and the other 82 never sampled) are the natural next batch, per `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` §9.7/§10's still-open items.
 3. **Investigate whether Sleeper exposes rejected/countered proposals through any other endpoint** — if survivorship bias (§3.1 item 1) is structural to the `transactions` endpoint specifically, a different Sleeper endpoint or a live-polling approach (out of scope for this phase and the next) might be the only way to ever observe a real rejected trade.
 4. **Historical valuation snapshotting** — a genuinely larger undertaking (a point-in-time FantasyCalc value archive), lower near-term priority than items 1–2.
+5. **Populate `Asset.vorpValue` for replay assets, not just `value`** (net-new finding from Phase 6, see §8.3) — required before roster context's real lineup-delta computation can actually influence `acceptProb`/verdict at all.
 
 None of the above is authorized or begun by this report — this is analysis, not a plan of record.
 
 ---
 
+## 8. Phase 6 — Roster context enrichment: before/after comparison
+
+### 8.1 What was added
+
+`lib/replay-framework/normalize/sleeperTradeNormalizer.ts` now resolves each side's **full real roster** (Sleeper's own `roster.players: string[]`, not just the two traded-asset lists) into `TradeReplayPayload.proposerRoster`/`counterpartyRoster` — additive, optional fields; rows without them (there are none left, since re-ingestion updated all 38 in place) fall back to the exact pre-Phase-6 behavior. `lib/replay-framework/backtest/tradeBacktestExecutor.ts` now builds a real `rosterCtx` (`{ yourRoster, theirRoster, rosterPositions }`) and passes it as `computeTradeDrivers()`'s 7th argument — previously always `undefined`. All 38 real replay rows were re-ingested in place (same natural keys, `providerLeagueId`+`providerTransactionId` unchanged) with real roster sizes: e.g. 39 and 34 real players resolved for one trade's two sides, 37/38 for another — genuinely large, real dynasty rosters, not stubs.
+
+### 8.2 Before / after — the numbers
+
+| Metric | Before (Phase 5) | After (Phase 6) | Changed? |
+|---|---|---|---|
+| Avg predicted acceptance | 0.2565789473684211 | 0.2565789473684211 | **No — byte-identical** |
+| Min / max predicted acceptance | 0.20 / 0.31 | 0.20 / 0.31 | No |
+| Fairness (verdict) distribution | Overpay Risk 18, Fair 12, Major Overpay 5, Slight Win 2, Strong Win 1 | *identical* | No |
+| Value-delta distribution | (10 buckets, see Phase 5 §2) | *identical* | No |
+| **Confidence distribution** | 30–40: 27, 40–50: 11 | **40–50: 27, 50–60: 11** | **Yes — every row's confidence rose by exactly 10** |
+| Accepted-trade probability distribution | 37 rows at 20–30%, 1 at 30–40% | *identical* | No |
+
+### 8.3 Why confidence moved but acceptance/fairness didn't — root-caused, not guessed
+
+This was checked directly against real backtest rows rather than assumed. `computeTradeDrivers()`'s confidence formula (`lib/trade-engine/trade-engine.ts` line 1280) awards a flat `+10` data-completeness bonus whenever `hasLineupData || hasImpactData` is true — a bonus for *having* an input available, independent of what that input's value actually says. Roster context correctly flips `hasLineupData` to `true` (real rosters, real `lineupDelta` computed), which is exactly why confidence rose uniformly by 10 across all 38 rows.
+
+But the branch that would let the real `lineupDelta.lineupImpactScore` actually influence the final score (line 769: `if ((hasLineupData || hasImpactData) && hasVorpData)`) requires **both** — and `hasVorpData` (line 735: `giveVorp > 0 || receiveVorp > 0`, reading `Asset.vorpValue`) is `false` for every asset this replay pipeline constructs, because neither the traded-asset resolver nor the new roster resolver ever populates `vorpValue` — only the FantasyCalc-derived `value` field. Confirmed directly: a real backtest row's `lineupImpactScore` is still exactly `0.1` after enrichment, identical to its pre-enrichment value, because the code falls through to a different (`starterRatio`-based) computation path that doesn't consume the real lineup delta at all.
+
+**This is not a trade-engine bug, and not a bug in this phase's wiring** — `rosterCtx` is being built and passed correctly, confirmed by both the confidence shift and a dedicated unit test asserting the exact object passed to `computeTradeDrivers()`. It is a precise, now-identified limitation of this replay pipeline specifically: **populating `Asset.vorpValue` (not just `value`) for both traded and roster assets is a prerequisite for roster context to actually reach `acceptProb`/verdict**, not only `confidenceScore`. This is now the clearest, most concrete "next enrichment" item this whole investigation has produced (§7 item 5).
+
+### 8.4 What this means for the Phase 5 "real trades score too low" finding
+
+The roster-context hypothesis from Phase 5 §3.1 item 2 ("no roster/lineup context... plausibly depresses acceptProb too") is **not supported by this experiment** — adding real roster context changed confidence but not acceptance probability at all, for this specific 38-trade sample. This narrows, rather than confirms, the earlier speculation: whatever is driving the low acceptance-probability clustering, it is not (at least not primarily) the absence of roster/lineup context on its own — survivorship bias (§3.1 item 1) and stale present-day valuations (§3.1 item 3) remain the two live, unresolved candidate explanations. This is an honest update to a prior hypothesis based on new measurement, not a discarded finding — exactly the discipline this whole workstream has followed since Trade Learning Phase 0.
+
+---
+
 ## Files changed in this session
 
-- `lib/replay-framework/metrics/tradeReplayMetrics.ts` (new)
-- `__tests__/replay-framework/tradeReplayMetrics.test.ts` (new, 9 tests)
-- `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md` (this document, new)
+- `lib/replay-framework/metrics/tradeReplayMetrics.ts` (Phase 5, new)
+- `__tests__/replay-framework/tradeReplayMetrics.test.ts` (Phase 5, new, 9 tests)
+- `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md` (this document — Phase 5 new, updated with §8 this phase)
+- `lib/replay-framework/types.ts` (Phase 6 — additive: `TradeReplayRosterAsset`, `proposerRoster`/`counterpartyRoster` on `TradeReplayPayload`)
+- `lib/replay-framework/normalize/sleeperTradeNormalizer.ts` (Phase 6 — resolves full real rosters, adds position resolution)
+- `lib/replay-framework/backtest/tradeBacktestExecutor.ts` (Phase 6 — builds and passes a real `rosterCtx`)
+- `lib/replay-framework/ingest/ingestSleeperTradesForLeague.ts` (Phase 6 — passes `league.roster_positions` through)
+- `__tests__/replay-framework/{sleeperTradeNormalizer,tradeBacktestExecutor,ingestSleeperTradesForLeague}.test.ts` (Phase 6 — 7 new tests)
 - `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (updated with a pointer to this report)
 
 No trade-engine file was modified. No calibration math, threshold, or weight was changed. No database (staging or production) was written to — only read-only aggregate queries were run. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.

@@ -28,6 +28,16 @@ function toAssets(items: TradeReplayPayload['assetsGiven']): Asset[] {
   }))
 }
 
+function toRosterAssets(items: TradeReplayPayload['proposerRoster']): Asset[] {
+  return (items ?? []).map((item, idx) => ({
+    id: `roster-${idx}`,
+    type: item.type === 'pick' ? 'PICK' : 'PLAYER',
+    value: item.value,
+    name: item.name,
+    pos: item.pos,
+  }))
+}
+
 export interface TradeBacktestInput {
   replayId: string
   season: number
@@ -35,6 +45,8 @@ export interface TradeBacktestInput {
   isSuperFlex: boolean
   providerStatus: string
   resolvedAt: Date | null
+  /** League roster-slot definitions (e.g. `['QB','RB','RB','WR','WR','FLEX','BN',...]`), from `ReplayImport.contextSnapshot.roster_positions`. Required for roster context to have any effect — without it, `computeTradeDrivers()`'s lineup-delta math short-circuits exactly as it does when `rosterCtx` is omitted entirely. */
+  rosterPositions?: string[]
 }
 
 export async function runTradeBacktest(input: TradeBacktestInput): Promise<BacktestResultInput> {
@@ -43,6 +55,18 @@ export async function runTradeBacktest(input: TradeBacktestInput): Promise<Backt
 
   const calWeights = await getCalibratedWeights(input.season, { isSuperFlex: input.isSuperFlex, scoringType: undefined })
 
+  // Roster context (Phase 6, per docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md
+  // §11): additive — rows normalized before Phase 6 (or where a roster
+  // failed to resolve) simply have empty roster arrays, which
+  // computeTradeDrivers() already treats identically to `rosterCtx: undefined`
+  // (its own internal guard: `rosterCtx.yourRoster.length > 0`).
+  const yourRoster = toRosterAssets(input.payload.proposerRoster)
+  const theirRoster = toRosterAssets(input.payload.counterpartyRoster)
+  const rosterCtx =
+    yourRoster.length > 0 && (input.rosterPositions?.length ?? 0) > 0
+      ? { yourRoster, theirRoster, rosterPositions: input.rosterPositions! }
+      : undefined
+
   const drivers = computeTradeDrivers(
     give,
     receive,
@@ -50,7 +74,7 @@ export async function runTradeBacktest(input: TradeBacktestInput): Promise<Backt
     null,
     input.isSuperFlex,
     false,
-    undefined,
+    rosterCtx,
     undefined,
     undefined,
     undefined,

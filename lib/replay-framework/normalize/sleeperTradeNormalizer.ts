@@ -19,19 +19,22 @@ import type {
   SleeperUser,
 } from '@/lib/sleeper-client'
 import { getPlayerName } from '@/lib/sleeper-client'
-import type { ReplayImportInput, TradeReplayPayload } from '../types'
+import type { ReplayImportInput, TradeReplayPayload, TradeReplayRosterAsset } from '../types'
 
 const REPLAY_FALLBACK_VALUE = 200
+
+type PlayerDirectory = Record<string, { full_name?: string; first_name?: string; last_name?: string; position?: string }>
 
 interface ResolvedAsset {
   name: string
   value: number
   type: 'player' | 'pick'
+  pos?: string
 }
 
 function resolveDropOrAddAsset(
   playerId: string,
-  players: Record<string, { full_name?: string; first_name?: string; last_name?: string }>,
+  players: PlayerDirectory,
   fcPlayers: FantasyCalcPlayer[],
 ): ResolvedAsset {
   const fc = findPlayerBySleeperId(fcPlayers, playerId)
@@ -39,7 +42,32 @@ function resolveDropOrAddAsset(
     name: fc?.player.name ?? getPlayerName(players as any, playerId),
     value: fc?.value ?? REPLAY_FALLBACK_VALUE,
     type: 'player',
+    // Position is required for computeTradeDrivers()'s roster-context lineup
+    // math (computeBestLineupPPG() only counts a player with a real `pos`) —
+    // prefer FantasyCalc's own position, fall back to Sleeper's player
+    // directory, matching the same fallback-chain convention used for value.
+    pos: fc?.player.position ?? players[playerId]?.position,
   }
+}
+
+/**
+ * Resolves a roster's full real player list (Sleeper's own `players: string[]`
+ * on the roster, not just the traded assets) into trade-engine-ready assets,
+ * for `computeTradeDrivers()`'s roster-context lineup math (Phase 6, per
+ * docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md §11). Additive — a roster
+ * with no resolvable players simply yields an empty array, which the
+ * backtest executor already treats the same as "no roster context."
+ */
+function resolveFullRoster(
+  roster: SleeperRoster | undefined,
+  players: PlayerDirectory,
+  fcPlayers: FantasyCalcPlayer[],
+): TradeReplayRosterAsset[] {
+  if (!roster) return []
+  return (roster.players ?? []).map((playerId) => {
+    const asset = resolveDropOrAddAsset(playerId, players, fcPlayers)
+    return { name: asset.name, value: asset.value, type: asset.type, pos: asset.pos }
+  })
 }
 
 function resolvePickAsset(pick: SleeperTransaction['draft_picks'][number], isDynasty: boolean): ResolvedAsset {
@@ -61,13 +89,14 @@ export function normalizeSleeperTrade(input: {
   league: SleeperLeague
   rosters: SleeperRoster[]
   users: SleeperUser[]
-  players: Record<string, { full_name?: string; first_name?: string; last_name?: string }>
+  players: PlayerDirectory
   fcPlayers: FantasyCalcPlayer[]
   ingestSourceUserId: string
   providerWeek: number | null
 }): ReplayImportInput {
   const { transaction: tx, league, rosters, users, players, fcPlayers, ingestSourceUserId, providerWeek } = input
 
+  const rosterById = new Map(rosters.map((r) => [r.roster_id, r]))
   const rosterToOwner = new Map(rosters.map((r) => [r.roster_id, r.owner_id]))
   const ownerToDisplayName = new Map(users.map((u) => [u.user_id, u.display_name]))
 
@@ -115,9 +144,21 @@ export function normalizeSleeperTrade(input: {
     else if (pick.previous_owner_id === proposerRosterId) given.push(asset)
   }
 
+  // Roster context (Phase 6): the counterparty is the other roster in the
+  // transaction — a real 2-sided trade has exactly one, matching how
+  // `computeTradeDrivers()`'s `rosterCtx.theirRoster` is already used
+  // elsewhere in the codebase (a single counterparty roster, not N-way).
+  const counterpartyRosterId = tx.roster_ids.find((id) => id !== proposerRosterId)
+  const proposerRoster = resolveFullRoster(rosterById.get(proposerRosterId), players, fcPlayers)
+  const counterpartyRoster = counterpartyRosterId !== undefined
+    ? resolveFullRoster(rosterById.get(counterpartyRosterId), players, fcPlayers)
+    : []
+
   const payload: TradeReplayPayload = {
     assetsGiven: given.map((a) => ({ name: a.name, value: a.value, type: a.type })),
     assetsReceived: received.map((a) => ({ name: a.name, value: a.value, type: a.type })),
+    proposerRoster: proposerRoster.length > 0 ? proposerRoster : undefined,
+    counterpartyRoster: counterpartyRoster.length > 0 ? counterpartyRoster : undefined,
   }
 
   const resolvedAt = tx.status === 'pending' ? null : new Date(tx.status_updated)

@@ -128,6 +128,16 @@ describe('ingestSleeperTradesForLeague', () => {
     expect(mockUpsertBacktestResult).toHaveBeenCalledTimes(1)
   })
 
+  it('Phase 6: passes the league\'s real roster_positions through to the backtest executor', async () => {
+    resetMocks()
+    mockGetAllLeagueTrades.mockResolvedValue([TRADE])
+
+    await ingestSleeperTradesForLeague('league-1', 'ingest-user-1')
+
+    const backtestCallArg = mockRunTradeBacktest.mock.calls[0][0]
+    expect(backtestCallArg.rosterPositions).toEqual(LEAGUE.roster_positions)
+  })
+
   it('returns zero counts and an error when the league cannot be found — no partial writes', async () => {
     resetMocks()
     mockGetLeagueInfo.mockResolvedValue(null)

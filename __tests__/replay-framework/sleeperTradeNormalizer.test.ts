@@ -23,8 +23,8 @@ const LEAGUE: SleeperLeague = {
 }
 
 const ROSTERS: SleeperRoster[] = [
-  { roster_id: 1, owner_id: 'user-a', players: [], starters: [], reserve: [], taxi: [], settings: { wins: 0, losses: 0, ties: 0, fpts: 0, fpts_decimal: 0, fpts_against: 0, fpts_against_decimal: 0 } },
-  { roster_id: 2, owner_id: 'user-b', players: [], starters: [], reserve: [], taxi: [], settings: { wins: 0, losses: 0, ties: 0, fpts: 0, fpts_decimal: 0, fpts_against: 0, fpts_against_decimal: 0 } },
+  { roster_id: 1, owner_id: 'user-a', players: ['1001', '1003'], starters: ['1001'], reserve: [], taxi: [], settings: { wins: 0, losses: 0, ties: 0, fpts: 0, fpts_decimal: 0, fpts_against: 0, fpts_against_decimal: 0 } },
+  { roster_id: 2, owner_id: 'user-b', players: ['1002', '1004'], starters: ['1002'], reserve: [], taxi: [], settings: { wins: 0, losses: 0, ties: 0, fpts: 0, fpts_decimal: 0, fpts_against: 0, fpts_against_decimal: 0 } },
 ]
 
 const USERS: SleeperUser[] = [
@@ -33,8 +33,10 @@ const USERS: SleeperUser[] = [
 ]
 
 const PLAYERS = {
-  '1001': { full_name: 'Real Player One' },
-  '1002': { full_name: 'Real Player Two' },
+  '1001': { full_name: 'Real Player One', position: 'RB' },
+  '1002': { full_name: 'Real Player Two', position: 'WR' },
+  '1003': { full_name: 'Bench Player Three', position: 'QB' }, // on roster 1, not part of the traded assets
+  '1004': { full_name: 'Bench Player Four', position: 'TE' }, // on roster 2, not part of the traded assets
 }
 
 function makeTrade(overrides: Partial<SleeperTransaction> = {}): SleeperTransaction {
@@ -158,6 +160,58 @@ describe('normalizeSleeperTrade', () => {
     })
 
     expect(result.rawProviderPayload).toEqual(tx)
+  })
+
+  it('resolves each side\'s full real roster (Phase 6), not just the traded assets', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade(),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    const payload = result.payload as { proposerRoster?: Array<{ name: string; pos?: string }>; counterpartyRoster?: Array<{ name: string; pos?: string }> }
+    // Roster 1 (proposer) owns players 1001 and 1003 — including the
+    // bench player 1003 that was never part of the traded assets.
+    expect(payload.proposerRoster?.map((a) => a.name)).toEqual(expect.arrayContaining(['Real Player One', 'Bench Player Three']))
+    expect(payload.counterpartyRoster?.map((a) => a.name)).toEqual(expect.arrayContaining(['Real Player Two', 'Bench Player Four']))
+  })
+
+  it('resolves position for roster context (required for computeTradeDrivers()\'s lineup math)', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade(),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    const payload = result.payload as { proposerRoster?: Array<{ name: string; pos?: string }> }
+    const benchPlayer = payload.proposerRoster?.find((a) => a.name === 'Bench Player Three')
+    expect(benchPlayer?.pos).toBe('QB')
+  })
+
+  it('omits roster context gracefully when a roster is not found (backward-compatible with pre-Phase-6 behavior)', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade({ roster_ids: [1, 99] }), // roster 99 doesn't exist in ROSTERS
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    const payload = result.payload as { counterpartyRoster?: unknown }
+    expect(payload.counterpartyRoster).toBeUndefined()
   })
 })
 

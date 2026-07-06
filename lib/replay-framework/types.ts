@@ -43,10 +43,26 @@ export interface BacktestResultInput {
   realOutcome: unknown | null
 }
 
-/** Trade-specific shape stored in `ReplayImport.payload` (decisionType: 'trade'). */
+/** A roster player/pick usable as trade-engine `Asset` input — a subset of `Asset`'s fields, just enough for `computeTradeDrivers()`'s roster-context lineup math (`pos` is required for a player to count toward `computeBestLineupPPG()`). */
+export interface TradeReplayRosterAsset {
+  name: string
+  value: number
+  type: string
+  pos?: string
+}
+
+/**
+ * Trade-specific shape stored in `ReplayImport.payload` (decisionType: 'trade').
+ * `proposerRoster`/`counterpartyRoster` are optional and additive (Phase 6,
+ * per docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md §11) — rows ingested
+ * before Phase 6 simply have them `undefined`, handled gracefully by the
+ * backtest executor (falls back to no roster context, exactly like before).
+ */
 export interface TradeReplayPayload {
   assetsGiven: Array<{ name: string; value: number; type: string }>
   assetsReceived: Array<{ name: string; value: number; type: string }>
+  proposerRoster?: TradeReplayRosterAsset[]
+  counterpartyRoster?: TradeReplayRosterAsset[]
 }
 
 /** Trade-specific shape stored in `ReplayBacktestResult.backtestedOutput`. */
