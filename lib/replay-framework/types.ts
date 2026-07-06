@@ -116,3 +116,43 @@ export interface TradeRealOutcome {
   outcome: 'ACCEPTED' | 'REJECTED' | 'COUNTERED' | 'UNKNOWN'
   providerStatus: string
 }
+
+/**
+ * Lineup-specific shapes (Phase 12 scaffolding — selected as the second Replay
+ * Scenario, per docs/DECISION_OS_REPLAY_LINEUP_SCENARIO_SELECTION_ADR.md;
+ * not yet consumed by any normalizer/executor, reserved for Phase 13).
+ * `actualPoints` is deliberately real, historical, already-scored points
+ * (e.g. Sleeper's `players_points`), never a projection — the whole point of
+ * this replay type is grading a real manager's real lineup decision against
+ * the real, deterministic optimal lineup for the points that actually came
+ * in that week.
+ */
+export interface LineupReplayPlayer {
+  /** Real, stable provider player ID — same convention as `TradeReplayRosterAsset.providerAssetId` (Phase 9). */
+  providerAssetId: string
+  name: string
+  /** Multi-position eligibility, matching `OptimizerPlayerInput.positions` (`lib/lineup-optimizer-engine/types.ts`). */
+  pos: string[]
+  actualPoints: number
+}
+
+/** Lineup-specific shape stored in `ReplayImport.payload` (decisionType: 'lineup'). */
+export interface LineupReplayPayload {
+  /** The real historical providerAssetIds the manager actually started that week. */
+  actualStarterIds: string[]
+  /** Every rostered player that week, with real actual points. */
+  fullRoster: LineupReplayPlayer[]
+  /** League's roster slot definitions, same convention as `TradeBacktestInput.rosterPositions`. */
+  slotPositions: string[]
+}
+
+/** Lineup-specific shape stored in `ReplayBacktestResult.backtestedOutput` (decisionType: 'lineup'). */
+export interface LineupBacktestOutput {
+  /** Sum of `starters_points` for the lineup the manager actually started. */
+  actualPoints: number
+  /** `optimizeLineupDeterministic()`'s `totalProjectedPoints` when fed real `actualPoints` as `projectedPoints`. */
+  optimalPoints: number
+  pointsLeftOnBench: number
+  /** `actualPoints / optimalPoints`, clamped [0,1] — 1.0 means the manager started the exact optimal lineup. */
+  efficiencyPct: number
+}
