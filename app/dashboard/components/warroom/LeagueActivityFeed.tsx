@@ -44,7 +44,9 @@ export function LeagueActivityFeed() {
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px] text-white/80">{item.description}</p>
-                  <p className="mt-0.5 text-[10px] text-white/30">
+                  {/* Relative-time text is computed from Date.now() and legitimately differs
+                      between server-render and client-hydration instants — not a real mismatch. */}
+                  <p className="mt-0.5 text-[10px] text-white/30" suppressHydrationWarning>
                     {item.leagueName ? `${item.leagueName} · ` : ''}
                     {formatRelativeTime(item.timestamp)}
                   </p>

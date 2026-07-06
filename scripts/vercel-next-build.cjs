@@ -101,7 +101,8 @@ const routeDirsToDisable = [
   path.join('app', 'api', 'intelligence', 'snapshot'),
   path.join('app', 'api', 'providers', 'status'),
   path.join('app', 'api', 'chaos-detector'),
-  path.join('app', 'api', 'league-health'),
+  // league-health: NO LONGER excluded — the dashboard's MyLeagueCard (Sprint 2,
+  // Command Center redesign) is now a real production caller.
   path.join('app', 'api', 'league-meta'),
   path.join('app', 'api', 'platform', 'service-map'),
   path.join('app', 'api', 'ai', 'decision-log'),

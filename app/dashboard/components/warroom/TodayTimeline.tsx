@@ -110,7 +110,11 @@ export function TodayTimeline({
                 <Icon className="h-3.5 w-3.5" aria-hidden />
               </span>
               <span className="min-w-0 flex-1 truncate text-[12px] font-medium text-white/80">{entry.label}</span>
-              <span className="shrink-0 text-[11px] text-white/40">{entry.detail}</span>
+              {/* Relative-time text is computed from Date.now() and legitimately differs
+                  between server-render and client-hydration instants — not a real mismatch. */}
+              <span className="shrink-0 text-[11px] text-white/40" suppressHydrationWarning>
+                {entry.detail}
+              </span>
             </li>
           )
         })}
