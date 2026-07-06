@@ -1,0 +1,150 @@
+/**
+ * Decision OS Replay Framework — Sleeper trade normalizer.
+ * Converts a real, raw `SleeperTransaction` (lib/sleeper-client.ts) plus its
+ * league/roster/user/player context into the generic `ReplayImportInput`
+ * shape (decisionType: 'trade'), per docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md.
+ *
+ * Reuses the exact same valuation convention already established by
+ * lib/league-trade-engine/tradeLearningCapture.ts's resolveItemValue() (a
+ * conservative flat fallback for any unresolvable asset) rather than
+ * inventing new valuation logic — that function is module-private there and
+ * this module intentionally does not modify live trade capture code, so a
+ * small, parallel copy is used here instead.
+ */
+import { findPlayerBySleeperId, getPickValue, type FantasyCalcPlayer } from '@/lib/fantasycalc'
+import type {
+  SleeperLeague,
+  SleeperRoster,
+  SleeperTransaction,
+  SleeperUser,
+} from '@/lib/sleeper-client'
+import { getPlayerName } from '@/lib/sleeper-client'
+import type { ReplayImportInput, TradeReplayPayload } from '../types'
+
+const REPLAY_FALLBACK_VALUE = 200
+
+interface ResolvedAsset {
+  name: string
+  value: number
+  type: 'player' | 'pick'
+}
+
+function resolveDropOrAddAsset(
+  playerId: string,
+  players: Record<string, { full_name?: string; first_name?: string; last_name?: string }>,
+  fcPlayers: FantasyCalcPlayer[],
+): ResolvedAsset {
+  const fc = findPlayerBySleeperId(fcPlayers, playerId)
+  return {
+    name: fc?.player.name ?? getPlayerName(players as any, playerId),
+    value: fc?.value ?? REPLAY_FALLBACK_VALUE,
+    type: 'player',
+  }
+}
+
+function resolvePickAsset(pick: SleeperTransaction['draft_picks'][number], isDynasty: boolean): ResolvedAsset {
+  const season = Number(pick.season)
+  const round = pick.round
+  const value = Number.isFinite(season) && Number.isFinite(round) ? getPickValue(season, round, isDynasty) : REPLAY_FALLBACK_VALUE
+  return { name: `${pick.season} Round ${pick.round} pick`, value, type: 'pick' }
+}
+
+/** Normalizes Sleeper's `complete`|`pending`|`failed` into our own trade-outcome vocabulary, per docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md Decision 2's mapping convention (reused, not reinvented). */
+export function mapSleeperStatusToOutcome(status: string): 'ACCEPTED' | 'REJECTED' | 'COUNTERED' | 'UNKNOWN' {
+  if (status === 'complete') return 'ACCEPTED'
+  if (status === 'failed') return 'REJECTED'
+  return 'UNKNOWN'
+}
+
+export function normalizeSleeperTrade(input: {
+  transaction: SleeperTransaction
+  league: SleeperLeague
+  rosters: SleeperRoster[]
+  users: SleeperUser[]
+  players: Record<string, { full_name?: string; first_name?: string; last_name?: string }>
+  fcPlayers: FantasyCalcPlayer[]
+  ingestSourceUserId: string
+  providerWeek: number | null
+}): ReplayImportInput {
+  const { transaction: tx, league, rosters, users, players, fcPlayers, ingestSourceUserId, providerWeek } = input
+
+  const rosterToOwner = new Map(rosters.map((r) => [r.roster_id, r.owner_id]))
+  const ownerToDisplayName = new Map(users.map((u) => [u.user_id, u.display_name]))
+
+  const managerUserIds = tx.roster_ids.map((rosterId) => ({
+    rosterId,
+    sleeperUserId: rosterToOwner.get(rosterId) ?? null,
+  }))
+  const managerDisplayNames = managerUserIds.map(({ rosterId, sleeperUserId }) => ({
+    rosterId,
+    displayName: sleeperUserId ? ownerToDisplayName.get(sleeperUserId) ?? null : null,
+  }))
+
+  const isDynasty = league.settings?.type === 2 || league.settings?.type === 1
+  const numQb = (league.roster_positions ?? []).filter((p) => p === 'QB' || p === 'SUPER_FLEX').length
+  const isSuperFlex = numQb >= 2
+
+  // Canonical "proposer" perspective for give/receive framing — the first
+  // roster in the transaction's roster_ids array. Arbitrary but consistent,
+  // matching how a real 2-sided trade is represented from one side's view.
+  const proposerRosterId = tx.roster_ids[0]
+
+  const given: ResolvedAsset[] = []
+  const received: ResolvedAsset[] = []
+
+  const adds = tx.adds ?? {}
+  const drops = tx.drops ?? {}
+
+  for (const [playerId, toRosterId] of Object.entries(adds)) {
+    const asset = resolveDropOrAddAsset(playerId, players, fcPlayers)
+    if (toRosterId === proposerRosterId) received.push(asset)
+    else given.push(asset)
+  }
+  for (const [playerId, fromRosterId] of Object.entries(drops)) {
+    // A player appearing in `drops` for the proposer means the proposer gave
+    // it up; guard against double-counting if it also appeared in `adds`
+    // (shouldn't happen for the same player, but stay defensive).
+    if (fromRosterId === proposerRosterId && !given.some((g) => g.name === resolveDropOrAddAsset(playerId, players, fcPlayers).name)) {
+      given.push(resolveDropOrAddAsset(playerId, players, fcPlayers))
+    }
+  }
+
+  for (const pick of tx.draft_picks ?? []) {
+    const asset = resolvePickAsset(pick, isDynasty)
+    if (pick.owner_id === proposerRosterId) received.push(asset)
+    else if (pick.previous_owner_id === proposerRosterId) given.push(asset)
+  }
+
+  const payload: TradeReplayPayload = {
+    assetsGiven: given.map((a) => ({ name: a.name, value: a.value, type: a.type })),
+    assetsReceived: received.map((a) => ({ name: a.name, value: a.value, type: a.type })),
+  }
+
+  const resolvedAt = tx.status === 'pending' ? null : new Date(tx.status_updated)
+
+  return {
+    provider: 'sleeper',
+    decisionType: 'trade',
+    providerLeagueId: league.league_id,
+    providerTransactionId: tx.transaction_id,
+    season: Number(league.season),
+    providerWeek,
+    proposedAt: new Date(tx.created),
+    resolvedAt,
+    providerStatus: tx.status,
+    participantsInvolved: tx.roster_ids,
+    managerUserIds,
+    managerDisplayNames,
+    payload,
+    rawProviderPayload: tx as unknown,
+    contextSnapshot: {
+      scoring_settings: league.scoring_settings,
+      roster_positions: league.roster_positions,
+      settings: league.settings,
+      total_rosters: league.total_rosters,
+    },
+    isDynasty,
+    isSuperFlex,
+    ingestSourceUserId,
+  }
+}

@@ -16091,3 +16091,63 @@ model WaiverWatchlist {
   @@index([leagueId, userId])
   @@map("waiver_watchlists")
 }
+
+/// Decision OS Replay Framework (per docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md).
+/// Generic, provider-agnostic, decision-type-agnostic import of a real
+/// external decision (first implementation: Sleeper trades) for offline
+/// backtesting/validation. Structurally separate from TradeOfferEvent/
+/// TradeOutcomeEvent — never referenced by computeShadowB0()/
+/// promoteShadowB0()/runWeeklyRecalibration(), never written by
+/// logTradeOfferEvent()/logTradeOutcomeEvent() or captureLiveTradeOffer()/
+/// captureLiveTradeOutcome(). Replay is validation only, never live
+/// calibration input.
+model ReplayImport {
+  id                    String    @id @default(uuid())
+  provider              String    // e.g. "sleeper" — future: "espn", "yahoo", "allfantasy"
+  decisionType          String    // e.g. "trade" — future: "waiver", "draft", "lineup", "commissioner_action", "roster_move"
+  providerLeagueId      String
+  providerTransactionId String
+  season                Int
+  providerWeek          Int?      // provider's own round/week bucket — not guaranteed to equal the real calendar week (see the ADR's caveat)
+  proposedAt            DateTime
+  resolvedAt            DateTime?
+  providerStatus        String    // raw provider status verbatim (e.g. Sleeper's complete|pending|failed) — never coerced into our own TradeOutcome enum
+  participantsInvolved  Json      // provider-native participant identifiers (e.g. Sleeper roster_ids)
+  managerUserIds        Json      // resolved provider user IDs per participant
+  managerDisplayNames   Json      // denormalized display names — never an identity source of truth
+  payload               Json      // decision-type-specific normalized data (e.g. trade: assetsGiven/assetsReceived)
+  rawProviderPayload    Json      // the full, unmodified provider payload, kept for reprocessing without re-fetching
+  contextSnapshot       Json      // league/context settings (scoring, roster slots, format) frozen at ingestion time
+  isDynasty             Boolean?
+  isSuperFlex           Boolean?
+  ingestSourceUserId    String    // which connected provider account discovered this row
+  ingestedAt            DateTime  @default(now())
+
+  backtestResults       ReplayBacktestResult[]
+
+  @@unique([provider, decisionType, providerLeagueId, providerTransactionId])
+  @@index([decisionType, season])
+  @@index([provider, providerLeagueId])
+  @@map("replay_imports")
+}
+
+/// One row per (ReplayImport x model/engine/config version) triple — a new
+/// version never overwrites a prior backtest result, so a fixed replay
+/// corpus can be re-evaluated across model versions for offline comparison.
+model ReplayBacktestResult {
+  id                          String   @id @default(uuid())
+  replayId                    String
+  decisionType                String   // denormalized from the parent row for query/filter convenience without a join
+  modelVersion                String   // stable, human-readable identifier for the scoring approach (e.g. "trade-engine-deterministic-v1")
+  engineVersionHash           String   // git commit SHA of the engine code that produced this result
+  deterministicConfigVersion  String   // version/hash of the specific weights/thresholds/calibratedB0 value used
+  backtestedOutput            Json     // decision-type-specific structured output (e.g. trade: acceptProb/verdict/driverSet)
+  realOutcome                 Json?    // settled only when the underlying ReplayImport.providerStatus reflects a resolved decision
+  replayComputedAt            DateTime @default(now())
+
+  replay ReplayImport @relation(fields: [replayId], references: [id], onDelete: Cascade)
+
+  @@unique([replayId, modelVersion, engineVersionHash, deterministicConfigVersion])
+  @@index([decisionType])
+  @@map("replay_backtest_results")
+}

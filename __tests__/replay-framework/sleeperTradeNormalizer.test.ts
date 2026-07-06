@@ -1,0 +1,171 @@
+/**
+ * Decision OS Replay Framework — Sleeper trade normalizer coverage.
+ * Proves real-shaped Sleeper transactions normalize correctly: give/receive
+ * split, manager identity resolution, dynasty/SuperFlex derivation, and
+ * status mapping.
+ */
+import { describe, it, expect } from 'vitest'
+import { mapSleeperStatusToOutcome, normalizeSleeperTrade } from '@/lib/replay-framework/normalize/sleeperTradeNormalizer'
+import type { SleeperLeague, SleeperRoster, SleeperTransaction, SleeperUser } from '@/lib/sleeper-client'
+
+const LEAGUE: SleeperLeague = {
+  league_id: 'league-1',
+  name: 'Test League',
+  season: '2025',
+  sport: 'nfl',
+  status: 'in_season',
+  total_rosters: 12,
+  scoring_settings: { rec: 1 },
+  roster_positions: ['QB', 'RB', 'WR', 'TE', 'SUPER_FLEX', 'BN'],
+  settings: { type: 2 }, // 2 = dynasty
+  draft_id: 'draft-1',
+  previous_league_id: null,
+}
+
+const ROSTERS: SleeperRoster[] = [
+  { roster_id: 1, owner_id: 'user-a', players: [], starters: [], reserve: [], taxi: [], settings: { wins: 0, losses: 0, ties: 0, fpts: 0, fpts_decimal: 0, fpts_against: 0, fpts_against_decimal: 0 } },
+  { roster_id: 2, owner_id: 'user-b', players: [], starters: [], reserve: [], taxi: [], settings: { wins: 0, losses: 0, ties: 0, fpts: 0, fpts_decimal: 0, fpts_against: 0, fpts_against_decimal: 0 } },
+]
+
+const USERS: SleeperUser[] = [
+  { user_id: 'user-a', username: 'alice', display_name: 'Alice', avatar: null },
+  { user_id: 'user-b', username: 'bob', display_name: 'Bob', avatar: null },
+]
+
+const PLAYERS = {
+  '1001': { full_name: 'Real Player One' },
+  '1002': { full_name: 'Real Player Two' },
+}
+
+function makeTrade(overrides: Partial<SleeperTransaction> = {}): SleeperTransaction {
+  return {
+    type: 'trade',
+    transaction_id: 'tx-1',
+    status: 'complete',
+    roster_ids: [1, 2],
+    adds: { '1001': 1, '1002': 2 },
+    drops: { '1002': 1, '1001': 2 },
+    draft_picks: [],
+    waiver_budget: [],
+    leg: 1,
+    created: 1735689600000,
+    creator: 'user-a',
+    consenter_ids: [1, 2],
+    status_updated: 1735693200000,
+    ...overrides,
+  }
+}
+
+describe('normalizeSleeperTrade', () => {
+  it('splits assets given/received from roster 1 (the canonical proposer)', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade(),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    const payload = result.payload as { assetsGiven: Array<{ name: string }>; assetsReceived: Array<{ name: string }> }
+    // Roster 1 dropped player 1002 (given away) and received player 1001 (added).
+    expect(payload.assetsGiven.map((a) => a.name)).toContain('Real Player Two')
+    expect(payload.assetsReceived.map((a) => a.name)).toContain('Real Player One')
+  })
+
+  it('resolves manager identity via the roster -> owner -> display name join', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade(),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    const displayNames = result.managerDisplayNames as Array<{ rosterId: number; displayName: string | null }>
+    expect(displayNames).toEqual(
+      expect.arrayContaining([
+        { rosterId: 1, displayName: 'Alice' },
+        { rosterId: 2, displayName: 'Bob' },
+      ]),
+    )
+  })
+
+  it('derives isDynasty and isSuperFlex from the league scoring/roster context', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade(),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    expect(result.isDynasty).toBe(true)
+    expect(result.isSuperFlex).toBe(true) // roster_positions has both QB and SUPER_FLEX
+  })
+
+  it('preserves both real timestamps: proposedAt (created) and resolvedAt (status_updated)', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade(),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    expect(result.proposedAt.getTime()).toBe(1735689600000)
+    expect(result.resolvedAt?.getTime()).toBe(1735693200000)
+  })
+
+  it('leaves resolvedAt null for a pending trade — no unearned assumption of resolution', () => {
+    const result = normalizeSleeperTrade({
+      transaction: makeTrade({ status: 'pending' }),
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    expect(result.resolvedAt).toBeNull()
+    expect(result.providerStatus).toBe('pending')
+  })
+
+  it('stores the raw provider payload verbatim for reprocessing', () => {
+    const tx = makeTrade()
+    const result = normalizeSleeperTrade({
+      transaction: tx,
+      league: LEAGUE,
+      rosters: ROSTERS,
+      users: USERS,
+      players: PLAYERS,
+      fcPlayers: [],
+      ingestSourceUserId: 'ingest-user-1',
+      providerWeek: 1,
+    })
+
+    expect(result.rawProviderPayload).toEqual(tx)
+  })
+})
+
+describe('mapSleeperStatusToOutcome', () => {
+  it('maps complete -> ACCEPTED, failed -> REJECTED, anything else -> UNKNOWN', () => {
+    expect(mapSleeperStatusToOutcome('complete')).toBe('ACCEPTED')
+    expect(mapSleeperStatusToOutcome('failed')).toBe('REJECTED')
+    expect(mapSleeperStatusToOutcome('pending')).toBe('UNKNOWN')
+    expect(mapSleeperStatusToOutcome('something_new_sleeper_adds_later')).toBe('UNKNOWN')
+  })
+})

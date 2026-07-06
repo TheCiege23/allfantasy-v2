@@ -1,9 +1,11 @@
 # ADR — Sleeper Trade Replay Architecture
 
-**Status:** Proposed. Design only — no migration authored, no code written, no Sleeper data imported, no database (staging or production) touched.
+**Status:** Proposed and **implemented as generic infrastructure (Replay Framework Phase 3)** — schema authored (additive migration, not deployed to any environment), ingestion/normalization/backtest infrastructure built and unit-tested, no real Sleeper data imported, no database (staging or production) touched.
 **Branch:** `g15-event-foundation`
 **Follows:** `docs/SLEEPER_TRADE_INGESTION_AUDIT.md` (the real-data audit this ADR turns into a design), `docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md` (the precedent this document's format and governance approach deliberately mirrors), `docs/TRADE_LEARNING_SHADOW_ROLLOUT.md`, `docs/DECISION_OS_RECOMMENDATION_CONSOLIDATION_PLAN.md`.
-**Constraint honored:** this document proposes no migration, no import job, no calibration-math change — a human reviews the design questions before any implementation phase touches real Sleeper data or the database.
+**Constraint honored (original ADR turn):** this document proposed no migration, no import job, no calibration-math change — a human reviewed the design questions before any implementation phase touched real Sleeper data or the database.
+
+> **Implementation update (Phase 3):** per explicit direction, the schema and infrastructure below were generalized from "Sleeper trade replay" into a **generic, provider-agnostic, decision-type-agnostic Replay Framework** (`lib/replay-framework/`) with trades as the first implementation — not a Sleeper-specific or trade-specific subsystem. `provider` and `decisionType` are plain string columns, not enums, so a future replay type (waiver, draft, lineup, commissioner_action, roster_move) needs a new normalizer/backtest-executor pair, never a schema migration. See §9 for the full implementation record.
 
 ---
 
@@ -136,8 +138,62 @@ This is the single most important property of the design, stated plainly:
 
 ---
 
+## 9. Implementation record (Replay Framework Phase 3)
+
+### 9.1 Generalization decision
+
+Per explicit direction, before implementing, the design in §2 was generalized from `SleeperTradeReplay`/`SleeperTradeBacktestResult` (trade- and Sleeper-specific table names) into **`ReplayImport`/`ReplayBacktestResult`** — provider and decision-type are plain `String` columns (`provider`, `decisionType`), not enums or table-name suffixes. This is the only change from the design in §2/§3: field names, the two-table split, the versioning scheme, and every isolation guarantee are otherwise implemented exactly as designed. Trades remain the only *implemented* decision type — `decisionType: 'trade'` is one value the column happens to hold today, not a hardcoded assumption anywhere in the schema.
+
+### 9.2 Implemented schema
+
+Additive migration `prisma/migrations/20260706000000_add_replay_framework/migration.sql` — two brand-new tables (`replay_imports`, `replay_backtest_results`), zero existing table/column/enum touched. `npx prisma validate` passed; `npx prisma generate` regenerated the TypeScript client successfully (the native query-engine binary rename failed on a file lock held by another session's dev server running against this same directory — a known, unrelated Windows/multi-session artifact, not a schema problem; the generated `.d.ts` types used by `tsc` were written successfully before that point). **Not deployed to staging or any environment** — per this phase's scope, only local `prisma validate`/`generate` were run.
+
+### 9.3 Implemented infrastructure
+
+All under `lib/replay-framework/`, all manually invokable, none wired to any route/cron/scheduler:
+
+| File | Role |
+|---|---|
+| `types.ts` | Generic `ReplayImportInput`/`BacktestResultInput`/`ReplayDecisionType` contracts, plus the trade-specific `TradeReplayPayload`/`TradeBacktestOutput`/`TradeRealOutcome` shapes stored in the generic `Json` fields |
+| `writer.ts` | The *only* writer of `ReplayImport`/`ReplayBacktestResult` — idempotent upserts keyed by each table's natural unique constraint |
+| `versioning.ts` | `resolveEngineVersionHash()` (reuses the exact env-var precedence already established by `app/api/af-debug/sha/route.ts`, not a new convention), `computeDeterministicConfigVersion()` (derived from the season's live `calibratedB0`), `TRADE_MODEL_VERSION` constant |
+| `normalize/sleeperTradeNormalizer.ts` | Converts a real `SleeperTransaction` (from the pre-existing `lib/sleeper-client.ts`) into a generic `ReplayImportInput` — give/receive asset split, roster→owner→display-name identity resolution, dynasty/SuperFlex derivation, Sleeper-status normalization |
+| `backtest/tradeBacktestExecutor.ts` | Calls the **real, unmodified** `computeTradeDrivers()` (`lib/trade-engine/trade-engine.ts`) and `calibrateAcceptProbability()` (`lib/trade-engine/accept-calibration.ts`) — the exact same deterministic pipeline every live trade-evaluation route already uses — against a normalized replay row |
+| `ingest/ingestSleeperTradesForLeague.ts` | The manually-invokable orchestrator: reader → normalize → write replay → backtest → write backtest result, per league, with per-transaction error isolation (one bad trade does not abort the batch) |
+
+**Reused rather than duplicated:** `lib/sleeper-client.ts` already had every Sleeper reader needed (`getLeagueInfo`, `getLeagueRosters`, `getLeagueUsers`, `getAllPlayers` — a cached 24-hour player directory, matching the audit's own caching recommendation — and `getAllLeagueTrades`, which *already* loops weeks and filters to `type: 'trade'`, exactly the ingestion-flow step §3 called for). No new Sleeper API client code was written; `lib/replay-framework/` calls this existing module directly.
+
+### 9.4 Isolation verified, not just asserted
+
+Two complementary proofs, both passing: `__tests__/replay-framework/writer.test.ts` behaviorally confirms (mocked Prisma) that `upsertReplayImport()`/`upsertBacktestResult()` never call `tradeOfferEvent`/`tradeOutcomeEvent`/`tradeLearningStats`; `__tests__/replay-framework/isolation.test.ts` statically scans every file under `lib/replay-framework/` for forbidden imports (`trade-event-logger`, `tradeLearningCapture`, `auto-recalibration`, `tradeService`) and forbidden `prisma.*` model access, and additionally asserts the writer module's only two `prisma.*` call sites are `prisma.replayImport`/`prisma.replayBacktestResult`.
+
+### 9.5 Tests added
+
+30 new tests across 6 files (`writer.test.ts`, `sleeperTradeNormalizer.test.ts`, `tradeBacktestExecutor.test.ts`, `versioning.test.ts`, `isolation.test.ts`, `ingestSleeperTradesForLeague.test.ts`), covering: real insertion, idempotent duplicate-import prevention (same natural key twice), normalization correctness (give/receive split, identity join, dynasty/SF derivation, both real timestamps, pending trades correctly left unresolved), deterministic backtest execution against the real trade-engine functions (mocked only to control output), version-key distinctness across engine/config changes, structural + behavioral isolation from live calibration, and per-transaction error isolation in the orchestrator (one bad trade doesn't abort the batch).
+
+### 9.6 Verification results
+
+`npx vitest run __tests__/replay-framework/` — 30/30 passed. `npx vitest run __tests__/trade-engine/` plus the 5 Decision OS architecture test files — 102/102 passed, zero regressions. `npx tsc --noEmit` — see the verification section of this phase's delivered summary for the exact comparison against the prior baseline.
+
+### 9.7 Remaining work before the first real Sleeper replay import
+
+- **Deploy the migration to staging** — not done this phase, requires its own explicit same-turn approval per this workstream's established discipline (exactly like Trade Learning Phase 8 → Phase 9's separation).
+- **Actually invoke `ingestSleeperTradesForLeague()` against a real league** — the orchestrator has never been called with real network/database access; only mocked unit tests have exercised its logic.
+- **Decide which leagues/accounts to ingest first** — this phase built the capability, not an ingestion plan; `docs/SLEEPER_TRADE_INGESTION_AUDIT.md`'s 31 already-sampled leagues are the natural starting candidates.
+- **Build the validation-metrics queries from §5** — the schema supports them (read-only aggregates over `ReplayImport`/`ReplayBacktestResult`), but no query/report code exists yet.
+- **Future replay types** (waiver, draft, lineup, commissioner_action, roster_move) — explicitly out of scope this phase; each needs its own normalizer + backtest executor, reusing the same `ReplayImport`/`ReplayBacktestResult` tables with a new `decisionType` value and zero schema changes.
+
+---
+
 ## Files changed in this session
 
-- `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (this document, new)
+- `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (this document, updated with §9)
+- `prisma/schema.prisma` (modified — additive: `ReplayImport`, `ReplayBacktestResult` models)
+- `prisma/migrations/20260706000000_add_replay_framework/migration.sql` (new, not deployed)
+- `lib/replay-framework/types.ts`, `versioning.ts`, `writer.ts` (new)
+- `lib/replay-framework/normalize/sleeperTradeNormalizer.ts` (new)
+- `lib/replay-framework/backtest/tradeBacktestExecutor.ts` (new)
+- `lib/replay-framework/ingest/ingestSleeperTradesForLeague.ts` (new)
+- `__tests__/replay-framework/{writer,sleeperTradeNormalizer,tradeBacktestExecutor,versioning,isolation,ingestSleeperTradesForLeague}.test.ts` (new, 30 tests)
 
-No other file was created, modified, or deleted. No migration was authored. No Sleeper API call was made this session (this phase reused the audit's already-verified findings rather than re-querying). No database (staging or production) was queried or connected to. No calibration math, threshold, or weight was changed. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.
+No calibration math, threshold, or weight was changed. No Sleeper data was imported. No database (staging or production) was written to or connected to. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere. `lib/league-trade-engine/tradeService.ts` (live trade capture) was not modified. Chimmy and AI Coach were not touched.
