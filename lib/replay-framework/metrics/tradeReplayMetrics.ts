@@ -30,6 +30,12 @@ export interface TradeReplayMetricsSummary {
     count: number
     avgPredictedAcceptance: number | null
   }>
+  /** Additive (Phase 9) — corpus-composition analysis. "Starter-involved" = deltaThem !== 0 (the trade genuinely changes the counterparty's best-possible lineup); "bench-depth" = deltaThem === 0. */
+  deltaThemDistribution: Array<{ bucket: string; count: number }>
+  starterInvolvedCount: number
+  benchDepthCount: number
+  avgPredictedAcceptanceStarterInvolved: number | null
+  avgPredictedAcceptanceBenchDepth: number | null
 }
 
 interface ReplayWithBacktest {
@@ -59,6 +65,18 @@ function average(values: number[]): number | null {
   return values.reduce((s, v) => s + v, 0) / values.length
 }
 
+/** Magnitude-based buckets for deltaThem (a signed, unbounded PPG delta — not naturally 0-100 scaled like the other distributions). */
+function bucketizeDeltaThem(values: number[]): Array<{ bucket: string; count: number }> {
+  const buckets: Array<[string, (v: number) => boolean]> = [
+    ['zero', (v) => v === 0],
+    ['0 to 2 (abs)', (v) => v !== 0 && Math.abs(v) < 2],
+    ['2 to 5 (abs)', (v) => Math.abs(v) >= 2 && Math.abs(v) < 5],
+    ['5 to 10 (abs)', (v) => Math.abs(v) >= 5 && Math.abs(v) < 10],
+    ['10+ (abs)', (v) => Math.abs(v) >= 10],
+  ]
+  return buckets.map(([bucket, test]) => ({ bucket, count: values.filter(test).length }))
+}
+
 function computeValueDeltaPct(payload: TradeReplayPayload): number | null {
   const givenTotal = payload.assetsGiven.reduce((s, a) => s + a.value, 0)
   const receivedTotal = payload.assetsReceived.reduce((s, a) => s + a.value, 0)
@@ -72,15 +90,22 @@ function computeValueDeltaPct(payload: TradeReplayPayload): number | null {
  * staging and computes the full validation-metrics summary. Read-only:
  * two `findMany` calls, zero writes, no effect on `calibratedB0` or any
  * live route.
+ *
+ * `providerLeagueIds` (additive, Phase 9) optionally scopes the query to a
+ * specific subset of leagues — used to compare corpus subsets (e.g. the
+ * original 3-league sample vs. a newly-ingested batch) without needing a
+ * separate function or a one-off script per comparison.
  */
-export async function computeTradeReplayMetrics(): Promise<TradeReplayMetricsSummary> {
+export async function computeTradeReplayMetrics(providerLeagueIds?: string[]): Promise<TradeReplayMetricsSummary> {
+  const leagueFilter = providerLeagueIds && providerLeagueIds.length > 0 ? { providerLeagueId: { in: providerLeagueIds } } : {}
+
   const [replays, backtests] = await Promise.all([
     prisma.replayImport.findMany({
-      where: { decisionType: 'trade' },
+      where: { decisionType: 'trade', ...leagueFilter },
       select: { id: true, providerLeagueId: true, season: true, isSuperFlex: true, isDynasty: true, payload: true },
     }),
     prisma.replayBacktestResult.findMany({
-      where: { decisionType: 'trade' },
+      where: { decisionType: 'trade', replay: { ...leagueFilter } },
       select: { replayId: true, backtestedOutput: true, realOutcome: true },
     }),
   ])
@@ -134,6 +159,15 @@ export async function computeTradeReplayMetrics(): Promise<TradeReplayMetricsSum
     }
   })
 
+  // Corpus-composition analysis (Phase 9): "starter-involved" = the trade
+  // genuinely changed the counterparty's best-possible lineup (deltaThem
+  // !== 0); "bench-depth" = it didn't (deltaThem === 0), per Phase 8's
+  // finding that deltaThem — not vorpDeltaThem — is the real, functional
+  // lineup-sensitive input to acceptProbability.
+  const rowsWithDeltaThem = rows.filter((r) => r.backtestedOutput.deltaThem != null)
+  const starterInvolvedRows = rowsWithDeltaThem.filter((r) => r.backtestedOutput.deltaThem !== 0)
+  const benchDepthRows = rowsWithDeltaThem.filter((r) => r.backtestedOutput.deltaThem === 0)
+
   return {
     totalReplays: replays.length,
     totalBacktests: backtests.length,
@@ -148,5 +182,10 @@ export async function computeTradeReplayMetrics(): Promise<TradeReplayMetricsSum
     acceptedTradeProbabilityDistribution: bucketize(acceptedProbs, false),
     avgAcceptedTradeProbability: average(acceptedProbs),
     leagueSettingsSensitivity,
+    deltaThemDistribution: bucketizeDeltaThem(rowsWithDeltaThem.map((r) => r.backtestedOutput.deltaThem as number)),
+    starterInvolvedCount: starterInvolvedRows.length,
+    benchDepthCount: benchDepthRows.length,
+    avgPredictedAcceptanceStarterInvolved: average(starterInvolvedRows.map((r) => r.backtestedOutput.acceptProb)),
+    avgPredictedAcceptanceBenchDepth: average(benchDepthRows.map((r) => r.backtestedOutput.acceptProb)),
   }
 }

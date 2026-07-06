@@ -33,7 +33,7 @@ function makeReplay(overrides: Partial<{ id: string; providerLeagueId: string; s
   }
 }
 
-function makeBacktest(overrides: Partial<{ replayId: string; acceptProb: number; verdict: string; confidenceScore: number; realOutcome: unknown }> = {}) {
+function makeBacktest(overrides: Partial<{ replayId: string; acceptProb: number; verdict: string; confidenceScore: number; realOutcome: unknown; deltaThem: number | null }> = {}) {
   return {
     replayId: overrides.replayId ?? 'replay-1',
     backtestedOutput: {
@@ -44,6 +44,8 @@ function makeBacktest(overrides: Partial<{ replayId: string; acceptProb: number;
       vorpScore: 0.5,
       marketScore: 0.5,
       behaviorScore: 0.5,
+      hasLineupData: overrides.deltaThem !== undefined,
+      deltaThem: overrides.deltaThem !== undefined ? overrides.deltaThem : null,
     },
     realOutcome: overrides.realOutcome !== undefined ? overrides.realOutcome : { outcome: 'ACCEPTED', providerStatus: 'complete' },
   }
@@ -174,5 +176,69 @@ describe('computeTradeReplayMetrics', () => {
     expect(result.avgPredictedAcceptance).toBeNull()
     expect(result.avgAcceptedTradeProbability).toBeNull()
     expect(result.fairnessDistribution).toEqual({})
+    expect(result.starterInvolvedCount).toBe(0)
+    expect(result.benchDepthCount).toBe(0)
+    expect(result.avgPredictedAcceptanceStarterInvolved).toBeNull()
+    expect(result.avgPredictedAcceptanceBenchDepth).toBeNull()
+  })
+
+  it('Phase 9: scopes to a specific set of leagues when providerLeagueIds is passed', async () => {
+    mockReplayImportFindMany.mockResolvedValue([makeReplay({ id: 'r1', providerLeagueId: 'league-a' })])
+    mockBacktestResultFindMany.mockResolvedValue([makeBacktest({ replayId: 'r1' })])
+
+    await computeTradeReplayMetrics(['league-a', 'league-b'])
+
+    const replayCallArg = mockReplayImportFindMany.mock.calls[0][0]
+    expect(replayCallArg.where.providerLeagueId).toEqual({ in: ['league-a', 'league-b'] })
+    const backtestCallArg = mockBacktestResultFindMany.mock.calls[0][0]
+    expect(backtestCallArg.where.replay.providerLeagueId).toEqual({ in: ['league-a', 'league-b'] })
+  })
+
+  it('Phase 9: does not scope by league when providerLeagueIds is omitted (unchanged default behavior)', async () => {
+    mockReplayImportFindMany.mockResolvedValue([makeReplay()])
+    mockBacktestResultFindMany.mockResolvedValue([makeBacktest()])
+
+    await computeTradeReplayMetrics()
+
+    const replayCallArg = mockReplayImportFindMany.mock.calls[0][0]
+    expect(replayCallArg.where.providerLeagueId).toBeUndefined()
+  })
+
+  it('Phase 9: classifies trades as starter-involved (deltaThem !== 0) vs bench-depth (deltaThem === 0)', async () => {
+    mockReplayImportFindMany.mockResolvedValue([
+      makeReplay({ id: 'r1' }), makeReplay({ id: 'r2' }), makeReplay({ id: 'r3' }),
+    ])
+    mockBacktestResultFindMany.mockResolvedValue([
+      makeBacktest({ replayId: 'r1', deltaThem: 0, acceptProb: 0.2 }),
+      makeBacktest({ replayId: 'r2', deltaThem: 0, acceptProb: 0.3 }),
+      makeBacktest({ replayId: 'r3', deltaThem: 3.5, acceptProb: 0.6 }),
+    ])
+
+    const result = await computeTradeReplayMetrics()
+
+    expect(result.benchDepthCount).toBe(2)
+    expect(result.starterInvolvedCount).toBe(1)
+    expect(result.avgPredictedAcceptanceBenchDepth).toBeCloseTo(0.25, 5)
+    expect(result.avgPredictedAcceptanceStarterInvolved).toBe(0.6)
+  })
+
+  it('Phase 9: buckets deltaThem by magnitude, including zero and negative values', async () => {
+    mockReplayImportFindMany.mockResolvedValue([
+      makeReplay({ id: 'r1' }), makeReplay({ id: 'r2' }), makeReplay({ id: 'r3' }), makeReplay({ id: 'r4' }),
+    ])
+    mockBacktestResultFindMany.mockResolvedValue([
+      makeBacktest({ replayId: 'r1', deltaThem: 0 }),
+      makeBacktest({ replayId: 'r2', deltaThem: -1.65 }),
+      makeBacktest({ replayId: 'r3', deltaThem: 6 }),
+      makeBacktest({ replayId: 'r4', deltaThem: 12 }),
+    ])
+
+    const result = await computeTradeReplayMetrics()
+
+    const byBucket = Object.fromEntries(result.deltaThemDistribution.map((b) => [b.bucket, b.count]))
+    expect(byBucket['zero']).toBe(1)
+    expect(byBucket['0 to 2 (abs)']).toBe(1)
+    expect(byBucket['5 to 10 (abs)']).toBe(1)
+    expect(byBucket['10+ (abs)']).toBe(1)
   })
 })

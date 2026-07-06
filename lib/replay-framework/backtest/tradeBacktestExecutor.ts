@@ -21,10 +21,25 @@ import { mapSleeperStatusToOutcome } from '../normalize/sleeperTradeNormalizer'
 
 function toAssets(items: TradeReplayPayload['assetsGiven']): Asset[] {
   return items.map((item, idx) => ({
-    id: `replay-${idx}`,
+    // Phase 9 fix: the real, stable providerAssetId (Sleeper player ID or
+    // deterministic pick ID) must be used here, matching whatever ID the
+    // SAME real player carries in the roster-context arrays below —
+    // computeLineupDelta() matches give/receive against the roster by
+    // Asset.id, so two disjoint synthetic ID namespaces (this function's
+    // old `replay-${idx}` vs. toRosterAssets()'s old `roster-${idx}`) meant
+    // the traded player was never actually recognized as present in the
+    // roster, so it was never removed from the "after" lineup computation.
+    // Falls back to a synthetic ID only if providerAssetId is somehow
+    // missing (rows written before this fix), preserving old behavior.
+    id: item.providerAssetId ?? `replay-${idx}`,
     type: item.type === 'pick' ? 'PICK' : 'PLAYER',
     value: item.value,
     name: item.name,
+    // pos (Phase 9) — required for computeBestLineupPPG()'s player filter;
+    // computeLineupDelta() appends give/receive directly into the "after"
+    // roster arrays, so without a real pos an incoming player was silently
+    // invisible to the lineup calculation (see TradeReplayPayload's docstring).
+    pos: item.pos,
     // vorpValue (Phase 7) — required for computeTradeDrivers()'s hasVorpData
     // gate; 0/undefined for any asset that didn't resolve one (picks, or
     // players that failed to match FantasyCalc), matching this pipeline's
@@ -35,7 +50,7 @@ function toAssets(items: TradeReplayPayload['assetsGiven']): Asset[] {
 
 function toRosterAssets(items: TradeReplayPayload['proposerRoster']): Asset[] {
   return (items ?? []).map((item, idx) => ({
-    id: `roster-${idx}`,
+    id: item.providerAssetId ?? `roster-${idx}`,
     type: item.type === 'pick' ? 'PICK' : 'PLAYER',
     value: item.value,
     name: item.name,
@@ -98,6 +113,11 @@ export async function runTradeBacktest(input: TradeBacktestInput): Promise<Backt
     vorpScore: drivers.vorpScore,
     marketScore: drivers.marketScore,
     behaviorScore: drivers.behaviorScore,
+    // Additive (Phase 9) — the real signal Phase 8 found genuinely feeds
+    // acceptProbability (unlike vorpDeltaThem), persisted for corpus-
+    // composition analysis (starter-involved vs. bench-depth trades).
+    hasLineupData: drivers.lineupDelta?.hasLineupData ?? false,
+    deltaThem: drivers.lineupDelta?.deltaThem ?? null,
   }
 
   // Per the ADR's exclusion (§4): a real outcome is only settled once the

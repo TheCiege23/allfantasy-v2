@@ -204,6 +204,57 @@ Not fixing the dead parameters — expanding the real-data evidence base first: 
 
 ---
 
+## 11. Phase 9 — Corpus Expansion + Two Confirmed Replay-Pipeline Bugs: the low-acceptance clustering was substantially a pipeline artifact
+
+Phase 8 (§10) concluded `deltaThem = 0` for 5 of 6 sampled real trades was "a genuine property of the real trade population, not a broken pipeline." **This phase found that conclusion itself was confounded by two real bugs in the replay pipeline's own glue code** (never in `computeTradeDrivers()`, which was not modified) — both were found, fixed, and the fix was verified against real staging data before treating the new numbers as authoritative.
+
+### 11.1 Corpus expansion
+
+5 real Sleeper leagues were added to the original 3 (found via `settings.type` reconnaissance: `0`/`1` = redraft/keeper, `2` = dynasty — chosen because keeper/redraft rosters turn over far more than dynasty depth-hoarding, making non-zero `deltaThem` more likely): `$20 Pirate League` (64 trades), `Pirate League!` (83), `Jeepers Keepers!` (20), `KGBs On The Spectrum SF League` (17), `Beta 1 Zombie League` (16, true redraft). Total corpus: **38 → 238 real trades**, ingested via the same idempotent flow as Phase 4.
+
+### 11.2 Bug 1 — Asset-ID namespace mismatch (found first, while building this expansion's comparison tooling)
+
+`tradeBacktestExecutor.ts`'s `toAssets()` (traded assets) and `toRosterAssets()` (roster context) assigned **disjoint synthetic ID namespaces** (`replay-N` vs. `roster-N`) to the same real player depending on which array it appeared in. `computeLineupDelta()` matches give/receive against the roster by `Asset.id` to build the "after" roster — with mismatched IDs, the traded-away player was never recognized as present in the roster (never removed) and the received player was only ever appended, never substituted in place.
+
+**Fix:** threaded the real, stable Sleeper player ID (or a deterministic pick ID for draft picks) through as a new `providerAssetId` field, from the normalizer's `ResolvedAsset` all the way to `Asset.id` construction in the backtest executor — the same ID now used consistently everywhere the same real player appears.
+
+**Honest re-verification after this fix alone:** re-ran the diagnostic against 6 real staging rows — `deltaThem` was **still exactly 0** for all 6. This fix was real and necessary (the "after" roster computation now performs a genuine like-for-like substitution instead of a broken add-only distortion), but did not, by itself, overturn Phase 8's finding.
+
+### 11.3 Bug 2 — `pos` was never threaded onto traded assets (found second, while writing the fix's regression test)
+
+`TradeReplayPayload.assetsGiven`/`assetsReceived` never carried a `pos` field at all — the normalizer resolved it (`ResolvedAsset.pos`) but dropped it when constructing the payload, and the backtest executor's `toAssets()` never set it either. `computeBestLineupPPG()` only counts a player toward the best lineup if `a.pos` is set (`lib/trade-engine/trade-engine.ts` line 379). Since `computeLineupDelta()` appends `give`/`receive` directly into the "after" roster arrays, **every incoming player was structurally invisible to the lineup calculation** — the "after" roster could only ever lose value (from the departing player) or stay flat, never gain from the player being received. This alone is sufficient to explain a persistent bias toward `deltaThem <= 0` regardless of corpus composition.
+
+**Fix:** added `pos?: string` to `TradeReplayPayload`'s asset shapes, threaded through the normalizer's payload construction and the executor's `toAssets()`, mirroring the `providerAssetId` fix.
+
+**Verified end-to-end against the real, unmocked engine** (`__tests__/replay-framework/tradeBacktestExecutor.idConsistency.test.ts`, 2 tests): a real substitution (an elite player replacing a bench player at the matching roster ID) now produces a real, positive `deltaThem`; a genuine like-for-like swap (identical value/position) produces exactly `0` — proving the fix reflects reality rather than introducing a new artifact in either direction.
+
+### 11.4 Full re-ingestion with the fixed pipeline — the corrected numbers
+
+All 8 leagues were re-ingested in place (idempotent, same natural keys) with the fully-fixed pipeline, backfilling corrected `providerAssetId`/`pos`-bearing payloads and corrected `deltaThem`/`hasLineupData` backtest output onto all 238 rows.
+
+| Metric | Original 3 leagues (38, pre-fix, Phase 8) | Original 3 leagues (38, post-fix) | New 5 leagues (200, post-fix) | Combined (238, post-fix) |
+|---|---|---|---|---|
+| Avg predicted acceptance | 0.2566 | **0.3468** | 0.3740 | 0.3697 |
+| `deltaThem` = 0 (bench-depth) | ~100% (5/6 sampled) | 27/38 (71%) | 121/200 (61%) | 148/238 (62%) |
+| `deltaThem` ≠ 0 (starter-involved) | ~0% | 11/38 (29%) | 79/200 (40%) | 90/238 (38%) |
+| Avg acceptance, starter-involved | n/a (channel inert) | 0.55 | 0.57 | **0.5696** |
+| Avg acceptance, bench-depth | n/a | 0.264 | 0.245 | **0.2482** |
+| Fairness: Major Overpay | 0 (Phase 7, "disappeared entirely") | 2 | 16 | 18 |
+
+### 11.5 Answer to Phase 9's core question
+
+**Both, but not symmetrically — the original "uniformly low, clustered ~0.26" finding was substantially a pipeline artifact, not a real property of the trade population.** Once both bugs were fixed:
+
+- **The lineup-delta channel is real, functional, and meaningfully influences `acceptProb`** — starter-involved trades score **~2.3x higher** predicted acceptance (0.57) than bench-depth trades (0.25), a large, consistent gap across both the original dynasty-heavy corpus and the newly-added keeper/redraft leagues. This directly contradicts Phase 8's characterization of the lineup channel finding as merely confirming a flat, inert population — the channel was inert in the data Phase 8 measured because that data was itself broken (Bug 2), not because the channel doesn't respond to real signal.
+- **Corpus composition still matters, but less than expected:** even in leagues deliberately selected for likely lineup turnover (keeper/redraft, not dynasty), the majority of real trades (61%) are still bench-depth (`deltaThem = 0`) — most real fantasy trades, in any format, are throwaway/depth moves, not blockbuster starter-for-starter swaps. The corpus-composition hypothesis is confirmed as a real, contributing factor, just not as the dominant single explanation Phase 9 set out to test in isolation.
+- **`vorpDeltaThem`/`behaviorScore`/`marketScore` remain genuinely dead parameters** (Phase 8 §10.1 fact 1 is untouched by this phase's findings — that was a pure source-code inspection, not measurement-dependent).
+
+### 11.6 Recommended Phase 10
+
+Given the lineup-delta channel is now confirmed both functional and meaningful, and a genuine ~38% starter-involved / 62% bench-depth split exists in real data: the natural next step is deciding whether to fold VORP into `acceptProbability` (Phase 8 §10.3's proposed additive `x8`/`w8` term) now has a real, non-confounded empirical basis to justify or reject it — this was not true before this phase, since the measurement instrument itself was broken. This remains a model-change decision requiring its own explicit approval and ADR, not something this phase authorizes.
+
+---
+
 ## Files changed in this session
 
 - `lib/replay-framework/metrics/tradeReplayMetrics.ts` (Phase 5, new)
@@ -218,6 +269,12 @@ Not fixing the dead parameters — expanding the real-data evidence base first: 
 - `__tests__/replay-framework/vorpResolver.test.ts` (Phase 7, new, 6 tests)
 - `docs/TRADE_ENGINE_ACCEPT_PROBABILITY_ARCHITECTURE_NOTE.md` (Phase 8, new — the full architectural note)
 - `__tests__/trade-engine/accept-prob-vorp-lineup-separation.test.ts` (Phase 8, new, 3 tests against the real, unmocked trade-engine)
-- `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (updated with a pointer to this report)
+- `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (updated with a pointer to this report; Phase 9 — updated again with §10.9)
+- `lib/replay-framework/types.ts` (Phase 9 — additive: `providerAssetId` on `TradeReplayRosterAsset`/`TradeReplayPayload` assets; `pos` on `TradeReplayPayload`'s `assetsGiven`/`assetsReceived`; `hasLineupData`/`deltaThem` on `TradeBacktestOutput`)
+- `lib/replay-framework/normalize/sleeperTradeNormalizer.ts` (Phase 9 — threads `providerAssetId` and `pos` through payload construction)
+- `lib/replay-framework/backtest/tradeBacktestExecutor.ts` (Phase 9 — fixes `toAssets()`/`toRosterAssets()` to use `providerAssetId` and `pos`; persists `hasLineupData`/`deltaThem`)
+- `lib/replay-framework/metrics/tradeReplayMetrics.ts` (Phase 9 — adds `providerLeagueIds` filter parameter, `deltaThemDistribution`, starter-involved/bench-depth breakdown)
+- `__tests__/replay-framework/tradeReplayMetrics.test.ts` (Phase 9 — 4 new tests)
+- `__tests__/replay-framework/tradeBacktestExecutor.idConsistency.test.ts` (Phase 9, new, 2 tests against the real, unmocked trade-engine, proving both bug fixes end-to-end)
 
-No trade-engine file was modified at any phase. No calibration math, threshold, or weight was changed. No database (staging or production) was written to — only read-only aggregate/diagnostic queries were run (Phase 8's diagnostic script re-computed `computeTradeDrivers()` in-process against already-staged real data, no new rows written). `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.
+No trade-engine file was modified at any phase. No calibration math, threshold, or weight was changed. Phase 9 re-ingested all 8 leagues (238 rows) into `ReplayImport`/`ReplayBacktestResult` only, via the same idempotent flow already used and approved in Phase 4/9 — `TradeOfferEvent`/`TradeOutcomeEvent`/`TradeLearningStats` counts remained `0` after. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.

@@ -33,6 +33,7 @@ interface ResolvedAsset {
   type: 'player' | 'pick'
   pos?: string
   vorpValue?: number
+  providerAssetId: string
 }
 
 function resolveDropOrAddAsset(
@@ -56,6 +57,10 @@ function resolveDropOrAddAsset(
     // FantasyCalc, matching this pipeline's established graceful-fallback
     // convention (never fabricated, never blocks the rest of the trade).
     vorpValue: resolvePlayerVorp(fc, rosterConfig, fcPlayers),
+    // The stable, real Sleeper player ID (Phase 9) — see TradeReplayRosterAsset's
+    // docstring in ../types.ts for why this must be threaded through
+    // consistently rather than assigned a fresh synthetic ID downstream.
+    providerAssetId: playerId,
   }
 }
 
@@ -76,7 +81,7 @@ function resolveFullRoster(
   if (!roster) return []
   return (roster.players ?? []).map((playerId) => {
     const asset = resolveDropOrAddAsset(playerId, players, fcPlayers, rosterConfig)
-    return { name: asset.name, value: asset.value, type: asset.type, pos: asset.pos, vorpValue: asset.vorpValue }
+    return { name: asset.name, value: asset.value, type: asset.type, pos: asset.pos, vorpValue: asset.vorpValue, providerAssetId: asset.providerAssetId }
   })
 }
 
@@ -84,7 +89,12 @@ function resolvePickAsset(pick: SleeperTransaction['draft_picks'][number], isDyn
   const season = Number(pick.season)
   const round = pick.round
   const value = Number.isFinite(season) && Number.isFinite(round) ? getPickValue(season, round, isDynasty) : REPLAY_FALLBACK_VALUE
-  return { name: `${pick.season} Round ${pick.round} pick`, value, type: 'pick' }
+  // Deterministic pick identifier — stable across the give/receive vs.
+  // roster-context boundary the same way a real player ID is, though picks
+  // never appear in `proposerRoster`/`counterpartyRoster` (those are built
+  // from Sleeper's own `roster.players`, which lists players only).
+  const providerAssetId = `pick-${pick.season}-r${pick.round}-${pick.roster_id}`
+  return { name: `${pick.season} Round ${pick.round} pick`, value, type: 'pick', providerAssetId }
 }
 
 /** Normalizes Sleeper's `complete`|`pending`|`failed` into our own trade-outcome vocabulary, per docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md Decision 2's mapping convention (reused, not reinvented). */
@@ -166,8 +176,8 @@ export function normalizeSleeperTrade(input: {
     : []
 
   const payload: TradeReplayPayload = {
-    assetsGiven: given.map((a) => ({ name: a.name, value: a.value, type: a.type, vorpValue: a.vorpValue })),
-    assetsReceived: received.map((a) => ({ name: a.name, value: a.value, type: a.type, vorpValue: a.vorpValue })),
+    assetsGiven: given.map((a) => ({ name: a.name, value: a.value, type: a.type, pos: a.pos, vorpValue: a.vorpValue, providerAssetId: a.providerAssetId })),
+    assetsReceived: received.map((a) => ({ name: a.name, value: a.value, type: a.type, pos: a.pos, vorpValue: a.vorpValue, providerAssetId: a.providerAssetId })),
     proposerRoster: proposerRoster.length > 0 ? proposerRoster : undefined,
     counterpartyRoster: counterpartyRoster.length > 0 ? counterpartyRoster : undefined,
   }
