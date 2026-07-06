@@ -219,6 +219,10 @@ Measured directly, immediately after the real ingestion run: `TradeOfferEvent` c
 
 Unlike Trade Learning's live-capture validation runs (Phase 9, Phase 11), which used clearly-synthetic, isolated test leagues explicitly deleted afterward to keep the *real calibration pool* uncontaminated for a later organic-volume measurement, this replay data is real, genuinely useful, and structurally incapable of contaminating anything — it lives in its own tables, has no bearing on `computeShadowB0()`/`calibratedB0`, and is intentionally meant to accumulate into an ongoing validation corpus over time. It was left in staging.
 
+### 10.5 Validation metrics (Phase 5)
+
+A read-only metrics module (`lib/replay-framework/metrics/tradeReplayMetrics.ts`) was built and run against this real data — full analysis in `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md`. Headline finding: real accepted trades in this corpus cluster at a striking 20–30% predicted acceptance (avg 0.2566 across all 38), a genuine signal worth investigating further, but one confounded by three structural factors specific to this replay pipeline (survivorship bias — only `complete` trades are ever observed; no roster/lineup context during backtesting; present-day valuations applied to historical trades) rather than clear evidence of trade-engine miscalibration. See the report for the full breakdown and honest caveats.
+
 ---
 
 ## Files changed in this session
