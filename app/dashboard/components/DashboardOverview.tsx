@@ -34,8 +34,10 @@ import { TodayTimeline } from './warroom/TodayTimeline'
 import { MyLeagueCard, rawStage } from './warroom/MyLeagueCard'
 import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
 import { CommissionerHub } from './warroom/CommissionerHub'
+import { CommissionerHQ } from './warroom/CommissionerHQ'
 import { CoachNotes } from './warroom/CoachNotes'
 import { DashboardHero } from './warroom/DashboardHero'
+import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -59,6 +61,9 @@ type DashboardOverviewProps = {
   onOpenChimmy: () => void
   /** SSR snapshot of `/api/user/rank` — rankings card renders without a client fetch round-trip. */
   initialUserRankPayload?: Record<string, unknown> | null
+  /** SSR snapshot of `getCommissionerHubHealthForUser` (Phase 2.3 Commissioner HQ) — one entry
+   *  per commissioned league, same engine as the real `/commissioner-hub` page. */
+  initialCommissionerHealthSnapshots?: CommissionerLeagueHealthSnapshot[] | null
 }
 
 function getDefaultOnboardingState(): OnboardingState {
@@ -107,6 +112,7 @@ export function DashboardOverview({
   onTriggerImport,
   onOpenChimmy: _onOpenChimmy,
   initialUserRankPayload = null,
+  initialCommissionerHealthSnapshots = null,
 }: DashboardOverviewProps) {
   const router = useRouter()
   const { t, tInterpolate } = useLanguage()
@@ -604,10 +610,22 @@ export function DashboardOverview({
   ) : null
 
   const commissionerHubSection = (
-    // Self-gates to nothing when the viewer commissions no league. The fuller Command Center
-    // (alerts, pending approvals, playoff setup, etc.) is Phase 2.3 scope per the architecture doc.
+    // Global's condensed cross-league list — unchanged from Phase 2.1/2.2. Commissioner Focus
+    // uses the richer, single-league commissionerHQSection below instead (Phase 2.3).
     <CommissionerHub key="commissionerHub" leagues={leagues} />
   )
+
+  /** Dashboard V2 Phase 2.3 — Commissioner HQ. Only rendered in Commissioner Focus, for the one
+   *  selected (commissioned) league. Falls back to a snapshot-less card (still real deep links,
+   *  just no health/recommendations) if the SSR snapshot doesn't include this league yet. */
+  const commissionerHQSection =
+    context === 'commissioner' && selectedLeague ? (
+      <CommissionerHQ
+        key="commissionerHQ"
+        league={selectedLeague}
+        snapshot={initialCommissionerHealthSnapshots?.find((s) => s.leagueId === selectedLeague.id) ?? null}
+      />
+    ) : null
 
   const weeklyGamePlanSection = (
     <CoachNotes key="weeklyGamePlan" lineupActions={lineupData?.actions ?? []} pendingTrades={tradeData?.trades ?? []} />
@@ -656,7 +674,7 @@ export function DashboardOverview({
       leagueBuzzSection,
     ],
     commissioner: [
-      commissionerHubSection,
+      commissionerHQSection,
       myLeaguesSection,
       todaysAgendaSection,
       weeklyGamePlanSection,

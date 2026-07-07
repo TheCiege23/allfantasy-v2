@@ -8,6 +8,7 @@ import { useGeoRestriction } from '@/lib/geo/useGeoRestriction'
 import { DEFAULT_SPORT, normalizeToSupportedSport } from '@/lib/sport-scope'
 import AppShell from '@/app/components/AppShell'
 import type { DashboardLeagueListPayload } from '@/lib/dashboard/get-dashboard-league-list'
+import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import { DashboardOverview } from './components/DashboardOverview'
 import { DraftRoomOverlay } from './components/DraftRoomOverlay'
 import { LeftChatPanel } from './components/LeftChatPanel'
@@ -39,6 +40,9 @@ type DashboardShellProps = {
   initialLeagueList?: DashboardLeagueListPayload | null
   /** From dashboard RSC — rankings card + tier badge hydrate from same payload as `/api/user/rank`. */
   initialUserRankPayload?: Record<string, unknown> | null
+  /** From dashboard RSC — Commissioner HQ (Phase 2.3) hydrates from the same health/actions/
+   *  recommendations engine as the real `/commissioner-hub` page, one snapshot per commissioned league. */
+  initialCommissionerHealthSnapshots?: CommissionerLeagueHealthSnapshot[] | null
 }
 
 type DraftOverlayState = {
@@ -387,6 +391,7 @@ export function DashboardShell({
   discordConnected = false,
   initialLeagueList = null,
   initialUserRankPayload = null,
+  initialCommissionerHealthSnapshots = null,
 }: DashboardShellProps) {
   const { t } = useLanguage()
   const router = useRouter()
@@ -812,6 +817,7 @@ export function DashboardShell({
               onTriggerImport={handleTriggerImport}
               onOpenChimmy={handleOpenChimmy}
               initialUserRankPayload={initialUserRankPayload}
+              initialCommissionerHealthSnapshots={initialCommissionerHealthSnapshots}
             />
           )}
         </div>

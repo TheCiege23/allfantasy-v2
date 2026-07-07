@@ -13,6 +13,8 @@ import {
 import { isAppRouterRedirectError } from '@/lib/next/is-app-router-redirect-error'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
 import { fetchUserRankJsonForDashboardSSR } from '@/lib/dashboard/fetch-user-rank-ssr'
+import { getCommissionerHubHealthForUser } from '@/lib/commissioner-hub/commissionerHubHealth'
+import type { UserLeague } from './types'
 import { DashboardShell } from './DashboardShell'
 
 export const dynamic = 'force-dynamic'
@@ -95,6 +97,20 @@ export default async function DashboardPage() {
       email: sessionUser.email,
     })
 
+    // Dashboard V2 Phase 2.3 — Commissioner HQ reuses the same health/recommendations/actions
+    // engine as the real /commissioner-hub page (getCommissionerHubHealthForUser), rather than
+    // a new query, so this is a snapshot-per-commissioned-league sourced identically to the
+    // deep-dive destination it links out to.
+    const initialCommissionerHealthSnapshots = initialLeagueList
+      ? await getCommissionerHubHealthForUser(
+          userId,
+          initialLeagueList.leagues as unknown as UserLeague[],
+        ).catch((err: unknown) => {
+          console.error('[dashboard] commissioner health prefetch failed:', err)
+          return null
+        })
+      : null
+
     return (
       <DashboardShell
         userId={userId}
@@ -104,6 +120,7 @@ export default async function DashboardPage() {
         discordConnected={Boolean(userProfile?.discordUserId)}
         initialLeagueList={initialLeagueList ?? undefined}
         initialUserRankPayload={initialUserRankPayload ?? undefined}
+        initialCommissionerHealthSnapshots={initialCommissionerHealthSnapshots ?? undefined}
       />
     )
   } catch (error) {
