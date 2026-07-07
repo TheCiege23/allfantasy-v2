@@ -2,7 +2,7 @@
 
 import { CalendarClock } from 'lucide-react'
 import type { UserLeague } from '../../types'
-import { WarRoomCard } from './WarRoomCard'
+import { EmptyState } from './EmptyState'
 import { MatchupPreviewCard } from './MatchupPreviewCard'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
@@ -23,19 +23,14 @@ export function TeamThisWeek({ league, userId }: { league: UserLeague; userId: s
   const { t } = useLanguage()
 
   const emptyState = (
-    <WarRoomCard className="flex items-start gap-3 p-4" accentBorder="rgba(34,211,238,0.14)">
-      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-cyan-500/10 text-cyan-300/70">
-        <CalendarClock className="h-4 w-4" aria-hidden />
-      </span>
-      <div className="min-w-0">
-        <p className="text-[13px] font-semibold text-white/80">
-          {t('dashboard.warroom.teamThisWeek.emptyTitle')}
-        </p>
-        <p className="mt-0.5 text-[11px] leading-snug text-white/40">
-          {t('dashboard.warroom.teamThisWeek.emptyDesc')}
-        </p>
-      </div>
-    </WarRoomCard>
+    <EmptyState
+      icon={CalendarClock}
+      tone="info"
+      align="start"
+      title={t('dashboard.warroom.teamThisWeek.emptyTitle')}
+      description={t('dashboard.warroom.teamThisWeek.emptyDesc')}
+      hint={t('dashboard.warroom.teamThisWeek.emptyHint')}
+    />
   )
 
   // Pre-season leagues have no matchup at all — show the empty state directly (no wasted fetch).
