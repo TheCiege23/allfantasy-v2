@@ -1,5 +1,5 @@
 /**
- * Decision OS Replay Framework Phase 15 — Decision Replay Correlation.
+ * Decision OS Replay Framework Phase 15-16 — Decision Replay Correlation.
  * Read-only: joins the ALREADY-INGESTED Trade Replay and Lineup Replay
  * corpora for leagues that appear in both, using each real, stable
  * `providerAssetId` (Phase 9's trade fix; Phase 13's lineup convention) to
@@ -21,6 +21,11 @@
  * (`Date.UTC(season, 8, 1) + week * 7 days`), inverted. This is an honest
  * approximation, not an exact week number, and is documented as such
  * everywhere it's used.
+ *
+ * Phase 16 additions (per docs/DECISION_OS_DECISION_REPLAY_CORRELATION_REPORT.md
+ * §9's recommendation): roster-churn classification (resolving Phase 15
+ * §6's zero-appearance ambiguity) and a matched-window before/after
+ * comparison (resolving Phase 15 §5's seasonal-confound caveat).
  */
 import { prisma } from '@/lib/prisma'
 import type { LineupBacktestOutput, LineupReplayPayload, TradeBacktestOutput, TradeReplayPayload } from '../types'
@@ -32,6 +37,9 @@ function approximateWeekFromDate(season: number, date: Date): number {
   const weeks = (date.getTime() - seasonStart) / (7 * 24 * 60 * 60 * 1000)
   return Math.max(1, Math.min(18, Math.round(weeks)))
 }
+
+/** Matched before/after window width (real NFL weeks), per Phase 15 §5/§9's recommendation to remove the season-long seasonal confound. */
+const MATCHED_WINDOW_WEEKS = 3
 
 interface TradeRow {
   id: string
@@ -52,15 +60,49 @@ interface LineupRow {
   backtestedOutput: LineupBacktestOutput
 }
 
+/**
+ * Resolves the real cause behind an acquired player's post-trade lineup
+ * history, per Phase 16's roster-churn refinement:
+ * - `draft_pick`: never has lineup appearances by construction (not a real
+ *   rosterable player in Sleeper's matchup data) — not a churn signal at all.
+ * - `insufficient_week_coverage`: the receiving roster has NO real lineup
+ *   rows at or after the trade week at all — a data-availability gap (the
+ *   trade happened too late in the season to observe anything), not
+ *   evidence the team never used the player.
+ * - `churned_away`: the roster DOES have real post-trade lineup rows, but
+ *   this specific player never appears in any of them — real evidence they
+ *   were dropped or re-traded before ever being usable on this roster.
+ * - `retained_but_unused`: the player appears in the roster's real lineup
+ *   history at least once, but was never actually started — the genuine
+ *   "wasted acquisition" case.
+ * - `active`: appeared and was started at least once.
+ */
+export type AcquiredPlayerStatus = 'active' | 'retained_but_unused' | 'churned_away' | 'insufficient_week_coverage' | 'draft_pick'
+
 export interface AcquiredPlayerImpact {
   providerAssetId: string
   name: string
+  status: AcquiredPlayerStatus
   lineupAppearances: number
   starterAppearances: number
   optimalAppearances: number
   wastedOptimalAppearances: number
   totalPointsContributed: number
   totalPointsWhileStarted: number
+}
+
+export interface MatchedWindowResult {
+  weeksPerSide: number
+  weeksAvailableBefore: number
+  weeksAvailableAfter: number
+  avgEfficiencyBefore: number | null
+  avgEfficiencyAfter: number | null
+  avgPointsLeftOnBenchBefore: number | null
+  avgPointsLeftOnBenchAfter: number | null
+  /** after - before; positive means efficiency improved post-trade. */
+  deltaEfficiency: number | null
+  /** after - before; negative means fewer points were left on the bench post-trade (an improvement). */
+  deltaPointsLeftOnBench: number | null
 }
 
 export interface TradeReplayLineupImpact {
@@ -71,6 +113,8 @@ export interface TradeReplayLineupImpact {
   verdict: string
   acceptProb: number
   confidenceScore: number
+  hasLineupData: boolean
+  deltaThem: number | null
   receivingRosterId: number
   givenUpValue: number
   acquiredPlayers: AcquiredPlayerImpact[]
@@ -84,6 +128,29 @@ export interface TradeReplayLineupImpact {
   benchConversionRate: number | null
   tradeROI: number | null
   lineupROI: number | null
+  /** Real acquired players only — draft picks excluded from all churn counts/rates below. */
+  realAcquiredPlayerCount: number
+  draftPickCount: number
+  activeCount: number
+  retainedButUnusedCount: number
+  churnedAwayCount: number
+  insufficientCoverageCount: number
+  /** (churnedAway + insufficientCoverage) / realAcquiredPlayerCount */
+  zeroAppearanceRate: number | null
+  retainedButUnusedRate: number | null
+  churnedAwayRate: number | null
+  matchedWindow: MatchedWindowResult | null
+}
+
+interface GroupStats {
+  count: number
+  avgTradeROI: number | null
+  avgStarterConversionRate: number | null
+  avgTotalPointsContributed: number | null
+  avgZeroAppearanceRate: number | null
+  avgRetainedButUnusedRate: number | null
+  avgDeltaEfficiency: number | null
+  avgDeltaPointsLeftOnBench: number | null
 }
 
 export interface DecisionReplayCorrelationSummary {
@@ -95,9 +162,27 @@ export interface DecisionReplayCorrelationSummary {
   avgTradeROI: number | null
   avgLineupROI: number | null
   avgTotalPointsContributed: number | null
-  byVerdict: Array<{ verdict: string; count: number; avgTradeROI: number | null; avgStarterConversionRate: number | null; avgTotalPointsContributed: number | null }>
-  byConfidenceTier: Array<{ tier: 'high' | 'low'; threshold: number; count: number; avgTradeROI: number | null; avgStarterConversionRate: number | null; avgTotalPointsContributed: number | null }>
-  /** Roster-level "did the whole roster's real lineup-setting improve after this trade" — aggregated across all trades with data on both sides. */
+  avgZeroAppearanceRate: number | null
+  avgRetainedButUnusedRate: number | null
+  avgChurnedAwayRate: number | null
+  byVerdict: Array<{ verdict: string } & GroupStats>
+  byConfidenceTier: Array<{ tier: 'high' | 'low'; threshold: number } & GroupStats>
+  byFairnessCategory: Array<{ category: 'Win' | 'Fair' | 'Overpay' } & GroupStats>
+  byLineupInvolvement: Array<{ involvement: 'starter_involved' | 'bench_depth' | 'no_lineup_data' } & GroupStats>
+  matchedWindowAggregate: {
+    weeksPerSide: number
+    tradesWithMatchedData: number
+    avgDeltaEfficiency: number | null
+    avgDeltaPointsLeftOnBench: number | null
+  }
+  /**
+   * Retained from Phase 15 for continuity — the naive, all-weeks-before vs.
+   * all-weeks-after comparison, KNOWN to be confounded by the Phase 14
+   * seasonal efficiency trend (see the report's honest caveat). The
+   * matched-window comparison above is the Phase 16 refinement meant to
+   * replace it as the trusted number; this is kept only so a reader
+   * comparing both phases' reports can see the same field.
+   */
   lineupImprovementScore: {
     avgEfficiencyBeforeTrade: number | null
     avgEfficiencyAfterTrade: number | null
@@ -114,6 +199,68 @@ function isOptimal(providerAssetId: string, bt: LineupBacktestOutput, wasActualS
 
 function isWastedOptimal(providerAssetId: string, bt: LineupBacktestOutput): boolean {
   return bt.missedOptimalStarters.some((m) => m.providerAssetId === providerAssetId)
+}
+
+function classifyAcquiredPlayer(
+  isPick: boolean,
+  lineupAppearances: number,
+  starterAppearances: number,
+  rosterHasPostTradeData: boolean,
+): AcquiredPlayerStatus {
+  if (isPick) return 'draft_pick'
+  if (lineupAppearances === 0) return rosterHasPostTradeData ? 'churned_away' : 'insufficient_week_coverage'
+  if (starterAppearances === 0) return 'retained_but_unused'
+  return 'active'
+}
+
+function computeMatchedWindow(rosterAllLineups: LineupRow[], approxWeek: number): MatchedWindowResult {
+  const beforeRows = rosterAllLineups.filter(
+    (l) => l.providerWeek != null && l.providerWeek >= approxWeek - MATCHED_WINDOW_WEEKS && l.providerWeek < approxWeek,
+  )
+  const afterRows = rosterAllLineups.filter(
+    (l) => l.providerWeek != null && l.providerWeek >= approxWeek && l.providerWeek < approxWeek + MATCHED_WINDOW_WEEKS,
+  )
+  const avgEffBefore = average(beforeRows.map((r) => r.backtestedOutput.efficiencyPct))
+  const avgEffAfter = average(afterRows.map((r) => r.backtestedOutput.efficiencyPct))
+  const avgBenchBefore = average(beforeRows.map((r) => r.backtestedOutput.pointsLeftOnBench))
+  const avgBenchAfter = average(afterRows.map((r) => r.backtestedOutput.pointsLeftOnBench))
+
+  return {
+    weeksPerSide: MATCHED_WINDOW_WEEKS,
+    weeksAvailableBefore: beforeRows.length,
+    weeksAvailableAfter: afterRows.length,
+    avgEfficiencyBefore: avgEffBefore,
+    avgEfficiencyAfter: avgEffAfter,
+    avgPointsLeftOnBenchBefore: avgBenchBefore,
+    avgPointsLeftOnBenchAfter: avgBenchAfter,
+    deltaEfficiency: avgEffBefore !== null && avgEffAfter !== null ? Math.round((avgEffAfter - avgEffBefore) * 1000) / 1000 : null,
+    deltaPointsLeftOnBench: avgBenchBefore !== null && avgBenchAfter !== null ? Math.round((avgBenchAfter - avgBenchBefore) * 100) / 100 : null,
+  }
+}
+
+function toFairnessCategory(verdict: string): 'Win' | 'Fair' | 'Overpay' {
+  if (verdict === 'Fair') return 'Fair'
+  if (verdict === 'Overpay Risk' || verdict === 'Major Overpay') return 'Overpay'
+  return 'Win' // Strong Win, Slight Win, Elite Asset Theft
+}
+
+function toLineupInvolvement(t: TradeReplayLineupImpact): 'starter_involved' | 'bench_depth' | 'no_lineup_data' {
+  if (!t.hasLineupData) return 'no_lineup_data'
+  return t.deltaThem !== null && t.deltaThem !== 0 ? 'starter_involved' : 'bench_depth'
+}
+
+function computeGroupStats(group: TradeReplayLineupImpact[]): GroupStats {
+  const matched = group.map((t) => t.matchedWindow).filter((m): m is MatchedWindowResult => m !== null && m.deltaEfficiency !== null)
+  return {
+    count: group.length,
+    avgTradeROI: average(group.map((t) => t.tradeROI).filter((v): v is number => v !== null)),
+    avgStarterConversionRate: average(group.map((t) => t.starterConversionRate).filter((v): v is number => v !== null)),
+    avgTotalPointsContributed: average(group.map((t) => t.totalPointsContributed)),
+    avgZeroAppearanceRate: average(group.map((t) => t.zeroAppearanceRate).filter((v): v is number => v !== null)),
+    avgRetainedButUnusedRate: average(group.map((t) => t.retainedButUnusedRate).filter((v): v is number => v !== null)),
+    avgDeltaEfficiency: average(matched.map((m) => m.deltaEfficiency as number)),
+    avgDeltaPointsLeftOnBench: average(matched.map((m) => m.deltaPointsLeftOnBench as number)),
+  }
 }
 
 /**
@@ -197,10 +344,13 @@ export async function computeDecisionReplayCorrelation(providerLeagueIds: string
 
     const approxWeek = approximateWeekFromDate(trade.season, trade.resolvedAt)
     const key = `${trade.providerLeagueId}::${trade.season}::${receivingRosterId}`
-    const rosterLineups = (lineupsByRoster.get(key) ?? []).filter((l) => (l.providerWeek ?? 0) >= approxWeek)
+    const allRosterLineups = lineupsByRoster.get(key) ?? []
+    const rosterLineups = allRosterLineups.filter((l) => (l.providerWeek ?? 0) >= approxWeek)
+    const rosterHasPostTradeData = rosterLineups.length > 0
 
     const acquiredPlayers: AcquiredPlayerImpact[] = acquired.map((asset) => {
       const providerAssetId = asset.providerAssetId!
+      const isPick = asset.type === 'pick'
       let lineupAppearances = 0
       let starterAppearances = 0
       let optimalAppearances = 0
@@ -225,6 +375,7 @@ export async function computeDecisionReplayCorrelation(providerLeagueIds: string
       return {
         providerAssetId,
         name: asset.name,
+        status: classifyAcquiredPlayer(isPick, lineupAppearances, starterAppearances, rosterHasPostTradeData),
         lineupAppearances,
         starterAppearances,
         optimalAppearances,
@@ -242,6 +393,13 @@ export async function computeDecisionReplayCorrelation(providerLeagueIds: string
     const totalPointsWhileStarted = Math.round(acquiredPlayers.reduce((s, p) => s + p.totalPointsWhileStarted, 0) * 100) / 100
     const givenUpValue = trade.payload.assetsGiven.reduce((s, a) => s + a.value, 0)
 
+    const draftPickCount = acquiredPlayers.filter((p) => p.status === 'draft_pick').length
+    const activeCount = acquiredPlayers.filter((p) => p.status === 'active').length
+    const retainedButUnusedCount = acquiredPlayers.filter((p) => p.status === 'retained_but_unused').length
+    const churnedAwayCount = acquiredPlayers.filter((p) => p.status === 'churned_away').length
+    const insufficientCoverageCount = acquiredPlayers.filter((p) => p.status === 'insufficient_week_coverage').length
+    const realAcquiredPlayerCount = acquiredPlayers.length - draftPickCount
+
     perTradeImpacts.push({
       tradeReplayId: trade.id,
       providerLeagueId: trade.providerLeagueId,
@@ -250,6 +408,8 @@ export async function computeDecisionReplayCorrelation(providerLeagueIds: string
       verdict: trade.backtestedOutput.verdict,
       acceptProb: trade.backtestedOutput.acceptProb,
       confidenceScore: trade.backtestedOutput.confidenceScore,
+      hasLineupData: trade.backtestedOutput.hasLineupData ?? false,
+      deltaThem: trade.backtestedOutput.deltaThem ?? null,
       receivingRosterId,
       givenUpValue,
       acquiredPlayers,
@@ -263,6 +423,16 @@ export async function computeDecisionReplayCorrelation(providerLeagueIds: string
       benchConversionRate: optimalAppearances > 0 ? wastedOptimalAppearances / optimalAppearances : null,
       tradeROI: givenUpValue > 0 ? Math.round((totalPointsWhileStarted / givenUpValue) * 10000) / 10000 : null,
       lineupROI: totalPointsContributed > 0 ? Math.round((totalPointsWhileStarted / totalPointsContributed) * 1000) / 1000 : null,
+      realAcquiredPlayerCount,
+      draftPickCount,
+      activeCount,
+      retainedButUnusedCount,
+      churnedAwayCount,
+      insufficientCoverageCount,
+      zeroAppearanceRate: realAcquiredPlayerCount > 0 ? (churnedAwayCount + insufficientCoverageCount) / realAcquiredPlayerCount : null,
+      retainedButUnusedRate: realAcquiredPlayerCount > 0 ? retainedButUnusedCount / realAcquiredPlayerCount : null,
+      churnedAwayRate: realAcquiredPlayerCount > 0 ? churnedAwayCount / realAcquiredPlayerCount : null,
+      matchedWindow: computeMatchedWindow(allRosterLineups, approxWeek),
     })
   }
 
@@ -274,45 +444,44 @@ export async function computeDecisionReplayCorrelation(providerLeagueIds: string
     list.push(t)
     byVerdictMap.set(t.verdict, list)
   }
-  const byVerdict = Array.from(byVerdictMap.entries()).map(([verdict, group]) => ({
-    verdict,
-    count: group.length,
-    avgTradeROI: average(group.map((t) => t.tradeROI).filter((v): v is number => v !== null)),
-    avgStarterConversionRate: average(group.map((t) => t.starterConversionRate).filter((v): v is number => v !== null)),
-    avgTotalPointsContributed: average(group.map((t) => t.totalPointsContributed)),
-  }))
+  const byVerdict = Array.from(byVerdictMap.entries()).map(([verdict, group]) => ({ verdict, ...computeGroupStats(group) }))
 
   const confidenceValues = withLineupData.map((t) => t.confidenceScore).sort((a, b) => a - b)
-  const medianConfidence = confidenceValues.length > 0
-    ? confidenceValues[Math.floor(confidenceValues.length / 2)]
-    : 0
+  const medianConfidence = confidenceValues.length > 0 ? confidenceValues[Math.floor(confidenceValues.length / 2)] : 0
   const highTier = withLineupData.filter((t) => t.confidenceScore >= medianConfidence)
   const lowTier = withLineupData.filter((t) => t.confidenceScore < medianConfidence)
   const byConfidenceTier: DecisionReplayCorrelationSummary['byConfidenceTier'] = [
-    {
-      tier: 'high',
-      threshold: medianConfidence,
-      count: highTier.length,
-      avgTradeROI: average(highTier.map((t) => t.tradeROI).filter((v): v is number => v !== null)),
-      avgStarterConversionRate: average(highTier.map((t) => t.starterConversionRate).filter((v): v is number => v !== null)),
-      avgTotalPointsContributed: average(highTier.map((t) => t.totalPointsContributed)),
-    },
-    {
-      tier: 'low',
-      threshold: medianConfidence,
-      count: lowTier.length,
-      avgTradeROI: average(lowTier.map((t) => t.tradeROI).filter((v): v is number => v !== null)),
-      avgStarterConversionRate: average(lowTier.map((t) => t.starterConversionRate).filter((v): v is number => v !== null)),
-      avgTotalPointsContributed: average(lowTier.map((t) => t.totalPointsContributed)),
-    },
+    { tier: 'high', threshold: medianConfidence, ...computeGroupStats(highTier) },
+    { tier: 'low', threshold: medianConfidence, ...computeGroupStats(lowTier) },
   ]
 
-  // Roster-level lineup-improvement score: for every (league, season, roster)
-  // that had at least one real trade, compare avg efficiencyPct in the real
-  // lineup rows before vs. after that roster's earliest real trade.
+  const byFairnessCategoryMap = new Map<'Win' | 'Fair' | 'Overpay', TradeReplayLineupImpact[]>()
+  for (const t of withLineupData) {
+    const category = toFairnessCategory(t.verdict)
+    const list = byFairnessCategoryMap.get(category) ?? []
+    list.push(t)
+    byFairnessCategoryMap.set(category, list)
+  }
+  const byFairnessCategory = Array.from(byFairnessCategoryMap.entries()).map(([category, group]) => ({ category, ...computeGroupStats(group) }))
+
+  const byLineupInvolvementMap = new Map<'starter_involved' | 'bench_depth' | 'no_lineup_data', TradeReplayLineupImpact[]>()
+  for (const t of withLineupData) {
+    const involvement = toLineupInvolvement(t)
+    const list = byLineupInvolvementMap.get(involvement) ?? []
+    list.push(t)
+    byLineupInvolvementMap.set(involvement, list)
+  }
+  const byLineupInvolvement = Array.from(byLineupInvolvementMap.entries()).map(([involvement, group]) => ({ involvement, ...computeGroupStats(group) }))
+
+  const matchedTrades = perTradeImpacts
+    .map((t) => t.matchedWindow)
+    .filter((m): m is MatchedWindowResult => m !== null && m.deltaEfficiency !== null && m.deltaPointsLeftOnBench !== null)
+
+  // Retained from Phase 15 (naive, season-confounded comparison) — see
+  // DecisionReplayCorrelationSummary.lineupImprovementScore's docstring.
   const beforeEfficiencies: number[] = []
   const afterEfficiencies: number[] = []
-  const rostersWithTrades = new Map<string, number>() // key -> earliest approx trade week
+  const rostersWithTrades = new Map<string, number>()
   for (const t of perTradeImpacts) {
     const key = `${t.providerLeagueId}::${t.season}::${t.receivingRosterId}`
     const existing = rostersWithTrades.get(key)
@@ -338,8 +507,19 @@ export async function computeDecisionReplayCorrelation(providerLeagueIds: string
     avgTradeROI: average(withLineupData.map((t) => t.tradeROI).filter((v): v is number => v !== null)),
     avgLineupROI: average(withLineupData.map((t) => t.lineupROI).filter((v): v is number => v !== null)),
     avgTotalPointsContributed: average(withLineupData.map((t) => t.totalPointsContributed)),
+    avgZeroAppearanceRate: average(perTradeImpacts.map((t) => t.zeroAppearanceRate).filter((v): v is number => v !== null)),
+    avgRetainedButUnusedRate: average(perTradeImpacts.map((t) => t.retainedButUnusedRate).filter((v): v is number => v !== null)),
+    avgChurnedAwayRate: average(perTradeImpacts.map((t) => t.churnedAwayRate).filter((v): v is number => v !== null)),
     byVerdict,
     byConfidenceTier,
+    byFairnessCategory,
+    byLineupInvolvement,
+    matchedWindowAggregate: {
+      weeksPerSide: MATCHED_WINDOW_WEEKS,
+      tradesWithMatchedData: matchedTrades.length,
+      avgDeltaEfficiency: average(matchedTrades.map((m) => m.deltaEfficiency as number)),
+      avgDeltaPointsLeftOnBench: average(matchedTrades.map((m) => m.deltaPointsLeftOnBench as number)),
+    },
     lineupImprovementScore: {
       avgEfficiencyBeforeTrade: average(beforeEfficiencies),
       avgEfficiencyAfterTrade: average(afterEfficiencies),

@@ -1,9 +1,11 @@
 /**
- * Decision OS Replay Framework Phase 15 — Decision Replay Correlation
+ * Decision OS Replay Framework Phase 15-16 — Decision Replay Correlation
  * coverage. Proves the module is read-only and correctly joins a real
  * trade's acquired players against their subsequent real lineup history on
  * the receiving roster, using `providerAssetId` as the join key (mirroring
- * Phase 9's ID-consistency lesson from Trade Replay).
+ * Phase 9's ID-consistency lesson from Trade Replay). Phase 16 adds
+ * targeted coverage for roster-churn classification (resolving Phase 15's
+ * zero-appearance ambiguity) and the matched before/after window.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 
@@ -222,5 +224,161 @@ describe('computeDecisionReplayCorrelation', () => {
     expect(result.totalTradesConsidered).toBe(0)
     expect(result.avgTradeROI).toBeNull()
     expect(result.lineupImprovementScore.avgEfficiencyBeforeTrade).toBeNull()
+  })
+})
+
+describe('Phase 16 — roster-churn classification', () => {
+  afterEach(() => vi.clearAllMocks())
+
+  it('classifies a draft pick acquisition as draft_pick, never counted toward churn rates', async () => {
+    wireMocks({
+      tradeReplays: [{
+        id: 'trade-1', providerLeagueId: LEAGUE, season: SEASON,
+        resolvedAt: new Date(Date.UTC(2025, 8, 1)),
+        participantsInvolved: [1, 2],
+        payload: {
+          assetsGiven: [{ name: 'Given Player', value: 500, type: 'player', providerAssetId: 'given-1' }],
+          assetsReceived: [{ name: '2026 Round 1 pick', value: 1000, type: 'pick', providerAssetId: 'pick-2026-r1-1' }],
+        },
+      }],
+      tradeBacktests: [makeTradeBacktest()],
+      lineupReplays: [],
+      lineupBacktests: [],
+    })
+
+    const result = await computeDecisionReplayCorrelation([LEAGUE])
+    const impact = result.perTradeImpacts[0]
+
+    expect(impact.acquiredPlayers[0].status).toBe('draft_pick')
+    expect(impact.draftPickCount).toBe(1)
+    expect(impact.realAcquiredPlayerCount).toBe(0)
+    expect(impact.zeroAppearanceRate).toBeNull() // no real players to compute a rate over
+  })
+
+  it('classifies a real player with zero appearances as insufficient_week_coverage when the roster has NO post-trade lineup data at all', async () => {
+    wireMocks({
+      tradeReplays: [makeTradeReplay({ resolvedAt: new Date(Date.UTC(2025, 8, 1 + 17 * 7)) })], // approx week 17 -- very late
+      tradeBacktests: [makeTradeBacktest()],
+      lineupReplays: [], // no lineup data exists at all for this roster
+      lineupBacktests: [],
+    })
+
+    const result = await computeDecisionReplayCorrelation([LEAGUE])
+    const impact = result.perTradeImpacts[0]
+
+    expect(impact.acquiredPlayers[0].status).toBe('insufficient_week_coverage')
+    expect(impact.insufficientCoverageCount).toBe(1)
+    expect(impact.churnedAwayCount).toBe(0)
+    expect(impact.zeroAppearanceRate).toBe(1)
+  })
+
+  it('classifies a real player with zero appearances as churned_away when the roster DOES have post-trade lineup data, just never including this player', async () => {
+    wireMocks({
+      tradeReplays: [makeTradeReplay()],
+      tradeBacktests: [makeTradeBacktest()],
+      lineupReplays: [
+        // real post-trade data exists for this roster, but never includes the acquired player -- real evidence of churn
+        makeLineupReplay({ id: 'l1', week: 2, actualStarterIds: ['someone-else'], fullRoster: [{ providerAssetId: 'someone-else', name: 'Someone Else', pos: ['WR'], actualPoints: 8 }] }),
+      ],
+      lineupBacktests: [makeLineupBacktest({ replayId: 'l1' })],
+    })
+
+    const result = await computeDecisionReplayCorrelation([LEAGUE])
+    const impact = result.perTradeImpacts[0]
+
+    expect(impact.acquiredPlayers[0].status).toBe('churned_away')
+    expect(impact.churnedAwayCount).toBe(1)
+    expect(impact.insufficientCoverageCount).toBe(0)
+    expect(impact.zeroAppearanceRate).toBe(1)
+  })
+
+  it('classifies a player who appears on the roster but is never started as retained_but_unused', async () => {
+    wireMocks({
+      tradeReplays: [makeTradeReplay()],
+      tradeBacktests: [makeTradeBacktest()],
+      lineupReplays: [
+        makeLineupReplay({ id: 'l1', week: 2, actualStarterIds: [], fullRoster: [{ providerAssetId: 'acquired-1', name: 'Acquired Player', pos: ['RB'], actualPoints: 12 }] }),
+      ],
+      lineupBacktests: [makeLineupBacktest({ replayId: 'l1', missedOptimalStarters: [] })],
+    })
+
+    const result = await computeDecisionReplayCorrelation([LEAGUE])
+    const impact = result.perTradeImpacts[0]
+
+    expect(impact.acquiredPlayers[0].status).toBe('retained_but_unused')
+    expect(impact.retainedButUnusedCount).toBe(1)
+    expect(impact.retainedButUnusedRate).toBe(1)
+  })
+
+  it('classifies a player who was started at least once as active', async () => {
+    wireMocks({
+      tradeReplays: [makeTradeReplay()],
+      tradeBacktests: [makeTradeBacktest()],
+      lineupReplays: [makeLineupReplay({ id: 'l1', week: 2, actualStarterIds: ['acquired-1'] })],
+      lineupBacktests: [makeLineupBacktest({ replayId: 'l1' })],
+    })
+
+    const result = await computeDecisionReplayCorrelation([LEAGUE])
+    const impact = result.perTradeImpacts[0]
+
+    expect(impact.acquiredPlayers[0].status).toBe('active')
+    expect(impact.activeCount).toBe(1)
+  })
+})
+
+describe('Phase 16 — matched before/after window', () => {
+  afterEach(() => vi.clearAllMocks())
+
+  it('computes avg efficiency/pointsLeftOnBench in the real weeks immediately before vs. after the trade, not the full season', async () => {
+    wireMocks({
+      tradeReplays: [makeTradeReplay({ resolvedAt: new Date(Date.UTC(2025, 8, 1 + 10 * 7)) })], // approx week 10
+      tradeBacktests: [makeTradeBacktest()],
+      lineupReplays: [
+        // 3 weeks before (7,8,9) -- lower efficiency
+        makeLineupReplay({ id: 'b1', week: 7 }),
+        makeLineupReplay({ id: 'b2', week: 8 }),
+        makeLineupReplay({ id: 'b3', week: 9 }),
+        // far outside the matched window (week 1) -- must NOT be counted in "before"
+        makeLineupReplay({ id: 'far', week: 1 }),
+        // 3 weeks after (10,11,12) -- higher efficiency
+        makeLineupReplay({ id: 'a1', week: 10 }),
+        makeLineupReplay({ id: 'a2', week: 11 }),
+        makeLineupReplay({ id: 'a3', week: 12 }),
+      ],
+      lineupBacktests: [
+        makeLineupBacktest({ replayId: 'b1', efficiencyPct: 0.6 }),
+        makeLineupBacktest({ replayId: 'b2', efficiencyPct: 0.6 }),
+        makeLineupBacktest({ replayId: 'b3', efficiencyPct: 0.6 }),
+        makeLineupBacktest({ replayId: 'far', efficiencyPct: 0.1 }), // would badly skew "before" if wrongly included
+        makeLineupBacktest({ replayId: 'a1', efficiencyPct: 0.9 }),
+        makeLineupBacktest({ replayId: 'a2', efficiencyPct: 0.9 }),
+        makeLineupBacktest({ replayId: 'a3', efficiencyPct: 0.9 }),
+      ],
+    })
+
+    const result = await computeDecisionReplayCorrelation([LEAGUE])
+    const window = result.perTradeImpacts[0].matchedWindow!
+
+    expect(window.weeksAvailableBefore).toBe(3)
+    expect(window.weeksAvailableAfter).toBe(3)
+    expect(window.avgEfficiencyBefore).toBeCloseTo(0.6, 5)
+    expect(window.avgEfficiencyAfter).toBeCloseTo(0.9, 5)
+    expect(window.deltaEfficiency).toBeCloseTo(0.3, 5)
+  })
+
+  it('reports null deltas (not a misleading number) when one side of the window has no real data', async () => {
+    wireMocks({
+      tradeReplays: [makeTradeReplay({ resolvedAt: new Date(Date.UTC(2025, 8, 1)) })], // approx week 1 -- nothing real exists before it
+      tradeBacktests: [makeTradeBacktest()],
+      lineupReplays: [makeLineupReplay({ id: 'a1', week: 1 })],
+      lineupBacktests: [makeLineupBacktest({ replayId: 'a1', efficiencyPct: 0.8 })],
+    })
+
+    const result = await computeDecisionReplayCorrelation([LEAGUE])
+    const window = result.perTradeImpacts[0].matchedWindow!
+
+    expect(window.weeksAvailableBefore).toBe(0)
+    expect(window.avgEfficiencyBefore).toBeNull()
+    expect(window.deltaEfficiency).toBeNull()
   })
 })
