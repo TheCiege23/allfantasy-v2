@@ -83,6 +83,8 @@ export function MatchupPreviewCard({
   const oppProj = iAmA ? mine.projB : mine.projA
   const myWinProb = Math.round((iAmA ? mine.winProbA : 1 - mine.winProbA) * 100)
   const Trend = myWinProb >= 50 ? TrendingUp : TrendingDown
+  // Phase 3.2 — projected margin (current status, not momentum: win-prob has no stored history).
+  const projMargin = Math.round((myProj - oppProj) * 10) / 10
 
   return (
     <WarRoomCard className="warroom-fade-in-stagger p-4" accentBorder="rgba(34,211,238,0.18)">
@@ -107,7 +109,18 @@ export function MatchupPreviewCard({
 
       <div className="mt-3">
         <div className="mb-1 flex items-center justify-between text-[10px] text-white/40">
-          <span>{t('dashboard.warroom.matchup.winProbability')}</span>
+          <span className="flex items-center gap-1.5">
+            {t('dashboard.warroom.matchup.winProbability')}
+            <span
+              className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold ${
+                projMargin >= 0 ? 'bg-emerald-500/10 text-emerald-300' : 'bg-red-500/10 text-red-300'
+              }`}
+            >
+              {tInterpolate('dashboard.warroom.matchup.projMargin', {
+                margin: `${projMargin >= 0 ? '+' : ''}${projMargin.toFixed(1)}`,
+              })}
+            </span>
+          </span>
           <span className="font-semibold text-white/70">{myWinProb}%</span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
