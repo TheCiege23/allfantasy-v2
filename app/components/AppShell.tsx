@@ -36,6 +36,13 @@ export type AppShellProps = {
   embedCenterOnly?: boolean
   /** Desktop shell preset. Balanced uses adjacent 40/35/25 columns for league/dashboard views. */
   layoutMode?: 'legacy-rail-clamp' | 'balanced-three-panel'
+  /**
+   * Drop the permanent left chat rail entirely (balanced-three-panel only) so the center workspace
+   * reclaims that column — for surfaces that move chat into a floating/on-demand panel instead
+   * (Dashboard V2 Phase 2.5). Default false: every existing consumer keeps the left rail unchanged.
+   * When true, `leftPanel` is ignored and the left `<aside>` is not rendered.
+   */
+  hideLeftRail?: boolean
 }
 
 /**
@@ -51,6 +58,10 @@ const BALANCED_COLS = {
   rightOnly:  'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,35fr)_3rem]',
   // both collapsed
   none:       'md:[grid-template-columns:3rem_minmax(0,1fr)_3rem]',
+  // hideLeftRail: no chat column — workspace + My Leagues only (Phase 2.5 floating comms).
+  noLeftBoth: 'md:[grid-template-columns:minmax(0,1fr)_minmax(240px,25fr)]',
+  // hideLeftRail + right collapsed: workspace full width + slim My Leagues strip.
+  noLeftRightCollapsed: 'md:[grid-template-columns:minmax(0,1fr)_3rem]',
 }
 
 /**
@@ -72,6 +83,7 @@ export default function AppShell({
   rootClassName,
   embedCenterOnly = false,
   layoutMode = 'legacy-rail-clamp',
+  hideLeftRail = false,
 }: AppShellProps) {
   if (embedCenterOnly) {
     return (
@@ -101,6 +113,7 @@ export default function AppShell({
 
   // Use static class literals so Tailwind's JIT scanner can detect all variants.
   const balancedDesktopColumns = !balancedDesktopLayout ? '' :
+    hideLeftRail ? (rightRailCollapsed ? BALANCED_COLS.noLeftRightCollapsed : BALANCED_COLS.noLeftBoth) :
     leftRailCollapsed && rightRailCollapsed ? BALANCED_COLS.none :
     leftRailCollapsed ? BALANCED_COLS.leftOnly :
     rightRailCollapsed ? BALANCED_COLS.rightOnly :
@@ -121,7 +134,9 @@ export default function AppShell({
       data-af-right-collapsed={rightRailCollapsed ? '1' : undefined}
       {...rootProps}
     >
-      {/* Left chat rail — slim strip when collapsed */}
+      {/* Left chat rail — slim strip when collapsed; omitted entirely when hideLeftRail
+          (Phase 2.5 floating comms reclaims this column). */}
+      {hideLeftRail ? null : (
       <aside
         className={cn(
           balancedDesktopLayout
@@ -164,6 +179,7 @@ export default function AppShell({
           </div>
         )}
       </aside>
+      )}
 
       {/* Center workspace — grows when side rails are collapsed */}
       <div

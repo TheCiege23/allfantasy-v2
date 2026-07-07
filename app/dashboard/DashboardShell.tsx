@@ -11,10 +11,10 @@ import type { DashboardLeagueListPayload } from '@/lib/dashboard/get-dashboard-l
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import { DashboardOverview } from './components/DashboardOverview'
 import { DraftRoomOverlay } from './components/DraftRoomOverlay'
-import { LeftChatPanel } from './components/LeftChatPanel'
 import { RightControlPanel } from './components/RightControlPanel'
+import { FloatingCommunications } from './components/FloatingCommunications'
 import { SelectedLeagueHomePanel } from './components/SelectedLeagueHomePanel'
-import type { DashboardConnectedLeague, UserLeague } from './types'
+import type { DashboardConnectedLeague, LeftChatInitialTab, UserLeague } from './types'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import LanguageToggle from '@/components/i18n/LanguageToggle'
 import { useMyLeaguesRailCollapse } from '@/hooks/useMyLeaguesRailCollapse'
@@ -441,8 +441,15 @@ export function DashboardShell({
       .filter((league) => !tombstones.has(league.id))
   })
   const [leaguesLoading, setLeaguesLoading] = useState(() => initialLeagueList == null)
-  const [mobileLeftOpen, setMobileLeftOpen] = useState(false)
+  // Phase 2.5 — unified floating Communications (replaces the permanent left chat column + the old
+  // mobile chat drawer). `commsRequestedTab` lets a CTA request a specific channel; null → context default.
+  const [commsOpen, setCommsOpen] = useState(false)
+  const [commsRequestedTab, setCommsRequestedTab] = useState<LeftChatInitialTab | null>(null)
   const [mobileRightOpen, setMobileRightOpen] = useState(false)
+  const openComms = useCallback((tab: LeftChatInitialTab | null = null) => {
+    setCommsRequestedTab(tab)
+    setCommsOpen(true)
+  }, [])
   const myLeaguesRail = useMyLeaguesRailCollapse()
 
   const selectedLeague = useMemo((): UserLeague | null => {
@@ -571,14 +578,20 @@ export function DashboardShell({
   }, [router])
 
   useEffect(() => {
-    const openMobileLeft = () => {
-      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
-        setMobileLeftOpen(true)
-      }
+    // Phase 2.5: all "open chat" signals now open the unified floating Communications panel.
+    // `af-dashboard-open-mobile-left` (legacy name, kept so existing dispatchers still work) opens
+    // to the context default; the Chimmy-focused events request the Chimmy channel explicitly.
+    const openDefault = () => openComms(null)
+    const openChimmy = () => openComms('chimmy')
+    window.addEventListener('af-dashboard-open-mobile-left', openDefault)
+    window.addEventListener('af-dashboard-focus-left-chimmy', openChimmy)
+    window.addEventListener('af-dashboard-open-chimmy', openChimmy)
+    return () => {
+      window.removeEventListener('af-dashboard-open-mobile-left', openDefault)
+      window.removeEventListener('af-dashboard-focus-left-chimmy', openChimmy)
+      window.removeEventListener('af-dashboard-open-chimmy', openChimmy)
     }
-    window.addEventListener('af-dashboard-open-mobile-left', openMobileLeft)
-    return () => window.removeEventListener('af-dashboard-open-mobile-left', openMobileLeft)
-  }, [])
+  }, [openComms])
 
   const applyLeaguesPayload = useCallback(
     (payload: unknown) => {
@@ -662,10 +675,10 @@ export function DashboardShell({
 
   const handleOpenChimmy = () => {
     if (typeof window !== 'undefined') {
+      // Kept so ChimmyChat (inside the panel) still receives its focus signal.
       window.dispatchEvent(new CustomEvent('af-dashboard-open-chimmy'))
-      window.dispatchEvent(new CustomEvent('af-dashboard-focus-left-chimmy'))
     }
-    setMobileLeftOpen(true)
+    openComms('chimmy')
   }
 
   const isLeagueRoute = Boolean(activeLeagueId)
@@ -679,20 +692,8 @@ export function DashboardShell({
       rightRailCollapsed={myLeaguesRail.collapsed}
       onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
       rightRailCollapsedHint={leagues.length ? String(leagues.length) : undefined}
-      leftPanel={
-        <LeftChatPanel
-          selectedLeague={selectedLeague}
-          activeLeagueId={activeLeagueId}
-          userId={userId}
-          userDisplayName={userName}
-          userImage={userImage}
-          rootId="dashboard-left-chat"
-          leagues={leagues}
-          discordConnected={discordConnected}
-          commissionerLeagues={commissionerLeagues}
-          initialOpenChat={activeLeagueId ? 'league' : null}
-        />
-      }
+      hideLeftRail
+      leftPanel={null}
       rightPanel={
         <RightControlPanel
           leagues={leagues}
@@ -741,9 +742,9 @@ export function DashboardShell({
             <div className="flex items-center justify-between gap-2">
               <button
                 type="button"
-                onClick={() => setMobileLeftOpen(true)}
+                onClick={() => openComms(null)}
                 className="touch-manipulation inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-cyan-300/25 bg-cyan-300/[0.08] text-cyan-50 shadow-[0_0_22px_-10px_rgba(34,211,238,0.85)] transition active:scale-95 active:bg-cyan-300/[0.14] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/70"
-                aria-label={t('dashboard.shell.openChat')}
+                aria-label={t('dashboard.comms.open')}
               >
                 <Bot className="h-5 w-5" aria-hidden />
               </button>
@@ -823,50 +824,22 @@ export function DashboardShell({
         </div>
         </div>
 
-      {mobileLeftOpen ? (
-        <div
-          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-[2px] md:hidden"
-          role="presentation"
-          onClick={() => setMobileLeftOpen(false)}
-        >
-          <div
-            className="absolute inset-x-0 bottom-0 flex max-h-[85dvh] min-h-[50dvh] flex-col overflow-hidden rounded-t-[24px] border-t border-white/[0.07] bg-[#0a0a1f] pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-12px_48px_rgba(0,0,0,0.45)]"
-            role="dialog"
-            aria-modal="true"
-            aria-label={t('dashboard.shell.chat')}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex justify-center pt-2">
-              <span className="h-1 w-10 shrink-0 rounded-full bg-white/20" aria-hidden />
-            </div>
-            <div className="flex items-center justify-between border-b border-white/[0.07] px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.08em] text-white/30">{t('dashboard.shell.chat')}</p>
-              <button
-                type="button"
-                onClick={() => setMobileLeftOpen(false)}
-                className="touch-manipulation inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/[0.07] bg-white/[0.04] text-white"
-                aria-label={t('dashboard.shell.closeChat')}
-              >
-                <X className="h-5 w-5" aria-hidden />
-              </button>
-            </div>
-            <div className="min-h-0 flex-1 overflow-hidden">
-              <LeftChatPanel
-                selectedLeague={selectedLeague}
-                activeLeagueId={activeLeagueId}
-                userId={userId}
-                userDisplayName={userName}
-                userImage={userImage}
-                rootId={null}
-                leagues={leagues}
-                discordConnected={discordConnected}
-                commissionerLeagues={commissionerLeagues}
-                initialOpenChat={activeLeagueId ? 'league' : null}
-              />
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {/* Phase 2.5 — Unified floating Communications: one entry point + one on-demand panel
+          (League / Chimmy / AF Huddle / DMs), replacing the permanent left chat column and the
+          old mobile chat drawer. */}
+      <FloatingCommunications
+        open={commsOpen}
+        requestedTab={commsRequestedTab}
+        onOpen={() => openComms(null)}
+        onClose={() => setCommsOpen(false)}
+        userId={userId}
+        userName={userName}
+        userImage={userImage}
+        leagues={leagues}
+        activeLeagueId={activeLeagueId}
+        discordConnected={discordConnected}
+        commissionerLeagues={commissionerLeagues}
+      />
 
       {mobileRightOpen ? (
         <div
