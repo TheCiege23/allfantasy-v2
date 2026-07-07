@@ -2845,6 +2845,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonOutlook.emptyPreseasonDesc": "Playoff and championship odds appear once the season is underway.",
     "dashboard.warroom.seasonOutlook.emptyPendingTitle": "Season outlook is being calculated",
     "dashboard.warroom.seasonOutlook.emptyPendingDesc": "Your playoff and championship projections will appear here shortly.",
+    "dashboard.warroom.seasonOutlook.confidence": "{{pct}}% confidence",
+    "dashboard.warroom.seasonOutlook.changeUp": "up {{value}} since last forecast",
+    "dashboard.warroom.seasonOutlook.changeDown": "down {{value}} since last forecast",
     "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "Trade deadline: Week {{week}}",
     "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Week {{week}}",
 
@@ -4696,6 +4699,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonOutlook.emptyPreseasonDesc": "Las probabilidades de playoffs y título aparecerán cuando comience la temporada.",
     "dashboard.warroom.seasonOutlook.emptyPendingTitle": "Calculando la perspectiva de temporada",
     "dashboard.warroom.seasonOutlook.emptyPendingDesc": "Tus proyecciones de playoffs y título aparecerán aquí en breve.",
+    "dashboard.warroom.seasonOutlook.confidence": "{{pct}}% de confianza",
+    "dashboard.warroom.seasonOutlook.changeUp": "sube {{value}} desde el último pronóstico",
+    "dashboard.warroom.seasonOutlook.changeDown": "baja {{value}} desde el último pronóstico",
     "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "Cierre de intercambios: Semana {{week}}",
     "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Semana {{week}}",
 
@@ -4982,6 +4988,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonOutlook.emptyPreseasonDesc": "赛季开始后将显示季后赛和夺冠概率。",
     "dashboard.warroom.seasonOutlook.emptyPendingTitle": "正在计算赛季展望",
     "dashboard.warroom.seasonOutlook.emptyPendingDesc": "你的季后赛和夺冠预测即将显示在这里。",
+    "dashboard.warroom.seasonOutlook.confidence": "{{pct}}% 置信度",
+    "dashboard.warroom.seasonOutlook.changeUp": "较上次预测上升 {{value}}",
+    "dashboard.warroom.seasonOutlook.changeDown": "较上次预测下降 {{value}}",
     "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "交易截止：第 {{week}} 周",
     "dashboard.warroom.seasonJourney.playoffsMarker": "季后赛：第 {{week}} 周",
 
@@ -5268,6 +5277,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonOutlook.emptyPreseasonDesc": "Lalabas ang playoff at championship odds kapag nagsimula na ang season.",
     "dashboard.warroom.seasonOutlook.emptyPendingTitle": "Kinakalkula pa ang season outlook",
     "dashboard.warroom.seasonOutlook.emptyPendingDesc": "Malapit nang lumabas dito ang iyong playoff at championship projections.",
+    "dashboard.warroom.seasonOutlook.confidence": "{{pct}}% na kumpiyansa",
+    "dashboard.warroom.seasonOutlook.changeUp": "tumaas ng {{value}} mula noong huling forecast",
+    "dashboard.warroom.seasonOutlook.changeDown": "bumaba ng {{value}} mula noong huling forecast",
     "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "Deadline ng trade: Week {{week}}",
     "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Week {{week}}",
 
@@ -5554,6 +5566,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonOutlook.emptyPreseasonDesc": "Cơ hội vào playoff và vô địch sẽ xuất hiện khi mùa giải bắt đầu.",
     "dashboard.warroom.seasonOutlook.emptyPendingTitle": "Đang tính toán triển vọng mùa giải",
     "dashboard.warroom.seasonOutlook.emptyPendingDesc": "Dự báo playoff và vô địch của bạn sẽ sớm xuất hiện ở đây.",
+    "dashboard.warroom.seasonOutlook.confidence": "{{pct}}% độ tin cậy",
+    "dashboard.warroom.seasonOutlook.changeUp": "tăng {{value}} so với dự báo trước",
+    "dashboard.warroom.seasonOutlook.changeDown": "giảm {{value}} so với dự báo trước",
     "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "Hạn chót giao dịch: Tuần {{week}}",
     "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Tuần {{week}}",
 
