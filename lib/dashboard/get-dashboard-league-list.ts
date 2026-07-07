@@ -131,6 +131,12 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
           lastSyncedAt: true,
           createdAt: true,
           isCommissioner: true,
+          lifecycleState: true,
+          tradeDeadlineWeek: true,
+          playoffStartWeek: true,
+          leagueSettings: {
+            select: { draftDateUtc: true },
+          },
           redraftMembers: {
             where: { userId },
             select: { role: true },
@@ -262,6 +268,7 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
       userId: leagueRowOwnerId,
       redraftMembers: viewerRedraftMembers,
       teams: viewerTeams,
+      leagueSettings: viewerLeagueSettings,
       ...lgCore
     } = lg
     const rosterCount = Array.isArray(lgCore.rosters) ? lgCore.rosters.length : 0
@@ -306,6 +313,10 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
       userRole,
       isPaid,
       entryFee: entryFee ?? null,
+      lifecycleState: lgCore.lifecycleState ?? null,
+      tradeDeadlineWeek: lgCore.tradeDeadlineWeek ?? null,
+      playoffStartWeek: lgCore.playoffStartWeek ?? null,
+      draftDate: viewerLeagueSettings?.draftDateUtc ? viewerLeagueSettings.draftDateUtc.toISOString() : null,
     }
   })
 

@@ -1,10 +1,13 @@
 'use client'
 
-import { Clock, DollarSign, ShieldAlert, Sparkles } from 'lucide-react'
+import { Clock, DollarSign, ShieldAlert, Sparkles, Swords, Calendar } from 'lucide-react'
 import type { LineupActionItem } from '@/lib/lineup-actions/types'
+import type { ExpiringNativeTrade } from '@/lib/dashboard-strip/fetchExpiringNativeTrades'
 import { WarRoomCard } from './WarRoomCard'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import type { InterpolationVars } from '@/lib/i18n/tInterpolate'
+
+export type UpcomingDraft = { leagueId: string; leagueName: string; draftDate: string }
 
 type TimelineEntry = {
   key: string
@@ -15,7 +18,10 @@ type TimelineEntry = {
   atMs: number | null
 }
 
-function formatRelativeTime(iso: string, tInterpolate: (key: string, vars?: InterpolationVars) => string): string {
+export function formatRelativeTime(
+  iso: string,
+  tInterpolate: (key: string, vars?: InterpolationVars) => string,
+): string {
   const target = new Date(iso).getTime()
   const now = Date.now()
   const diffMs = target - now
@@ -37,11 +43,15 @@ export function TodayTimeline({
   waiverTiming,
   autoSwapsLast24h,
   pendingTradeCount,
+  upcomingDrafts = [],
+  expiringNativeTrades = [],
 }: {
   lineupActions: LineupActionItem[]
   waiverTiming: { nextWaiverProcessKnown: boolean; nextWaiverProcessIsoUtc: string | null } | null
   autoSwapsLast24h: number
   pendingTradeCount: number
+  upcomingDrafts?: UpcomingDraft[]
+  expiringNativeTrades?: ExpiringNativeTrade[]
 }) {
   const { t, tInterpolate } = useLanguage()
   const entries: TimelineEntry[] = []
@@ -69,6 +79,32 @@ export function TodayTimeline({
       label: t('dashboard.warroom.today.waiversProcess'),
       detail: formatRelativeTime(waiverTiming.nextWaiverProcessIsoUtc, tInterpolate),
       atMs: new Date(waiverTiming.nextWaiverProcessIsoUtc).getTime(),
+    })
+  }
+
+  const nextDraft = [...upcomingDrafts].sort(
+    (a, b) => new Date(a.draftDate).getTime() - new Date(b.draftDate).getTime(),
+  )[0]
+  if (nextDraft) {
+    entries.push({
+      key: `draft-${nextDraft.leagueId}`,
+      icon: Calendar,
+      label: tInterpolate('dashboard.warroom.today.draftStartsSoon', { league: nextDraft.leagueName }),
+      detail: formatRelativeTime(nextDraft.draftDate, tInterpolate),
+      atMs: new Date(nextDraft.draftDate).getTime(),
+    })
+  }
+
+  const nextExpiringTrade = [...expiringNativeTrades].sort(
+    (a, b) => new Date(a.expiresAt).getTime() - new Date(b.expiresAt).getTime(),
+  )[0]
+  if (nextExpiringTrade) {
+    entries.push({
+      key: `trade-expiring-${nextExpiringTrade.tradeId}`,
+      icon: Swords,
+      label: tInterpolate('dashboard.warroom.today.tradeExpiringSoon', { league: nextExpiringTrade.leagueName }),
+      detail: formatRelativeTime(nextExpiringTrade.expiresAt, tInterpolate),
+      atMs: new Date(nextExpiringTrade.expiresAt).getTime(),
     })
   }
 

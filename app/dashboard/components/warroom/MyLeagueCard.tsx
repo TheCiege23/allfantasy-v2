@@ -10,6 +10,10 @@ import { ChampionshipGauge } from './ChampionshipGauge'
 import { useActivityFeed } from '@/hooks/useActivityFeed'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { useLeagueHealth, type HealthStatus } from './useLeagueHealth'
+import { useCountUp } from './useCountUp'
+import { formatRelativeTime } from './TodayTimeline'
+
+type WaiverTimingProp = { nextWaiverProcessKnown: boolean; nextWaiverProcessIsoUtc: string | null } | null
 
 type MyTeamSummary = {
   externalId: string
@@ -37,10 +41,11 @@ type MatchupRow = {
 
 /** Real values from the League Lifecycle enum (see app/dashboard/types.ts). "complete" is the legacy
  *  coarse `status` spelling; "completed" is the precise `lifecycleState` spelling — normalized below. */
-const LIFECYCLE_KEY: Record<string, string> = {
+export const LIFECYCLE_KEY: Record<string, string> = {
   setup: 'dashboard.warroom.lifecycle.setup',
   pre_draft: 'dashboard.warroom.lifecycle.preDraft',
   drafting: 'dashboard.warroom.lifecycle.drafting',
+  post_draft: 'dashboard.warroom.lifecycle.postDraft',
   in_season: 'dashboard.warroom.lifecycle.inSeason',
   playoffs: 'dashboard.warroom.lifecycle.playoffs',
   completed: 'dashboard.warroom.lifecycle.completed',
@@ -49,11 +54,17 @@ const LIFECYCLE_KEY: Record<string, string> = {
   archived: 'dashboard.warroom.lifecycle.archived',
 }
 
-function stageKey(league: UserLeague): string | null {
+/** Raw normalized lifecycle stage (e.g. 'pre_draft'), independent of its i18n key — shared with DashboardOverview. */
+export function rawStage(league: UserLeague): string | null {
   const raw = league.lifecycleState || league.status
   if (!raw) return null
-  const normalized = raw === 'complete' ? 'completed' : raw
-  return LIFECYCLE_KEY[normalized] ?? null
+  return raw === 'complete' ? 'completed' : raw
+}
+
+function stageKey(league: UserLeague): string | null {
+  const stage = rawStage(league)
+  if (!stage) return null
+  return LIFECYCLE_KEY[stage] ?? null
 }
 
 function healthTone(status: HealthStatus): { color: string; labelKey: string } {
@@ -73,7 +84,16 @@ function healthTone(status: HealthStatus): { color: string; labelKey: string } {
   }
 }
 
-export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: string | null }) {
+export function MyLeagueCard({
+  league,
+  userId,
+  waiverTiming = null,
+}: {
+  league: UserLeague
+  userId: string | null
+  /** Only meaningful when this card's league is the primary league the timing was computed for. */
+  waiverTiming?: WaiverTimingProp
+}) {
   const { t, tInterpolate } = useLanguage()
   const [myTeam, setMyTeam] = useState<MyTeamSummary | null>(null)
   const [forecastRows, setForecastRows] = useState<ForecastRow[] | null>(null)
@@ -173,6 +193,23 @@ export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: s
   const tone = health ? healthTone(health.status) : null
   const stage = stageKey(league)
 
+  const narrativeParts: string[] = []
+  if (matchupInfo?.opponentName) {
+    narrativeParts.push(tInterpolate('dashboard.warroom.myLeagueCard.vsOpponent', { opponent: matchupInfo.opponentName }))
+  }
+  if (waiverTiming?.nextWaiverProcessKnown && waiverTiming.nextWaiverProcessIsoUtc) {
+    narrativeParts.push(
+      tInterpolate('dashboard.warroom.myLeagueCard.waiversNote', {
+        time: formatRelativeTime(waiverTiming.nextWaiverProcessIsoUtc, tInterpolate),
+      }),
+    )
+  }
+  const narrativeLine = narrativeParts.length > 0 ? narrativeParts.join(' · ') : null
+
+  // Animated win count — a satisfying, readable size unlike the small inline record/rank
+  // text further down, which stays static (mirrors ChampionshipGauge's count-up pattern).
+  const winsCountUp = useCountUp<HTMLSpanElement>(myTeam?.wins ?? 0, 700)
+
   return (
     <WarRoomCard className="warroom-fade-in-stagger relative overflow-hidden p-4" accentBorder="rgba(255,255,255,0.08)">
       <div className="flex items-start gap-3">
@@ -197,11 +234,16 @@ export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: s
             </Link>
           </div>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-white/40">
-            <span>
-              {record
-                ? `${record} · ${tInterpolate('dashboard.warroom.myLeagueCard.rankLabel', { rank: myTeam?.currentRank ?? '—' })}`
-                : league.sport}
-            </span>
+            {record ? (
+              <span>
+                <span ref={winsCountUp.ref} className="text-[13px] font-bold text-white/80">
+                  {winsCountUp.value}
+                </span>
+                {`-${myTeam?.losses}${myTeam?.ties ? `-${myTeam.ties}` : ''} · ${tInterpolate('dashboard.warroom.myLeagueCard.rankLabel', { rank: myTeam?.currentRank ?? '—' })}`}
+              </span>
+            ) : (
+              <span>{league.sport}</span>
+            )}
             {stage ? <span className="text-white/25">· {t(stage)}</span> : null}
           </p>
         </div>
@@ -226,7 +268,11 @@ export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: s
         </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
+      {narrativeLine ? (
+        <p className="mt-3 truncate text-[13px] font-semibold text-cyan-100/90">{narrativeLine}</p>
+      ) : null}
+
+      <div className="mt-3.5 grid grid-cols-2 gap-2.5 text-[11px]">
         <div className="rounded-lg bg-white/[0.03] px-2.5 py-2">
           <p className="text-white/35">{t('dashboard.warroom.myLeagueCard.nextOpponent')}</p>
           <p className="mt-0.5 truncate font-semibold text-white/85">{matchupInfo?.opponentName ?? '—'}</p>

@@ -320,6 +320,16 @@ function mapLeague(rawValue: unknown): DashboardConnectedLeague | null {
     isPaid: toBooleanValue(raw.isPaid),
     entryFee:
       typeof raw.entryFee === 'number' && Number.isFinite(raw.entryFee) ? raw.entryFee : null,
+    lifecycleState: toStringValue(raw.lifecycleState) || null,
+    draftDate: toStringValue(raw.draftDate) || null,
+    tradeDeadlineWeek:
+      typeof raw.tradeDeadlineWeek === 'number' && Number.isFinite(raw.tradeDeadlineWeek)
+        ? raw.tradeDeadlineWeek
+        : null,
+    playoffStartWeek:
+      typeof raw.playoffStartWeek === 'number' && Number.isFinite(raw.playoffStartWeek)
+        ? raw.playoffStartWeek
+        : null,
   }
 }
 

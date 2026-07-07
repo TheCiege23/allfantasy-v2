@@ -2790,7 +2790,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "{{n}} War Room decisions to review",
     "dashboard.warroom.actionCenter.warRoomDetail": "New strategy recommendations",
 
-    "dashboard.warroom.today.title": "Today",
+    "dashboard.warroom.today.title": "Today's Fantasy Agenda",
     "dashboard.warroom.today.lineupLocks": "{{league}} lineup locks",
     "dashboard.warroom.today.waiversProcess": "Waivers process",
     "dashboard.warroom.today.autoSwapOne": "1 automatic lineup protection applied",
@@ -2799,6 +2799,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.today.tradeOpenOne": "1 trade offer open",
     "dashboard.warroom.today.tradeOpenMany": "{{n}} trade offers open",
     "dashboard.warroom.today.noDeadlineSet": "No deadline set",
+    "dashboard.warroom.today.draftStartsSoon": "{{league}} draft starting soon",
+    "dashboard.warroom.today.tradeExpiringSoon": "{{league}} trade expiring soon",
 
     "dashboard.warroom.time.inMinutes": "in {{n}}m",
     "dashboard.warroom.time.minutesAgo": "{{n}}m ago",
@@ -2809,8 +2811,13 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "Just now",
 
     "dashboard.warroom.myLeagues.title": "My Leagues",
+    "dashboard.warroom.seasonJourney.title": "Season Journey",
+    "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "Trade deadline: Week {{week}}",
+    "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Week {{week}}",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "Rank #{{rank}}",
+    "dashboard.warroom.myLeagueCard.vsOpponent": "vs {{opponent}} this week",
+    "dashboard.warroom.myLeagueCard.waiversNote": "Waivers {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "Next Opponent",
     "dashboard.warroom.myLeagueCard.lastResult": "Last Result",
     "dashboard.warroom.myLeagueCard.playoffOdds": "Playoff Odds",
@@ -2821,6 +2828,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.lifecycle.setup": "Setup",
     "dashboard.warroom.lifecycle.preDraft": "Pre-Draft",
     "dashboard.warroom.lifecycle.drafting": "Drafting",
+    "dashboard.warroom.lifecycle.postDraft": "Post-Draft",
     "dashboard.warroom.lifecycle.inSeason": "In Season",
     "dashboard.warroom.lifecycle.playoffs": "Playoffs",
     "dashboard.warroom.lifecycle.completed": "Completed",
@@ -2848,7 +2856,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "Waiver Wire",
     "dashboard.warroom.waiverWire.viewAll": "View all →",
 
-    "dashboard.warroom.activityFeed.title": "League Activity",
+    "dashboard.warroom.activityFeed.title": "League Buzz",
+    "dashboard.warroom.coachNotes.title": "This Week's Game Plan",
     "dashboard.warroom.activityFeed.loading": "Loading activity...",
 
     "dashboard.warroom.hero.todayCount": "{{n}} today",
@@ -4541,7 +4550,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "{{n}} decisiones del War Room por revisar",
     "dashboard.warroom.actionCenter.warRoomDetail": "Nuevas recomendaciones de estrategia",
 
-    "dashboard.warroom.today.title": "Hoy",
+    "dashboard.warroom.today.title": "Agenda Fantasy de Hoy",
     "dashboard.warroom.today.lineupLocks": "La alineación de {{league}} se bloquea",
     "dashboard.warroom.today.waiversProcess": "Se procesan los waivers",
     "dashboard.warroom.today.autoSwapOne": "1 protección automática de alineación aplicada",
@@ -4550,6 +4559,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.today.tradeOpenOne": "1 oferta de intercambio abierta",
     "dashboard.warroom.today.tradeOpenMany": "{{n}} ofertas de intercambio abiertas",
     "dashboard.warroom.today.noDeadlineSet": "Sin fecha límite establecida",
+    "dashboard.warroom.today.draftStartsSoon": "El draft de {{league}} empieza pronto",
+    "dashboard.warroom.today.tradeExpiringSoon": "Un intercambio de {{league}} expira pronto",
 
     "dashboard.warroom.time.inMinutes": "en {{n}}m",
     "dashboard.warroom.time.minutesAgo": "hace {{n}}m",
@@ -4560,8 +4571,13 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "Ahora mismo",
 
     "dashboard.warroom.myLeagues.title": "Mis Ligas",
+    "dashboard.warroom.seasonJourney.title": "Trayectoria de la Temporada",
+    "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "Cierre de intercambios: Semana {{week}}",
+    "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Semana {{week}}",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "Puesto #{{rank}}",
+    "dashboard.warroom.myLeagueCard.vsOpponent": "vs {{opponent}} esta semana",
+    "dashboard.warroom.myLeagueCard.waiversNote": "Waivers {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "Próximo Rival",
     "dashboard.warroom.myLeagueCard.lastResult": "Último Resultado",
     "dashboard.warroom.myLeagueCard.playoffOdds": "Probabilidad de Playoffs",
@@ -4572,6 +4588,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.lifecycle.setup": "Configuración",
     "dashboard.warroom.lifecycle.preDraft": "Pre-Draft",
     "dashboard.warroom.lifecycle.drafting": "En Draft",
+    "dashboard.warroom.lifecycle.postDraft": "Después del Draft",
     "dashboard.warroom.lifecycle.inSeason": "En Temporada",
     "dashboard.warroom.lifecycle.playoffs": "Playoffs",
     "dashboard.warroom.lifecycle.completed": "Finalizada",
@@ -4599,7 +4616,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "Mercado de Waivers",
     "dashboard.warroom.waiverWire.viewAll": "Ver todo →",
 
-    "dashboard.warroom.activityFeed.title": "Actividad de la Liga",
+    "dashboard.warroom.activityFeed.title": "El Rumor de la Liga",
+    "dashboard.warroom.coachNotes.title": "Plan de Juego de la Semana",
     "dashboard.warroom.activityFeed.loading": "Cargando actividad...",
 
     "dashboard.warroom.hero.todayCount": "{{n}} hoy",
@@ -4727,7 +4745,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "有 {{n}} 项作战室决策待审阅",
     "dashboard.warroom.actionCenter.warRoomDetail": "新的策略建议",
 
-    "dashboard.warroom.today.title": "今日",
+    "dashboard.warroom.today.title": "今日梦幻议程",
     "dashboard.warroom.today.lineupLocks": "{{league}} 阵容即将锁定",
     "dashboard.warroom.today.waiversProcess": "补强名单处理中",
     "dashboard.warroom.today.autoSwapOne": "已自动执行 1 次阵容保护",
@@ -4736,6 +4754,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.today.tradeOpenOne": "有 1 笔交易报价待处理",
     "dashboard.warroom.today.tradeOpenMany": "有 {{n}} 笔交易报价待处理",
     "dashboard.warroom.today.noDeadlineSet": "未设置截止时间",
+    "dashboard.warroom.today.draftStartsSoon": "{{league}} 选秀即将开始",
+    "dashboard.warroom.today.tradeExpiringSoon": "{{league}} 有交易即将到期",
 
     "dashboard.warroom.time.inMinutes": "{{n}} 分钟后",
     "dashboard.warroom.time.minutesAgo": "{{n}} 分钟前",
@@ -4746,8 +4766,13 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "刚刚",
 
     "dashboard.warroom.myLeagues.title": "我的联盟",
+    "dashboard.warroom.seasonJourney.title": "赛季历程",
+    "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "交易截止：第 {{week}} 周",
+    "dashboard.warroom.seasonJourney.playoffsMarker": "季后赛：第 {{week}} 周",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "排名 #{{rank}}",
+    "dashboard.warroom.myLeagueCard.vsOpponent": "本周对阵 {{opponent}}",
+    "dashboard.warroom.myLeagueCard.waiversNote": "补强名单 {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "下一位对手",
     "dashboard.warroom.myLeagueCard.lastResult": "上场结果",
     "dashboard.warroom.myLeagueCard.playoffOdds": "季后赛概率",
@@ -4758,6 +4783,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.lifecycle.setup": "设置中",
     "dashboard.warroom.lifecycle.preDraft": "选秀前",
     "dashboard.warroom.lifecycle.drafting": "选秀中",
+    "dashboard.warroom.lifecycle.postDraft": "选秀后",
     "dashboard.warroom.lifecycle.inSeason": "赛季进行中",
     "dashboard.warroom.lifecycle.playoffs": "季后赛",
     "dashboard.warroom.lifecycle.completed": "已结束",
@@ -4785,7 +4811,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "补强名单",
     "dashboard.warroom.waiverWire.viewAll": "查看全部 →",
 
-    "dashboard.warroom.activityFeed.title": "联盟动态",
+    "dashboard.warroom.activityFeed.title": "联盟热议",
+    "dashboard.warroom.coachNotes.title": "本周战术",
     "dashboard.warroom.activityFeed.loading": "正在加载动态...",
 
     "dashboard.warroom.hero.todayCount": "今日 {{n}} 项",
@@ -4913,7 +4940,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "{{n}} desisyon sa War Room ang dapat suriin",
     "dashboard.warroom.actionCenter.warRoomDetail": "Bagong rekomendasyon sa estratehiya",
 
-    "dashboard.warroom.today.title": "Ngayon",
+    "dashboard.warroom.today.title": "Fantasy Agenda Ngayon",
     "dashboard.warroom.today.lineupLocks": "Mag-lo-lock na ang lineup ng {{league}}",
     "dashboard.warroom.today.waiversProcess": "Ipoproseso ang mga waiver",
     "dashboard.warroom.today.autoSwapOne": "1 automatikong proteksyon sa lineup ang naisagawa",
@@ -4922,6 +4949,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.today.tradeOpenOne": "1 bukas na trade offer",
     "dashboard.warroom.today.tradeOpenMany": "{{n}} bukas na trade offer",
     "dashboard.warroom.today.noDeadlineSet": "Walang itinakdang deadline",
+    "dashboard.warroom.today.draftStartsSoon": "Malapit nang magsimula ang draft ng {{league}}",
+    "dashboard.warroom.today.tradeExpiringSoon": "May trade sa {{league}} na malapit nang mag-expire",
 
     "dashboard.warroom.time.inMinutes": "sa loob ng {{n}}m",
     "dashboard.warroom.time.minutesAgo": "{{n}}m ang nakalipas",
@@ -4932,8 +4961,13 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "Ngayon lang",
 
     "dashboard.warroom.myLeagues.title": "Aking mga Liga",
+    "dashboard.warroom.seasonJourney.title": "Paglalakbay ng Season",
+    "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "Deadline ng trade: Week {{week}}",
+    "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Week {{week}}",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "Ranggo #{{rank}}",
+    "dashboard.warroom.myLeagueCard.vsOpponent": "kontra {{opponent}} ngayong linggo",
+    "dashboard.warroom.myLeagueCard.waiversNote": "Waivers {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "Susunod na Kalaban",
     "dashboard.warroom.myLeagueCard.lastResult": "Huling Resulta",
     "dashboard.warroom.myLeagueCard.playoffOdds": "Tsansa sa Playoffs",
@@ -4944,6 +4978,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.lifecycle.setup": "Pag-setup",
     "dashboard.warroom.lifecycle.preDraft": "Bago ang Draft",
     "dashboard.warroom.lifecycle.drafting": "Nagda-draft",
+    "dashboard.warroom.lifecycle.postDraft": "Pagkatapos ng Draft",
     "dashboard.warroom.lifecycle.inSeason": "Kasalukuyang Season",
     "dashboard.warroom.lifecycle.playoffs": "Playoffs",
     "dashboard.warroom.lifecycle.completed": "Tapos na",
@@ -4971,7 +5006,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "Waiver Wire",
     "dashboard.warroom.waiverWire.viewAll": "Tingnan lahat →",
 
-    "dashboard.warroom.activityFeed.title": "Aktibidad ng Liga",
+    "dashboard.warroom.activityFeed.title": "Chika ng Liga",
+    "dashboard.warroom.coachNotes.title": "Game Plan Ngayong Linggo",
     "dashboard.warroom.activityFeed.loading": "Nilo-load ang aktibidad...",
 
     "dashboard.warroom.hero.todayCount": "{{n}} ngayong araw",
@@ -5099,7 +5135,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.actionCenter.warRoomMany": "Có {{n}} quyết định War Room cần xem xét",
     "dashboard.warroom.actionCenter.warRoomDetail": "Đề xuất chiến lược mới",
 
-    "dashboard.warroom.today.title": "Hôm Nay",
+    "dashboard.warroom.today.title": "Lịch Trình Fantasy Hôm Nay",
     "dashboard.warroom.today.lineupLocks": "Đội hình {{league}} sắp khóa",
     "dashboard.warroom.today.waiversProcess": "Waiver sắp được xử lý",
     "dashboard.warroom.today.autoSwapOne": "Đã áp dụng 1 lần bảo vệ đội hình tự động",
@@ -5108,6 +5144,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.today.tradeOpenOne": "Có 1 đề nghị trao đổi đang mở",
     "dashboard.warroom.today.tradeOpenMany": "Có {{n}} đề nghị trao đổi đang mở",
     "dashboard.warroom.today.noDeadlineSet": "Chưa đặt hạn chót",
+    "dashboard.warroom.today.draftStartsSoon": "Draft của {{league}} sắp bắt đầu",
+    "dashboard.warroom.today.tradeExpiringSoon": "Giao dịch của {{league}} sắp hết hạn",
 
     "dashboard.warroom.time.inMinutes": "trong {{n}} phút",
     "dashboard.warroom.time.minutesAgo": "{{n}} phút trước",
@@ -5118,8 +5156,13 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "Vừa xong",
 
     "dashboard.warroom.myLeagues.title": "Giải Đấu Của Tôi",
+    "dashboard.warroom.seasonJourney.title": "Hành Trình Mùa Giải",
+    "dashboard.warroom.seasonJourney.tradeDeadlineMarker": "Hạn chót giao dịch: Tuần {{week}}",
+    "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Tuần {{week}}",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "Hạng #{{rank}}",
+    "dashboard.warroom.myLeagueCard.vsOpponent": "gặp {{opponent}} tuần này",
+    "dashboard.warroom.myLeagueCard.waiversNote": "Waiver {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "Đối Thủ Tiếp Theo",
     "dashboard.warroom.myLeagueCard.lastResult": "Kết Quả Gần Nhất",
     "dashboard.warroom.myLeagueCard.playoffOdds": "Cơ Hội Vào Playoff",
@@ -5130,6 +5173,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.lifecycle.setup": "Thiết Lập",
     "dashboard.warroom.lifecycle.preDraft": "Trước Draft",
     "dashboard.warroom.lifecycle.drafting": "Đang Draft",
+    "dashboard.warroom.lifecycle.postDraft": "Sau Draft",
     "dashboard.warroom.lifecycle.inSeason": "Đang Thi Đấu",
     "dashboard.warroom.lifecycle.playoffs": "Playoffs",
     "dashboard.warroom.lifecycle.completed": "Đã Hoàn Thành",
@@ -5157,7 +5201,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.waiverWire.title": "Thị Trường Waiver",
     "dashboard.warroom.waiverWire.viewAll": "Xem tất cả →",
 
-    "dashboard.warroom.activityFeed.title": "Hoạt Động Giải Đấu",
+    "dashboard.warroom.activityFeed.title": "Bàn Tán Giải Đấu",
+    "dashboard.warroom.coachNotes.title": "Kế Hoạch Thi Đấu Tuần Này",
     "dashboard.warroom.activityFeed.loading": "Đang tải hoạt động...",
 
     "dashboard.warroom.hero.todayCount": "{{n}} hôm nay",
