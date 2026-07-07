@@ -2816,6 +2816,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Week {{week}}",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "Rank #{{rank}}",
+    "dashboard.warroom.myLeagueCard.draftCountdownDays": "Draft in {{d}}d {{h}}h",
+    "dashboard.warroom.myLeagueCard.draftCountdownHours": "Draft in {{h}}h {{m}}m",
+    "dashboard.warroom.myLeagueCard.draftCountdownSoon": "Draft starting soon",
     "dashboard.warroom.myLeagueCard.vsOpponent": "vs {{opponent}} this week",
     "dashboard.warroom.myLeagueCard.waiversNote": "Waivers {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "Next Opponent",
@@ -2886,6 +2889,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.activityFeed.title": "League Buzz",
     "dashboard.warroom.coachNotes.title": "This Week's Game Plan",
     "dashboard.warroom.activityFeed.loading": "Loading activity...",
+    "dashboard.warroom.activityFeed.emptyTitle": "It's quiet in here",
+    "dashboard.warroom.activityFeed.emptyDesc": "Trades, waivers, and league moves will show up here as they happen.",
 
     "dashboard.warroom.hero.todayCount": "{{n}} today",
     "dashboard.warroom.hero.artPlaceholder": "Robot King (coming soon)",
@@ -4625,6 +4630,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Semana {{week}}",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "Puesto #{{rank}}",
+    "dashboard.warroom.myLeagueCard.draftCountdownDays": "Draft en {{d}}d {{h}}h",
+    "dashboard.warroom.myLeagueCard.draftCountdownHours": "Draft en {{h}}h {{m}}m",
+    "dashboard.warroom.myLeagueCard.draftCountdownSoon": "El draft comienza pronto",
     "dashboard.warroom.myLeagueCard.vsOpponent": "vs {{opponent}} esta semana",
     "dashboard.warroom.myLeagueCard.waiversNote": "Waivers {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "Próximo Rival",
@@ -4695,6 +4703,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.activityFeed.title": "El Rumor de la Liga",
     "dashboard.warroom.coachNotes.title": "Plan de Juego de la Semana",
     "dashboard.warroom.activityFeed.loading": "Cargando actividad...",
+    "dashboard.warroom.activityFeed.emptyTitle": "Todo tranquilo por aquí",
+    "dashboard.warroom.activityFeed.emptyDesc": "Los trades, waivers y movimientos de la liga aparecerán aquí a medida que ocurran.",
 
     "dashboard.warroom.hero.todayCount": "{{n}} hoy",
     "dashboard.warroom.hero.artPlaceholder": "Robot King (próximamente)",
@@ -4869,6 +4879,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonJourney.playoffsMarker": "季后赛：第 {{week}} 周",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "排名 #{{rank}}",
+    "dashboard.warroom.myLeagueCard.draftCountdownDays": "选秀还有 {{d}}天{{h}}小时",
+    "dashboard.warroom.myLeagueCard.draftCountdownHours": "选秀还有 {{h}}小时{{m}}分钟",
+    "dashboard.warroom.myLeagueCard.draftCountdownSoon": "选秀即将开始",
     "dashboard.warroom.myLeagueCard.vsOpponent": "本周对阵 {{opponent}}",
     "dashboard.warroom.myLeagueCard.waiversNote": "补强名单 {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "下一位对手",
@@ -4939,6 +4952,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.activityFeed.title": "联盟热议",
     "dashboard.warroom.coachNotes.title": "本周战术",
     "dashboard.warroom.activityFeed.loading": "正在加载动态...",
+    "dashboard.warroom.activityFeed.emptyTitle": "这里很安静",
+    "dashboard.warroom.activityFeed.emptyDesc": "交易、候补和联盟动态发生后会显示在这里。",
 
     "dashboard.warroom.hero.todayCount": "今日 {{n}} 项",
     "dashboard.warroom.hero.artPlaceholder": "Robot King（即将上线）",
@@ -5113,6 +5128,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Week {{week}}",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "Ranggo #{{rank}}",
+    "dashboard.warroom.myLeagueCard.draftCountdownDays": "Draft sa {{d}}d {{h}}h",
+    "dashboard.warroom.myLeagueCard.draftCountdownHours": "Draft sa {{h}}h {{m}}m",
+    "dashboard.warroom.myLeagueCard.draftCountdownSoon": "Malapit nang magsimula ang draft",
     "dashboard.warroom.myLeagueCard.vsOpponent": "kontra {{opponent}} ngayong linggo",
     "dashboard.warroom.myLeagueCard.waiversNote": "Waivers {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "Susunod na Kalaban",
@@ -5183,6 +5201,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.activityFeed.title": "Chika ng Liga",
     "dashboard.warroom.coachNotes.title": "Game Plan Ngayong Linggo",
     "dashboard.warroom.activityFeed.loading": "Nilo-load ang aktibidad...",
+    "dashboard.warroom.activityFeed.emptyTitle": "Tahimik dito",
+    "dashboard.warroom.activityFeed.emptyDesc": "Lalabas dito ang mga trade, waiver, at galaw ng liga kapag nangyari ang mga ito.",
 
     "dashboard.warroom.hero.todayCount": "{{n}} ngayong araw",
     "dashboard.warroom.hero.artPlaceholder": "Robot King (malapit na)",
@@ -5357,6 +5377,9 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.seasonJourney.playoffsMarker": "Playoffs: Tuần {{week}}",
 
     "dashboard.warroom.myLeagueCard.rankLabel": "Hạng #{{rank}}",
+    "dashboard.warroom.myLeagueCard.draftCountdownDays": "Draft sau {{d}} ngày {{h}} giờ",
+    "dashboard.warroom.myLeagueCard.draftCountdownHours": "Draft sau {{h}} giờ {{m}} phút",
+    "dashboard.warroom.myLeagueCard.draftCountdownSoon": "Draft sắp bắt đầu",
     "dashboard.warroom.myLeagueCard.vsOpponent": "gặp {{opponent}} tuần này",
     "dashboard.warroom.myLeagueCard.waiversNote": "Waiver {{time}}",
     "dashboard.warroom.myLeagueCard.nextOpponent": "Đối Thủ Tiếp Theo",
@@ -5427,6 +5450,8 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.activityFeed.title": "Bàn Tán Giải Đấu",
     "dashboard.warroom.coachNotes.title": "Kế Hoạch Thi Đấu Tuần Này",
     "dashboard.warroom.activityFeed.loading": "Đang tải hoạt động...",
+    "dashboard.warroom.activityFeed.emptyTitle": "Ở đây khá yên tĩnh",
+    "dashboard.warroom.activityFeed.emptyDesc": "Giao dịch, waiver và các động thái của giải đấu sẽ hiển thị ở đây khi chúng xảy ra.",
 
     "dashboard.warroom.hero.todayCount": "{{n}} hôm nay",
     "dashboard.warroom.hero.artPlaceholder": "Robot King (sắp ra mắt)",

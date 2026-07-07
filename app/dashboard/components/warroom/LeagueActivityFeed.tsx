@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowRightLeft, LayoutGrid, Megaphone, MessageSquare, UserPlus } from 'lucide-react'
+import { ArrowRightLeft, LayoutGrid, Megaphone, MessageSquare, Sparkles, UserPlus } from 'lucide-react'
 import { useActivityFeed } from '@/hooks/useActivityFeed'
 import { WarRoomCard } from './WarRoomCard'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
@@ -27,8 +27,6 @@ export function LeagueActivityFeed() {
   const { t, tInterpolate } = useLanguage()
   const { items, loading } = useActivityFeed({ limit: 12 })
 
-  if (!loading && items.length === 0) return null
-
   return (
     <WarRoomCard className="overflow-hidden" accentBorder="rgba(255,255,255,0.08)">
       <div className="border-b border-white/[0.06] px-4 py-2.5">
@@ -39,6 +37,16 @@ export function LeagueActivityFeed() {
       {loading ? (
         <div className="px-4 py-6 text-center text-[11px] text-white/30">
           {t('dashboard.warroom.activityFeed.loading')}
+        </div>
+      ) : items.length === 0 ? (
+        <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
+          <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/[0.04] text-white/30">
+            <Sparkles className="h-4 w-4" aria-hidden />
+          </span>
+          <p className="text-[12px] font-semibold text-white/50">{t('dashboard.warroom.activityFeed.emptyTitle')}</p>
+          <p className="max-w-[220px] text-[11px] leading-snug text-white/30">
+            {t('dashboard.warroom.activityFeed.emptyDesc')}
+          </p>
         </div>
       ) : (
         <ul className="max-h-[280px] overflow-y-auto">

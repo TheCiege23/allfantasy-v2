@@ -1775,14 +1775,23 @@ select, option {
   }
 }
 
-/* Dashboard "war room" cards — dark, fixed-theme (not toggled by light/dark mode) */
+/* Dashboard "war room" cards — dark, fixed-theme (not toggled by light/dark mode).
+   Phase 2.6A: always-on depth (subtle shadow + inset top sheen) so cards read as
+   collectible objects at rest, not just on hover — the premium-card feel the
+   visual identity pass asks for. */
 .warroom-card {
+  position: relative;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 8px 24px -14px rgba(0, 0, 0, 0.6);
   transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
 }
 
 .warroom-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.55);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 16px 40px -16px rgba(0, 0, 0, 0.65);
 }
 
 @keyframes warroom-fade-in {

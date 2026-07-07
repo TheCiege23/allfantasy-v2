@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Crown, DollarSign, ShieldCheck } from 'lucide-react'
+import { Clock, Crown, DollarSign, ShieldCheck } from 'lucide-react'
 import type { UserLeague } from '../../types'
 import { WarRoomCard } from './WarRoomCard'
 import { ChampionshipGauge } from './ChampionshipGauge'
@@ -12,6 +12,7 @@ import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { useLeagueHealth, type HealthStatus } from './useLeagueHealth'
 import { useCountUp } from './useCountUp'
 import { formatRelativeTime } from './TodayTimeline'
+import type { InterpolationVars } from '@/lib/i18n/tInterpolate'
 
 type WaiverTimingProp = { nextWaiverProcessKnown: boolean; nextWaiverProcessIsoUtc: string | null } | null
 
@@ -65,6 +66,35 @@ function stageKey(league: UserLeague): string | null {
   const stage = rawStage(league)
   if (!stage) return null
   return LIFECYCLE_KEY[stage] ?? null
+}
+
+/** Phase 2.6A — sport accent color for the card's left edge + art glow, so each league
+ *  reads as its own place rather than an interchangeable gray tile. */
+const SPORT_ACCENT: Record<string, string> = {
+  NFL: '#f5c451',
+  NBA: '#fb923c',
+  MLB: '#38bdf8',
+  NHL: '#22d3ee',
+}
+
+function sportAccent(sport: string): string {
+  return SPORT_ACCENT[sport.toUpperCase()] ?? 'rgba(255,255,255,0.14)'
+}
+
+/** Compact "Draft in 3d 4h" style countdown for pre-draft leagues with a known date. */
+function formatDraftCountdown(
+  draftDate: string,
+  t: (key: string) => string,
+  tInterpolate: (key: string, vars?: InterpolationVars) => string,
+): string | null {
+  const ms = new Date(draftDate).getTime() - Date.now()
+  if (!Number.isFinite(ms) || ms <= 0) return null
+  const days = Math.floor(ms / 86400000)
+  const hours = Math.floor((ms % 86400000) / 3600000)
+  if (days > 0) return tInterpolate('dashboard.warroom.myLeagueCard.draftCountdownDays', { d: days, h: hours })
+  const minutes = Math.floor((ms % 3600000) / 60000)
+  if (hours > 0) return tInterpolate('dashboard.warroom.myLeagueCard.draftCountdownHours', { h: hours, m: minutes })
+  return t('dashboard.warroom.myLeagueCard.draftCountdownSoon')
 }
 
 function healthTone(status: HealthStatus): { color: string; labelKey: string } {
@@ -192,6 +222,11 @@ export function MyLeagueCard({
   const record = myTeam ? `${myTeam.wins}-${myTeam.losses}${myTeam.ties ? `-${myTeam.ties}` : ''}` : null
   const tone = health ? healthTone(health.status) : null
   const stage = stageKey(league)
+  const accent = sportAccent(league.sport)
+  const draftCountdown =
+    rawStage(league) === 'pre_draft' && league.draftDate
+      ? formatDraftCountdown(league.draftDate, t, tInterpolate)
+      : null
 
   const narrativeParts: string[] = []
   if (matchupInfo?.opponentName) {
@@ -211,9 +246,17 @@ export function MyLeagueCard({
   const winsCountUp = useCountUp<HTMLSpanElement>(myTeam?.wins ?? 0, 700)
 
   return (
-    <WarRoomCard className="warroom-fade-in-stagger relative overflow-hidden p-4" accentBorder="rgba(255,255,255,0.08)">
+    <WarRoomCard
+      className="warroom-fade-in-stagger relative overflow-hidden p-4 pl-[18px]"
+      accentBorder={`${accent}33`}
+    >
+      {/* Sport-color identity bar — each league reads as its own place, not an interchangeable tile. */}
+      <span aria-hidden className="absolute inset-y-0 left-0 w-[3px]" style={{ background: accent }} />
       <div className="flex items-start gap-3">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/[0.06]">
+        <div
+          className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/[0.06]"
+          style={{ boxShadow: `0 0 0 1px ${accent}40` }}
+        >
           {league.logoUrl || league.avatarUrl ? (
             <Image
               src={league.logoUrl || league.avatarUrl || ''}
@@ -248,6 +291,12 @@ export function MyLeagueCard({
           </p>
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1">
+          {draftCountdown ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-300">
+              <Clock className="h-2.5 w-2.5" aria-hidden />
+              {draftCountdown}
+            </span>
+          ) : null}
           {tone ? (
             <span
               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
