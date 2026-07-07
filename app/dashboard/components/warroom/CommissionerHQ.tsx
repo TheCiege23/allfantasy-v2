@@ -6,10 +6,18 @@ import { AlertTriangle, CheckCircle2, Clock, Crown, Lightbulb, Sparkles } from '
 import type { UserLeague } from '../../types'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import { WarRoomCard } from './WarRoomCard'
+import { ChampionshipGauge } from './ChampionshipGauge'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 const SETUP_STAGES = new Set(['setup', 'pre_draft', 'drafting'])
+
+/** Phase 3 — value-graded accent for the composite league-health gauges. */
+function scoreAccent(score: number): string {
+  if (score >= 75) return '#34d399' // emerald
+  if (score >= 50) return '#fbbf24' // amber
+  return '#f87171' // red
+}
 
 const HEALTH_BADGE_CLASSES: Record<string, string> = {
   excellent: 'bg-emerald-500/15 text-emerald-300',
@@ -159,6 +167,15 @@ export function CommissionerHQ({
           <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-white/30">
             {t('dashboard.warroom.commissionerHQ.health.title')}
           </p>
+          {/* Phase 3 — composite league-health gauges (real 0-100 scores from the health engine,
+              already in the SSR snapshot; no new fetch). Turns the previously-invisible composite
+              scores into the section's headline visualization. */}
+          <div className="mb-3 flex flex-wrap items-center justify-around gap-2 rounded-xl border border-white/[0.05] bg-black/20 px-2 py-3">
+            <ChampionshipGauge percent={snapshot.healthScore} label={t('dashboard.warroom.commissionerHQ.health.overallScore')} accent={scoreAccent(snapshot.healthScore)} size={62} />
+            <ChampionshipGauge percent={snapshot.engagementScore} label={t('dashboard.warroom.commissionerHQ.health.engagementScore')} accent={scoreAccent(snapshot.engagementScore)} size={62} />
+            <ChampionshipGauge percent={snapshot.fairnessScore} label={t('dashboard.warroom.commissionerHQ.health.fairnessScore')} accent={scoreAccent(snapshot.fairnessScore)} size={62} />
+            <ChampionshipGauge percent={snapshot.sustainabilityScore} label={t('dashboard.warroom.commissionerHQ.health.sustainabilityScore')} accent={scoreAccent(snapshot.sustainabilityScore)} size={62} />
+          </div>
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
             <StatChip label={t('dashboard.warroom.commissionerHQ.health.activeManagers')} value={snapshot.metrics.activeManagers} />
             <StatChip

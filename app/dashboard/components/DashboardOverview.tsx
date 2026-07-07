@@ -38,6 +38,7 @@ import { CommissionerHQ } from './warroom/CommissionerHQ'
 import { CoachNotes } from './warroom/CoachNotes'
 import { DashboardHero } from './warroom/DashboardHero'
 import { TeamThisWeek } from './warroom/TeamThisWeek'
+import { SeasonOutlook } from './warroom/SeasonOutlook'
 import { SeasonJourney } from './warroom/SeasonJourney'
 import { WaiverWirePreview } from './warroom/WaiverWirePreview'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
@@ -675,6 +676,13 @@ export function DashboardOverview({
       </section>
     ) : null
 
+  // Phase 3 — season-long trajectory (playoff/championship odds + expected wins/seed/elimination
+  // risk) from the real season-forecast engine. Pairs with the this-week matchup card above.
+  const teamSeasonOutlookSection =
+    context === 'team' && selectedLeague ? (
+      <SeasonOutlook key="teamSeasonOutlook" league={selectedLeague} userId={userId} />
+    ) : null
+
   // Waiver pickups for just the selected league (real chimmyAdvice-backed recs); self-gates to
   // nothing when there are no pending pickups for it, so no empty card in the quiet case.
   const teamWaiverData =
@@ -725,6 +733,7 @@ export function DashboardOverview({
     team: [
       weeklyGamePlanSection,
       teamMatchupSection,
+      teamSeasonOutlookSection,
       todaysAgendaSection,
       teamWaiverSection,
       teamSeasonJourneySection,
