@@ -58,8 +58,10 @@ const BALANCED_COLS = {
   rightOnly:  'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,35fr)_3rem]',
   // both collapsed
   none:       'md:[grid-template-columns:3rem_minmax(0,1fr)_3rem]',
-  // hideLeftRail: no chat column — workspace + My Leagues only (Phase 2.5 floating comms).
-  noLeftBoth: 'md:[grid-template-columns:minmax(0,1fr)_minmax(240px,25fr)]',
+  // hideLeftRail: no chat column — workspace takes all remaining width, My Leagues a compact
+  // 240-340px rail (Phase 2.5 floating comms). NOTE: center must be the flexible 1fr column and
+  // My Leagues an explicit width cap — using an fr ratio like 1fr:25fr collapses the workspace.
+  noLeftBoth: 'md:[grid-template-columns:minmax(0,1fr)_minmax(240px,340px)]',
   // hideLeftRail + right collapsed: workspace full width + slim My Leagues strip.
   noLeftRightCollapsed: 'md:[grid-template-columns:minmax(0,1fr)_3rem]',
 }
