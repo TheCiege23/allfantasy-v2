@@ -1,6 +1,7 @@
 # Decision OS Replay Framework Phase 12 — Selecting the First Non-Trade Replay Scenario
 
 **Status:** Selection ADR + type-only scaffolding. No executor, normalizer, or ingest driver implemented. No staging data written. No Trade Learning code touched. No `acceptProbability`/trade-engine code touched. No calibration enabled.
+**Update (Phase 13):** the full scenario was built — normalizer, executor, ingest driver, metrics module, 23 tests, and a real 360-row staging validation run — per `docs/DECISION_OS_LINEUP_REPLAY_VALIDATION_REPORT.md`. §3's audit of `optimizeLineupDeterministic()` held up exactly as described, with one real, load-bearing addition discovered during the real staging run: the engine's bitmask-DFS memoization makes it computationally infeasible for large dynasty rosters (35–40 players) — the validation report's §3 covers this in full; it does not change this ADR's original selection rationale, which remains correct for small/medium rosters.
 **Branch:** `g15-event-foundation`
 **Builds on:** `docs/DECISION_OS_REPLAY_FRAMEWORK_GENERALIZATION_ADR.md` (Phase 11 — defines the generic Replay Scenario abstraction and explicitly recommends against building a second scenario speculatively; this phase is the "pick one concrete candidate" follow-through that ADR called for).
 

@@ -146,13 +146,55 @@ export interface LineupReplayPayload {
   slotPositions: string[]
 }
 
-/** Lineup-specific shape stored in `ReplayBacktestResult.backtestedOutput` (decisionType: 'lineup'). */
+/**
+ * A single start/sit mistake detail — either a player who should have
+ * started (per the real, unmodified `optimizeLineupDeterministic()`) but
+ * didn't, or a player who was started but wasn't part of the optimal
+ * lineup. Identified by real, stable `providerAssetId` (Phase 13), never a
+ * synthetic index — matching the Phase 9 lesson from Trade Replay about ID
+ * consistency across arrays that describe the same real player.
+ */
+export interface LineupMistakeDetail {
+  providerAssetId: string
+  name: string
+  actualPoints: number
+}
+
+/**
+ * Lineup-specific shape stored in `ReplayBacktestResult.backtestedOutput`
+ * (decisionType: 'lineup'). Phase 13 (this phase) extended Phase 12's
+ * original scaffolding (`actualPoints`/`optimalPoints`/`pointsLeftOnBench`/
+ * `efficiencyPct`) with explicit start/sit mistake detail, per the task's
+ * request for "points gained", "points lost", "start/sit mistakes", and
+ * "bench value left" as distinct, non-redundant metrics:
+ *
+ * - `pointsLeftOnBench` (net) = `optimalPoints - actualPoints` — how much
+ *   better the week COULD have gone overall.
+ * - `benchValueLeft` (gross) = the real points scored by players who were
+ *   part of the optimal lineup but sat on the actual bench — the literal
+ *   "value left on the bench," which can be larger than `pointsLeftOnBench`
+ *   if the manager's actual (wrong) starters also scored real points.
+ * - `pointsFromSuboptimalStarters` (gross) = the real points the manager DID
+ *   get from starting players who weren't part of the optimal lineup — the
+ *   honest "points gained" from an imperfect decision, not zero.
+ * - `startSitMistakeCount` = the number of players who should have started
+ *   but didn't (equivalently, under normal roster-completeness, the number
+ *   who started but shouldn't have).
+ */
 export interface LineupBacktestOutput {
   /** Sum of `starters_points` for the lineup the manager actually started. */
   actualPoints: number
   /** `optimizeLineupDeterministic()`'s `totalProjectedPoints` when fed real `actualPoints` as `projectedPoints`. */
   optimalPoints: number
+  /** Net: `optimalPoints - actualPoints`. */
   pointsLeftOnBench: number
   /** `actualPoints / optimalPoints`, clamped [0,1] — 1.0 means the manager started the exact optimal lineup. */
   efficiencyPct: number
+  /** Gross: real points scored by optimal-lineup players who sat on the actual bench. */
+  benchValueLeft: number
+  /** Gross: real points scored by actual starters who weren't part of the optimal lineup. */
+  pointsFromSuboptimalStarters: number
+  startSitMistakeCount: number
+  missedOptimalStarters: LineupMistakeDetail[]
+  subOptimalActualStarters: LineupMistakeDetail[]
 }

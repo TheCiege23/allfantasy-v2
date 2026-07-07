@@ -1,6 +1,7 @@
 # Decision OS Replay Framework Phase 11 — Generalization ADR: From Trade Replay Utility to a Decision OS Validation Platform
 
 **Status:** Architecture audit + ADR. One low-risk, zero-behavior-change refactor implemented (§7). No Trade Learning code touched. No `acceptProbability`/trade-engine code touched. No calibration enabled. Existing Sleeper trade replay implementation unchanged in behavior.
+**Update (Phase 13):** the §8.1-deferred generalization of `computeDeterministicConfigVersion()` was implemented, informed by Lineup Replay as a real second consumer with no tunable config at all — exactly the trigger condition §8.1 specified. Trade's existing call site is byte-identical (a bare number still resolves to `b0:X.XXXX`); see `docs/DECISION_OS_LINEUP_REPLAY_VALIDATION_REPORT.md` §1.
 **Branch:** `g15-event-foundation`
 **Builds on:** `docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md` (Phases 2–3's original two-table design — this ADR confirms that design already anticipated most of what follows), `docs/SLEEPER_TRADE_REPLAY_VALIDATION_REPORT.md`, `docs/DECISION_OS_VORP_ACCEPTANCE_ADR.md` (Phase 10).
 
