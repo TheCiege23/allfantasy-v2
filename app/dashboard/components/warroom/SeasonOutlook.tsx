@@ -1,12 +1,12 @@
 'use client'
 
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { LineChart, ShieldAlert, TrendingUp } from 'lucide-react'
 import type { UserLeague } from '../../types'
 import { WarRoomCard } from './WarRoomCard'
 import { ChampionshipGauge } from './ChampionshipGauge'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import type { TrajectorySummary } from '@/lib/trajectory/summarize'
+import { DeltaChip, ConfidenceChip, computeDisplayDelta } from './trajectory'
 import type { TeamForecastTrajectory } from '@/lib/trajectory/consumers/seasonForecast'
 
 type ForecastRow = {
@@ -136,52 +136,19 @@ export function SeasonOutlook({ league, userId }: { league: UserLeague; userId: 
   const expWins = Math.round(mine.expectedWins * 10) / 10
   const seed = Math.round(mine.expectedFinalSeed)
 
-  // Phase 3.4 — trajectory (real week-over-week movement from the Trajectory
-  // Foundation). Only rendered when the metric is supported AND a real prior
-  // snapshot exists; otherwise every helper returns null and the card is
-  // visually identical to before. Never fabricates movement.
+  // Phase 3.4/3.5 — trajectory (real week-over-week movement from the Trajectory
+  // Foundation), rendered via the shared trajectory visual-language primitives.
+  // Chips self-gate silently when a metric is unsupported or has no prior
+  // snapshot, so the card stays visually identical until real history exists.
   const myTraj = myExternalId ? trajMap?.[myExternalId] : null
-
-  /**
-   * A subtle delta chip tied to the DISPLAYED (rounded) values, so it never
-   * disagrees with the numbers on the card and stays silent for sub-display
-   * movement. `invert` flips the good/bad color for metrics where lower is
-   * better (projected seed). Returns null when there's nothing honest to show.
-   */
-  const deltaChip = (summary: TrajectorySummary | undefined, decimals: number, invert: boolean): ReactNode => {
-    if (!summary || !summary.supported || !summary.hasChange) return null
-    const { currentValue, previousValue } = summary
-    if (currentValue == null || previousValue == null) return null
-    const factor = 10 ** decimals
-    const displayDelta = Math.round(currentValue * factor) / factor - Math.round(previousValue * factor) / factor
-    if (displayDelta === 0) return null
-    const up = displayDelta > 0
-    const good = invert ? !up : up
-    const magnitude = Math.abs(displayDelta)
-    const magStr = decimals > 0 ? magnitude.toFixed(decimals) : String(magnitude)
-    const aria = tInterpolate(
-      up ? 'dashboard.warroom.seasonOutlook.changeUp' : 'dashboard.warroom.seasonOutlook.changeDown',
-      { value: magStr },
-    )
-    return (
-      <span
-        className={`ml-1 inline-flex items-center gap-0.5 align-middle text-[9px] font-bold tabular-nums ${good ? 'text-emerald-300' : 'text-red-300'}`}
-        aria-label={aria}
-      >
-        <span aria-hidden>{up ? '▲' : '▼'}</span>
-        {magStr}
-      </span>
-    )
-  }
-
-  const playoffChip = deltaChip(myTraj?.playoffProbability, 0, false)
-  const champChip = deltaChip(myTraj?.championshipProbability, 0, false)
-  const winsChip = deltaChip(myTraj?.expectedWins, 1, false)
-  const seedChip = deltaChip(myTraj?.expectedFinalSeed, 0, true)
-
+  const playoffTraj = myTraj?.playoffProbability
+  const champTraj = myTraj?.championshipProbability
+  // Gate the odds delta row on the same display-visibility the chip itself uses.
+  const hasOddsChip = Boolean(
+    computeDisplayDelta(playoffTraj, 0)?.visible || computeDisplayDelta(champTraj, 0)?.visible,
+  )
   // Source-provided confidence (0–1), only when the engine reports one.
-  const confidence = myTraj?.playoffProbability?.confidence ?? null
-  const confidencePct = confidence != null ? Math.round(confidence * 100) : null
+  const confidence = playoffTraj?.confidence ?? null
 
   return (
     <WarRoomCard className="warroom-fade-in-stagger overflow-hidden p-4" accentBorder="rgba(52,211,153,0.2)">
@@ -190,11 +157,7 @@ export function SeasonOutlook({ league, userId }: { league: UserLeague; userId: 
           <TrendingUp className="h-3.5 w-3.5" aria-hidden />
           {t('dashboard.warroom.seasonOutlook.title')}
         </p>
-        {confidencePct != null ? (
-          <span className="rounded-full bg-white/[0.06] px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-white/45">
-            {tInterpolate('dashboard.warroom.seasonOutlook.confidence', { pct: confidencePct })}
-          </span>
-        ) : null}
+        <ConfidenceChip confidence={confidence} />
       </div>
 
       <div className="flex items-center justify-around gap-2">
@@ -202,10 +165,14 @@ export function SeasonOutlook({ league, userId }: { league: UserLeague; userId: 
         <ChampionshipGauge percent={champ} label={t('dashboard.warroom.seasonOutlook.championshipOdds')} accent="#fbbf24" size={72} />
       </div>
 
-      {playoffChip || champChip ? (
+      {hasOddsChip ? (
         <div className="mt-1 flex items-center justify-around gap-2 text-center">
-          <span className="flex-1 leading-none">{playoffChip}</span>
-          <span className="flex-1 leading-none">{champChip}</span>
+          <span className="flex-1 leading-none">
+            <DeltaChip summary={playoffTraj} decimals={0} />
+          </span>
+          <span className="flex-1 leading-none">
+            <DeltaChip summary={champTraj} decimals={0} />
+          </span>
         </div>
       ) : null}
 
@@ -213,7 +180,7 @@ export function SeasonOutlook({ league, userId }: { league: UserLeague; userId: 
         <div className="rounded-lg border border-white/[0.06] bg-white/[0.025] px-2 py-2">
           <p className="text-[15px] font-black leading-tight text-white">
             {expWins}
-            {winsChip}
+            <DeltaChip summary={myTraj?.expectedWins} decimals={1} className="ml-1 align-middle" />
           </p>
           <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/35">
             {t('dashboard.warroom.seasonOutlook.expectedWins')}
@@ -222,7 +189,7 @@ export function SeasonOutlook({ league, userId }: { league: UserLeague; userId: 
         <div className="rounded-lg border border-white/[0.06] bg-white/[0.025] px-2 py-2">
           <p className="text-[15px] font-black leading-tight text-white">
             {tInterpolate('dashboard.warroom.seasonOutlook.seedValue', { seed })}
-            {seedChip}
+            <DeltaChip summary={myTraj?.expectedFinalSeed} decimals={0} invert className="ml-1 align-middle" />
           </p>
           <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/35">
             {t('dashboard.warroom.seasonOutlook.projectedSeed')}
