@@ -18,6 +18,7 @@ import {
 import type { UserLeague, UserLeagueTeam } from '@/app/dashboard/types'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import { RedraftCommunicationPanel } from '@/components/redraft/RedraftCommunicationPanel'
+import { ManagerReplayInsightsCard } from '@/components/dashboard/ManagerReplayInsightsCard'
 
 type NflRedraftLeagueHomeDashboardProps = {
   league: UserLeague
@@ -26,6 +27,14 @@ type NflRedraftLeagueHomeDashboardProps = {
   userTeamName?: string | null
   isCommissioner: boolean
   draftDateIso: string | null
+  /**
+   * True once a `RedraftSeason` row exists for this league (created by
+   * `syncCompletedDraftToRedraftSeason` after the draft finalizes) — the
+   * source of truth for "has this league actually completed its draft",
+   * independent of `league.lifecycleState`/`status`. Genuinely pre-draft
+   * leagues have no `RedraftSeason` yet, so this stays false for them.
+   */
+  hasActiveRedraftSeason: boolean
   onOpenSettings: (initialPanel?: string | null) => void
   onOpenTab: (tabId: string) => void
 }
@@ -122,6 +131,7 @@ export function NflRedraftLeagueHomeDashboard({
   userTeamName,
   isCommissioner,
   draftDateIso,
+  hasActiveRedraftSeason,
   onOpenSettings,
   onOpenTab,
 }: NflRedraftLeagueHomeDashboardProps) {
@@ -140,63 +150,123 @@ export function NflRedraftLeagueHomeDashboard({
     window.dispatchEvent(new CustomEvent('af:replay-league-intro', { detail: { leagueId } }))
   }
 
+  const currentWeek = league.currentWeek ?? null
+
   const baseTiles: Tile[] = isCommissioner
-    ? [
-        {
-          title: 'Draft setup',
-          body: 'Set draft date, order, timer, auto-pick, and mock draft access before managers arrive.',
-          meta: draftDate,
-          cta: 'Open draft settings',
-          onClick: () => onOpenSettings('draft'),
-        },
-        {
-          title: 'Invite managers',
-          body: 'Fill the league, review member readiness, and keep setup moving from one place.',
-          meta: `${joinedTeams}/${teamCount} teams joined`,
-          cta: 'Open members',
-          onClick: () => onOpenSettings('members-commish'),
-        },
-        {
-          title: 'League rules summary',
-          body: 'Review roster, scoring, waiver, trade, and playoff rules before the season starts.',
-          cta: 'Open settings',
-          onClick: () => onOpenSettings(null),
-        },
-        {
-          title: 'Announcements',
-          body: 'Keep league chat visible while you post draft reminders, setup notes, and rule clarifications.',
-          cta: 'Open League Chat',
-          onClick: () => onOpenTab('league_chat'),
-        },
-      ]
-    : [
-        {
-          title: 'Draft HQ',
-          body: 'Open the draft room, check the countdown, and get ready for your board.',
-          meta: draftDate,
-          cta: 'Open Draft',
-          onClick: () => onOpenTab('draft'),
-        },
-        {
-          title: 'Roster prep',
-          body: 'Your roster view is ready for draft results and lineup prep once players are assigned.',
-          meta: teamLabel,
-          cta: 'Open Roster',
-          onClick: () => onOpenTab('roster'),
-        },
-        {
-          title: 'League rules summary',
-          body: 'View scoring, waivers, trade review, roster limits, playoffs, and permissions.',
-          cta: 'View rules',
-          onClick: () => onOpenSettings(null),
-        },
-        {
-          title: 'League Chat',
-          body: 'Chat stays available by default so managers can coordinate draft night.',
-          cta: 'Open League Chat',
-          onClick: () => onOpenTab('league_chat'),
-        },
-      ]
+    ? hasActiveRedraftSeason
+      ? [
+          {
+            title: 'This week',
+            body: 'Jump to this week\'s matchups, live scoring, and lineup checks across the league.',
+            meta: currentWeek != null ? `Week ${currentWeek}` : 'In season',
+            cta: 'Open Matchups',
+            onClick: () => onOpenTab('matchups'),
+          },
+          {
+            title: 'League standings',
+            body: 'Review records, points for/against, and playoff positioning.',
+            meta: `${teamCount} teams`,
+            cta: 'Open Standings',
+            onClick: () => onOpenTab('standings'),
+          },
+          {
+            title: 'League rules summary',
+            body: 'Review roster, scoring, waiver, trade, and playoff rules for this season.',
+            cta: 'Open settings',
+            onClick: () => onOpenSettings(null),
+          },
+          {
+            title: 'Announcements',
+            body: 'Keep league chat visible for weekly recaps, waiver reminders, and rule clarifications.',
+            cta: 'Open League Chat',
+            onClick: () => onOpenTab('league_chat'),
+          },
+        ]
+      : [
+          {
+            title: 'Draft setup',
+            body: 'Set draft date, order, timer, auto-pick, and mock draft access before managers arrive.',
+            meta: draftDate,
+            cta: 'Open draft settings',
+            onClick: () => onOpenSettings('draft'),
+          },
+          {
+            title: 'Invite managers',
+            body: 'Fill the league, review member readiness, and keep setup moving from one place.',
+            meta: `${joinedTeams}/${teamCount} teams joined`,
+            cta: 'Open members',
+            onClick: () => onOpenSettings('members-commish'),
+          },
+          {
+            title: 'League rules summary',
+            body: 'Review roster, scoring, waiver, trade, and playoff rules before the season starts.',
+            cta: 'Open settings',
+            onClick: () => onOpenSettings(null),
+          },
+          {
+            title: 'Announcements',
+            body: 'Keep league chat visible while you post draft reminders, setup notes, and rule clarifications.',
+            cta: 'Open League Chat',
+            onClick: () => onOpenTab('league_chat'),
+          },
+        ]
+    : hasActiveRedraftSeason
+      ? [
+          {
+            title: "This week's matchup",
+            body: 'Check your matchup, live scoring, and start/sit calls for the current week.',
+            meta: currentWeek != null ? `Week ${currentWeek}` : 'In season',
+            cta: 'Open Matchups',
+            onClick: () => onOpenTab('matchups'),
+          },
+          {
+            title: 'Your roster',
+            body: 'Set your lineup, check bye weeks and injuries, and manage your bench.',
+            meta: teamLabel,
+            cta: 'Open Roster',
+            onClick: () => onOpenTab('roster'),
+          },
+          {
+            title: 'League rules summary',
+            body: 'View scoring, waivers, trade review, roster limits, playoffs, and permissions.',
+            cta: 'View rules',
+            onClick: () => onOpenSettings(null),
+          },
+          {
+            title: 'League Chat',
+            body: 'Coordinate with your league — trades, waivers, and weekly trash talk.',
+            cta: 'Open League Chat',
+            onClick: () => onOpenTab('league_chat'),
+          },
+        ]
+      : [
+          {
+            title: 'Draft HQ',
+            body: 'Open the draft room, check the countdown, and get ready for your board.',
+            meta: draftDate,
+            cta: 'Open Draft',
+            onClick: () => onOpenTab('draft'),
+          },
+          {
+            title: 'Roster prep',
+            body: 'Your roster view is ready for draft results and lineup prep once players are assigned.',
+            meta: teamLabel,
+            cta: 'Open Roster',
+            onClick: () => onOpenTab('roster'),
+          },
+          {
+            title: 'League rules summary',
+            body: 'View scoring, waivers, trade review, roster limits, playoffs, and permissions.',
+            cta: 'View rules',
+            onClick: () => onOpenSettings(null),
+          },
+          {
+            title: 'League Chat',
+            body: 'Chat stays available by default so managers can coordinate draft night.',
+            cta: 'Open League Chat',
+            onClick: () => onOpenTab('league_chat'),
+          },
+        ]
 
   const managerTiles: Tile[] = [
     {
@@ -250,11 +320,17 @@ export function NflRedraftLeagueHomeDashboard({
       : 'Commissioner HQ'
     : hasManagerIntelligence
       ? 'Manager Intelligence'
-      : 'Draft HQ'
+      : hasActiveRedraftSeason
+        ? 'Season Hub'
+        : 'Draft HQ'
 
-  const subtitle = isCommissioner
-    ? 'Run draft setup, member readiness, league rules, chat, and settings from a focused command surface.'
-    : 'Get ready for draft night, keep league chat nearby, and track the next steps before kickoff.'
+  const subtitle = hasActiveRedraftSeason
+    ? isCommissioner
+      ? 'Track this week\'s matchups, standings, league rules, and chat from a focused command surface.'
+      : 'Check this week\'s matchup, manage your roster, and keep league chat nearby.'
+    : isCommissioner
+      ? 'Run draft setup, member readiness, league rules, chat, and settings from a focused command surface.'
+      : 'Get ready for draft night, keep league chat nearby, and track the next steps before kickoff.'
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 lg:px-6" data-testid="g32-nfl-redraft-home">
@@ -277,7 +353,11 @@ export function NflRedraftLeagueHomeDashboard({
           </div>
           <div className="grid min-w-[min(100%,420px)] grid-cols-2 gap-2">
             <Metric icon={Users} label="Managers" value={`${joinedTeams}/${teamCount}`} />
-            <Metric icon={CalendarClock} label="Draft" value={draftDate} />
+            {hasActiveRedraftSeason ? (
+              <Metric icon={CalendarClock} label="Week" value={currentWeek != null ? `Week ${currentWeek}` : 'In season'} />
+            ) : (
+              <Metric icon={CalendarClock} label="Draft" value={draftDate} />
+            )}
           </div>
         </div>
       </section>
@@ -295,12 +375,20 @@ export function NflRedraftLeagueHomeDashboard({
             <h3 className="text-base font-black text-white">{isCommissioner ? 'Basic issue checklist' : 'Upcoming events'}</h3>
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-2">
-            {[
-              isCommissioner ? 'Draft setup reviewed' : 'Draft date checked',
-              isCommissioner ? 'Managers invited' : 'Roster tab ready',
-              isCommissioner ? 'League rules reviewed' : 'League rules reviewed',
-              isCommissioner ? 'League chat announcement posted' : 'League chat open',
-            ].map((item) => (
+            {(hasActiveRedraftSeason
+              ? [
+                  isCommissioner ? 'Standings up to date' : 'Lineup set for this week',
+                  isCommissioner ? 'Waivers reviewed' : 'Waivers checked',
+                  'League rules reviewed',
+                  isCommissioner ? 'League chat announcement posted' : 'League chat open',
+                ]
+              : [
+                  isCommissioner ? 'Draft setup reviewed' : 'Draft date checked',
+                  isCommissioner ? 'Managers invited' : 'Roster tab ready',
+                  'League rules reviewed',
+                  isCommissioner ? 'League chat announcement posted' : 'League chat open',
+                ]
+            ).map((item) => (
               <div key={item} className="flex items-center gap-2 rounded-2xl border border-white/[0.07] bg-black/20 px-3 py-2 text-xs text-white/65">
                 <CheckCircle2 className="h-4 w-4 text-cyan-300" aria-hidden />
                 {item}
@@ -357,6 +445,14 @@ export function NflRedraftLeagueHomeDashboard({
           </div>
         </section>
       )}
+
+      {/* Phase 20 — read-only, display-only replay-backed Trade Impact Insights
+          for this manager/team. Renders nothing unless
+          MANAGER_REPLAY_INSIGHTS_DASHBOARD_ENABLED=true; historical observations,
+          not recommendations. */}
+      <div className="mt-5">
+        <ManagerReplayInsightsCard leagueId={leagueId} />
+      </div>
 
       <RedraftCommunicationPanel
         leagueId={leagueId}
