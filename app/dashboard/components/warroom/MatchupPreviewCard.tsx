@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { TrendingDown, TrendingUp } from 'lucide-react'
 import type { UserLeague } from '../../types'
 import { WarRoomCard } from './WarRoomCard'
@@ -19,8 +19,21 @@ type MatchupRow = {
   winProbA: number
 }
 
-/** Fetches this league's current matchups and renders the row that belongs to the user, if resolvable. */
-export function MatchupPreviewCard({ league, userId }: { league: UserLeague; userId: string | null }) {
+/**
+ * Fetches this league's current matchups and renders the row that belongs to the user, if resolvable.
+ * `fallback` (default null) renders when no matchup row is resolvable — lets a caller (e.g. Team Focus's
+ * TeamThisWeek) show an honest empty state for an in-season league that has no matchup data yet, instead
+ * of this card silently disappearing. Existing callers that omit it keep the prior null behavior.
+ */
+export function MatchupPreviewCard({
+  league,
+  userId,
+  fallback = null,
+}: {
+  league: UserLeague
+  userId: string | null
+  fallback?: ReactNode
+}) {
   const { t, tInterpolate } = useLanguage()
   const [myExternalId, setMyExternalId] = useState<string | null>(null)
   const [rows, setRows] = useState<MatchupRow[] | null>(null)
@@ -59,7 +72,7 @@ export function MatchupPreviewCard({ league, userId }: { league: UserLeague; use
     return rows[0] ?? null
   }, [rows, myExternalId])
 
-  if (!mine) return null
+  if (!mine) return <>{fallback}</>
 
   const iAmA = myExternalId ? mine.teamAId === myExternalId : true
   const myName = iAmA ? mine.teamAName : mine.teamBName
