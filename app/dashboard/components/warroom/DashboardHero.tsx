@@ -60,24 +60,36 @@ export function DashboardHero({
   const heroArt = getLeagueTypeMedia(selectedLeague?.leagueType ?? null)
 
   return (
-    <WarRoomCard className="relative overflow-hidden p-5" accentBorder="rgba(34,211,238,0.15)">
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-70"
-        style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.16) 0%, transparent 70%)' }} />
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="flex shrink-0 flex-col items-center gap-1.5">
-          <div className="relative h-20 w-20 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] sm:h-24 sm:w-24">
+    <WarRoomCard className="relative overflow-hidden p-5 sm:p-6" accentBorder="rgba(34,211,238,0.18)">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 opacity-80"
+        style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.18) 0%, transparent 70%)' }} />
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
+        <div className="flex shrink-0 flex-col items-center gap-2">
+          <div
+            aria-hidden
+            className="relative h-20 w-20 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] sm:h-24 sm:w-24"
+            style={{ boxShadow: '0 0 0 1px rgba(34,211,238,0.12), 0 0 28px -8px rgba(34,211,238,0.5)' }}
+          >
             <Image src={heroArt.thumbnail} alt="" fill sizes="96px" className="object-cover opacity-90" />
-            <span className="absolute inset-x-0 bottom-0 bg-black/60 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-wide text-white/70">
+            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-1 pt-3 text-center text-[8px] font-semibold uppercase tracking-wide text-white/70">
               {t('dashboard.warroom.hero.artPlaceholder')}
             </span>
           </div>
-          <p className="max-w-[96px] text-center text-[10px] italic leading-snug text-white/35">
-            {t(ROBOT_KING_LINE_KEY[context])}
-          </p>
+          {/* Robot King "speech bubble" — small pointer connects the caption back to the art,
+              so it reads as the character speaking rather than a caption floating nearby. */}
+          <div className="relative max-w-[112px] rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5">
+            <span
+              aria-hidden
+              className="absolute -top-[5px] left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-l border-t border-white/10 bg-white/[0.04]"
+            />
+            <p className="text-center text-[10px] italic leading-snug text-white/50">
+              {t(ROBOT_KING_LINE_KEY[context])}
+            </p>
+          </div>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-400/70">
               {t(EYEBROW_KEY[context])}
             </p>
             {urgentTodayCount > 0 ? (
@@ -91,7 +103,10 @@ export function DashboardHero({
               {tInterpolate(`dashboard.warroom.hero.greeting.${greetingPeriod}`, { name: userName })}
             </p>
           ) : null}
-          <h1 className="mt-1 text-[24px] font-black leading-tight tracking-tight text-white sm:text-[28px]">
+          <h1
+            className="mt-1.5 text-[26px] font-black leading-[1.1] tracking-tight text-white sm:text-[30px]"
+            style={{ textShadow: '0 2px 24px rgba(34,211,238,0.18)' }}
+          >
             {t(HEADLINE_KEY[context])}
           </h1>
 

@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { AlertTriangle, CheckCircle2, Crown, Lightbulb } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, Crown, Lightbulb, Sparkles } from 'lucide-react'
 import type { UserLeague } from '../../types'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import { WarRoomCard } from './WarRoomCard'
@@ -22,7 +22,10 @@ const HEALTH_BADGE_CLASSES: Record<string, string> = {
 
 function StatChip({ label, value, warn }: { label: string; value: string | number; warn?: boolean }) {
   return (
-    <div className="rounded-lg border border-white/[0.06] bg-white/[0.02] px-2 py-1.5 text-center">
+    <div
+      className="rounded-lg border border-white/[0.06] bg-white/[0.025] px-2 py-1.5 text-center"
+      style={{ boxShadow: '0 1px 0 0 rgba(255,255,255,0.04) inset' }}
+    >
       <p className={`text-[15px] font-black leading-tight ${warn ? 'text-amber-300' : 'text-white'}`}>{value}</p>
       <p className="mt-0.5 text-[9px] font-semibold uppercase tracking-wide text-white/35">{label}</p>
     </div>
@@ -33,7 +36,7 @@ function QuickActionButton({ href, label }: { href: string; label: string }) {
   return (
     <Link
       href={href}
-      className="flex items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-2.5 py-2 text-center text-[12px] font-semibold text-amber-100/90 transition hover:border-amber-400/40 hover:bg-amber-500/[0.1]"
+      className="flex items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/[0.05] px-2.5 py-2 text-center text-[12px] font-semibold text-amber-100/90 transition hover:-translate-y-0.5 hover:border-amber-400/40 hover:bg-amber-500/[0.1] hover:shadow-[0_6px_16px_-8px_rgba(245,158,11,0.4)]"
     >
       {label}
     </Link>
@@ -93,19 +96,25 @@ export function CommissionerHQ({
   }
 
   return (
-    <WarRoomCard className="overflow-hidden" accentBorder="rgba(245,158,11,0.25)">
-      <div className="relative flex items-center gap-3 border-b border-white/[0.06] px-4 py-3">
-        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-amber-500/20">
+    <WarRoomCard className="overflow-hidden" accentBorder="rgba(245,158,11,0.28)">
+      <div
+        className="relative flex items-center gap-3 px-4 py-3.5"
+        style={{ background: 'linear-gradient(180deg, rgba(245,158,11,0.07) 0%, transparent 100%)' }}
+      >
+        <div
+          className="relative h-11 w-11 shrink-0 overflow-hidden rounded-xl border border-amber-500/25"
+          style={{ boxShadow: '0 0 20px -6px rgba(245,158,11,0.35)' }}
+        >
           <Image src={media.thumbnail} alt="" fill sizes="44px" className="object-cover" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <Crown className="h-3.5 w-3.5 text-amber-400" aria-hidden />
-            <p className="text-[11px] font-bold uppercase tracking-widest text-amber-300/80">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-amber-300/80">
               {t('dashboard.warroom.commissionerHQ.title')}
             </p>
           </div>
-          <p className="truncate text-[16px] font-black text-white">{league.name}</p>
+          <p className="truncate text-[17px] font-black text-white">{league.name}</p>
         </div>
         {snapshot ? (
           <span
@@ -117,7 +126,7 @@ export function CommissionerHQ({
       </div>
 
       {/* 1. Commissioner Action Center */}
-      <div className="border-b border-white/[0.06] px-4 py-3">
+      <div className="px-4 py-3.5">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-white/30">
           {t('dashboard.warroom.commissionerHQ.actionCenter.title')}
         </p>
@@ -136,16 +145,17 @@ export function CommissionerHQ({
             ))}
           </ul>
         ) : (
-          <p className="flex items-center gap-1.5 text-[12px] text-emerald-300/80">
-            <CheckCircle2 className="h-3.5 w-3.5" aria-hidden />
+          <div className="flex items-center gap-2 rounded-lg bg-emerald-500/[0.06] px-2.5 py-2 text-[12px] text-emerald-300/80">
+            <CheckCircle2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
             {t('dashboard.warroom.commissionerHQ.actionCenter.empty')}
-          </p>
+          </div>
         )}
       </div>
 
-      {/* 2. League Health Snapshot */}
+      {/* 2. League Health Snapshot — subtle tinted band gives the stacked sections rhythm
+          without relying on hard gray divider lines. */}
       {snapshot ? (
-        <div className="border-b border-white/[0.06] px-4 py-3">
+        <div className="bg-white/[0.015] px-4 py-3.5">
           <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-white/30">
             {t('dashboard.warroom.commissionerHQ.health.title')}
           </p>
@@ -169,7 +179,7 @@ export function CommissionerHQ({
 
       {/* 3. Commissioner Recommendations — reuses league-health-engine's deterministic
           interventionRecommendations; no new recommendation engine. */}
-      <div className="border-b border-white/[0.06] px-4 py-3">
+      <div className="px-4 py-3.5">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-white/30">
           {t('dashboard.warroom.commissionerHQ.recommendations.title')}
         </p>
@@ -183,22 +193,28 @@ export function CommissionerHQ({
             ))}
           </ul>
         ) : (
-          <p className="text-[12px] text-white/40">{t('dashboard.warroom.commissionerHQ.recommendations.empty')}</p>
+          <div className="flex items-center gap-2 rounded-lg bg-white/[0.02] px-2.5 py-2 text-[12px] text-white/40">
+            <Sparkles className="h-3.5 w-3.5 shrink-0 text-cyan-400/50" aria-hidden />
+            {t('dashboard.warroom.commissionerHQ.recommendations.empty')}
+          </div>
         )}
       </div>
 
       {/* 4. League Timeline — honest empty state. No real per-league narrative event feed
           exists today (only internal LeagueAuditLog action slugs like "adjust_scores", not
           user-facing copy) — see the Phase 2.3 PR notes rather than fabricating activity. */}
-      <div className="border-b border-white/[0.06] px-4 py-3">
+      <div className="bg-white/[0.015] px-4 py-3.5">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-white/30">
           {t('dashboard.warroom.commissionerHQ.timeline.title')}
         </p>
-        <p className="text-[12px] text-white/40">{t('dashboard.warroom.commissionerHQ.timeline.empty')}</p>
+        <div className="flex items-center gap-2 rounded-lg bg-white/[0.02] px-2.5 py-2 text-[12px] text-white/40">
+          <Clock className="h-3.5 w-3.5 shrink-0 text-white/25" aria-hidden />
+          {t('dashboard.warroom.commissionerHQ.timeline.empty')}
+        </div>
       </div>
 
       {/* 5. Quick Commissioner Actions — deep links into existing functionality only. */}
-      <div className="px-4 py-3">
+      <div className="px-4 py-3.5">
         <p className="mb-2 text-[11px] font-bold uppercase tracking-widest text-white/30">
           {t('dashboard.warroom.commissionerHQ.quickActions.title')}
         </p>

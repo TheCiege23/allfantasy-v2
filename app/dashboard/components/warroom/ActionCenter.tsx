@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, ArrowRightLeft, Flame, Swords, UserPlus } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, CheckCircle2, Flame, Swords, UserPlus } from 'lucide-react'
 import type { LineupActionItem } from '@/lib/lineup-actions/types'
 import { WarRoomCard } from './WarRoomCard'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
@@ -140,9 +140,12 @@ export function ActionCenter({
 
   if (rows.length === 0) {
     return (
-      <WarRoomCard className="p-4 text-center" accentBorder="rgba(52,211,153,0.2)">
+      <WarRoomCard className="flex flex-col items-center gap-1.5 p-5 text-center" accentBorder="rgba(52,211,153,0.2)">
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300">
+          <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden />
+        </span>
         <p className="text-[13px] font-semibold text-emerald-300">{t('dashboard.warroom.actionCenter.allCaughtUp')}</p>
-        <p className="mt-1 text-[11px] text-white/45">{t('dashboard.warroom.actionCenter.noUrgentDecisions')}</p>
+        <p className="text-[11px] text-white/45">{t('dashboard.warroom.actionCenter.noUrgentDecisions')}</p>
       </WarRoomCard>
     )
   }
