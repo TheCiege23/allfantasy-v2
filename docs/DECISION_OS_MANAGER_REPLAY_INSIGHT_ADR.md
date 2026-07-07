@@ -82,10 +82,40 @@ Efficiency deltas are rendered as signed percentage-points ("+1.4 pts efficiency
 
 ---
 
+## 9. Phase 18 addendum — the read-only resolver (§8 item 1, implemented)
+
+Phase 18 built the "thin, read-only Manager-OS resolver" recommended in §8 item 1: `lib/decision-os/replay-insights/replayInsightResolver.ts`. It is the concrete realization of §7's wiring sketch, and it stays inside every boundary this ADR draws.
+
+**What it is.** A pure handler `replayInsightHandler(ctx, dataProvider, options?)` that mirrors `lib/decision-os/behavioral/api/intelligence-handlers.ts` exactly: `checkIntelligenceGate` → `hasScope('intelligence:league:read')` → `leagueId` param validation → data provider → `buildManagerReplayInsights(summary, { scope: 'league' })` → a `{ data, meta }` envelope. The handler does no IO; a `ReplayInsightDataProvider` is injected. The **live** provider (`createLiveReplayInsightDataProvider()`) is the sole IO boundary and calls the read-only Phase 15/16 `computeDecisionReplayCorrelation([leagueId])` (two `findMany`s, zero writes). Tests inject a fake and touch no DB.
+
+**Why it stays on the right side of every boundary:**
+- **Reuses the existing auth/tenant gate, invents no new one.** It is protected by the same `DECISION_OS_INTELLIGENCE_API_ENABLED` flag, the same `afk_{env}_{token}` key format, and the same tier→scope map as the intelligence API. League-scoped replay insights read at `intelligence:league:read` (commissioner + platform tiers) — the same scope as league intelligence. A `basic`-tier key gets 403; a missing key 401; the flag-off environment 503.
+- **The isolation direction is one-way and preserved.** This resolver lives in `lib/decision-os/`, imports the replay *contract + formatter + read-only correlation*, and `lib/replay-framework/` imports nothing from it. Replay stays production-import-free; production imports the contract, never the internals. (`replay-framework/isolation.test.ts` still scans only replay-framework and is unaffected.)
+- **Still no route, no UI, no recommendation.** No `app/api/**` route imports the handler yet — wiring a route is a further, separately-scoped step. The body is exactly `ManagerReplayInsightSetV1`, still leak-proof by construction. Nothing here influences a live recommendation; the validation→recommendation crossing (§8 item 3) remains un-crossed and still requires its own ADR.
+
+**Honest data semantics.** The unwired stub provider returns `null` → 503 ("not available"). The live provider always returns a summary — a league with no replay corpus yields a zero-trade summary → 200 with an *empty* insight set, so a caller can tell "no data yet" apart from "endpoint broken." `meta.completeness` is the honest share of considered trades that had usable subsequent lineup data (e.g. 81% on the validation corpus).
+
+### 9.1 Recommendation for Phase 19
+
+1. **A thin Next.js route** (`app/api/v1/intelligence/replay-insights/route.ts`) that constructs the request context, passes `createLiveReplayInsightDataProvider()`, and returns the handler result — the last remaining wiring step, still display-only, as its own explicitly-scoped phase.
+2. **Only then** consider a UI surface — deliberately excluded from Phase 18 per its scope; a route with no UI is the correct intermediate state.
+3. **Re-validate finding durability on a larger corpus** (unchanged from §8 item 2) before the insights are shown to real users.
+4. **The validation→recommendation boundary stays closed** (unchanged from §8 item 3) until it gets its own ADR.
+
+---
+
 ## Files changed in this session
+
+**Phase 17** (new):
 
 - `lib/replay-framework/insights/managerReplayInsight.ts` (new — contract types, validated-baseline constants, deterministic formatter)
 - `__tests__/replay-framework/managerReplayInsight.test.ts` (new — leak-safety, determinism, low-sample caveat, and validated-finding-rendering coverage)
 - `docs/DECISION_OS_MANAGER_REPLAY_INSIGHT_ADR.md` (this document, new)
 
-No trade-engine, lineup-optimizer, Trade Learning, calibration, or production recommendation code was modified. No route, cron, or Chimmy path imports the new module. No database was read or written. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.
+**Phase 18** (new — read-only resolver, no route/UI):
+
+- `lib/decision-os/replay-insights/replayInsightResolver.ts` (new — pure handler + injected data provider (stub + live), reuses the intelligence-API gate)
+- `__tests__/decision-os/replayInsightResolver.test.ts` (new, 11 tests — auth/tenant protection, determinism, no-ID-leak, empty-sample 200, stub 503)
+- `docs/DECISION_OS_MANAGER_REPLAY_INSIGHT_ADR.md` (this §9 addendum)
+
+No trade-engine, lineup-optimizer, Trade Learning, calibration, or production recommendation code was modified in either phase. No `app/api/**` route, cron, or Chimmy path imports the new modules. Phase 17 read/wrote no database; Phase 18's handler is pure (tests use a fake provider) and its live provider performs only the existing read-only correlation query. `TRADE_ENGINE_WEEKLY_RECALIBRATION_ENABLED` remains unset everywhere.
