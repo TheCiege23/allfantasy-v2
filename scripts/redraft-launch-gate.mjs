@@ -5,8 +5,10 @@
  *
  * Covers: lineup locks, score sync, standings, waivers, trades, playoffs,
  * and draft-room/session tests scoped to the redraft product surface
- * (everything under __tests__/redraft/ plus __tests__/nfl-redraft-*.test.ts(x)
- * and __tests__/redraft-*.test.ts(x)).
+ * (everything under __tests__/redraft/ plus any top-level __tests__/*.test.ts(x)
+ * with "redraft" anywhere in the filename — this also catches the gNN
+ * ticket-numbered suites, e.g. g32-nfl-redraft-home-dashboard.test.tsx,
+ * g46b-nfl-redraft-player-media-metadata.test.ts).
  *
  * Two modes:
  *   --runtime  Vitest only — "is NFL redraft behavior safe?" (green today)
@@ -37,7 +39,7 @@ function collectRedraftTestFiles() {
 
   for (const name of readdirSync(testsDir)) {
     if (!/\.test\.tsx?$/.test(name)) continue
-    if (name.startsWith('nfl-redraft-') || name.startsWith('redraft-')) {
+    if (name.includes('redraft')) {
       files.push(`__tests__/${name}`)
     }
   }
