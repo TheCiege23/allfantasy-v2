@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Crown, ShieldCheck } from 'lucide-react'
+import { Crown, DollarSign, ShieldCheck } from 'lucide-react'
 import type { UserLeague } from '../../types'
 import { WarRoomCard } from './WarRoomCard'
 import { ChampionshipGauge } from './ChampionshipGauge'
 import { useActivityFeed } from '@/hooks/useActivityFeed'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { useLeagueHealth, type HealthStatus } from './useLeagueHealth'
 
 type MyTeamSummary = {
   externalId: string
@@ -33,32 +35,51 @@ type MatchupRow = {
   scoreB: number
 }
 
-/** Mirrors lib/league-health/league-health-engine.ts's OverallStatus. */
-type HealthStatus = 'excellent' | 'healthy' | 'watch' | 'at_risk' | 'critical' | 'unknown'
+/** Real values from the League Lifecycle enum (see app/dashboard/types.ts). "complete" is the legacy
+ *  coarse `status` spelling; "completed" is the precise `lifecycleState` spelling — normalized below. */
+const LIFECYCLE_KEY: Record<string, string> = {
+  setup: 'dashboard.warroom.lifecycle.setup',
+  pre_draft: 'dashboard.warroom.lifecycle.preDraft',
+  drafting: 'dashboard.warroom.lifecycle.drafting',
+  in_season: 'dashboard.warroom.lifecycle.inSeason',
+  playoffs: 'dashboard.warroom.lifecycle.playoffs',
+  completed: 'dashboard.warroom.lifecycle.completed',
+  offseason: 'dashboard.warroom.lifecycle.offseason',
+  renewal_pending: 'dashboard.warroom.lifecycle.renewalPending',
+  archived: 'dashboard.warroom.lifecycle.archived',
+}
 
-function healthTone(status: HealthStatus): { color: string; label: string } {
+function stageKey(league: UserLeague): string | null {
+  const raw = league.lifecycleState || league.status
+  if (!raw) return null
+  const normalized = raw === 'complete' ? 'completed' : raw
+  return LIFECYCLE_KEY[normalized] ?? null
+}
+
+function healthTone(status: HealthStatus): { color: string; labelKey: string } {
   switch (status) {
     case 'excellent':
-      return { color: '#34d399', label: 'Excellent' }
+      return { color: '#34d399', labelKey: 'dashboard.warroom.health.excellent' }
     case 'healthy':
-      return { color: '#34d399', label: 'Healthy' }
+      return { color: '#34d399', labelKey: 'dashboard.warroom.health.healthy' }
     case 'watch':
-      return { color: '#fbbf24', label: 'Watch' }
+      return { color: '#fbbf24', labelKey: 'dashboard.warroom.health.watch' }
     case 'at_risk':
-      return { color: '#f87171', label: 'At Risk' }
+      return { color: '#f87171', labelKey: 'dashboard.warroom.health.atRisk' }
     case 'critical':
-      return { color: '#f87171', label: 'Critical' }
+      return { color: '#f87171', labelKey: 'dashboard.warroom.health.critical' }
     default:
-      return { color: 'rgba(255,255,255,0.35)', label: 'Unknown' }
+      return { color: 'rgba(255,255,255,0.35)', labelKey: 'dashboard.warroom.health.unknown' }
   }
 }
 
 export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: string | null }) {
+  const { t, tInterpolate } = useLanguage()
   const [myTeam, setMyTeam] = useState<MyTeamSummary | null>(null)
   const [forecastRows, setForecastRows] = useState<ForecastRow[] | null>(null)
   const [matchupRows, setMatchupRows] = useState<MatchupRow[] | null>(null)
-  const [health, setHealth] = useState<{ status: HealthStatus } | null>(null)
   const { items: activityItems } = useActivityFeed({ limit: 20, leagueId: league.id })
+  const health = useLeagueHealth(league)
 
   const commissionerNotice = activityItems.find((i) => i.type === 'announcement') ?? null
 
@@ -109,39 +130,22 @@ export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: s
       })
       .catch(() => {})
 
-    void fetch(`/api/leagues/${encodeURIComponent(league.id)}/matchups`, { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { matchups?: MatchupRow[] } | null) => {
-        if (cancelled || !data?.matchups?.length) return
-        setMatchupRows(data.matchups)
-      })
-      .catch(() => {})
-
-    void fetch('/api/league-health', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        leagueId: league.id,
-        sport: league.sport,
-        leagueType: league.leagueType ?? league.format ?? 'redraft',
-        numTeams: league.teamCount ?? 12,
-        currentWeek: league.currentWeek ?? 1,
-      }),
-    })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data: { data?: { overallStatus?: string } } | null) => {
-        if (cancelled || !data?.data?.overallStatus) return
-        const raw = data.data.overallStatus.toLowerCase()
-        const known: HealthStatus[] = ['excellent', 'healthy', 'watch', 'at_risk', 'critical']
-        const status: HealthStatus = (known as string[]).includes(raw) ? (raw as HealthStatus) : 'unknown'
-        setHealth({ status })
-      })
-      .catch(() => {})
+    const stage = league.lifecycleState || league.status
+    const hasMatchups = stage === 'in_season' || stage === 'playoffs'
+    if (hasMatchups) {
+      void fetch(`/api/leagues/${encodeURIComponent(league.id)}/matchups`, { cache: 'no-store' })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data: { matchups?: MatchupRow[] } | null) => {
+          if (cancelled || !data?.matchups?.length) return
+          setMatchupRows(data.matchups)
+        })
+        .catch(() => {})
+    }
 
     return () => {
       cancelled = true
     }
-  }, [league.id, league.season, league.currentWeek, league.sport, league.leagueType, league.format, league.teamCount, userId])
+  }, [league.id, league.season, league.currentWeek, league.lifecycleState, league.status, userId])
 
   const forecast = useMemo(
     () => (myTeam ? (forecastRows?.find((r) => r.teamId === myTeam.externalId) ?? null) : null),
@@ -159,12 +163,15 @@ export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: s
     const hasResult = myScore > 0 || oppScore > 0
     return {
       opponentName,
+      // W/L are kept as universal single-letter sports abbreviations (same convention as "NFL"/"PPR"),
+      // not translated per-locale — matches how fantasy platforms present these across languages.
       lastResult: hasResult ? { won: myScore > oppScore, score: `${myScore.toFixed(1)}-${oppScore.toFixed(1)}` } : null,
     }
   }, [matchupRows, myTeam])
 
   const record = myTeam ? `${myTeam.wins}-${myTeam.losses}${myTeam.ties ? `-${myTeam.ties}` : ''}` : null
   const tone = health ? healthTone(health.status) : null
+  const stage = stageKey(league)
 
   return (
     <WarRoomCard className="warroom-fade-in-stagger relative overflow-hidden p-4" accentBorder="rgba(255,255,255,0.08)">
@@ -173,7 +180,7 @@ export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: s
           {league.logoUrl || league.avatarUrl ? (
             <Image
               src={league.logoUrl || league.avatarUrl || ''}
-              alt=""
+              alt={league.name}
               width={44}
               height={44}
               className="h-full w-full object-cover"
@@ -189,28 +196,43 @@ export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: s
               {league.name}
             </Link>
           </div>
-          <p className="mt-0.5 text-[11px] text-white/40">
-            {record ? `${record} · Rank #${myTeam?.currentRank ?? '—'}` : league.sport}
+          <p className="mt-0.5 flex flex-wrap items-center gap-x-1.5 text-[11px] text-white/40">
+            <span>
+              {record
+                ? `${record} · ${tInterpolate('dashboard.warroom.myLeagueCard.rankLabel', { rank: myTeam?.currentRank ?? '—' })}`
+                : league.sport}
+            </span>
+            {stage ? <span className="text-white/25">· {t(stage)}</span> : null}
           </p>
         </div>
-        {tone ? (
-          <span
-            className="inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
-            style={{ color: tone.color, background: `${tone.color}1a` }}
-          >
-            <ShieldCheck className="h-2.5 w-2.5" aria-hidden />
-            {tone.label}
-          </span>
-        ) : null}
+        <div className="flex shrink-0 flex-col items-end gap-1">
+          {tone ? (
+            <span
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide"
+              style={{ color: tone.color, background: `${tone.color}1a` }}
+            >
+              <ShieldCheck className="h-2.5 w-2.5" aria-hidden />
+              {t(tone.labelKey)}
+            </span>
+          ) : null}
+          {league.isPaid ? (
+            <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-300">
+              <DollarSign className="h-2.5 w-2.5" aria-hidden />
+              {league.entryFee
+                ? tInterpolate('dashboard.warroom.myLeagueCard.entryFeeBadge', { amount: league.entryFee })
+                : t('dashboard.warroom.myLeagueCard.paidLeague')}
+            </span>
+          ) : null}
+        </div>
       </div>
 
       <div className="mt-3 grid grid-cols-2 gap-2 text-[11px]">
         <div className="rounded-lg bg-white/[0.03] px-2.5 py-2">
-          <p className="text-white/35">Next Opponent</p>
+          <p className="text-white/35">{t('dashboard.warroom.myLeagueCard.nextOpponent')}</p>
           <p className="mt-0.5 truncate font-semibold text-white/85">{matchupInfo?.opponentName ?? '—'}</p>
         </div>
         <div className="rounded-lg bg-white/[0.03] px-2.5 py-2">
-          <p className="text-white/35">Last Result</p>
+          <p className="text-white/35">{t('dashboard.warroom.myLeagueCard.lastResult')}</p>
           <p
             className={`mt-0.5 font-semibold ${
               matchupInfo?.lastResult ? (matchupInfo.lastResult.won ? 'text-emerald-300' : 'text-white/60') : 'text-white/60'
@@ -223,8 +245,18 @@ export function MyLeagueCard({ league, userId }: { league: UserLeague; userId: s
 
       {forecast ? (
         <div className="mt-3 flex items-center justify-center gap-4 border-t border-white/[0.06] pt-3">
-          <ChampionshipGauge percent={Math.round(forecast.playoffProbability)} label="Playoff Odds" accent="#22d3ee" size={56} />
-          <ChampionshipGauge percent={Math.round(forecast.championshipProbability)} label="Championship" accent="#fbbf24" size={56} />
+          <ChampionshipGauge
+            percent={Math.round(forecast.playoffProbability)}
+            label={t('dashboard.warroom.myLeagueCard.playoffOdds')}
+            accent="#22d3ee"
+            size={56}
+          />
+          <ChampionshipGauge
+            percent={Math.round(forecast.championshipProbability)}
+            label={t('dashboard.warroom.myLeagueCard.championship')}
+            accent="#fbbf24"
+            size={56}
+          />
         </div>
       ) : null}
 

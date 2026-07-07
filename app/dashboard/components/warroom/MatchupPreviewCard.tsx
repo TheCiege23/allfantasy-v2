@@ -5,6 +5,7 @@ import { TrendingDown, TrendingUp } from 'lucide-react'
 import type { UserLeague } from '../../types'
 import { WarRoomCard } from './WarRoomCard'
 import { useReducedMotion } from './useWarRoomMotion'
+import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 type MatchupRow = {
   teamAId?: string
@@ -20,6 +21,7 @@ type MatchupRow = {
 
 /** Fetches this league's current matchups and renders the row that belongs to the user, if resolvable. */
 export function MatchupPreviewCard({ league, userId }: { league: UserLeague; userId: string | null }) {
+  const { t, tInterpolate } = useLanguage()
   const [myExternalId, setMyExternalId] = useState<string | null>(null)
   const [rows, setRows] = useState<MatchupRow[] | null>(null)
   const reduced = useReducedMotion()
@@ -79,16 +81,20 @@ export function MatchupPreviewCard({ league, userId }: { league: UserLeague; use
         <span className="truncate">{myName}</span>
         <span className="tabular-nums">{myScore.toFixed(1)}</span>
       </div>
-      <p className="text-[10px] text-white/35">Proj {myProj.toFixed(1)}</p>
+      <p className="text-[10px] text-white/35">
+        {tInterpolate('dashboard.warroom.matchup.proj', { value: myProj.toFixed(1) })}
+      </p>
       <div className="mt-1.5 flex items-center justify-between text-[13px] text-white/70">
         <span className="truncate">{oppName}</span>
         <span className="tabular-nums">{oppScore.toFixed(1)}</span>
       </div>
-      <p className="text-[10px] text-white/35">Proj {oppProj.toFixed(1)}</p>
+      <p className="text-[10px] text-white/35">
+        {tInterpolate('dashboard.warroom.matchup.proj', { value: oppProj.toFixed(1) })}
+      </p>
 
       <div className="mt-3">
         <div className="mb-1 flex items-center justify-between text-[10px] text-white/40">
-          <span>Win Probability</span>
+          <span>{t('dashboard.warroom.matchup.winProbability')}</span>
           <span className="font-semibold text-white/70">{myWinProb}%</span>
         </div>
         <div className="h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
