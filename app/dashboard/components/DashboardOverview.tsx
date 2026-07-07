@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AiTimeContextPayload } from '@/lib/time-engine/types'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import type { TodayActionsEngineResponse } from '@/lib/today-actions-engine'
@@ -25,7 +25,7 @@ import {
 import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
-import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
+import { useFantasyContext, type PrimaryContext } from '@/hooks/useFantasyContext'
 import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
 import { Crown } from 'lucide-react'
@@ -35,7 +35,7 @@ import { MyLeagueCard, rawStage } from './warroom/MyLeagueCard'
 import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
 import { CommissionerHub } from './warroom/CommissionerHub'
 import { CoachNotes } from './warroom/CoachNotes'
-import { GlobalCommandCenterHero } from './warroom/GlobalCommandCenterHero'
+import { DashboardHero } from './warroom/DashboardHero'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -111,7 +111,7 @@ export function DashboardOverview({
   const router = useRouter()
   const { t, tInterpolate } = useLanguage()
   const { hasPro } = useEntitlements()
-  const { selectedLeagueId, selectedLeague, setSelectedLeagueId } = useDashboardToolLeague(leagues)
+  const { context, selectedLeagueId, selectedLeague, setSelectedLeagueId } = useFantasyContext(leagues)
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
   const [checklistExpanded, setChecklistExpanded] = useState(false)
@@ -541,12 +541,146 @@ export function DashboardOverview({
     window.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
   }, [])
 
+  /** My Leagues narrows to commissioned-only in Commissioner Focus (secondary billing per the
+   *  locked Dashboard V2 architecture, Section 1); Global and Team Focus show every league. */
+  const myLeaguesList = context === 'commissioner' ? leagues.filter((l) => l.isCommissioner) : leagues
+
+  const todaysAgendaSection = (
+    <section key="agenda" className="space-y-3">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+        {t('dashboard.warroom.today.title')}
+      </p>
+      <ActionCenter
+        lineupActions={lineupData?.actions ?? []}
+        waiverPickupSuggestions={waiverChipCount}
+        pendingTradeCount={pendingTradeChipCount}
+        warRoomDecisionsToReview={warRoomDecisionsToReview}
+        onLineupIssuesClick={handleLineupIssuesClick}
+        onWaiverClick={handleWaiverClick}
+        onTradesClick={handleTradeClick}
+        onWarRoomClick={handleWarRoomToolClick}
+      />
+      <TodayTimeline
+        lineupActions={lineupData?.actions ?? []}
+        waiverTiming={todayWaiverTiming}
+        autoSwapsLast24h={todayAutoProtection?.autoSwapsLast24h ?? 0}
+        pendingTradeCount={pendingTradeChipCount}
+        upcomingDrafts={upcomingDrafts}
+        expiringNativeTrades={expiringNativeTrades}
+      />
+    </section>
+  )
+
+  const myLeaguesSection = leaguesLoading ? (
+    <section key="myLeagues" className="space-y-2.5">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+        {t('dashboard.warroom.myLeagues.title')}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[0, 1].map((i) => (
+          <div key={i} className="warroom-card h-[168px] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
+        ))}
+      </div>
+    </section>
+  ) : myLeaguesList.length > 0 ? (
+    <section key="myLeagues" className="space-y-2.5">
+      <div className="flex items-center gap-1.5">
+        <Crown className="h-3.5 w-3.5 text-amber-400/80" aria-hidden />
+        <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+          {t('dashboard.warroom.myLeagues.title')}
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {myLeaguesList.map((l) => (
+          <MyLeagueCard
+            key={l.id}
+            league={l}
+            userId={userId}
+            waiverTiming={l.id === todayPrimaryLeagueId ? todayWaiverTiming : null}
+          />
+        ))}
+      </div>
+    </section>
+  ) : null
+
+  const commissionerHubSection = (
+    // Self-gates to nothing when the viewer commissions no league. The fuller Command Center
+    // (alerts, pending approvals, playoff setup, etc.) is Phase 2.3 scope per the architecture doc.
+    <CommissionerHub key="commissionerHub" leagues={leagues} />
+  )
+
+  const weeklyGamePlanSection = (
+    <CoachNotes key="weeklyGamePlan" lineupActions={lineupData?.actions ?? []} pendingTrades={tradeData?.trades ?? []} />
+  )
+
+  const rankingsLegacySection = (
+    <section key="rankingsLegacy" className="space-y-2.5">
+      <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+        {t('dashboard.warroom.rankingsLegacy.title')}
+      </p>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <RankingsCard
+          initialRankPayload={initialUserRankPayload}
+          onImportNow={handleImport}
+          rankRefreshKey={rankRefreshKey}
+          onAskChimmy={() => {
+            const prompt =
+              'Explain my AllFantasy AF rank, tier, and XP — what should I focus on to climb the ladder?'
+            handleAiShortcut(prompt)
+            window.dispatchEvent(
+              new CustomEvent('af-chimmy-shortcut', {
+                detail: { prompt },
+              })
+            )
+          }}
+        />
+        <LegacySnapshotCard rankPayload={initialUserRankPayload} />
+      </div>
+    </section>
+  )
+
+  const leagueBuzzSection = <LeagueActivityFeed key="leagueBuzz" />
+
+  /** Dashboard V2 Phase 2.2 — FantasyContextEngine section priority. Same components in every
+   *  context (per the "reuse, don't duplicate" rule); only their order changes. Global matches
+   *  the Phase 2.1 shell unchanged. Commissioner Focus promotes the Commissioner Hub to primary
+   *  billing; Team Focus promotes Weekly Game Plan and Rankings & Legacy (the manager-facing
+   *  sections) ahead of the Commissioner Hub, which stays reachable but demoted. */
+  const sectionsByContext: Record<PrimaryContext, ReactNode[]> = {
+    global: [
+      todaysAgendaSection,
+      myLeaguesSection,
+      commissionerHubSection,
+      weeklyGamePlanSection,
+      rankingsLegacySection,
+      leagueBuzzSection,
+    ],
+    commissioner: [
+      commissionerHubSection,
+      myLeaguesSection,
+      todaysAgendaSection,
+      weeklyGamePlanSection,
+      rankingsLegacySection,
+      leagueBuzzSection,
+    ],
+    team: [
+      weeklyGamePlanSection,
+      todaysAgendaSection,
+      rankingsLegacySection,
+      myLeaguesSection,
+      commissionerHubSection,
+      leagueBuzzSection,
+    ],
+  }
+
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
-        {/* 1. GLOBAL COMMAND CENTER HERO — Dashboard V2 Phase 2.1. World Cup promo moved out of the
-            primary dashboard experience (still reachable at /brackets/world-cup, not deleted). */}
-        <GlobalCommandCenterHero
+        {/* 1. DASHBOARD HERO — Dashboard V2 Phase 2.2, context-aware (Global / Commissioner / Team).
+            World Cup promo moved out of the primary dashboard experience in Phase 2.1 (still
+            reachable at /brackets/world-cup, not deleted). */}
+        <DashboardHero
+          context={context}
           userName={userName}
           leagues={leagues}
           selectedLeagueId={selectedLeagueId}
@@ -700,100 +834,9 @@ export function DashboardOverview({
           </button>
         )}
 
-        {/* 2. TODAY'S FANTASY AGENDA — urgent/actionable rows (ActionCenter) + the chronological
-            strip (TodayTimeline) under one shared heading. */}
-        <section className="space-y-3">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-            {t('dashboard.warroom.today.title')}
-          </p>
-          <ActionCenter
-            lineupActions={lineupData?.actions ?? []}
-            waiverPickupSuggestions={waiverChipCount}
-            pendingTradeCount={pendingTradeChipCount}
-            warRoomDecisionsToReview={warRoomDecisionsToReview}
-            onLineupIssuesClick={handleLineupIssuesClick}
-            onWaiverClick={handleWaiverClick}
-            onTradesClick={handleTradeClick}
-            onWarRoomClick={handleWarRoomToolClick}
-          />
-          <TodayTimeline
-            lineupActions={lineupData?.actions ?? []}
-            waiverTiming={todayWaiverTiming}
-            autoSwapsLast24h={todayAutoProtection?.autoSwapsLast24h ?? 0}
-            pendingTradeCount={pendingTradeChipCount}
-            upcomingDrafts={upcomingDrafts}
-            expiringNativeTrades={expiringNativeTrades}
-          />
-        </section>
-
-        {/* 3. MY LEAGUES */}
-        {leaguesLoading ? (
-          <section className="space-y-2.5">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-              {t('dashboard.warroom.myLeagues.title')}
-            </p>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {[0, 1].map((i) => (
-                <div key={i} className="warroom-card h-[168px] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
-              ))}
-            </div>
-          </section>
-        ) : leagues.length > 0 ? (
-          <section className="space-y-2.5">
-            <div className="flex items-center gap-1.5">
-              <Crown className="h-3.5 w-3.5 text-amber-400/80" aria-hidden />
-              <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-                {t('dashboard.warroom.myLeagues.title')}
-              </p>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {leagues.map((l) => (
-                <MyLeagueCard
-                  key={l.id}
-                  league={l}
-                  userId={userId}
-                  waiverTiming={l.id === todayPrimaryLeagueId ? todayWaiverTiming : null}
-                />
-              ))}
-            </div>
-          </section>
-        ) : null}
-
-        {/* 4. COMMISSIONER COMMAND CENTER — self-gates to nothing when the viewer commissions no league.
-            This is the existing CommissionerHub composite; the fuller Command Center (alerts, pending
-            approvals, playoff setup, etc.) is Phase 2.3 scope per the locked Dashboard V2 architecture. */}
-        <CommissionerHub leagues={leagues} />
-
-        {/* 5. WEEKLY GAME PLAN */}
-        <CoachNotes lineupActions={lineupData?.actions ?? []} pendingTrades={tradeData?.trades ?? []} />
-
-        {/* 6. RANKINGS & LEGACY */}
-        <section className="space-y-2.5">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-            {t('dashboard.warroom.rankingsLegacy.title')}
-          </p>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <RankingsCard
-              initialRankPayload={initialUserRankPayload}
-              onImportNow={handleImport}
-              rankRefreshKey={rankRefreshKey}
-              onAskChimmy={() => {
-                const prompt =
-                  'Explain my AllFantasy AF rank, tier, and XP — what should I focus on to climb the ladder?'
-                handleAiShortcut(prompt)
-                window.dispatchEvent(
-                  new CustomEvent('af-chimmy-shortcut', {
-                    detail: { prompt },
-                  })
-                )
-              }}
-            />
-            <LegacySnapshotCard rankPayload={initialUserRankPayload} />
-          </div>
-        </section>
-
-        {/* 7. LEAGUE BUZZ */}
-        <LeagueActivityFeed />
+        {/* 2-7. Context-ordered sections — Dashboard V2 Phase 2.2. Same components in every
+            context; only their order (sectionsByContext, defined above) changes. */}
+        {sectionsByContext[context]}
 
         {/* 8. FOOTER */}
         <footer className="border-t border-white/[0.06] pt-4 text-center text-[11px] text-white/25">
