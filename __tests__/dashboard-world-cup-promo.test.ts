@@ -32,16 +32,13 @@ const PROMO_KEYS = [
 ]
 
 describe('dashboard World Cup promo', () => {
-  it('renders above the existing dashboard overview content', () => {
-    expect(OVERVIEW_SRC).toContain("import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'")
-
-    const promoIndex = OVERVIEW_SRC.indexOf('<WorldCupDashboardPromo />')
-    const railIndex = OVERVIEW_SRC.indexOf('<DashboardIntelligenceRail')
-    const actionCenterIndex = OVERVIEW_SRC.indexOf('<ActionCenter')
-
-    expect(promoIndex).toBeGreaterThan(0)
-    expect(railIndex).toBeGreaterThan(promoIndex)
-    expect(actionCenterIndex).toBeGreaterThan(promoIndex)
+  it('is moved out of the primary Dashboard experience (Dashboard V2 Phase 2.1) but not deleted', () => {
+    // The promo no longer renders on /dashboard — Phase 2.1's Global Command Center Hero replaces
+    // it in the primary dashboard flow. The component itself still exists and is reachable via
+    // /brackets/world-cup (see the route assertions below), so this is a relocation, not a removal.
+    expect(OVERVIEW_SRC).not.toContain("import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'")
+    expect(OVERVIEW_SRC).not.toContain('<WorldCupDashboardPromo />')
+    expect(PROMO_SRC).toContain('export function WorldCupDashboardPromo')
   })
 
   it('uses the existing World Cup, Pro, and token routes', () => {

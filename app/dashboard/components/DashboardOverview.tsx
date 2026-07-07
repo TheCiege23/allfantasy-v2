@@ -8,15 +8,12 @@ import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/das
 import type { TodayActionsEngineResponse } from '@/lib/today-actions-engine'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import type { ChecklistStep, UserLeague } from '../types'
-import { AIToolsGrid } from '@/components/ai-tools/AIToolsGrid'
-import { WarRoomMiniCard } from '@/components/ai-tools/WarRoomMiniCard'
 import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
 import { RankingsCard } from './RankingsCard'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
 import { FavoriteSportsOnboardingModal } from './FavoriteSportsOnboardingModal'
-import { StandingsWidget } from '@/components/sports/StandingsWidget'
 import { QuickCreateModal } from '@/components/league-creation/QuickCreateModal'
 import { ConnectPlatformsModal } from './ConnectPlatformsModal'
 import type { FavoriteSportsSelection } from '@/lib/dashboard/favorite-sports-storage'
@@ -30,20 +27,15 @@ import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
 import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
-import { DashboardIntelligenceRail } from './DashboardIntelligenceRail'
-import { WarRoomPreviewBlock } from './WarRoomPreviewBlock'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
-import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'
-import { Swords, Sparkles, Crown } from 'lucide-react'
+import { Crown } from 'lucide-react'
 import { ActionCenter, countActionItems } from './warroom/ActionCenter'
 import { TodayTimeline } from './warroom/TodayTimeline'
 import { MyLeagueCard, rawStage } from './warroom/MyLeagueCard'
 import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
 import { CommissionerHub } from './warroom/CommissionerHub'
-import { ManagerHub } from './warroom/ManagerHub'
-import { useGreetingPeriod } from './warroom/useGreeting'
 import { CoachNotes } from './warroom/CoachNotes'
-import { SeasonJourney } from './warroom/SeasonJourney'
+import { GlobalCommandCenterHero } from './warroom/GlobalCommandCenterHero'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -119,7 +111,6 @@ export function DashboardOverview({
   const router = useRouter()
   const { t, tInterpolate } = useLanguage()
   const { hasPro } = useEntitlements()
-  const greetingPeriod = useGreetingPeriod()
   const { selectedLeagueId, selectedLeague, setSelectedLeagueId } = useDashboardToolLeague(leagues)
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
@@ -553,51 +544,17 @@ export function DashboardOverview({
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
       <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
-        <WorldCupDashboardPromo />
-        {(() => {
-          const inSeasonNflLeagues = leagues.filter(
-            (l) => l.sport === 'NFL' && l.status === 'in_season'
-          )
-          if (inSeasonNflLeagues.length === 0) return null
-          const weekNum = inSeasonNflLeagues[0]?.currentWeek
-          return (
-            <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] px-3 py-2 text-[12px]">
-              <span className="font-semibold text-cyan-200">
-                🏈{weekNum != null ? ` NFL Week ${weekNum}` : ' NFL Season'}
-              </span>
-              <span className="ml-2 text-white/45">
-                {inSeasonNflLeagues.length === 1
-                  ? '1 league active this week'
-                  : `${inSeasonNflLeagues.length} leagues active this week`}
-              </span>
-            </div>
-          )
-        })()}
-        <DashboardIntelligenceRail
-          leagueId={selectedLeagueId ?? null}
-          leagueName={selectedLeague?.name ?? null}
-          leagueSport={selectedLeague?.sport ?? null}
-          leagueType={selectedLeague?.leagueType ?? null}
+        {/* 1. GLOBAL COMMAND CENTER HERO — Dashboard V2 Phase 2.1. World Cup promo moved out of the
+            primary dashboard experience (still reachable at /brackets/world-cup, not deleted). */}
+        <GlobalCommandCenterHero
+          userName={userName}
+          leagues={leagues}
+          selectedLeagueId={selectedLeagueId}
+          selectedLeague={selectedLeague}
+          onSelectLeagueId={setSelectedLeagueId}
+          urgentTodayCount={urgentTodayCount}
         />
-        <ActionCenter
-          lineupActions={lineupData?.actions ?? []}
-          waiverPickupSuggestions={waiverChipCount}
-          pendingTradeCount={pendingTradeChipCount}
-          warRoomDecisionsToReview={warRoomDecisionsToReview}
-          onLineupIssuesClick={handleLineupIssuesClick}
-          onWaiverClick={handleWaiverClick}
-          onTradesClick={handleTradeClick}
-          onWarRoomClick={handleWarRoomToolClick}
-        />
-        <TodayTimeline
-          lineupActions={lineupData?.actions ?? []}
-          waiverTiming={todayWaiverTiming}
-          autoSwapsLast24h={todayAutoProtection?.autoSwapsLast24h ?? 0}
-          pendingTradeCount={pendingTradeChipCount}
-          upcomingDrafts={upcomingDrafts}
-          expiringNativeTrades={expiringNativeTrades}
-        />
-        <CoachNotes lineupActions={lineupData?.actions ?? []} pendingTrades={tradeData?.trades ?? []} />
+
         {allDone ? (
           <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
         ) : checklistExpanded ? (
@@ -743,163 +700,33 @@ export function DashboardOverview({
           </button>
         )}
 
-        <section className="relative overflow-hidden rounded-2xl border border-cyan-500/[0.15] bg-gradient-to-br from-cyan-500/[0.07] via-[#050814] to-violet-500/[0.04] p-5">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-70"
-            style={{
-              background:
-                'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.16) 0%, transparent 70%)',
-            }}
+        {/* 2. TODAY'S FANTASY AGENDA — urgent/actionable rows (ActionCenter) + the chronological
+            strip (TodayTimeline) under one shared heading. */}
+        <section className="space-y-3">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+            {t('dashboard.warroom.today.title')}
+          </p>
+          <ActionCenter
+            lineupActions={lineupData?.actions ?? []}
+            waiverPickupSuggestions={waiverChipCount}
+            pendingTradeCount={pendingTradeChipCount}
+            warRoomDecisionsToReview={warRoomDecisionsToReview}
+            onLineupIssuesClick={handleLineupIssuesClick}
+            onWaiverClick={handleWaiverClick}
+            onTradesClick={handleTradeClick}
+            onWarRoomClick={handleWarRoomToolClick}
           />
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">
-              AllFantasy Command Center
-            </p>
-            {urgentTodayCount > 0 ? (
-              <span className="shrink-0 rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-red-300">
-                {tInterpolate('dashboard.warroom.hero.todayCount', { n: urgentTodayCount })}
-              </span>
-            ) : null}
-          </div>
-          {greetingPeriod ? (
-            <p className="mt-2 text-[13px] font-semibold text-white/70">
-              {tInterpolate(`dashboard.warroom.hero.greeting.${greetingPeriod}`, { name: userName })}
-            </p>
-          ) : null}
-          <h1 className="mt-1.5 text-[26px] font-black leading-tight tracking-tight text-white sm:text-[30px]">
-            Your fantasy command center is live.
-          </h1>
-          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/55">
-            Chimmy is watching your drafts, matchups, waivers, and league activity so you know what to do next.
-          </p>
-          <p className="mt-1.5 text-[12px] font-semibold text-amber-400/70">
-            Built for commissioners. Loved by managers.
-          </p>
-
-          {/* Primary command cards */}
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <Link
-              href="/war-room"
-              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.12] via-cyan-500/[0.06] to-transparent p-4 transition hover:border-cyan-400/50 hover:from-cyan-500/[0.18] active:opacity-90"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400">
-                <Swords className="h-4 w-4" aria-hidden />
-              </span>
-              <p className="text-[15px] font-bold text-white">Open War Room</p>
-              <p className="text-[12px] leading-snug text-white/55">Draft smarter with AI pick strategy.</p>
-              <span className="mt-auto pt-1 text-[12px] font-semibold text-cyan-400 transition group-hover:text-cyan-300">
-                Enter →
-              </span>
-            </Link>
-
-            <Link
-              href="/commissioner-hub"
-              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/[0.10] via-amber-500/[0.05] to-transparent p-4 shadow-[0_0_20px_rgba(245,158,11,0.06)] transition hover:border-amber-400/50 hover:from-amber-500/[0.16] active:opacity-90"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
-                <Crown className="h-4 w-4" aria-hidden />
-              </span>
-              <p className="text-[15px] font-bold text-white">
-                {leagues.some((l) => l.isCommissioner) ? 'Commissioner Hub' : 'Run a League'}
-              </p>
-              <p className="text-[12px] leading-snug text-white/55">Create, import, invite, and manage your league.</p>
-              <span className="mt-auto pt-1 text-[12px] font-semibold text-amber-400 transition group-hover:text-amber-300">
-                Enter →
-              </span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => handleAiShortcut('')}
-              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.10] via-violet-500/[0.05] to-transparent p-4 text-left transition hover:border-violet-400/50 hover:from-violet-500/[0.16] active:opacity-90"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 text-violet-400">
-                <Sparkles className="h-4 w-4" aria-hidden />
-              </span>
-              <p className="text-[15px] font-bold text-white">Ask Chimmy</p>
-              <p className="text-[12px] leading-snug text-white/55">Get calm, evidence-based fantasy help.</p>
-              <span className="mt-auto pt-1 text-[12px] font-semibold text-violet-400 transition group-hover:text-violet-300">
-                Ask →
-              </span>
-            </button>
-          </div>
-
-          {/* Secondary action row */}
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
-            <Link
-              href="/create-league"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-            >
-              {t('dashboard.overview.createLeague')}
-            </Link>
-            <button
-              type="button"
-              onClick={() => setQuickCreateOpen(true)}
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[12px] font-semibold text-purple-300 transition hover:bg-purple-500/20 active:bg-purple-500/25 sm:w-auto"
-            >
-              ✨ Quick Create
-            </button>
-            <button
-              type="button"
-              onClick={handleImport}
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2 text-[12px] font-semibold text-white active:bg-white/10 sm:w-auto"
-            >
-              {t('dashboard.overview.import')}
-            </button>
-            <Link
-              href="/find-league"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-            >
-              {t('dashboard.overview.findLeague')}
-            </Link>
-            <Link
-              href="/brackets"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-              data-testid="dashboard-brackets-link"
-            >
-              {t('dashboard.overview.brackets')}
-            </Link>
-            <Link
-              href="/af-rankings"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-              data-testid="dashboard-rankings-link"
-            >
-              Rankings
-            </Link>
-            <Link
-              href="/ai/tools"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-              data-testid="dashboard-ai-tools-link"
-            >
-              Intelligence Hub
-            </Link>
-          </div>
+          <TodayTimeline
+            lineupActions={lineupData?.actions ?? []}
+            waiverTiming={todayWaiverTiming}
+            autoSwapsLast24h={todayAutoProtection?.autoSwapsLast24h ?? 0}
+            pendingTradeCount={pendingTradeChipCount}
+            upcomingDrafts={upcomingDrafts}
+            expiringNativeTrades={expiringNativeTrades}
+          />
         </section>
 
-        <WarRoomPreviewBlock />
-
-        <CommissionerHub leagues={leagues} />
-
-        <ManagerHub
-          leagues={leagues}
-          userId={userId}
-          selectedLeagueId={selectedLeagueId}
-          selectedLeague={selectedLeague}
-          onSelectLeagueId={setSelectedLeagueId}
-          waiverData={waiverData}
-          onOpenWaiverAll={handleWaiverClick}
-        />
-
-        {selectedLeague ? (
-          <SeasonJourney
-            lifecycleState={rawStage(selectedLeague)}
-            currentWeek={selectedLeague.currentWeek ?? null}
-            tradeDeadlineWeek={selectedLeague.tradeDeadlineWeek ?? null}
-            playoffStartWeek={selectedLeague.playoffStartWeek ?? null}
-          />
-        ) : null}
-
+        {/* 3. MY LEAGUES */}
         {leaguesLoading ? (
           <section className="space-y-2.5">
             <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
@@ -932,32 +759,46 @@ export function DashboardOverview({
           </section>
         ) : null}
 
+        {/* 4. COMMISSIONER COMMAND CENTER — self-gates to nothing when the viewer commissions no league.
+            This is the existing CommissionerHub composite; the fuller Command Center (alerts, pending
+            approvals, playoff setup, etc.) is Phase 2.3 scope per the locked Dashboard V2 architecture. */}
+        <CommissionerHub leagues={leagues} />
+
+        {/* 5. WEEKLY GAME PLAN */}
+        <CoachNotes lineupActions={lineupData?.actions ?? []} pendingTrades={tradeData?.trades ?? []} />
+
+        {/* 6. RANKINGS & LEGACY */}
+        <section className="space-y-2.5">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+            {t('dashboard.warroom.rankingsLegacy.title')}
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <RankingsCard
+              initialRankPayload={initialUserRankPayload}
+              onImportNow={handleImport}
+              rankRefreshKey={rankRefreshKey}
+              onAskChimmy={() => {
+                const prompt =
+                  'Explain my AllFantasy AF rank, tier, and XP — what should I focus on to climb the ladder?'
+                handleAiShortcut(prompt)
+                window.dispatchEvent(
+                  new CustomEvent('af-chimmy-shortcut', {
+                    detail: { prompt },
+                  })
+                )
+              }}
+            />
+            <LegacySnapshotCard rankPayload={initialUserRankPayload} />
+          </div>
+        </section>
+
+        {/* 7. LEAGUE BUZZ */}
         <LeagueActivityFeed />
 
-        <WarRoomMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-
-        <AIToolsGrid leagues={leagues} selectedLeagueId={selectedLeagueId} />
-
-        {selectedLeague ? (
-          <StandingsWidget leagueId={selectedLeague.id} sport={String(selectedLeague.sport)} />
-        ) : null}
-
-        <RankingsCard
-          initialRankPayload={initialUserRankPayload}
-          onImportNow={handleImport}
-          rankRefreshKey={rankRefreshKey}
-          onAskChimmy={() => {
-            const prompt =
-              'Explain my AllFantasy AF rank, tier, and XP — what should I focus on to climb the ladder?'
-            handleAiShortcut(prompt)
-            window.dispatchEvent(
-              new CustomEvent('af-chimmy-shortcut', {
-                detail: { prompt },
-              })
-            )
-          }}
-        />
-        <LegacySnapshotCard rankPayload={initialUserRankPayload} />
+        {/* 8. FOOTER */}
+        <footer className="border-t border-white/[0.06] pt-4 text-center text-[11px] text-white/25">
+          {t('dashboard.warroom.footer.tagline')}
+        </footer>
       </div>
 
       <LineupIssuesModal
