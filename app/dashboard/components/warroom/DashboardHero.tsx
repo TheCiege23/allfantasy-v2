@@ -22,6 +22,14 @@ const HEADLINE_KEY: Record<PrimaryContext, string> = {
   team: 'dashboard.warroom.hero.teamHeadline',
 }
 
+/** Phase 2.3 — small "Robot King says" caption under the art slot, contextual copy only
+ *  (no new narration system, no real data reused — just a fixed line per context). */
+const ROBOT_KING_LINE_KEY: Record<PrimaryContext, string> = {
+  global: 'dashboard.warroom.hero.robotKingGlobal',
+  commissioner: 'dashboard.warroom.hero.robotKingCommissioner',
+  team: 'dashboard.warroom.hero.robotKingTeam',
+}
+
 /**
  * Dashboard V2 Phase 2.2 — context-aware Hero (renamed from the Phase 2.1
  * `GlobalCommandCenterHero`). Same layout and Robot King placeholder slot in every
@@ -56,11 +64,16 @@ export function DashboardHero({
       <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-70"
         style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.16) 0%, transparent 70%)' }} />
       <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
-        <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] sm:h-24 sm:w-24">
-          <Image src={heroArt.thumbnail} alt="" fill sizes="96px" className="object-cover opacity-90" />
-          <span className="absolute inset-x-0 bottom-0 bg-black/60 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-wide text-white/70">
-            {t('dashboard.warroom.hero.artPlaceholder')}
-          </span>
+        <div className="flex shrink-0 flex-col items-center gap-1.5">
+          <div className="relative h-20 w-20 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] sm:h-24 sm:w-24">
+            <Image src={heroArt.thumbnail} alt="" fill sizes="96px" className="object-cover opacity-90" />
+            <span className="absolute inset-x-0 bottom-0 bg-black/60 px-1.5 py-0.5 text-center text-[8px] font-semibold uppercase tracking-wide text-white/70">
+              {t('dashboard.warroom.hero.artPlaceholder')}
+            </span>
+          </div>
+          <p className="max-w-[96px] text-center text-[10px] italic leading-snug text-white/35">
+            {t(ROBOT_KING_LINE_KEY[context])}
+          </p>
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
