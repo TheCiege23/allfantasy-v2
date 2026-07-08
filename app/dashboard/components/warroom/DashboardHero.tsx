@@ -147,7 +147,7 @@ export function DashboardHero({
   })()
 
   const NavChip = ({ icon: Icon, label, accent, href, onClick }: { icon: LucideIcon; label: string; accent: string; href?: string; onClick?: () => void }) => {
-    const cls = `inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/[0.06]`
+    const cls = `warroom-pressable inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/80 hover:border-white/20 hover:bg-white/[0.06]`
     const inner = (
       <>
         <Icon className={`h-3.5 w-3.5 ${accent}`} aria-hidden />

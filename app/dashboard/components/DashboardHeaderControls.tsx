@@ -77,7 +77,7 @@ export function DashboardHeaderControls({
         type="button"
         onClick={() => router.push('/create-league')}
         data-testid="dashboard-header-create-league"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/[0.10] text-cyan-50 shadow-[0_0_18px_-10px_rgba(34,211,238,0.85)] transition hover:border-cyan-200/55 hover:bg-cyan-300/[0.16]"
+        className="warroom-pressable inline-flex h-9 w-9 items-center justify-center rounded-xl border border-cyan-300/35 bg-cyan-300/[0.10] text-cyan-50 shadow-[0_0_18px_-10px_rgba(34,211,238,0.85)] hover:border-cyan-200/55 hover:bg-cyan-300/[0.16]"
         aria-label="Create League"
         title="Create League"
       >
@@ -87,7 +87,7 @@ export function DashboardHeaderControls({
         type="button"
         onClick={onImport}
         data-testid="dashboard-header-import-league"
-        className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/25 bg-amber-300/[0.08] text-amber-50 transition hover:border-amber-200/40 hover:bg-amber-300/[0.14]"
+        className="warroom-pressable inline-flex h-9 w-9 items-center justify-center rounded-xl border border-amber-300/25 bg-amber-300/[0.08] text-amber-50 hover:border-amber-200/40 hover:bg-amber-300/[0.14]"
         aria-label={t('dashboard.right.importLeague')}
         title={t('dashboard.right.importLeague')}
       >
@@ -101,7 +101,7 @@ export function DashboardHeaderControls({
           aria-label={t('dashboard.right.settings')}
           aria-expanded={menuOpen}
           onClick={() => setMenuOpen((prev) => !prev)}
-          className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] py-1 pl-1 pr-2 transition hover:border-cyan-300/25 hover:bg-cyan-300/[0.08]"
+          className="warroom-pressable flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] py-1 pl-1 pr-2 hover:border-cyan-300/25 hover:bg-cyan-300/[0.08]"
         >
           <span className="relative h-7 w-7 shrink-0 overflow-hidden rounded-lg border border-cyan-200/25 bg-gradient-to-br from-cyan-400 to-blue-600">
             {userImage ? (
@@ -126,7 +126,7 @@ export function DashboardHeaderControls({
           <div
             role="menu"
             data-testid="dashboard-header-user-menu"
-            className="absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-lg border border-white/[0.08] bg-[#0c0c24] shadow-xl"
+            className="warroom-menu-in absolute right-0 top-full z-30 mt-2 w-48 overflow-hidden rounded-lg border border-white/[0.08] bg-[#0c0c24] shadow-xl"
           >
             <div className="border-b border-white/[0.06] px-3 py-2">
               <p className="truncate text-[13px] font-bold text-white">{userName}</p>
