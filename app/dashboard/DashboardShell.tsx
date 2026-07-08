@@ -12,6 +12,7 @@ import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/co
 import { DashboardOverview } from './components/DashboardOverview'
 import { DraftRoomOverlay } from './components/DraftRoomOverlay'
 import { RightControlPanel } from './components/RightControlPanel'
+import { DashboardHeaderControls } from './components/DashboardHeaderControls'
 import { FloatingCommunications } from './components/FloatingCommunications'
 import { SelectedLeagueHomePanel } from './components/SelectedLeagueHomePanel'
 import type { DashboardConnectedLeague, LeftChatInitialTab, UserLeague } from './types'
@@ -693,6 +694,7 @@ export function DashboardShell({
       onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
       rightRailCollapsedHint={leagues.length ? String(leagues.length) : undefined}
       hideLeftRail
+      hideRightRail={!isLeagueRoute}
       leftPanel={null}
       rightPanel={
         <RightControlPanel
@@ -798,6 +800,16 @@ export function DashboardShell({
               <ThemeModeSelect size="sm" />
               {!isLeagueRoute ? (
                 <DashboardLegacyRankBadge initialUserRankPayload={initialUserRankPayload} />
+              ) : null}
+              {/* Phase 3.8D: the dashboard's desktop right rail is removed, so its Create/Import
+                  and profile/plan/account affordances are rehomed into the header. Only on the
+                  dashboard overview — the embedded league route keeps its rail (and its footer). */}
+              {!isLeagueRoute ? (
+                <DashboardHeaderControls
+                  userName={userName}
+                  userImage={userImage}
+                  onImport={handleTriggerImport}
+                />
               ) : null}
             </div>
           </div>
