@@ -76,6 +76,18 @@ function actionKind(reason: LineupActionReasonType): PlatformPulseItem['kind'] {
   return 'lineup_urgent'
 }
 
+/** Kinds whose multiple same-league items collapse into one summarized item. */
+const SUMMARIZABLE_KINDS = new Set<PlatformPulseItem['kind']>([
+  'lineup_urgent',
+  'injury_watch',
+  'ai_recommendation',
+])
+
+/** Real "why" bullets for a health item — the league's actual alerts, trimmed. Never fabricated. */
+function healthWhyDetails(h: CommissionerLeagueHealthSnapshot): string[] {
+  return (h.alerts ?? []).map((a) => a.trim()).filter(Boolean).slice(0, 4)
+}
+
 function hoursUntil(iso: string, now: number): number | null {
   const t = new Date(iso).getTime()
   if (!Number.isFinite(t)) return null
@@ -124,6 +136,7 @@ export function buildPlatformPulse(input: PlatformPulseInput): PlatformPulseItem
         source: 'commissioner',
         data: { leagueName: worst.leagueName, score: Math.round(worst.healthScore), metric: 'health' },
         why: worst.summary || null,
+        whyDetails: healthWhyDetails(worst),
         leagueId: worst.leagueId,
         leagueName: worst.leagueName,
       })
@@ -148,6 +161,7 @@ export function buildPlatformPulse(input: PlatformPulseInput): PlatformPulseItem
             source: 'commissioner',
             data: { leagueName: mine.leagueName, score: Math.round(score), metric },
             why: mine.summary || null,
+            whyDetails: healthWhyDetails(mine),
             leagueId: mine.leagueId,
             leagueName: mine.leagueName,
           })
@@ -203,13 +217,46 @@ export function buildPlatformPulse(input: PlatformPulseInput): PlatformPulseItem
     })
   }
 
-  // Dedupe (highest priority per key), rank, cap, and strip the internal key.
+  // Dedupe identical signals (highest priority per key).
   const byKey = new Map<string, Candidate>()
   for (const c of candidates) {
     const existing = byKey.get(c.dedupeKey)
     if (!existing || c.priority > existing.priority) byKey.set(c.dedupeKey, c)
   }
-  return [...byKey.values()]
+
+  // Summarize: collapse multiple same-kind signals in the SAME league into one item
+  // (e.g. three "set your lineup" issues → one "3 lineup decisions"), so the briefing
+  // never shows duplicate headlines. Non-groupable kinds pass through unchanged.
+  const groups = new Map<string, Candidate[]>()
+  const merged: Candidate[] = []
+  for (const c of byKey.values()) {
+    if (SUMMARIZABLE_KINDS.has(c.kind) && c.leagueId) {
+      const gk = `${c.kind}:${c.leagueId}`
+      const arr = groups.get(gk)
+      if (arr) arr.push(c)
+      else groups.set(gk, [c])
+    } else {
+      merged.push(c)
+    }
+  }
+  for (const group of groups.values()) {
+    if (group.length === 1) {
+      merged.push(group[0])
+      continue
+    }
+    const sorted = [...group].sort((a, b) => b.priority - a.priority)
+    const base = sorted[0]
+    merged.push({
+      ...base,
+      id: `${base.kind}:${base.leagueId}:summary`,
+      priority: base.priority + 2, // a real cluster is slightly more pressing than a single item
+      summarized: true,
+      data: { ...base.data, count: group.length, playerName: undefined },
+      whyDetails: sorted.map((g) => g.why).filter((x): x is string => Boolean(x)).slice(0, 5),
+    })
+  }
+
+  return merged
     .sort((a, b) => b.priority - a.priority || a.id.localeCompare(b.id))
     .slice(0, CAP)
     .map(({ dedupeKey: _dedupeKey, ...item }) => item)

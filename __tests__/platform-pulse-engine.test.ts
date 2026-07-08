@@ -181,3 +181,54 @@ describe('buildPlatformPulse (Phase 3.6 engine)', () => {
     expect(new Set(items.map((i) => i.id)).size).toBe(items.length)
   })
 })
+
+describe('buildPlatformPulse — summarize (Phase 3.8B, no duplicate headlines)', () => {
+  it('collapses multiple same-kind signals in ONE league into a single summarized item', () => {
+    const items = buildPlatformPulse({
+      ...base,
+      actions: [
+        action({ leagueId: 'a', reasonType: 'empty_starter', playerId: 'p1', message: 'Slot 1 empty' }),
+        action({ leagueId: 'a', reasonType: 'illegal_slot', playerId: 'p2', message: 'Slot 2 illegal' }),
+        action({ leagueId: 'a', reasonType: 'native_starter_gap', playerId: 'p3', message: 'Slot 3 gap' }),
+      ],
+    })
+    const lineup = items.filter((i) => i.kind === 'lineup_urgent')
+    expect(lineup).toHaveLength(1) // three → one, no repeated "Set your lineup"
+    expect(lineup[0].summarized).toBe(true)
+    expect(lineup[0].data.count).toBe(3)
+    // whyDetails aggregates each real reason (never fabricated).
+    expect(lineup[0].whyDetails).toEqual(['Slot 1 empty', 'Slot 2 illegal', 'Slot 3 gap'])
+  })
+
+  it('does NOT collapse the same kind across different leagues', () => {
+    const items = buildPlatformPulse({
+      ...base,
+      actions: [
+        action({ leagueId: 'a', reasonType: 'empty_starter', playerId: 'p1' }),
+        action({ leagueId: 'b', reasonType: 'empty_starter', playerId: 'p2' }),
+      ],
+    })
+    expect(items.filter((i) => i.kind === 'lineup_urgent')).toHaveLength(2)
+    expect(items.every((i) => !i.summarized)).toBe(true)
+  })
+
+  it('leaves a single same-kind item unsummarized (no fake count)', () => {
+    const [item] = buildPlatformPulse({
+      ...base,
+      actions: [action({ leagueId: 'a', reasonType: 'empty_starter', playerId: 'p1' })],
+    })
+    expect(item.summarized).toBeUndefined()
+    expect(item.data.count).toBeUndefined()
+  })
+
+  it("populates a health item's whyDetails from the real snapshot alerts", () => {
+    const [item] = buildPlatformPulse({
+      ...base,
+      commissionerHealth: [
+        health({ leagueId: 'a', healthScore: 16, alerts: ['12 inactive managers', 'Engagement dropping'] }),
+      ],
+    })
+    expect(item.kind).toBe('league_needs_attention')
+    expect(item.whyDetails).toEqual(['12 inactive managers', 'Engagement dropping'])
+  })
+})

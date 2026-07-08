@@ -52,6 +52,14 @@ export interface PlatformPulseItem {
   trajectory?: TrajectorySummary
   /** Real reasoning for the "Why?" affordance, or null. Never fabricated. */
   why?: string | null
+  /**
+   * Structured "Why" bullets — the individual real reasons behind this item (e.g. the
+   * per-decision messages of a summarized group, or a league's real health alerts).
+   * Card renders these as a list; never fabricated. Empty/absent falls back to `why`.
+   */
+  whyDetails?: string[]
+  /** True when this item summarizes several same-kind signals (see `data.count`). */
+  summarized?: boolean
   leagueId?: string
   leagueName?: string
 }
