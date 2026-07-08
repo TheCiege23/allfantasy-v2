@@ -53,6 +53,23 @@ describe('buildCanonicalImportBundle', () => {
     expect(b.settingsSnapshot.metadata?.importMetadata).toBeDefined()
   })
 
+  it('surfaces fetchWarnings as persisted import warnings (Phase 2.4 §5)', () => {
+    const b = buildCanonicalImportBundle(
+      baseNormalized({
+        fetchWarnings: ['matchups week 3: Sleeper returned 500 after 3 attempts — data may be incomplete.'],
+      }),
+    )
+    const w = b.warnings.find((x) => x.code === 'source_fetch_incomplete')
+    expect(w).toBeDefined()
+    expect(w!.severity).toBe('warn')
+    expect(w!.message).toContain('matchups week 3')
+  })
+
+  it('adds no fetch warning when the source fetched cleanly', () => {
+    const b = buildCanonicalImportBundle(baseNormalized())
+    expect(b.warnings.some((x) => x.code === 'source_fetch_incomplete')).toBe(false)
+  })
+
   it('detects devy signal from taxi rosters', () => {
     const b = buildCanonicalImportBundle(
       baseNormalized({

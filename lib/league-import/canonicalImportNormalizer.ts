@@ -360,7 +360,15 @@ export function buildCanonicalImportBundle(normalized: NormalizedImportResult): 
     }
   }
 
-  const warnings = [...inferred.warnings, ...coverageWarnings]
+  // Phase 2.4 (§5) — surface non-fatal source-fetch failures (e.g. a Sleeper matchup
+  // week that failed after retries) as persisted import warnings, so an incomplete
+  // import is never silently presented as complete.
+  const fetchWarnings: ImportWarningRecord[] = (normalized.fetchWarnings ?? []).map((message) => ({
+    code: 'source_fetch_incomplete',
+    message,
+    severity: 'warn',
+  }))
+  const warnings = [...inferred.warnings, ...coverageWarnings, ...fetchWarnings]
 
   const conceptResolved = normalizeConceptToFormat(inferred.concept)
 
