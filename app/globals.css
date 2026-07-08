@@ -1800,7 +1800,10 @@ select, option {
   }
   .warroom-card,
   .warroom-fade-in-stagger,
-  .warroom-glow-pulse {
+  .warroom-glow-pulse,
+  .warroom-menu-in,
+  .warroom-pressable,
+  .warroom-lift {
     animation: none !important;
     transition: none !important;
     transform: none !important;
@@ -1812,12 +1815,25 @@ select, option {
    Phase 2.6A: always-on depth (subtle shadow + inset top sheen) so cards read as
    collectible objects at rest, not just on hover — the premium-card feel the
    visual identity pass asks for. */
+/* Dashboard V2 Phase 4B — shared premium-motion tokens. One easing + a small set of
+   durations so every dashboard interaction settles with the same restrained cadence
+   (decelerate curve; think Linear/Apple). Referenced by the classes below and by
+   Tailwind arbitrary values in components (e.g. ease-[cubic-bezier(0.22,1,0.36,1)]). */
+:root {
+  --dash-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dash-dur-fast: 130ms;
+  --dash-dur: 200ms;
+}
+
 .warroom-card {
   position: relative;
   box-shadow:
     0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
     0 8px 24px -14px rgba(0, 0, 0, 0.6);
-  transition: transform 220ms ease, box-shadow 220ms ease, border-color 220ms ease;
+  transition:
+    transform var(--dash-dur) var(--dash-ease),
+    box-shadow var(--dash-dur) var(--dash-ease),
+    border-color var(--dash-dur) var(--dash-ease);
 }
 
 .warroom-card:hover {
@@ -1839,7 +1855,67 @@ select, option {
 }
 
 .warroom-fade-in-stagger {
-  animation: warroom-fade-in 0.45s ease-out both;
+  animation: warroom-fade-in 0.45s var(--dash-ease) both;
+}
+
+/* Popover / dropdown entrance — fade + settle from the top-right (profile menu, Why). */
+@keyframes warroom-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.warroom-menu-in {
+  animation: warroom-menu-in 150ms var(--dash-ease) both;
+  transform-origin: top right;
+}
+
+/* Reveal — a lighter fade for inline content that expands in place (Pulse "Why"). */
+@keyframes warroom-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.warroom-reveal {
+  animation: warroom-reveal 160ms var(--dash-ease) both;
+}
+
+/* Pressable — consistent press affordance + hover transition for buttons and chips.
+   Consolidates the ad-hoc `transition`/`active:scale-95` timings into one cadence. */
+.warroom-pressable {
+  transition:
+    transform var(--dash-dur-fast) var(--dash-ease),
+    background-color var(--dash-dur) var(--dash-ease),
+    border-color var(--dash-dur) var(--dash-ease),
+    color var(--dash-dur) var(--dash-ease),
+    box-shadow var(--dash-dur) var(--dash-ease);
+}
+
+.warroom-pressable:active {
+  transform: scale(0.97);
+}
+
+/* Lift — subtle hover elevation for interactive tiles that aren't full cards. */
+.warroom-lift {
+  transition:
+    transform var(--dash-dur) var(--dash-ease),
+    border-color var(--dash-dur) var(--dash-ease),
+    background-color var(--dash-dur) var(--dash-ease);
+}
+
+.warroom-lift:hover {
+  transform: translateY(-1px);
 }
 
 @keyframes warroom-glow-pulse {

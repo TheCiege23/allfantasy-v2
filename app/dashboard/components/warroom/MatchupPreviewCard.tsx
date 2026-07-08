@@ -87,7 +87,7 @@ export function MatchupPreviewCard({
   const projMargin = Math.round((myProj - oppProj) * 10) / 10
 
   return (
-    <WarRoomCard className="warroom-fade-in-stagger p-4" accentBorder="rgba(34,211,238,0.18)">
+    <WarRoomCard className="p-4" accentBorder="rgba(34,211,238,0.18)">
       <div className="mb-2 flex items-center justify-between">
         <p className="text-[10px] font-bold uppercase tracking-widest text-cyan-300/70">{league.name}</p>
         <Trend className={`h-3.5 w-3.5 ${myWinProb >= 50 ? 'text-emerald-300' : 'text-white/40'}`} aria-hidden />

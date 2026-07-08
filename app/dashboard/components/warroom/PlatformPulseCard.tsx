@@ -118,7 +118,7 @@ export function PlatformPulseCard({ items }: { items: PlatformPulseItem[] }) {
         </button>
         {isOpen ? (
           hasDetails ? (
-            <ul className="mt-1.5 space-y-1">
+            <ul className="warroom-reveal mt-1.5 space-y-1">
               {details.slice(0, 5).map((d, i) => (
                 <li key={i} className="flex items-start gap-1.5 text-[11px] leading-snug text-white/60">
                   <span className="mt-1 h-1 w-1 shrink-0 rounded-full bg-white/30" aria-hidden />
@@ -127,7 +127,7 @@ export function PlatformPulseCard({ items }: { items: PlatformPulseItem[] }) {
               ))}
             </ul>
           ) : (
-            <p className="mt-1.5 text-[11px] leading-snug text-white/55">{item.why}</p>
+            <p className="warroom-reveal mt-1.5 text-[11px] leading-snug text-white/55">{item.why}</p>
           )
         ) : null}
       </>

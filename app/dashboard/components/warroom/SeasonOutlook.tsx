@@ -149,7 +149,7 @@ export function SeasonOutlook({ league, userId }: { league: UserLeague; userId: 
   const confidence = playoffTraj?.confidence ?? null
 
   return (
-    <WarRoomCard className="warroom-fade-in-stagger overflow-hidden p-4" accentBorder="rgba(52,211,153,0.2)">
+    <WarRoomCard className="overflow-hidden p-4" accentBorder="rgba(52,211,153,0.2)">
       <div className="mb-3 flex items-center justify-between gap-2">
         <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-widest text-emerald-300/70">
           <TrendingUp className="h-3.5 w-3.5" aria-hidden />

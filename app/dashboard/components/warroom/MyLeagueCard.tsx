@@ -247,7 +247,7 @@ export function MyLeagueCard({
 
   return (
     <WarRoomCard
-      className="warroom-fade-in-stagger relative overflow-hidden p-4 pl-[18px]"
+      className="relative overflow-hidden p-4 pl-[18px]"
       accentBorder={`${accent}33`}
     >
       {/* Sport-color identity bar — each league reads as its own place, not an interchangeable tile. */}
