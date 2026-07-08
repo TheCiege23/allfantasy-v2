@@ -13,12 +13,24 @@
  * not fabricated blind. The connectivity smoke test is real and runs today once
  * DATABASE_URL is set.
  */
-import { describe, expect, it } from 'vitest'
-import { prisma } from '@/lib/prisma'
+import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { PrismaClient } from '@prisma/client'
 
 const dbEnabled = process.env.IMPORT_INTEGRATION_DB === '1' && !!process.env.DATABASE_URL?.trim()
 
 describe.skipIf(!dbEnabled)('Sleeper import DB integration', () => {
+  // Use a REAL PrismaClient bound to the test DATABASE_URL, not the app singleton
+  // `@/lib/prisma` — that singleton falls back to a build-phase stub (read ops → null,
+  // no `$queryRawUnsafe`) when it can't resolve a live DB, which is what unit runs get.
+  // Instantiated only inside this `skipIf` block, so it never connects in normal runs.
+  let prisma: PrismaClient
+  beforeAll(() => {
+    prisma = new PrismaClient()
+  })
+  afterAll(async () => {
+    await prisma?.$disconnect()
+  })
+
   it('connects and the import schema is present (import_runs / import_warnings / fact tables)', async () => {
     const rows = await prisma.$queryRawUnsafe<Array<{ present: boolean; name: string }>>(
       `SELECT name, to_regclass('public.' || name) IS NOT NULL AS present

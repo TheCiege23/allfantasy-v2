@@ -4,20 +4,23 @@ A safe, isolated Postgres environment for running import integration tests **wit
 
 ## The test branch (provisioned)
 - **Neon project:** `All Fantasy` — `icy-field-51189449` (production).
-- **Test branch:** `import-test-sandbox` — **`br-fancy-mode-ad1v37g5`**, forked from prod's default branch `br-withered-shadow-adur64u9`.
+- **Test branch:** `import-test-sandbox` — **`br-shiny-cloud-adgcljck`**, forked from prod's default branch `br-withered-shadow-adur64u9`.
 - **Isolation:** a Neon copy-on-write branch. It contains prod's schema **and a point-in-time copy of prod data**, but **writes to it never affect production** — the branch and parent are fully independent.
+- **Rotation note:** the original branch (`br-fancy-mode-ad1v37g5`) was deleted after its connection string was accidentally exposed, and replaced with this one — treat any previously-shared string as burned. Because the branch holds a prod-data copy, rotate/delete promptly if a credential ever leaks.
 - **Verified:** 640 tables cloned; `import_runs`, `import_warnings`, `dw_matchup_facts`, `_prisma_migrations` all present → the Prisma schema/migrations are already applied (inherited from prod). No `prisma migrate deploy` needed on this branch.
 
 ## Setup (you wire the secret — kept out of git & transcripts)
 The connection string contains a live password, so it is **never** committed or pasted into chat. To run the import integration tests locally:
 
 1. Neon console → project **All Fantasy** → branch **import-test-sandbox** → **Connection string** (role/database of your choice; pooled or direct).
-2. Create a local, gitignored `.env.test` (the repo already ignores `.env*`):
+2. Create a local, gitignored `.env.test` (the repo already ignores `.env*`). **Quote the
+   values** — Neon strings contain `&` (`&channel_binding=require`), which breaks unquoted
+   `.env` parsing:
    ```
-   DATABASE_URL="postgresql://<user>:<password>@<host>/<db>?sslmode=require"
-   DIRECT_URL="postgresql://<user>:<password>@<host>/<db>?sslmode=require"   # if your Prisma config uses it
+   DATABASE_URL="postgresql://<user>:<password>@<pooled-host>/<db>?sslmode=require&channel_binding=require"
+   DIRECT_URL="postgresql://<user>:<password>@<direct-host>/<db>?sslmode=require"
    ```
-   Use the **pooled** host for `DATABASE_URL`; use the **direct** (`-pooler` removed) host for `DIRECT_URL` if migrations are ever run.
+   Use the **pooled** host for `DATABASE_URL`; use the **direct** (`-pooler` removed) host for `DIRECT_URL` if migrations are ever run. Place `.env.test` in the **same directory you run the test from** (the repo root you're on).
 3. Run the opt-in suite (double-gated so it never runs in normal CI):
    ```
    IMPORT_INTEGRATION_DB=1 DATABASE_URL="…" DIRECT_URL="…" npm run test:import:db
@@ -39,7 +42,7 @@ The connection string contains a live password, so it is **never** committed or 
 **Author-and-run guidance:** use clearly-fake identifiers (e.g. a throwaway `leagueId`/`idempotencyKey` prefixed `__import_integration_test__`) and clean up in `afterAll`, or wrap writes in a `$transaction` that rolls back, so tests never mutate the copied prod rows.
 
 ## Rollback procedure
-- **Undo everything:** delete the branch — Neon console → branch `import-test-sandbox` → Delete (or the Neon MCP `delete_branch` for `br-fancy-mode-ad1v37g5`). This is instant and affects **only** the branch; production is untouched.
+- **Undo everything:** delete the branch — Neon console → branch `import-test-sandbox` → Delete (or the Neon MCP `delete_branch` for `br-shiny-cloud-adgcljck`). This is instant and affects **only** the branch; production is untouched.
 - **Reset to prod state:** `reset_from_parent` on the branch re-clones the current prod state (discards test writes) without deleting it.
 - The branch has no auto-expiry set; delete it when the import test cycle is done.
 
