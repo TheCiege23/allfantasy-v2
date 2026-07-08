@@ -2,8 +2,10 @@
 
 import Link from 'next/link'
 import Image from 'next/image'
-import { Crown, Sparkles, Swords } from 'lucide-react'
+import { Crown, Sparkles, Swords, MessageCircle, type LucideIcon } from 'lucide-react'
+import type { ReactNode } from 'react'
 import type { UserLeague } from '../../types'
+import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import { WarRoomCard } from './WarRoomCard'
 import { useGreetingPeriod } from './useGreeting'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
@@ -22,19 +24,54 @@ const HEADLINE_KEY: Record<PrimaryContext, string> = {
   team: 'dashboard.warroom.hero.teamHeadline',
 }
 
-/** Phase 2.3 — small "Robot King says" caption under the art slot, contextual copy only
- *  (no new narration system, no real data reused — just a fixed line per context). */
-const ROBOT_KING_LINE_KEY: Record<PrimaryContext, string> = {
-  global: 'dashboard.warroom.hero.robotKingGlobal',
-  commissioner: 'dashboard.warroom.hero.robotKingCommissioner',
-  team: 'dashboard.warroom.hero.robotKingTeam',
+type KpiTone = 'default' | 'alert' | 'warn' | 'good'
+
+function toneClass(tone: KpiTone): string {
+  return tone === 'alert' ? 'text-red-300' : tone === 'warn' ? 'text-amber-300' : tone === 'good' ? 'text-emerald-300' : 'text-white'
+}
+
+/** A single hero KPI — big number + small label. Situational awareness, not navigation. */
+function HeroKpi({ label, value, tone = 'default' }: { label: string; value: ReactNode; tone?: KpiTone }) {
+  return (
+    <div className="min-w-0">
+      <p className={`text-[20px] font-black leading-none tabular-nums ${toneClass(tone)}`}>{value}</p>
+      <p className="mt-1 truncate text-[9px] font-semibold uppercase tracking-wide text-white/40">{label}</p>
+    </div>
+  )
+}
+
+/** Health-score tone: <40 critical, <55 at-risk, else healthy. */
+function scoreTone(score: number): KpiTone {
+  if (score < 40) return 'alert'
+  if (score < 55) return 'warn'
+  return 'good'
+}
+
+export interface DashboardHeroProps {
+  context: PrimaryContext
+  userName: string
+  leagues: UserLeague[]
+  selectedLeagueId: string | null
+  selectedLeague: UserLeague | null
+  onSelectLeagueId: (id: string | null) => void
+  urgentTodayCount: number
+  /** Phase 3.8C — situational-awareness KPIs, all from data already in DashboardOverview memory. */
+  leaguesNeedingAttention?: number
+  upcomingDraftCount?: number
+  /** The selected league's commissioner-health snapshot (Commissioner context). */
+  commissionerHealth?: CommissionerLeagueHealthSnapshot | null
+  /** Count of lineup/decision actions for the selected team league. */
+  teamLineupDecisions?: number
+  /** Waiver pickup suggestions for the selected team league. */
+  waiverPriority?: number
 }
 
 /**
- * Dashboard V2 Phase 2.2 — context-aware Hero (renamed from the Phase 2.1
- * `GlobalCommandCenterHero`). Same layout and Robot King placeholder slot in every
- * context; only the eyebrow/headline copy and the persistent context indicator change
- * per the active `FantasyContextEngine` context — no new artwork, no duplicated hero.
+ * Dashboard V2 Phase 3.8C — context heroes. The hero is no longer navigation; it is
+ * situational awareness. Each context shows a distinct KPI strip (Global = Mission
+ * Control, Commissioner = League Operations, Team = Game Day) fed only by real data
+ * already in memory, and the three giant launcher cards collapse into a compact icon
+ * action row — shrinking the hero so Platform Pulse sits much higher.
  */
 export function DashboardHero({
   context,
@@ -44,76 +81,101 @@ export function DashboardHero({
   selectedLeague,
   onSelectLeagueId,
   urgentTodayCount,
-}: {
-  context: PrimaryContext
-  userName: string
-  leagues: UserLeague[]
-  selectedLeagueId: string | null
-  selectedLeague: UserLeague | null
-  onSelectLeagueId: (id: string | null) => void
-  urgentTodayCount: number
-}) {
+  leaguesNeedingAttention = 0,
+  upcomingDraftCount = 0,
+  commissionerHealth = null,
+  teamLineupDecisions = 0,
+  waiverPriority = 0,
+}: DashboardHeroProps) {
   const { t, tInterpolate } = useLanguage()
   const greetingPeriod = useGreetingPeriod()
   const isCommissionerAnywhere = leagues.some((l) => l.isCommissioner)
-  // Real placeholder pixels (getLeagueTypeMedia), not invented Robot King art — see Risk #6.
   const heroArt = getLeagueTypeMedia(selectedLeague?.leagueType ?? null)
 
+  const openChimmy = () => {
+    window.dispatchEvent(new CustomEvent('af-dashboard-focus-left-chimmy'))
+    window.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
+  }
+  const openComms = () => {
+    window.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
+  }
+
+  const kpiStrip = (() => {
+    if (context === 'global') {
+      return (
+        <>
+          <HeroKpi label={t('dashboard.warroom.hero.kpi.leagues')} value={leagues.length} />
+          <HeroKpi label={t('dashboard.warroom.hero.kpi.urgent')} value={urgentTodayCount} tone={urgentTodayCount > 0 ? 'alert' : 'default'} />
+          <HeroKpi label={t('dashboard.warroom.hero.kpi.needAttention')} value={leaguesNeedingAttention} tone={leaguesNeedingAttention > 0 ? 'warn' : 'default'} />
+          <HeroKpi label={t('dashboard.warroom.hero.kpi.draftsThisWeek')} value={upcomingDraftCount} tone={upcomingDraftCount > 0 ? 'good' : 'default'} />
+        </>
+      )
+    }
+    if (context === 'commissioner') {
+      if (!commissionerHealth) {
+        return <p className="text-[11px] text-white/40">{t('dashboard.warroom.hero.kpi.healthPending')}</p>
+      }
+      const h = commissionerHealth
+      return (
+        <>
+          <HeroKpi label={t('dashboard.pulse.metric.health')} value={`${Math.round(h.healthScore)}`} tone={scoreTone(h.healthScore)} />
+          <HeroKpi label={t('dashboard.pulse.metric.engagement')} value={`${Math.round(h.engagementScore)}`} tone={scoreTone(h.engagementScore)} />
+          <HeroKpi label={t('dashboard.pulse.metric.fairness')} value={`${Math.round(h.fairnessScore)}`} tone={scoreTone(h.fairnessScore)} />
+          <HeroKpi label={t('dashboard.pulse.metric.sustainability')} value={`${Math.round(h.sustainabilityScore)}`} tone={scoreTone(h.sustainabilityScore)} />
+          <HeroKpi label={t('dashboard.warroom.hero.kpi.pendingActions')} value={h.actions?.length ?? 0} tone={(h.actions?.length ?? 0) > 0 ? 'warn' : 'default'} />
+          <HeroKpi label={t('dashboard.warroom.hero.kpi.alerts')} value={h.alerts?.length ?? 0} tone={(h.alerts?.length ?? 0) > 0 ? 'alert' : 'default'} />
+        </>
+      )
+    }
+    // team
+    return (
+      <>
+        <HeroKpi label={t('dashboard.warroom.hero.kpi.lineupDecisions')} value={teamLineupDecisions} tone={teamLineupDecisions > 0 ? 'warn' : 'default'} />
+        <HeroKpi label={t('dashboard.warroom.hero.kpi.waiverPriority')} value={waiverPriority} tone={waiverPriority > 0 ? 'good' : 'default'} />
+        <HeroKpi label={t('dashboard.warroom.hero.kpi.urgent')} value={urgentTodayCount} tone={urgentTodayCount > 0 ? 'alert' : 'default'} />
+      </>
+    )
+  })()
+
+  const NavChip = ({ icon: Icon, label, accent, href, onClick }: { icon: LucideIcon; label: string; accent: string; href?: string; onClick?: () => void }) => {
+    const cls = `inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-1.5 text-[11px] font-semibold text-white/80 transition hover:border-white/20 hover:bg-white/[0.06]`
+    const inner = (
+      <>
+        <Icon className={`h-3.5 w-3.5 ${accent}`} aria-hidden />
+        {label}
+      </>
+    )
+    return href ? (
+      <Link href={href} className={cls}>{inner}</Link>
+    ) : (
+      <button type="button" onClick={onClick} className={cls}>{inner}</button>
+    )
+  }
+
   return (
-    <WarRoomCard className="relative overflow-hidden p-5 sm:p-6" accentBorder="rgba(34,211,238,0.18)">
-      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-40 opacity-80"
+    <WarRoomCard className="relative overflow-hidden p-4 sm:p-5" accentBorder="rgba(34,211,238,0.18)">
+      <div aria-hidden className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-80"
         style={{ background: 'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.18) 0%, transparent 70%)' }} />
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-start">
-        <div className="flex shrink-0 flex-col items-center gap-2">
-          <div
-            aria-hidden
-            className="relative h-20 w-20 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] sm:h-24 sm:w-24"
-            style={{ boxShadow: '0 0 0 1px rgba(34,211,238,0.12), 0 0 28px -8px rgba(34,211,238,0.5)' }}
-          >
-            <Image src={heroArt.thumbnail} alt="" fill sizes="96px" className="object-cover opacity-90" />
-            <span className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/75 to-transparent px-1.5 pb-1 pt-3 text-center text-[8px] font-semibold uppercase tracking-wide text-white/70">
-              {t('dashboard.warroom.hero.artPlaceholder')}
-            </span>
-          </div>
-          {/* Robot King "speech bubble" — small pointer connects the caption back to the art,
-              so it reads as the character speaking rather than a caption floating nearby. */}
-          <div className="relative max-w-[112px] rounded-xl border border-white/10 bg-white/[0.04] px-2.5 py-1.5">
-            <span
-              aria-hidden
-              className="absolute -top-[5px] left-1/2 h-2.5 w-2.5 -translate-x-1/2 rotate-45 border-l border-t border-white/10 bg-white/[0.04]"
-            />
-            <p className="text-center text-[10px] italic leading-snug text-white/50">
-              {t(ROBOT_KING_LINE_KEY[context])}
-            </p>
-          </div>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
+        <div className="relative hidden h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] sm:block"
+          style={{ boxShadow: '0 0 0 1px rgba(34,211,238,0.12), 0 0 28px -8px rgba(34,211,238,0.5)' }} aria-hidden>
+          <Image src={heroArt.thumbnail} alt="" fill sizes="56px" className="object-cover opacity-90" />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-400/70">
-              {t(EYEBROW_KEY[context])}
-            </p>
-            {urgentTodayCount > 0 ? (
-              <span className="shrink-0 rounded-full bg-red-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-red-300">
-                {tInterpolate('dashboard.warroom.hero.todayCount', { n: urgentTodayCount })}
-              </span>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-400/70">{t(EYEBROW_KEY[context])}</p>
+            {greetingPeriod ? (
+              <p className="text-[11px] font-medium text-white/45">
+                {tInterpolate(`dashboard.warroom.hero.greeting.${greetingPeriod}`, { name: userName })}
+              </p>
             ) : null}
           </div>
-          {greetingPeriod ? (
-            <p className="mt-1.5 text-[13px] font-semibold text-white/70">
-              {tInterpolate(`dashboard.warroom.hero.greeting.${greetingPeriod}`, { name: userName })}
-            </p>
-          ) : null}
-          <h1
-            className="mt-1.5 text-[26px] font-black leading-[1.1] tracking-tight text-white sm:text-[30px]"
-            style={{ textShadow: '0 2px 24px rgba(34,211,238,0.18)' }}
-          >
+          <h1 className="mt-1 text-[22px] font-black leading-[1.1] tracking-tight text-white sm:text-[26px]"
+            style={{ textShadow: '0 2px 24px rgba(34,211,238,0.18)' }}>
             {t(HEADLINE_KEY[context])}
           </h1>
 
-          {/* League Scope selector + persistent Context Indicator — the FantasyContextEngine's
-              only entry point in Phase 2.2 (selecting a league drives the active context; see
-              useFantasyContext). Scoped to this Dashboard page only, per Section 0.5. */}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <div className="mt-2.5 flex flex-wrap items-center gap-2">
             <label className="sr-only" htmlFor="league-scope-selector">{t('dashboard.warroom.hero.scopeLabel')}</label>
             <select id="league-scope-selector" value={selectedLeagueId ?? ''}
               onChange={(e) => onSelectLeagueId(e.target.value || null)}
@@ -134,61 +196,20 @@ export function DashboardHero({
               </span>
             </span>
           </div>
+
+          {/* Situational-awareness KPI strip — distinct per context, real data only. */}
+          <div className="mt-3.5 flex flex-wrap items-end gap-x-6 gap-y-3 border-t border-white/[0.06] pt-3.5">
+            {kpiStrip}
+          </div>
+
+          {/* Compact icon actions — the old giant launcher cards, collapsed to one row. */}
+          <div className="mt-3.5 flex flex-wrap items-center gap-2">
+            <NavChip icon={Swords} accent="text-cyan-400" label={t('dashboard.warroom.hero.navWarRoomTitle')} href="/war-room" />
+            <NavChip icon={Crown} accent="text-amber-400" label={isCommissionerAnywhere ? t('dashboard.warroom.hero.navCommissionerHubTitle') : t('dashboard.warroom.hero.navRunLeagueTitle')} href="/commissioner-hub" />
+            <NavChip icon={Sparkles} accent="text-violet-400" label={t('dashboard.warroom.hero.navChimmyTitle')} onClick={openChimmy} />
+            <NavChip icon={MessageCircle} accent="text-cyan-300" label={t('dashboard.warroom.hero.navComms')} onClick={openComms} />
+          </div>
         </div>
-      </div>
-
-      {/* Quick navigation shortcuts — trimmed to the 3 highest-value entry points; league
-          creation/import stay reachable via the persistent right rail, not duplicated here. */}
-      <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <Link
-          href="/war-room"
-          className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.12] via-cyan-500/[0.06] to-transparent p-4 transition hover:border-cyan-400/50 hover:from-cyan-500/[0.18] active:opacity-90"
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400">
-            <Swords className="h-4 w-4" aria-hidden />
-          </span>
-          <p className="text-[15px] font-bold text-white">{t('dashboard.warroom.hero.navWarRoomTitle')}</p>
-          <p className="text-[12px] leading-snug text-white/55">{t('dashboard.warroom.hero.navWarRoomDesc')}</p>
-          <span className="mt-auto pt-1 text-[12px] font-semibold text-cyan-400 transition group-hover:text-cyan-300">
-            {t('dashboard.warroom.hero.navEnter')}
-          </span>
-        </Link>
-
-        <Link
-          href="/commissioner-hub"
-          className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/[0.10] via-amber-500/[0.05] to-transparent p-4 shadow-[0_0_20px_rgba(245,158,11,0.06)] transition hover:border-amber-400/50 hover:from-amber-500/[0.16] active:opacity-90"
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
-            <Crown className="h-4 w-4" aria-hidden />
-          </span>
-          <p className="text-[15px] font-bold text-white">
-            {isCommissionerAnywhere
-              ? t('dashboard.warroom.hero.navCommissionerHubTitle')
-              : t('dashboard.warroom.hero.navRunLeagueTitle')}
-          </p>
-          <p className="text-[12px] leading-snug text-white/55">{t('dashboard.warroom.hero.navCommissionerHubDesc')}</p>
-          <span className="mt-auto pt-1 text-[12px] font-semibold text-amber-400 transition group-hover:text-amber-300">
-            {t('dashboard.warroom.hero.navEnter')}
-          </span>
-        </Link>
-
-        <button
-          type="button"
-          onClick={() => {
-            window.dispatchEvent(new CustomEvent('af-dashboard-focus-left-chimmy'))
-            window.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
-          }}
-          className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.10] via-violet-500/[0.05] to-transparent p-4 text-left transition hover:border-violet-400/50 hover:from-violet-500/[0.16] active:opacity-90"
-        >
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 text-violet-400">
-            <Sparkles className="h-4 w-4" aria-hidden />
-          </span>
-          <p className="text-[15px] font-bold text-white">{t('dashboard.warroom.hero.navChimmyTitle')}</p>
-          <p className="text-[12px] leading-snug text-white/55">{t('dashboard.warroom.hero.navChimmyDesc')}</p>
-          <span className="mt-auto pt-1 text-[12px] font-semibold text-violet-400 transition group-hover:text-violet-300">
-            {t('dashboard.warroom.hero.navAsk')}
-          </span>
-        </button>
       </div>
     </WarRoomCard>
   )
