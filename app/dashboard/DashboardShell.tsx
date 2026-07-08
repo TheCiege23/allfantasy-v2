@@ -708,6 +708,7 @@ export function DashboardShell({
           onLeaguesRefresh={onLeaguesRefresh}
           onLeagueRemoved={onLeagueRemoved}
           onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
+          hideLeagueList
         />
       }
     >

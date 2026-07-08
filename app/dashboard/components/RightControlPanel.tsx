@@ -83,9 +83,13 @@ export function RightControlPanel({
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
         {/* Always-visible header: MY LEAGUES title + Create + Import + (optional) collapse. */}
         <div className="flex min-w-0 flex-shrink-0 items-center justify-between gap-2 border-b border-cyan-300/10 bg-cyan-300/[0.025] px-3 py-3">
-          <p className="min-w-0 truncate text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/70">
-            {t('dashboard.right.myLeagues')}
-          </p>
+          {hideLeagueList ? (
+            <span className="min-w-0" aria-hidden />
+          ) : (
+            <p className="min-w-0 truncate text-[11px] font-black uppercase tracking-[0.18em] text-cyan-100/70">
+              {t('dashboard.right.myLeagues')}
+            </p>
+          )}
           <div className="flex shrink-0 items-center gap-1">
             {onRailCollapse ? (
               <button
@@ -121,13 +125,7 @@ export function RightControlPanel({
             </button>
           </div>
         </div>
-        {hideLeagueList ? (
-          <div className="flex flex-1 min-h-0 min-w-0 flex-col items-center justify-start px-3 py-4 text-center">
-            <p className="text-[11px] text-white/35">
-              League list hidden. Use <span className="text-cyan-200">Create</span> or <span className="text-white/70">Import</span> above to add a league.
-            </p>
-          </div>
-        ) : (
+        {hideLeagueList ? null : (
           <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
             <LeagueListPanel
               leagues={leagues}
