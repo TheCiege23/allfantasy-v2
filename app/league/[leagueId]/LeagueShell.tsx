@@ -2,6 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { normalizeOpenChatQueryParam } from '@/lib/dashboard/open-chat-query'
+import { fetchRedraftSeason, type RedraftSeasonClient } from '@/lib/redraft/client'
 import { shouldApplyIncomingView } from '@/lib/league/leagueTabSync'
 import { LeagueLiveStrip } from '@/components/sports/LeagueLiveStrip'
 import { LeagueStoryCard } from '@/components/sports/LeagueStoryCard'
@@ -72,7 +73,7 @@ import {
   localizeLeagueTabs,
   type TabDef,
 } from './LeagueTabs'
-import { isNflRedraftCoreDashboardLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
+import { isNflRedraftCoreDashboardFromUserLeague, isNflRedraftCoreDashboardLeague } from '@/lib/league/is-nfl-redraft-core-dashboard'
 import { DraftTab } from './tabs/DraftTab'
 import { TeamTab } from './tabs/TeamTab'
 import { LeagueTab } from './tabs/LeagueTab'
@@ -97,6 +98,7 @@ import { CommissionerSettingsModal } from './components/CommissionerSettingsModa
 import { useIdpCapSummary, useRedraftRosterId } from '@/app/idp/hooks/useIdpTeamCap'
 import { LeagueSettingsTab as LeagueSettingsContentTab } from './tabs/LeagueSettingsTab'
 import { RedraftTab } from './tabs/RedraftTab'
+import { RedraftStandingsPlayoffsView } from './tabs/redraft/RedraftStandingsPlayoffsView'
 import { KeeperSelectionTab } from './tabs/KeeperSelectionTab'
 import { BestBallTab } from './tabs/BestBallTab'
 import { GuillotineTab } from './tabs/GuillotineTab'
@@ -163,7 +165,7 @@ function weekFromLeagueSettings(settings: unknown): number | null {
 
 function prismaLeagueToUserLeague(
   l: League,
-  extra?: { draftDate?: string | null },
+  extra?: { draftDate?: string | null; redraftCurrentWeek?: number | null },
 ): UserLeague {
   const sport = normalizeToSupportedSport(String(l.sport)) ?? DEFAULT_SPORT
   const settings = (l.settings as Record<string, unknown> | undefined) ?? undefined
@@ -177,7 +179,11 @@ function prismaLeagueToUserLeague(
     teamCount: l.leagueSize ?? 10,
     season: l.season ?? new Date().getFullYear(),
     status: l.status ?? undefined,
-    currentWeek: weekFromLeagueSettings(l.settings) ?? undefined,
+    // Only override when a real RedraftSeason.currentWeek was resolved by the
+    // caller (nflRedraftCore leagues); otherwise preserve the exact prior
+    // behavior (`undefined` when settings carry no week) so non-redraft
+    // league types (zombie/survivor/etc.) are unaffected.
+    currentWeek: extra?.redraftCurrentWeek ?? weekFromLeagueSettings(l.settings) ?? undefined,
     isDynasty: l.isDynasty,
     settings,
     avatarUrl: l.avatarUrl ?? undefined,
@@ -305,6 +311,35 @@ export function LeagueShell({
       league.keeperPhaseActive,
     ],
   )
+
+  // The real "current week" — and whether the league has actually completed
+  // its draft — for an nflRedraftCore league lives on `RedraftSeason`, not
+  // `League.settings`/`lifecycleState`. Fetch it once the league resolves as
+  // redraft-core so Roster/Matchups/Standings default to the active week
+  // instead of week 1, and so League Home can tell a genuinely pre-draft
+  // league (no `RedraftSeason` row yet — `syncCompletedDraftToRedraftSeason`
+  // only creates one after the draft finalizes) apart from an in-season one.
+  const [redraftSeason, setRedraftSeason] = useState<RedraftSeasonClient | null>(null)
+  useEffect(() => {
+    if (!nflRedraftCore) {
+      setRedraftSeason(null)
+      return
+    }
+    let cancelled = false
+    void (async () => {
+      try {
+        const season = await fetchRedraftSeason(league.id)
+        if (!cancelled) setRedraftSeason(season)
+      } catch {
+        if (!cancelled) setRedraftSeason(null)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [nflRedraftCore, league.id])
+  const redraftCurrentWeek = redraftSeason?.currentWeek ?? null
+  const hasActiveRedraftSeason = redraftSeason != null
 
   const tabDefs = useMemo(() => {
     if (nflRedraftCore) {
@@ -794,8 +829,8 @@ export function LeagueShell({
   }, [devyConfig, league.id, userId])
 
   const selectedLeague = useMemo(
-    () => prismaLeagueToUserLeague(league, { draftDate: draftDateIso }),
-    [league, draftDateIso],
+    () => prismaLeagueToUserLeague(league, { draftDate: draftDateIso, redraftCurrentWeek }),
+    [league, draftDateIso, redraftCurrentWeek],
   )
 
   const rosterWalletByPlatformUserId = useMemo(() => {
@@ -1348,6 +1383,7 @@ export function LeagueShell({
               onSelectTab={setActiveTab}
               isPredraftLifecycle={isPredraftLifecycle}
               draftDateIso={draftDateIso}
+              hasActiveRedraftSeason={hasActiveRedraftSeason}
             />
           </div>
         </main>
@@ -1626,6 +1662,7 @@ function LeagueTabRouter({
   onSelectTab,
   isPredraftLifecycle,
   draftDateIso,
+  hasActiveRedraftSeason,
 }: {
   activeTab: string
   tabDefs: TabDef[]
@@ -1647,6 +1684,7 @@ function LeagueTabRouter({
   onSelectTab: (tabId: string) => void
   isPredraftLifecycle: boolean
   draftDateIso: string | null
+  hasActiveRedraftSeason: boolean
 }) {
   const router = useRouter()
   const tab = tabDefs.find((t) => t.id === activeTab)
@@ -1805,6 +1843,7 @@ function LeagueTabRouter({
           userTeamName={userTeam?.teamName ?? null}
           isCommissioner={isCommissioner}
           draftDateIso={draftDateIso}
+          hasActiveRedraftSeason={hasActiveRedraftSeason}
           onOpenSettings={onOpenLeagueSettingsModal}
           onOpenTab={onSelectTab}
         />
@@ -1956,6 +1995,7 @@ function LeagueTabRouter({
           userTeamName={userTeam?.teamName ?? null}
           isCommissioner
           draftDateIso={draftDateIso}
+          hasActiveRedraftSeason={hasActiveRedraftSeason}
           onOpenSettings={onOpenLeagueSettingsModal}
           onOpenTab={onSelectTab}
         />
@@ -1994,6 +2034,9 @@ function LeagueTabRouter({
         />
       )
     case 'standings':
+      if (isNflRedraftCoreDashboardFromUserLeague(selectedLeague)) {
+        return <RedraftStandingsPlayoffsView leagueId={leagueId} isCommissioner={isCommissioner} />
+      }
       return (
         <StandingsTab league={selectedLeague} tabLabel={tabLabel} idpLeagueUi={idpLeagueActive} />
       )
