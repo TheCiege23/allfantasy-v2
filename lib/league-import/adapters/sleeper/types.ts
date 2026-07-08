@@ -99,4 +99,11 @@ export interface SleeperImportPayload {
   draftPicks?: SleeperDraftPickRaw[]
   playerMap?: Record<string, { name: string; position: string; team: string }>
   previousSeasons?: Array<{ season: string; league: SleeperLeagueRaw }>
+  /**
+   * Phase 2.3 — non-fatal fetch failures surfaced instead of silently swallowed
+   * (e.g. a matchup/transaction week that failed after retries). The commit layer
+   * can persist these as `importWarning` records so an incomplete import is never
+   * presented as complete. Empty/absent = every requested resource fetched cleanly.
+   */
+  fetchWarnings?: string[]
 }
