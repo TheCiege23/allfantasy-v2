@@ -118,3 +118,88 @@ describe('assertImportCommissioner', () => {
     expect(result).toEqual({ ok: true, verification: 'api' })
   })
 })
+
+describe('assertImportCommissioner — Sleeper commissioner gate (Phase 2.2)', () => {
+  const SLEEPER_UID = '591462610482806784'
+  const LEAGUE_ID = '1204903552921649152'
+
+  async function setup(users: unknown) {
+    const { prisma } = await import('@/lib/prisma')
+    ;(prisma.userProfile.findFirst as unknown as ReturnType<typeof vi.fn>).mockResolvedValue({
+      sleeperUserId: SLEEPER_UID,
+      sleeperUsername: 'theciege24',
+    })
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => users,
+    }) as unknown as typeof fetch
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('allows full import when the requester is the Sleeper commissioner (is_owner)', async () => {
+    await setup([{ user_id: SLEEPER_UID, is_owner: true }])
+    const { assertImportCommissioner } = await import('@/lib/league-import/commissionerGate')
+    const result = await assertImportCommissioner({
+      appUserId: 'u1',
+      provider: 'sleeper',
+      sourceLeagueId: LEAGUE_ID,
+      requireCommissioner: true,
+    })
+    expect(result.ok).toBe(true)
+    expect(result.isCommissioner).toBe(true)
+  })
+
+  it('blocks full import when the requester is a normal manager (not owner)', async () => {
+    await setup([{ user_id: SLEEPER_UID, is_owner: false }])
+    const { assertImportCommissioner } = await import('@/lib/league-import/commissionerGate')
+    const result = await assertImportCommissioner({
+      appUserId: 'u1',
+      provider: 'sleeper',
+      sourceLeagueId: LEAGUE_ID,
+      requireCommissioner: true,
+    })
+    expect(result.ok).toBe(false)
+    expect(result.reason).toBe('Only the Sleeper commissioner can import this league into AllFantasy.')
+  })
+
+  it('still allows a normal manager for membership/legacy imports (no requireCommissioner)', async () => {
+    await setup([{ user_id: SLEEPER_UID, is_owner: false }])
+    const { assertImportCommissioner } = await import('@/lib/league-import/commissionerGate')
+    const result = await assertImportCommissioner({
+      appUserId: 'u1',
+      provider: 'sleeper',
+      sourceLeagueId: LEAGUE_ID,
+    })
+    expect(result.ok).toBe(true)
+    expect(result.isCommissioner).toBe(false)
+  })
+
+  it('fails closed on missing/ambiguous commissioner metadata (member, no owner flag)', async () => {
+    // metadata.is_commissioner is null on real Sleeper leagues — must not pass as commissioner.
+    await setup([{ user_id: SLEEPER_UID, is_owner: false, metadata: {} }])
+    const { assertImportCommissioner } = await import('@/lib/league-import/commissionerGate')
+    const result = await assertImportCommissioner({
+      appUserId: 'u1',
+      provider: 'sleeper',
+      sourceLeagueId: LEAGUE_ID,
+      requireCommissioner: true,
+    })
+    expect(result.ok).toBe(false)
+  })
+
+  it('honors metadata.is_commissioner="true" as a secondary commissioner signal', async () => {
+    await setup([{ user_id: SLEEPER_UID, is_owner: false, metadata: { is_commissioner: 'true' } }])
+    const { assertImportCommissioner } = await import('@/lib/league-import/commissionerGate')
+    const result = await assertImportCommissioner({
+      appUserId: 'u1',
+      provider: 'sleeper',
+      sourceLeagueId: LEAGUE_ID,
+      requireCommissioner: true,
+    })
+    expect(result.ok).toBe(true)
+    expect(result.isCommissioner).toBe(true)
+  })
+})
