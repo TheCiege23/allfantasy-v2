@@ -23,6 +23,9 @@ export { resolveWhyChanged } from './explain'
 export { getTrajectory } from './service'
 export type { GetTrajectoryOptions } from './service'
 
+export { summarizeTrajectory } from './summarize'
+export type { TrajectorySummary } from './summarize'
+
 // Adapters
 export {
   createSeasonForecastAdapter,
@@ -48,3 +51,10 @@ export type {
 
 export { createCurrentStateAdapter } from './adapters/currentState'
 export type { CurrentStateParams } from './adapters/currentState'
+
+// Consumer composition
+export {
+  buildTeamForecastTrajectory,
+  SEASON_FORECAST_CARD_FIELDS,
+} from './consumers/seasonForecast'
+export type { TeamForecastTrajectory } from './consumers/seasonForecast'
