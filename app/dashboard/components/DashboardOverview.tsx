@@ -752,44 +752,38 @@ export function DashboardOverview({
    *  billing. Team Focus (Phase 2.4) answers "what gives my team the best chance to win this week":
    *  Weekly Game Plan → This Week's Matchup (primary decision card) → today's start/sit + lineup +
    *  waiver actions → this league's waiver pickups → Season Journey → Rankings & Legacy → Buzz. */
-  const sectionsByContext: Record<PrimaryContext, ReactNode[]> = {
-    global: [
-      platformPulseSection,
-      todaysAgendaSection,
-      recommendationsSection,
-      myLeaguesSection,
-      commissionerHubSection,
-      weeklyGamePlanSection,
-      rankingsLegacySection,
-      leagueBuzzSection,
-    ],
-    commissioner: [
-      platformPulseSection,
-      commissionerHQSection,
-      myLeaguesSection,
-      todaysAgendaSection,
-      weeklyGamePlanSection,
-      rankingsLegacySection,
-      leagueBuzzSection,
-    ],
-    team: [
-      platformPulseSection,
-      weeklyGamePlanSection,
-      teamMatchupSection,
-      teamSeasonOutlookSection,
-      teamInjuryImpactSection,
-      recommendationsSection,
-      todaysAgendaSection,
-      teamWaiverSection,
-      teamSeasonJourneySection,
-      rankingsLegacySection,
-      leagueBuzzSection,
-    ],
+  /** Dashboard V2 Phase 3.8A — command-center layout. Same components/engines as before, but
+   *  arranged into a two-column grid (primary decision/intelligence column + secondary
+   *  context/portfolio column) so wide screens fill densely instead of a narrow centered column.
+   *  Collapses to a single stack below the `xl` breakpoint. `primary` gets the ~2/3 width. */
+  const layoutByContext: Record<PrimaryContext, { primary: ReactNode[]; secondary: ReactNode[] }> = {
+    global: {
+      primary: [platformPulseSection, recommendationsSection, todaysAgendaSection, weeklyGamePlanSection],
+      secondary: [myLeaguesSection, commissionerHubSection, rankingsLegacySection, leagueBuzzSection],
+    },
+    commissioner: {
+      primary: [platformPulseSection, commissionerHQSection, todaysAgendaSection, weeklyGamePlanSection],
+      secondary: [myLeaguesSection, rankingsLegacySection, leagueBuzzSection],
+    },
+    team: {
+      primary: [
+        platformPulseSection,
+        teamMatchupSection,
+        teamSeasonOutlookSection,
+        teamInjuryImpactSection,
+        recommendationsSection,
+        weeklyGamePlanSection,
+        todaysAgendaSection,
+        teamWaiverSection,
+      ],
+      secondary: [teamSeasonJourneySection, rankingsLegacySection, leagueBuzzSection],
+    },
   }
+  const layout = layoutByContext[context]
 
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
-      <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 px-4 py-6 sm:px-6">
         {/* 1. DASHBOARD HERO — Dashboard V2 Phase 2.2, context-aware (Global / Commissioner / Team).
             World Cup promo moved out of the primary dashboard experience in Phase 2.1 (still
             reachable at /brackets/world-cup, not deleted). */}
@@ -948,9 +942,13 @@ export function DashboardOverview({
           </button>
         )}
 
-        {/* 2-7. Context-ordered sections — Dashboard V2 Phase 2.2. Same components in every
-            context; only their order (sectionsByContext, defined above) changes. */}
-        {sectionsByContext[context]}
+        {/* 2-7. Command-center grid — Dashboard V2 Phase 3.8A. Same components/engines; a
+            primary decision column (~2/3) beside a secondary context/portfolio column (~1/3) on
+            wide screens, collapsing to a single stack below `xl`. */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 xl:items-start">
+          <div className="space-y-5 xl:col-span-2">{layout.primary}</div>
+          <div className="space-y-5">{layout.secondary}</div>
+        </div>
 
         {/* 8. FOOTER */}
         <footer className="border-t border-white/[0.06] pt-4 text-center text-[11px] text-white/25">
