@@ -43,6 +43,8 @@ import { SeasonJourney } from './warroom/SeasonJourney'
 import { WaiverWirePreview } from './warroom/WaiverWirePreview'
 import { RecommendationTimeline } from './warroom/RecommendationTimeline'
 import { InjuryImpactPanel } from './warroom/InjuryImpactPanel'
+import { PlatformPulseCard } from './warroom/PlatformPulseCard'
+import { buildPlatformPulse } from '@/lib/platform-pulse'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
@@ -547,6 +549,31 @@ export function DashboardOverview({
     [lineupData, waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview],
   )
 
+  /** Dashboard V2 Phase 3.6 — Platform Pulse. A pure aggregation over intelligence already in
+   *  memory (actions, cross-league counts, SSR commissioner health, upcoming drafts) — no new
+   *  fetch, no duplicate engine. Context-aware; self-gates to an empty list when nothing matters. */
+  const pulseItems = useMemo(
+    () =>
+      buildPlatformPulse({
+        context,
+        selectedLeagueId,
+        actions: lineupData?.actions ?? [],
+        waiverCount: waiverChipCount,
+        pendingTradeCount: pendingTradeChipCount,
+        commissionerHealth: initialCommissionerHealthSnapshots,
+        upcomingDrafts,
+      }),
+    [
+      context,
+      selectedLeagueId,
+      lineupData,
+      waiverChipCount,
+      pendingTradeChipCount,
+      initialCommissionerHealthSnapshots,
+      upcomingDrafts,
+    ],
+  )
+
   const handleAiShortcut = useCallback((_prompt: string) => {
     if (typeof window === 'undefined') return
     window.dispatchEvent(new CustomEvent('af-dashboard-focus-left-chimmy'))
@@ -672,6 +699,10 @@ export function DashboardOverview({
     <RecommendationTimeline key="recommendations" actions={lineupData?.actions ?? []} />
   )
 
+  /** Phase 3.6 — Platform Pulse: the cross-context intelligence briefing, placed first in every
+   *  context as the "front page." Self-gates (renders null) when the engine finds nothing. */
+  const platformPulseSection = <PlatformPulseCard key="platformPulse" items={pulseItems} />
+
   /** Dashboard V2 Phase 2.4 — Team Focus sections, scoped to the one selected league (only
    *  rendered in team context, where selectedLeague is guaranteed non-null). Each reuses an
    *  existing component; nothing here is a new data source. */
@@ -731,6 +762,7 @@ export function DashboardOverview({
    *  waiver actions → this league's waiver pickups → Season Journey → Rankings & Legacy → Buzz. */
   const sectionsByContext: Record<PrimaryContext, ReactNode[]> = {
     global: [
+      platformPulseSection,
       todaysAgendaSection,
       recommendationsSection,
       myLeaguesSection,
@@ -740,6 +772,7 @@ export function DashboardOverview({
       leagueBuzzSection,
     ],
     commissioner: [
+      platformPulseSection,
       commissionerHQSection,
       myLeaguesSection,
       todaysAgendaSection,
@@ -748,6 +781,7 @@ export function DashboardOverview({
       leagueBuzzSection,
     ],
     team: [
+      platformPulseSection,
       weeklyGamePlanSection,
       teamMatchupSection,
       teamSeasonOutlookSection,
