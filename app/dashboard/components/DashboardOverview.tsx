@@ -44,6 +44,7 @@ import { WaiverWirePreview } from './warroom/WaiverWirePreview'
 import { RecommendationTimeline } from './warroom/RecommendationTimeline'
 import { InjuryImpactPanel } from './warroom/InjuryImpactPanel'
 import { PlatformPulseCard } from './warroom/PlatformPulseCard'
+import { SectionHeading, CONTEXT_ACCENT } from './warroom/SectionHeading'
 import { buildPlatformPulse } from '@/lib/platform-pulse'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 
@@ -584,11 +585,13 @@ export function DashboardOverview({
    *  locked Dashboard V2 architecture, Section 1); Global and Team Focus show every league. */
   const myLeaguesList = context === 'commissioner' ? leagues.filter((l) => l.isCommissioner) : leagues
 
+  /** Phase 3.7 — per-context accent for section headings (cyan Global / amber Commissioner /
+   *  emerald Team), the single source of Dashboard V2's context identity. */
+  const contextAccent = CONTEXT_ACCENT[context]
+
   const todaysAgendaSection = (
     <section key="agenda" className="space-y-3">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-        {t('dashboard.warroom.today.title')}
-      </p>
+      <SectionHeading accent={contextAccent}>{t('dashboard.warroom.today.title')}</SectionHeading>
       <ActionCenter
         lineupActions={lineupData?.actions ?? []}
         waiverPickupSuggestions={waiverChipCount}
@@ -612,9 +615,7 @@ export function DashboardOverview({
 
   const myLeaguesSection = leaguesLoading ? (
     <section key="myLeagues" className="space-y-2.5">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-        {t('dashboard.warroom.myLeagues.title')}
-      </p>
+      <SectionHeading accent={contextAccent} icon={Crown}>{t('dashboard.warroom.myLeagues.title')}</SectionHeading>
       <div className="grid gap-3 sm:grid-cols-2">
         {[0, 1].map((i) => (
           <div key={i} className="warroom-card h-[168px] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
@@ -623,12 +624,7 @@ export function DashboardOverview({
     </section>
   ) : myLeaguesList.length > 0 ? (
     <section key="myLeagues" className="space-y-2.5">
-      <div className="flex items-center gap-1.5">
-        <Crown className="h-3.5 w-3.5 text-amber-400/80" aria-hidden />
-        <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-          {t('dashboard.warroom.myLeagues.title')}
-        </p>
-      </div>
+      <SectionHeading accent={contextAccent} icon={Crown}>{t('dashboard.warroom.myLeagues.title')}</SectionHeading>
       <div className="grid gap-3 sm:grid-cols-2">
         {myLeaguesList.map((l) => (
           <MyLeagueCard
@@ -666,9 +662,7 @@ export function DashboardOverview({
 
   const rankingsLegacySection = (
     <section key="rankingsLegacy" className="space-y-2.5">
-      <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-        {t('dashboard.warroom.rankingsLegacy.title')}
-      </p>
+      <SectionHeading accent={contextAccent}>{t('dashboard.warroom.rankingsLegacy.title')}</SectionHeading>
       <div className="grid gap-3 sm:grid-cols-2">
         <RankingsCard
           initialRankPayload={initialUserRankPayload}
@@ -709,9 +703,7 @@ export function DashboardOverview({
   const teamMatchupSection =
     context === 'team' && selectedLeague ? (
       <section key="teamMatchup" className="space-y-2.5">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
-          {t('dashboard.warroom.teamThisWeek.title')}
-        </p>
+        <SectionHeading accent={contextAccent}>{t('dashboard.warroom.teamThisWeek.title')}</SectionHeading>
         <TeamThisWeek league={selectedLeague} userId={userId} />
       </section>
     ) : null

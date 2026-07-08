@@ -7,6 +7,7 @@ import { WarRoomCard } from './WarRoomCard'
 import { ChampionshipGauge } from './ChampionshipGauge'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { DeltaChip, ConfidenceChip, computeDisplayDelta } from './trajectory'
+import { EmptyState } from './EmptyState'
 import type { TeamForecastTrajectory } from '@/lib/trajectory/consumers/seasonForecast'
 
 type ForecastRow = {
@@ -94,30 +95,27 @@ export function SeasonOutlook({ league, userId }: { league: UserLeague; userId: 
   // Pre-season: no season-long trajectory to project yet.
   if (!live) {
     return (
-      <WarRoomCard className="flex items-start gap-3 p-4" accentBorder="rgba(52,211,153,0.14)">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300/70">
-          <LineChart className="h-4 w-4" aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-white/80">{t('dashboard.warroom.seasonOutlook.emptyPreseasonTitle')}</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-white/40">{t('dashboard.warroom.seasonOutlook.emptyPreseasonDesc')}</p>
-        </div>
-      </WarRoomCard>
+      <EmptyState
+        icon={LineChart}
+        tone="info"
+        align="start"
+        title={t('dashboard.warroom.seasonOutlook.emptyPreseasonTitle')}
+        description={t('dashboard.warroom.seasonOutlook.emptyPreseasonDesc')}
+        hint={t('dashboard.warroom.seasonOutlook.emptyPreseasonHint')}
+      />
     )
   }
 
   // In-season but no forecast snapshot resolvable for this team yet.
   if (ready && !mine) {
     return (
-      <WarRoomCard className="flex items-start gap-3 p-4" accentBorder="rgba(52,211,153,0.14)">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300/70">
-          <LineChart className="h-4 w-4" aria-hidden />
-        </span>
-        <div className="min-w-0">
-          <p className="text-[13px] font-semibold text-white/80">{t('dashboard.warroom.seasonOutlook.emptyPendingTitle')}</p>
-          <p className="mt-0.5 text-[11px] leading-snug text-white/40">{t('dashboard.warroom.seasonOutlook.emptyPendingDesc')}</p>
-        </div>
-      </WarRoomCard>
+      <EmptyState
+        icon={LineChart}
+        tone="info"
+        align="start"
+        title={t('dashboard.warroom.seasonOutlook.emptyPendingTitle')}
+        description={t('dashboard.warroom.seasonOutlook.emptyPendingDesc')}
+      />
     )
   }
 

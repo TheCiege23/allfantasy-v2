@@ -3,6 +3,7 @@
 import { AlertTriangle, ArrowRightLeft, CheckCircle2, Flame, Swords, UserPlus } from 'lucide-react'
 import type { LineupActionItem } from '@/lib/lineup-actions/types'
 import { WarRoomCard } from './WarRoomCard'
+import { EmptyState } from './EmptyState'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 
 type PriorityTier = 'urgent' | 'high' | 'normal'
@@ -140,13 +141,13 @@ export function ActionCenter({
 
   if (rows.length === 0) {
     return (
-      <WarRoomCard className="flex flex-col items-center gap-1.5 p-5 text-center" accentBorder="rgba(52,211,153,0.2)">
-        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-emerald-500/10 text-emerald-300">
-          <CheckCircle2 className="h-[18px] w-[18px]" aria-hidden />
-        </span>
-        <p className="text-[13px] font-semibold text-emerald-300">{t('dashboard.warroom.actionCenter.allCaughtUp')}</p>
-        <p className="text-[11px] text-white/45">{t('dashboard.warroom.actionCenter.noUrgentDecisions')}</p>
-      </WarRoomCard>
+      <EmptyState
+        icon={CheckCircle2}
+        tone="positive"
+        title={t('dashboard.warroom.actionCenter.allCaughtUp')}
+        description={t('dashboard.warroom.actionCenter.noUrgentDecisions')}
+        hint={t('dashboard.warroom.actionCenter.allClearHint')}
+      />
     )
   }
 
