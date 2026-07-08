@@ -9,24 +9,14 @@ import { WarRoomCard } from './WarRoomCard'
 import { ChampionshipGauge } from './ChampionshipGauge'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { HEALTH_BADGE, healthAccentHex } from '@/lib/dashboard/color-grammar'
 
 const SETUP_STAGES = new Set(['setup', 'pre_draft', 'drafting'])
 
-/** Phase 3 — value-graded accent for the composite league-health gauges. */
-function scoreAccent(score: number): string {
-  if (score >= 75) return '#34d399' // emerald
-  if (score >= 50) return '#fbbf24' // amber
-  return '#f87171' // red
-}
+/** Phase 3 — value-graded accent for the composite league-health gauges (Phase 4A: shared token). */
+const scoreAccent = healthAccentHex
 
-const HEALTH_BADGE_CLASSES: Record<string, string> = {
-  excellent: 'bg-emerald-500/15 text-emerald-300',
-  healthy: 'bg-emerald-500/10 text-emerald-300/90',
-  watch: 'bg-amber-500/15 text-amber-300',
-  at_risk: 'bg-orange-500/15 text-orange-300',
-  critical: 'bg-red-500/15 text-red-300',
-  unknown: 'bg-white/[0.06] text-white/40',
-}
+const HEALTH_BADGE_CLASSES = HEALTH_BADGE
 
 function StatChip({ label, value, warn }: { label: string; value: string | number; warn?: boolean }) {
   return (

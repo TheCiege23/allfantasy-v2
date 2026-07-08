@@ -10,6 +10,7 @@ import { WarRoomCard } from './WarRoomCard'
 import { useGreetingPeriod } from './useGreeting'
 import { getLeagueTypeMedia } from '@/lib/league-media/leagueTypeMedia'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
+import { STATUS_TEXT, type StatusTone } from '@/lib/dashboard/color-grammar'
 import type { PrimaryContext } from '@/hooks/useFantasyContext'
 
 const EYEBROW_KEY: Record<PrimaryContext, string> = {
@@ -26,8 +27,16 @@ const HEADLINE_KEY: Record<PrimaryContext, string> = {
 
 type KpiTone = 'default' | 'alert' | 'warn' | 'good'
 
+/** KPI tone → shared status-grammar text color (single source of truth, Phase 4A). */
+const KPI_STATUS: Record<KpiTone, StatusTone> = {
+  alert: 'critical',
+  warn: 'caution',
+  good: 'positive',
+  default: 'neutral',
+}
+
 function toneClass(tone: KpiTone): string {
-  return tone === 'alert' ? 'text-red-300' : tone === 'warn' ? 'text-amber-300' : tone === 'good' ? 'text-emerald-300' : 'text-white'
+  return STATUS_TEXT[KPI_STATUS[tone]]
 }
 
 /** A single hero KPI — big number + small label. Situational awareness, not navigation. */
