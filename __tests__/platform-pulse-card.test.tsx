@@ -83,6 +83,23 @@ describe('PlatformPulseCard (Phase 3.6)', () => {
     expect(screen.queryByText('dashboard.pulse.why')).toBeNull()
   })
 
+  it('applies the Phase 4A color grammar per category (Predict blue / Monitor amber / Recommend emerald / Explain purple)', () => {
+    const cases: Array<[PlatformPulseItem['category'], string]> = [
+      ['Predict', 'text-blue-300'],
+      ['Monitor', 'text-amber-300'],
+      ['Recommend', 'text-emerald-300'],
+      ['Explain', 'text-violet-300'], // "purple" grammar rendered via Tailwind violet
+    ]
+    for (const [category, expectedClass] of cases) {
+      const { unmount } = render(
+        <PlatformPulseCard items={[item({ id: `c-${category}`, kind: 'ai_recommendation', category })]} />,
+      )
+      const badge = screen.getByText(`dashboard.pulse.category.${category}`)
+      expect(badge.className).toContain(expectedClass)
+      unmount()
+    }
+  })
+
   it('renders a summarized item with a count title and whyDetails bullets (Phase 3.8B)', () => {
     render(
       <PlatformPulseCard

@@ -16,14 +16,8 @@ import {
 import { WarRoomCard } from './WarRoomCard'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
 import { DeltaChip, ConfidenceChip } from './trajectory'
-import type { PlatformPulseItem, PulseCategory, PulseKind } from '@/lib/platform-pulse'
-
-const CATEGORY_TONE: Record<PulseCategory, string> = {
-  Predict: 'bg-violet-500/15 text-violet-300',
-  Monitor: 'bg-amber-500/15 text-amber-300',
-  Recommend: 'bg-cyan-500/15 text-cyan-300',
-  Explain: 'bg-emerald-500/15 text-emerald-300',
-}
+import { PULSE_CATEGORY } from '@/lib/dashboard/color-grammar'
+import type { PlatformPulseItem, PulseKind } from '@/lib/platform-pulse'
 
 /** Kind → intelligence icon (variety at a glance). */
 const KIND_ICON: Record<PulseKind, LucideIcon> = {
@@ -36,13 +30,6 @@ const KIND_ICON: Record<PulseKind, LucideIcon> = {
   draft_soon: CalendarClock,
   league_health_low: ShieldAlert,
   league_needs_attention: ShieldAlert,
-}
-
-/** Priority band color — hotter = more pressing. */
-function priorityBand(priority: number): string {
-  if (priority >= 80) return 'bg-red-400'
-  if (priority >= 60) return 'bg-amber-400'
-  return 'bg-cyan-400'
 }
 
 const KNOWN_METRICS = new Set(['health', 'engagement', 'fairness', 'sustainability'])
@@ -148,7 +135,7 @@ export function PlatformPulseCard({ items }: { items: PlatformPulseItem[] }) {
   }
 
   const Badge = ({ item }: { item: PlatformPulseItem }) => (
-    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${CATEGORY_TONE[item.category]}`}>
+    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${PULSE_CATEGORY[item.category].badge}`}>
       {t(`dashboard.pulse.category.${item.category}`)}
     </span>
   )
@@ -163,11 +150,12 @@ export function PlatformPulseCard({ items }: { items: PlatformPulseItem[] }) {
         <p className="text-[11px] font-bold uppercase tracking-widest text-violet-200/80">{t('dashboard.pulse.title')}</p>
       </div>
 
-      {/* Lead item — dominant. */}
+      {/* Lead item — dominant. Accent rail + icon tile both carry the lead's category
+          color (Predict blue · Monitor amber · Recommend emerald · Explain purple). */}
       <div className="relative overflow-hidden border-b border-white/[0.06] px-4 py-3.5">
-        <span className={`absolute inset-y-0 left-0 w-1 ${priorityBand(lead.priority)}`} aria-hidden />
+        <span className={`absolute inset-y-0 left-0 w-1 ${PULSE_CATEGORY[lead.category].bar}`} aria-hidden />
         <div className="flex items-start gap-3 pl-1.5">
-          <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${CATEGORY_TONE[lead.category]}`}>
+          <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${PULSE_CATEGORY[lead.category].iconTile}`}>
             <LeadIcon className="h-4 w-4" aria-hidden />
           </span>
           <div className="min-w-0 flex-1">
@@ -191,7 +179,7 @@ export function PlatformPulseCard({ items }: { items: PlatformPulseItem[] }) {
             return (
               <li key={item.id} className="border-b border-white/[0.04] px-4 py-2.5 last:border-b-0">
                 <div className="flex items-start gap-2.5">
-                  <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${CATEGORY_TONE[item.category]}`}>
+                  <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg ${PULSE_CATEGORY[item.category].iconTile}`}>
                     <Icon className="h-3.5 w-3.5" aria-hidden />
                   </span>
                   <div className="min-w-0 flex-1">
