@@ -82,4 +82,31 @@ describe('PlatformPulseCard (Phase 3.6)', () => {
     expect(container.querySelector('[aria-label*="change"]')).toBeNull()
     expect(screen.queryByText('dashboard.pulse.why')).toBeNull()
   })
+
+  it('renders a summarized item with a count title and whyDetails bullets (Phase 3.8B)', () => {
+    render(
+      <PlatformPulseCard
+        items={[
+          item({
+            id: 'sum',
+            kind: 'lineup_urgent',
+            category: 'Recommend',
+            priority: 92,
+            summarized: true,
+            data: { leagueName: 'Dynasty', count: 3 },
+            why: 'Slot 1 empty',
+            whyDetails: ['Slot 1 empty', 'Slot 2 illegal', 'Slot 3 gap'],
+          }),
+        ]}
+      />,
+    )
+    // Count-aware title — no repeated "Set your lineup".
+    expect(screen.getByText('dashboard.pulse.kind.lineupUrgentMany(count=3)')).toBeTruthy()
+    // Why expands into the real per-decision bullets.
+    expect(screen.queryByText('Slot 2 illegal')).toBeNull()
+    fireEvent.click(screen.getByText('dashboard.pulse.why'))
+    expect(screen.getByText('Slot 1 empty')).toBeTruthy()
+    expect(screen.getByText('Slot 2 illegal')).toBeTruthy()
+    expect(screen.getByText('Slot 3 gap')).toBeTruthy()
+  })
 })
