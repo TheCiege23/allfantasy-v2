@@ -37,6 +37,9 @@ import { CommissionerHub } from './warroom/CommissionerHub'
 import { CommissionerHQ } from './warroom/CommissionerHQ'
 import { CoachNotes } from './warroom/CoachNotes'
 import { DashboardHero } from './warroom/DashboardHero'
+import { TeamThisWeek } from './warroom/TeamThisWeek'
+import { SeasonJourney } from './warroom/SeasonJourney'
+import { WaiverWirePreview } from './warroom/WaiverWirePreview'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
@@ -659,11 +662,49 @@ export function DashboardOverview({
 
   const leagueBuzzSection = <LeagueActivityFeed key="leagueBuzz" />
 
-  /** Dashboard V2 Phase 2.2 — FantasyContextEngine section priority. Same components in every
+  /** Dashboard V2 Phase 2.4 — Team Focus sections, scoped to the one selected league (only
+   *  rendered in team context, where selectedLeague is guaranteed non-null). Each reuses an
+   *  existing component; nothing here is a new data source. */
+  const teamMatchupSection =
+    context === 'team' && selectedLeague ? (
+      <section key="teamMatchup" className="space-y-2.5">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-white/30">
+          {t('dashboard.warroom.teamThisWeek.title')}
+        </p>
+        <TeamThisWeek league={selectedLeague} userId={userId} />
+      </section>
+    ) : null
+
+  // Waiver pickups for just the selected league (real chimmyAdvice-backed recs); self-gates to
+  // nothing when there are no pending pickups for it, so no empty card in the quiet case.
+  const teamWaiverData =
+    context === 'team' && selectedLeague && waiverData
+      ? {
+          ...waiverData,
+          recommendations: waiverData.recommendations.filter((r) => r.leagueId === selectedLeague.id),
+        }
+      : null
+  const teamWaiverSection = teamWaiverData ? (
+    <WaiverWirePreview key="teamWaiver" data={teamWaiverData} onOpenAll={handleWaiverClick} />
+  ) : null
+
+  const teamSeasonJourneySection =
+    context === 'team' && selectedLeague ? (
+      <SeasonJourney
+        key="teamSeasonJourney"
+        lifecycleState={rawStage(selectedLeague)}
+        currentWeek={selectedLeague.currentWeek ?? null}
+        tradeDeadlineWeek={selectedLeague.tradeDeadlineWeek ?? null}
+        playoffStartWeek={selectedLeague.playoffStartWeek ?? null}
+      />
+    ) : null
+
+  /** Dashboard V2 Phase 2.2/2.4 — FantasyContextEngine section priority. Same components in every
    *  context (per the "reuse, don't duplicate" rule); only their order changes. Global matches
-   *  the Phase 2.1 shell unchanged. Commissioner Focus promotes the Commissioner Hub to primary
-   *  billing; Team Focus promotes Weekly Game Plan and Rankings & Legacy (the manager-facing
-   *  sections) ahead of the Commissioner Hub, which stays reachable but demoted. */
+   *  the Phase 2.1 shell unchanged. Commissioner Focus promotes the Commissioner HQ to primary
+   *  billing. Team Focus (Phase 2.4) answers "what gives my team the best chance to win this week":
+   *  Weekly Game Plan → This Week's Matchup (primary decision card) → today's start/sit + lineup +
+   *  waiver actions → this league's waiver pickups → Season Journey → Rankings & Legacy → Buzz. */
   const sectionsByContext: Record<PrimaryContext, ReactNode[]> = {
     global: [
       todaysAgendaSection,
@@ -683,10 +724,11 @@ export function DashboardOverview({
     ],
     team: [
       weeklyGamePlanSection,
+      teamMatchupSection,
       todaysAgendaSection,
+      teamWaiverSection,
+      teamSeasonJourneySection,
       rankingsLegacySection,
-      myLeaguesSection,
-      commissionerHubSection,
       leagueBuzzSection,
     ],
   }
