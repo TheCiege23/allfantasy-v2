@@ -31,6 +31,65 @@ function resolveImportedLeagueSport(normalized: NormalizedImportResult): string 
   return normalizeToSupportedSport(normalized.league.sport)
 }
 
+/**
+ * Tier 0 (Block C) — extract League row columns from `normalized.league.*`
+ * (populated by the provider mapper's Tier 0 block). Only defined values are
+ * emitted, so any absent field preserves its Prisma column default. Numeric
+ * types coerce integers; boolean types accept the mapper's normalized booleans.
+ *
+ * IMPORTANT: additive by design. Callers spread this last into `leaguePayload`
+ * so any value the mapper populated wins over the defaults, but a mapper that
+ * doesn't populate a field is fully backward-compatible.
+ */
+export function buildTier0LeagueColumnPatch(
+  normalized: NormalizedImportResult,
+): Record<string, unknown> {
+  const l = normalized.league
+  const out: Record<string, unknown> = {}
+  const setIfNum = (key: string, v: unknown): void => {
+    if (typeof v === 'number' && Number.isFinite(v)) out[key] = v
+  }
+  const setIfBool = (key: string, v: unknown): void => {
+    if (typeof v === 'boolean') out[key] = v
+  }
+  const setIfStr = (key: string, v: unknown): void => {
+    if (typeof v === 'string' && v.length > 0) out[key] = v
+  }
+
+  // Waiver + trade window
+  setIfStr('waiverType', l.waiver_type)
+  setIfNum('waiverBudget', l.faab_budget ?? undefined)
+  setIfNum('waiverMinBid', l.waiver_bid_min)
+  setIfNum('tradeDeadlineWeek', l.trade_deadline_week)
+  // Sleeper `trade_review_days` in DAYS → AF `tradeReviewHours` in HOURS.
+  if (typeof l.trade_review_days === 'number' && Number.isFinite(l.trade_review_days)) {
+    out.tradeReviewHours = Math.max(0, l.trade_review_days * 24)
+  }
+  setIfBool('draftPickTrading', l.pick_trading)
+
+  // Playoffs
+  setIfNum('playoffStartWeek', l.playoff_start_week)
+  setIfNum('playoffTeams', l.playoff_teams)
+
+  // Reserve + taxi
+  setIfNum('irSlots', l.reserve_slots)
+  setIfNum('taxiSlots', l.taxi_slots)
+  setIfNum('taxiYearsLimit', l.taxi_years)
+  setIfBool('taxiAllowNonRookies', l.taxi_allow_vets)
+  setIfNum('taxiDeadlineWeek', l.taxi_deadline_week)
+  setIfNum('keeperCount', l.max_keepers)
+
+  // IR eligibility flags
+  setIfBool('irAllowCovid', l.reserve_allow_cov)
+  setIfBool('irAllowSuspended', l.reserve_allow_sus)
+  setIfBool('irAllowOut', l.reserve_allow_out)
+  setIfBool('irAllowNA', l.reserve_allow_na)
+  setIfBool('irAllowDNR', l.reserve_allow_dnr)
+  setIfBool('irAllowDoubtful', l.reserve_allow_doubtful)
+
+  return out
+}
+
 function resolveImportedLeagueVariant(normalized: NormalizedImportResult): string | null {
   const leagueData = normalized.league as Record<string, unknown>
   const explicit =
@@ -216,6 +275,13 @@ export async function persistImportedLeagueFromNormalization(
     ? mergeCanonicalBundleIntoSettings(normalized, canonicalBundle)
     : buildImportedLeagueSettings(normalized)
 
+  // Tier 0 (Block C) — passthrough for League columns whose values used to be
+  // silently dropped and replaced by Prisma defaults. Every value comes from
+  // `normalized.league.*` (populated by the provider mapper's Tier 0 block).
+  // Any `undefined` field is omitted so the existing default remains — safe for
+  // legacy providers and older payloads that don't populate the new fields.
+  const tier0LeaguePayload = buildTier0LeagueColumnPatch(normalized)
+
   const leaguePayload = {
     name: normalized.league.name,
     platform: provider,
@@ -238,6 +304,7 @@ export async function persistImportedLeagueFromNormalization(
     importBatchId: normalized.source.import_batch_id ?? undefined,
     importedAt: normalized.source.imported_at ? new Date(normalized.source.imported_at) : undefined,
     ...importStatsPatch,
+    ...tier0LeaguePayload,
   }
 
   const league = existing
