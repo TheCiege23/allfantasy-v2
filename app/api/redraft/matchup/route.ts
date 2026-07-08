@@ -10,6 +10,7 @@ import { getCanonicalNflMatchupContext } from '@/lib/nfl-data-foundation/nflData
 import { getNormalizedPlayerData } from '@/lib/player-data/getNormalizedPlayerData'
 import { serializeUnifiedPlayerForApi } from '@/lib/player-data/serializeUnifiedPlayerForApi'
 import { matchupContextFromUnifiedWire } from '@/lib/player-data/adapters/matchupPlayerAdapter'
+import { parseOptionalRedraftPositiveInteger } from '@/lib/redraft/betaRouteInput'
 
 export const dynamic = 'force-dynamic'
 
@@ -84,7 +85,14 @@ export async function GET(req: NextRequest) {
   }
 
   if (seasonId && week != null) {
-    const w = Number(week)
+    const parsedWeek = parseOptionalRedraftPositiveInteger(week, 'week')
+    if (!parsedWeek.ok) {
+      return NextResponse.json({ error: parsedWeek.error }, { status: 400 })
+    }
+    if (parsedWeek.value == null) {
+      return NextResponse.json({ error: 'matchupId or seasonId+week required' }, { status: 400 })
+    }
+    const w = parsedWeek.value
     const season = await prisma.redraftSeason.findFirst({ where: { id: seasonId } })
     if (!season) return NextResponse.json({ error: 'Not found' }, { status: 404 })
     const gate = await assertLeagueMember(season.leagueId, userId)
