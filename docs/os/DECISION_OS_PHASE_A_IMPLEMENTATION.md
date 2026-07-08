@@ -6,7 +6,19 @@ Prisma adapter + additive behavioral read), 4 (Sleeper emitter + end-to-end inge
 (scheduled snapshot capture + trend history) are landed. Every claim below is code-verified; nothing
 is fabricated, and no NFL-Redraft / Start-Draft / PR-#166 / Mission Control / UI work is touched.
 
-**Branch:** `g15-event-foundation` (where Decision OS lives) · **Date:** 2026-07-08.
+**Branch:** `g15-event-foundation` (where this was built) · **Date:** 2026-07-08.
+
+**PR: [#183](https://github.com/TheCiege23/allfantasy-v2-main/pull/183) — DRAFT, do not merge.** The
+5 increments (`ce11b14ae`→`f8db831dd`→`bf255e5a1`→`621f649e8`→`1fde03a7a` on g15) were cherry-picked
+onto a clean, isolated branch (`decision-os-phase-a`) off fresh `origin/main` — the Decision OS
+behavioral pipeline this work depends on (`assemble.ts`, `real-data-provider.ts`, event
+types/taxonomy, `ExternalIdentityMapper`, the Sleeper adapter types) is already on `main`, so a
+genuinely clean 21-file PR was possible (no foundation-publication problem this time). One
+merge-conflict during isolation (`prisma/schema.prisma`) was resolved by keeping `main`'s content and
+appending only this workstream's own model — deliberately **excluding** `ReplayImport`/
+`ReplayBacktestResult`, which are foreign, parked Replay Framework schema that happened to sit
+adjacent in g15's file. Verified on the isolated branch: 78/78 tests, zero typecheck errors in any
+touched file (main's own 3165 baseline errors are pre-existing/unrelated).
 
 ---
 
