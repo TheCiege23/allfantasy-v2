@@ -42,6 +42,7 @@ import { SeasonOutlook } from './warroom/SeasonOutlook'
 import { SeasonJourney } from './warroom/SeasonJourney'
 import { WaiverWirePreview } from './warroom/WaiverWirePreview'
 import { RecommendationTimeline } from './warroom/RecommendationTimeline'
+import { InjuryImpactPanel } from './warroom/InjuryImpactPanel'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
@@ -691,6 +692,13 @@ export function DashboardOverview({
       <SeasonOutlook key="teamSeasonOutlook" league={selectedLeague} userId={userId} />
     ) : null
 
+  // Phase 3.2 — Injury Impact (Monitor + Explain): which of my starters are hurt, how much it
+  // matters, and why — from the real injury-impact engine. Scoped to the selected league.
+  const teamInjuryImpactSection =
+    context === 'team' && selectedLeague ? (
+      <InjuryImpactPanel key="teamInjuryImpact" league={selectedLeague} />
+    ) : null
+
   // Waiver pickups for just the selected league (real chimmyAdvice-backed recs); self-gates to
   // nothing when there are no pending pickups for it, so no empty card in the quiet case.
   const teamWaiverData =
@@ -743,6 +751,7 @@ export function DashboardOverview({
       weeklyGamePlanSection,
       teamMatchupSection,
       teamSeasonOutlookSection,
+      teamInjuryImpactSection,
       recommendationsSection,
       todaysAgendaSection,
       teamWaiverSection,
