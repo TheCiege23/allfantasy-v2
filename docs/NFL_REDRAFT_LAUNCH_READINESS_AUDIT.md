@@ -7,6 +7,13 @@ exactly what must be fixed first?"**
 **Date:** 2026-07-08 · **Branch:** `g15-event-foundation` (heavy concurrent multi-session churn —
 state is in flux; audited the current working tree).
 
+**Update log:**
+- **2026-07-08 — Beta Polish Phase 1:** P0 `PlayerStatCard` dev-stub **fixed** (no placeholder copy,
+  no raw ids, honest projection fallback, weather block gated on a real projection). Remaining
+  launch prerequisites unchanged: deployment/branch topology (P1), live non-prod core-loop + mobile
+  QA (P1), paid features (Payments/Import/Team-Settings) still not beta-ready, AI still a separate
+  track.
+
 **Audit depth (honest):** traced UI shell/tab **reachability**, stub markers, the commissioner
 settings panels, and the freshest wirings (playoffs/trades). **Did NOT** run a live end-to-end
 flow (no live DB, per constraint), deep-audit every runtime route's guards live, or do live mobile
@@ -83,9 +90,14 @@ as staging-proven, but that is not re-verified in this audit.
 gating on the Commissioner tab.
 
 **Stubs / placeholders found:**
-- **`PlayerStatCard`** (opened on player click, `LeagueShell:1489`) renders an **unconditional
-  placeholder line**: *"Placeholder baseline {pts} pts (wire your provider to replace). Player id
-  {playerId}"* — dev placeholder text **and a raw player id** shown to users. **→ P0.**
+- **`PlayerStatCard`** (opened on player click, `LeagueShell:1489`) — **✅ FIXED in Beta Polish
+  Phase 1.** Previously rendered an unconditional dev line (*"Placeholder baseline {pts} pts (wire
+  your provider to replace). Player id {playerId}"*) plus a raw player id and raw league id, and the
+  weather block printed point totals anchored to the same synthetic baseline. Now: no placeholder
+  copy, no raw ids (unknown players show "Unknown player", not an id), an honest fallback
+  ("Detailed projections will appear here when provider data is available."), and the weather block
+  is gated on a **real** projection (dormant/preserved until a provider is wired — no fabricated
+  points). Guarded by `__tests__/nfl-redraft-player-stat-card-no-stub.test.ts`.
 - **`CommissionerSettingsModal` placeholder panels** (`PlaceholderPanel`): Team Settings, Payments/
   League Dues, Import/Sync, Advanced Rules, Appearance/Branding, Security/Permissions, Draft-Pick
   Settings, Integrations — 8 secondary areas. Core settings are real; these are secondary.
@@ -100,7 +112,7 @@ surfaced in the core redraft screens during this pass.
 
 | Pri | Area / file | Issue | User impact | Recommended fix | Risk |
 | --- | --- | --- | --- | --- | --- |
-| **P0** | `app/league/[leagueId]/components/PlayerStatCard.tsx` | Unconditional "Placeholder baseline … wire your provider to replace" + raw `playerId` shown on player click | Obvious unfinished/dev text + raw ID in a customer-facing card | Hide the placeholder line behind real projection data, or gate it to dev; never show the raw id | Low (single card) |
+| ~~**P0**~~ **✅ FIXED** (Beta Polish Phase 1) | `app/league/[leagueId]/components/PlayerStatCard.tsx` | ~~Unconditional "Placeholder baseline … wire your provider to replace" + raw `playerId` shown on player click~~ | ~~Obvious unfinished/dev text + raw ID in a customer-facing card~~ | Removed the synthetic baseline at its root; honest projection fallback; no raw ids; weather block gated on a real projection. Test: `nfl-redraft-player-stat-card-no-stub.test.ts` | Resolved |
 | **P1** | `CommissionerSettingsModal` → Payments/League Dues (placeholder) | No buy-in/dues/payout management | Blocks **paid** leagues | Build the Payments panel (or defer paid promotion) | Med |
 | **P1** | `CommissionerSettingsModal` → Team Settings (placeholder) | No team names/logos/owner assignment UI | Commissioners can't manage team identity | Build the Team Settings panel | Med |
 | **P1** | `CommissionerSettingsModal` → Import/Sync (placeholder) | No provider mapping/refresh UI | Blocks promoting **Sleeper import** as an onboarding path | Build or hide the import path in the pitch | Med |
@@ -133,7 +145,7 @@ as its own readiness workstream after the core loop is beta-ready.**
 0. **Prerequisite — get the audited code onto a deployable shared branch:** land the playoffs draft
    PRs (**#154 then #156**) and make a deliberate decision on the `g15`↔remote gap. Nothing below
    ships until this is resolved.
-1. Fix the **P0** `PlayerStatCard` placeholder (fast).
+1. ~~Fix the **P0** `PlayerStatCard` placeholder~~ **✅ DONE (Beta Polish Phase 1).**
 2. Decide the beta shape: **free beta** (defer Payments/Import to P1-later) vs **paid/import beta**
    (build Payments + Import/Sync + Team Settings first).
 3. Run a **live core-loop proof pass** in an approved non-prod env (create → draft → waiver → trade
