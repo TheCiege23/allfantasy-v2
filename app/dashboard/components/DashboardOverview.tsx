@@ -28,6 +28,7 @@ import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { useFantasyContext, type PrimaryContext } from '@/hooks/useFantasyContext'
 import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
+import { CareerProgressionStrip } from './CareerProgressionStrip'
 import { Crown } from 'lucide-react'
 import { ActionCenter, countActionItems } from './warroom/ActionCenter'
 import { TodayTimeline } from './warroom/TodayTimeline'
@@ -681,6 +682,10 @@ export function DashboardOverview({
         />
         <LegacySnapshotCard rankPayload={initialUserRankPayload} />
       </div>
+      {/* Phase 4.3 Rankings UI — visualizes REAL career fields from the rank
+          payload (championships, playoffs, seasons, leagues). Self-gates to
+          nothing when the profile is unimported, so it never adds empty noise. */}
+      <CareerProgressionStrip rankPayload={initialUserRankPayload as Parameters<typeof CareerProgressionStrip>[0]['rankPayload']} />
     </section>
   )
 
