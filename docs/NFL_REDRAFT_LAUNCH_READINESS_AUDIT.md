@@ -116,7 +116,7 @@ surfaced in the core redraft screens during this pass.
 | **P1** | `CommissionerSettingsModal` → Payments/League Dues (placeholder) | No buy-in/dues/payout management | Blocks **paid** leagues | Build the Payments panel (or defer paid promotion) | Med |
 | **P1** | `CommissionerSettingsModal` → Team Settings (placeholder) | No team names/logos/owner assignment UI | Commissioners can't manage team identity | Build the Team Settings panel | Med |
 | **P1** | `CommissionerSettingsModal` → Import/Sync (placeholder) | No provider mapping/refresh UI | Blocks promoting **Sleeper import** as an onboarding path | Build or hide the import path in the pitch | Med |
-| **P1** | Deploy/branch topology | Audited code is on **unpushed local `g15`** (~171 commits ahead of remote, not on `main`); playoffs UI is **unmerged draft PRs #156→#154→main** w/ an unpushed runtime foundation | Nothing is on a deployable shared branch — the audited product can't ship as-is | Land #154+#156 and reconcile the g15↔remote gap via a deliberate release decision | **High (prereq)** |
+| **P1** | Deploy/branch topology | Audited beta experience (shell + playoffs UI + P0 fix) is **local-g15 only** — absent from `main` (250 commits diverged) and from `origin/g15` (176 behind). Open PRs #137/#154/#156 (now **OPEN, not drafts**) are partial slices missing the shell + P0 fix | Nothing deployable delivers the audited beta as-is | **Option B** focused beta branch, sequenced C→B — see the [Landing & QA Runbook](./NFL_REDRAFT_BETA_LANDING_AND_QA_RUNBOOK.md) | **High (prereq)** |
 | **P1** | Runtime/API | No live end-to-end pass on a real league this audit | Unverified live behavior/guards | Run the flow in an approved non-prod env | Med |
 | **P1** | Mobile | No live responsive/overflow QA | Possible mobile breakage for beta users | Live mobile pass on the core loop | Med |
 | **P2** | `CommissionerSettingsModal` → Advanced Rules / Branding / Security / Integrations / Draft-Pick Settings | Secondary placeholders | Nice-to-have for beta | Build post-beta | Low |
@@ -142,9 +142,15 @@ as its own readiness workstream after the core loop is beta-ready.**
 ## 6. Recommended next phase
 
 **Phase: "NFL Redraft Beta Polish" — close the P0 + the beta-relevant P1s, then a live proof pass.**
-0. **Prerequisite — get the audited code onto a deployable shared branch:** land the playoffs draft
-   PRs (**#154 then #156**) and make a deliberate decision on the `g15`↔remote gap. Nothing below
-   ships until this is resolved.
+0. **Prerequisite — get the audited code onto a deployable branch.** Mapped in detail in the
+   **[Beta Landing & QA Runbook](./NFL_REDRAFT_BETA_LANDING_AND_QA_RUNBOOK.md)**. Key finding: the
+   whole nflRedraftCore **shell** + playoffs UI + the P0 fix are **local-g15 only** (not on `main`),
+   and the open PRs (#137/#154/#156) are partial slices that don't include the shell or the P0 fix.
+   **Recommended path = Option B (focused `nfl-redraft-beta` branch off `main`), sequenced as "C
+   feeds B":** land the reviewed slices (#154 → #156 → #137), then assemble the shell + P0 fix onto
+   the beta branch, **excluding** parked Decision OS / Replay / Trade-Learning / Intelligence /
+   provider work. **Option A (deploy g15 as-is) is rejected** — it bundles ~60+ off-limits commits.
+   Nothing below ships until this lands.
 1. ~~Fix the **P0** `PlayerStatCard` placeholder~~ **✅ DONE (Beta Polish Phase 1).**
 2. Decide the beta shape: **free beta** (defer Payments/Import to P1-later) vs **paid/import beta**
    (build Payments + Import/Sync + Team Settings first).
