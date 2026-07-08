@@ -52,8 +52,37 @@ export interface NormalizedLeagueSettings {
   regular_season_length?: number
   schedule_unit?: string
   matchup_frequency?: string
+  /**
+   * Waiver type canonicalized to AF vocabulary ('faab' | 'rolling' | 'off').
+   * Producers map from provider-native enums (Sleeper `settings.waiver_type` int → string).
+   */
   waiver_type?: string
   faab_budget?: number | null
+  /**
+   * Tier 0 fields — populated by provider mappers when the source exposes them,
+   * consumed by the canonical normalizer + persistence layer. All optional; `undefined`
+   * leaves the corresponding League column at its Prisma default. Types match the
+   * eventual column types (int / bool) so the persistence layer can pass them through
+   * without additional coercion.
+   */
+  waiver_bid_min?: number
+  playoff_start_week?: number
+  playoff_teams?: number
+  trade_deadline_week?: number
+  trade_review_days?: number
+  pick_trading?: boolean
+  reserve_slots?: number
+  taxi_slots?: number
+  taxi_years?: number
+  taxi_allow_vets?: boolean
+  taxi_deadline_week?: number
+  max_keepers?: number
+  reserve_allow_cov?: boolean
+  reserve_allow_sus?: boolean
+  reserve_allow_out?: boolean
+  reserve_allow_na?: boolean
+  reserve_allow_dnr?: boolean
+  reserve_allow_doubtful?: boolean
   [key: string]: unknown
 }
 
