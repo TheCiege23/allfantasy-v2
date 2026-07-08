@@ -32,6 +32,14 @@ broken core loop.
 > This aligns with the prior "NFL ~93% full-prod" baseline in memory, now **higher on the UI axis**
 > because the playoffs/trades UI gaps that memory flagged as beta-blockers are resolved.
 
+> **⚠ Deployment reality (read before promoting):** this audit is of the **`g15-event-foundation`
+> working tree**, which is a **local branch ~171 commits ahead of its remote** and **not merged to
+> `main`**. The **playoffs UI fix ships as unmerged stacked draft PRs #156 (UI) → #154 (playoff-
+> runtime foundation) → main**, and that runtime foundation is **unpushed** (absent from
+> `origin/main` and `origin/g15`). So the core loop is wired *in the code audited*, but **nothing is
+> on a deployable shared branch yet** — a release/merge decision (below, P1) is a hard prerequisite
+> to any real promotion. See [playoffs-gap analysis in memory] / `#154`+`#156`.
+
 ---
 
 ## 1. Product flow audit (customer journey)
@@ -96,6 +104,7 @@ surfaced in the core redraft screens during this pass.
 | **P1** | `CommissionerSettingsModal` → Payments/League Dues (placeholder) | No buy-in/dues/payout management | Blocks **paid** leagues | Build the Payments panel (or defer paid promotion) | Med |
 | **P1** | `CommissionerSettingsModal` → Team Settings (placeholder) | No team names/logos/owner assignment UI | Commissioners can't manage team identity | Build the Team Settings panel | Med |
 | **P1** | `CommissionerSettingsModal` → Import/Sync (placeholder) | No provider mapping/refresh UI | Blocks promoting **Sleeper import** as an onboarding path | Build or hide the import path in the pitch | Med |
+| **P1** | Deploy/branch topology | Audited code is on **unpushed local `g15`** (~171 commits ahead of remote, not on `main`); playoffs UI is **unmerged draft PRs #156→#154→main** w/ an unpushed runtime foundation | Nothing is on a deployable shared branch — the audited product can't ship as-is | Land #154+#156 and reconcile the g15↔remote gap via a deliberate release decision | **High (prereq)** |
 | **P1** | Runtime/API | No live end-to-end pass on a real league this audit | Unverified live behavior/guards | Run the flow in an approved non-prod env | Med |
 | **P1** | Mobile | No live responsive/overflow QA | Possible mobile breakage for beta users | Live mobile pass on the core loop | Med |
 | **P2** | `CommissionerSettingsModal` → Advanced Rules / Branding / Security / Integrations / Draft-Pick Settings | Secondary placeholders | Nice-to-have for beta | Build post-beta | Low |
@@ -121,6 +130,9 @@ as its own readiness workstream after the core loop is beta-ready.**
 ## 6. Recommended next phase
 
 **Phase: "NFL Redraft Beta Polish" — close the P0 + the beta-relevant P1s, then a live proof pass.**
+0. **Prerequisite — get the audited code onto a deployable shared branch:** land the playoffs draft
+   PRs (**#154 then #156**) and make a deliberate decision on the `g15`↔remote gap. Nothing below
+   ships until this is resolved.
 1. Fix the **P0** `PlayerStatCard` placeholder (fast).
 2. Decide the beta shape: **free beta** (defer Payments/Import to P1-later) vs **paid/import beta**
    (build Payments + Import/Sync + Team Settings first).
@@ -128,8 +140,8 @@ as its own readiness workstream after the core loop is beta-ready.**
    → matchup → standings → **playoff generate/advance/finalize** → commissioner) + a mobile pass.
 4. Sweep empty states / dead links on the core screens.
 
-Then the honest promotion answer becomes: **"Yes, as a free closed beta"** once P0 + the live proof
-pass land; **"Yes for paid"** once the Payments/Import P1s land.
+Then the honest promotion answer becomes: **"Yes, as a free closed beta"** once the branch lands +
+P0 + the live proof pass are done; **"Yes for paid"** once the Payments/Import P1s land.
 
 ## 7. Do-not-touch boundaries
 
