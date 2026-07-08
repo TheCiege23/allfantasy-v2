@@ -2812,6 +2812,9 @@ export const translations: Record<string, Record<string, string>> = {
 
     "dashboard.warroom.myLeagues.title": "My Leagues",
     "dashboard.warroom.seasonJourney.title": "Season Journey",
+    "dashboard.comms.open": "Open Communications",
+    "dashboard.comms.title": "Communications",
+    "dashboard.comms.close": "Close communications",
     "dashboard.warroom.teamThisWeek.title": "This Week's Matchup",
     "dashboard.warroom.teamThisWeek.emptyTitle": "No matchup this week — yet",
     "dashboard.warroom.teamThisWeek.emptyDesc": "Your weekly matchup, projections, and win probability appear here once the season kicks off.",
@@ -4629,6 +4632,9 @@ export const translations: Record<string, Record<string, string>> = {
 
     "dashboard.warroom.myLeagues.title": "Mis Ligas",
     "dashboard.warroom.seasonJourney.title": "Trayectoria de la Temporada",
+    "dashboard.comms.open": "Abrir Comunicaciones",
+    "dashboard.comms.title": "Comunicaciones",
+    "dashboard.comms.close": "Cerrar comunicaciones",
     "dashboard.warroom.teamThisWeek.title": "El Enfrentamiento de Esta Semana",
     "dashboard.warroom.teamThisWeek.emptyTitle": "Aún no hay enfrentamiento esta semana",
     "dashboard.warroom.teamThisWeek.emptyDesc": "Tu enfrentamiento semanal, proyecciones y probabilidad de victoria aparecerán aquí cuando comience la temporada.",
@@ -4881,6 +4887,9 @@ export const translations: Record<string, Record<string, string>> = {
 
     "dashboard.warroom.myLeagues.title": "我的联盟",
     "dashboard.warroom.seasonJourney.title": "赛季历程",
+    "dashboard.comms.open": "打开沟通",
+    "dashboard.comms.title": "沟通",
+    "dashboard.comms.close": "关闭沟通",
     "dashboard.warroom.teamThisWeek.title": "本周对阵",
     "dashboard.warroom.teamThisWeek.emptyTitle": "本周暂无对阵",
     "dashboard.warroom.teamThisWeek.emptyDesc": "赛季开始后,你的每周对阵、预测和获胜概率将显示在这里。",
@@ -5133,6 +5142,9 @@ export const translations: Record<string, Record<string, string>> = {
 
     "dashboard.warroom.myLeagues.title": "Aking mga Liga",
     "dashboard.warroom.seasonJourney.title": "Paglalakbay ng Season",
+    "dashboard.comms.open": "Buksan ang Communications",
+    "dashboard.comms.title": "Communications",
+    "dashboard.comms.close": "Isara ang communications",
     "dashboard.warroom.teamThisWeek.title": "Matchup Ngayong Linggo",
     "dashboard.warroom.teamThisWeek.emptyTitle": "Wala pang matchup ngayong linggo",
     "dashboard.warroom.teamThisWeek.emptyDesc": "Lalabas dito ang lingguhang matchup, projections, at win probability mo kapag nagsimula na ang season.",
@@ -5385,6 +5397,9 @@ export const translations: Record<string, Record<string, string>> = {
 
     "dashboard.warroom.myLeagues.title": "Giải Đấu Của Tôi",
     "dashboard.warroom.seasonJourney.title": "Hành Trình Mùa Giải",
+    "dashboard.comms.open": "Mở Liên Lạc",
+    "dashboard.comms.title": "Liên Lạc",
+    "dashboard.comms.close": "Đóng liên lạc",
     "dashboard.warroom.teamThisWeek.title": "Trận Đấu Tuần Này",
     "dashboard.warroom.teamThisWeek.emptyTitle": "Chưa có trận đấu nào trong tuần này",
     "dashboard.warroom.teamThisWeek.emptyDesc": "Trận đấu hằng tuần, dự báo và xác suất thắng của bạn sẽ xuất hiện ở đây khi mùa giải bắt đầu.",
