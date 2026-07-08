@@ -153,6 +153,27 @@ export interface NormalizedTransaction {
   draft_picks?: unknown[]
 }
 
+/**
+ * Block F — normalized future traded draft pick.
+ *
+ * Maps to `future_draft_picks` (persistence). Field semantics preserve Sleeper's
+ * ownership chain, which is the single most valuable dynasty asset outside of
+ * players themselves.
+ *
+ * Roster IDs are provider-native strings (Sleeper "1".."12"), matching
+ * `league_teams.externalId`. `previous_owner_roster_id` is optional because
+ * `future_draft_picks` has no dedicated column for it (schema limitation) — the
+ * persistence layer drops this field with a documented gap. Kept on the normalized
+ * type so a future schema addition can wire it up without a mapper rewrite.
+ */
+export interface NormalizedTradedPick {
+  season: number
+  round: number
+  original_roster_id: string
+  current_owner_roster_id: string
+  previous_owner_roster_id?: string
+}
+
 /** Normalized standings entry. */
 export interface NormalizedStandingsEntry {
   source_team_id: string
@@ -201,6 +222,12 @@ export interface NormalizedImportResult {
   scoring: NormalizedScoring | null
   schedule: NormalizedMatchup[]
   draft_picks: NormalizedDraftPick[]
+  /**
+   * Block F — future traded draft picks (Sleeper `/league/{id}/traded_picks`).
+   * Absent = provider does not expose traded picks; empty array = provider
+   * exposes them but no picks are currently in a traded state.
+   */
+  traded_picks?: NormalizedTradedPick[]
   transactions: NormalizedTransaction[]
   standings: NormalizedStandingsEntry[]
   player_map: Record<string, { name: string; position: string; team: string }>

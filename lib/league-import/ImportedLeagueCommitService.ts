@@ -4,7 +4,12 @@ import { calculateAndSaveRank } from '@/lib/rank/calculateRank'
 import { deriveImportStatsFromNormalized } from '@/lib/rank/deriveImportStatsFromNormalized'
 import { SETTINGS_SNAPSHOT_VERSION } from '@/lib/league-contract/types'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
-import type { CanonicalImportBundle, ImportProvider, NormalizedImportResult } from './types'
+import type {
+  CanonicalImportBundle,
+  ImportProvider,
+  NormalizedImportResult,
+  NormalizedTradedPick,
+} from './types'
 
 export class ImportedLeagueConflictError extends Error {}
 
@@ -88,6 +93,85 @@ export function buildTier0LeagueColumnPatch(
   setIfBool('irAllowDoubtful', l.reserve_allow_doubtful)
 
   return out
+}
+
+/**
+ * Block F — persist normalized future traded draft picks into `future_draft_picks`.
+ *
+ * Uses Prisma `upsert` keyed on the composite unique
+ * `(leagueId, pickSeason, round, originalRosterId)` — that unique already exists
+ * in `prisma/schema.prisma`, so a re-import updates `currentOwnerId` for an
+ * existing pick instead of creating a duplicate row (satisfies Block F scope
+ * requirement #5: "Ensure re-import/update does not duplicate picks").
+ *
+ * Schema limitation acknowledged: Sleeper's `previous_owner_id` has no dedicated
+ * column on `future_draft_picks`. It's dropped here with an inline comment; a
+ * future schema addition can wire it up from the already-normalized field on
+ * `NormalizedTradedPick` without a mapper rewrite.
+ *
+ * Exported for testability; not part of the public import API.
+ */
+export async function persistTradedPicks(
+  leagueId: string,
+  picks: NormalizedTradedPick[],
+): Promise<{ written: number; skipped: number }> {
+  if (!Array.isArray(picks) || picks.length === 0) {
+    return { written: 0, skipped: 0 }
+  }
+  let written = 0
+  let skipped = 0
+  for (const pick of picks) {
+    // Defensive: mapper already filters these, but guard the persistence layer
+    // too so a malformed row can never crash the whole loop.
+    if (
+      !pick ||
+      typeof pick.season !== 'number' ||
+      typeof pick.round !== 'number' ||
+      typeof pick.original_roster_id !== 'string' ||
+      typeof pick.current_owner_roster_id !== 'string'
+    ) {
+      skipped++
+      continue
+    }
+    try {
+      await (prisma as any).futureDraftPick.upsert({
+        where: {
+          leagueId_pickSeason_round_originalRosterId: {
+            leagueId,
+            pickSeason: pick.season,
+            round: pick.round,
+            originalRosterId: pick.original_roster_id,
+          },
+        },
+        create: {
+          leagueId,
+          pickSeason: pick.season,
+          round: pick.round,
+          originalRosterId: pick.original_roster_id,
+          currentOwnerId: pick.current_owner_roster_id,
+          // A pick appears in `/traded_picks` iff it has been moved off its
+          // original roster at least once — always `traded: true` from Sleeper.
+          traded: true,
+          // NOTE: Sleeper `previous_owner_id` (pick.previous_owner_roster_id) is
+          // dropped here — no dedicated column on `future_draft_picks`. This is
+          // a documented schema limitation, not a mapper bug.
+        },
+        update: {
+          // Only ownership can change between imports; original identity + season
+          // + round are the primary-key composite and never change.
+          currentOwnerId: pick.current_owner_roster_id,
+          traded: true,
+        },
+      })
+      written++
+    } catch {
+      // Prisma constraint violation or transient DB error: skip this row so
+      // one bad pick can't lose the other 32. Outer catch in the caller logs
+      // the surrounding context.
+      skipped++
+    }
+  }
+  return { written, skipped }
 }
 
 function resolveImportedLeagueVariant(normalized: NormalizedImportResult): string | null {
@@ -324,6 +408,18 @@ export async function persistImportedLeagueFromNormalization(
     await bootstrapLeagueFromImport(league.id, normalized)
   } catch (err) {
     console.warn(`[ImportedLeagueCommitService] ${provider} import bootstrap non-fatal:`, err)
+  }
+
+  // Block F — persist future traded draft picks into `future_draft_picks`. Runs
+  // AFTER the bootstrap so anything the bootstrap writes (league_teams etc.)
+  // is available. Non-fatal: a failure here logs a warning but never fails the
+  // import — matches the existing gap-fill pattern above.
+  if (normalized.traded_picks && normalized.traded_picks.length > 0) {
+    try {
+      await persistTradedPicks(league.id, normalized.traded_picks)
+    } catch (err) {
+      console.warn(`[ImportedLeagueCommitService] ${provider} traded-pick persist non-fatal:`, err)
+    }
   }
 
   try {
