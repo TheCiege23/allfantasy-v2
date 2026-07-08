@@ -16,6 +16,7 @@
  * `PrismaClient` type — type-checks and unit-tests without regenerating the Prisma client.
  */
 
+import { prisma as defaultPrisma } from '@/lib/prisma'
 import type {
   BehavioralSnapshotStore,
   ListTrendParams,
@@ -149,5 +150,28 @@ export class PrismaBehavioralSnapshotStore implements BehavioralSnapshotStore {
 
   count(): Promise<number> {
     return this.delegate.count()
+  }
+}
+
+/**
+ * Default league/manager trend reader (Commissioner OS Surface Alignment, Phase B Increment 2).
+ * Degrades honestly, matching Increment 3's `defaultLoadImportedActivityRows`: if the
+ * `decisionOsBehavioralSnapshot` model isn't generated/migrated yet, or the read fails, returns
+ * `[]` — never throws, never fabricates a trend point. Server compositions (e.g.
+ * `dashboard-intelligence.ts`) call this instead of duplicating the delegate-existence check.
+ */
+export async function defaultListLeagueBehavioralTrend(
+  leagueId: string,
+  options?: { managerId?: string | null; limit?: number },
+): Promise<BehavioralSnapshotRecord[]> {
+  try {
+    const delegate = (defaultPrisma as unknown as {
+      decisionOsBehavioralSnapshot?: DecisionOsBehavioralSnapshotDelegate
+    })?.decisionOsBehavioralSnapshot
+    if (!delegate) return []
+    const store = new PrismaBehavioralSnapshotStore(delegate)
+    return await store.listTrend({ leagueId, managerId: options?.managerId ?? null, limit: options?.limit })
+  } catch {
+    return []
   }
 }

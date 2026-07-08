@@ -52,6 +52,9 @@ import {
 } from '@/lib/decision-os/behavioral/mappers'
 import { mapImportedActivityRowsToEvents } from '@/lib/decision-os/behavioral/importedActivityToEvents'
 import { defaultLoadImportedActivityRows } from '@/lib/decision-os/behavioral/api/real-data-provider'
+import { defaultListLeagueBehavioralTrend } from '@/lib/decision-os/snapshot/prismaBehavioralSnapshotStore'
+import { deriveBehavioralTrend, deriveEventCountDelta } from '@/lib/decision-os/snapshot/behavioralTrend'
+import type { BehavioralSnapshotRecord } from '@/lib/decision-os/snapshot/behavioralSnapshotCapture'
 import {
   assembleManagerBehavioralFacts,
   assembleLeagueBehavioralFacts,
@@ -160,9 +163,68 @@ function toManagerSignal(mi: ManagerBehavioralIntelligence): ManagerSignalInput 
   }
 }
 
+/**
+ * Commissioner OS Surface Alignment (Phase B Increment 2): league-level activity trend, derived
+ * from Decision OS Phase A's behavioral snapshots (Increment 5). Read-only — this does NOT write
+ * new snapshots (that is a separate, not-yet-built scheduler's job, per the Phase A doc).
+ *
+ * Honest by construction: `direction` describes ACTIVITY VOLUME movement (event count period over
+ * period), not a value judgment like "healthier" — this codebase's league-health *score* is a
+ * separate, not-yet-aligned system (subsystem C, see docs/os/COMMISSIONER_OS_SURFACE_ALIGNMENT.md).
+ * Fewer than 2 captured periods is reported as `unavailable` with a reason — never a fabricated
+ * trend line, matching `deriveEventCountDelta`'s own "< 2 points → null" contract.
+ */
+export type LeagueActivityTrendSummary =
+  | { available: false; reason: 'no_snapshots' | 'insufficient_history' }
+  | {
+      available: true
+      periodsTracked: number
+      earliestPeriodKey: string
+      latestPeriodKey: string
+      latestEventCount: number
+      latestManagerCount: number
+      eventCountDelta: number
+      direction: 'increasing' | 'decreasing' | 'flat'
+    }
+
+/** Resolve the league-scope activity trend. Never throws — degrades to `available: false`. */
+export async function resolveLeagueActivityTrend(leagueId: string): Promise<LeagueActivityTrendSummary> {
+  try {
+    const records: BehavioralSnapshotRecord[] = await defaultListLeagueBehavioralTrend(leagueId)
+    const trend = deriveBehavioralTrend(records)
+
+    if (trend.length === 0) return { available: false, reason: 'no_snapshots' }
+    if (trend.length < 2) return { available: false, reason: 'insufficient_history' }
+
+    const delta = deriveEventCountDelta(trend)
+    if (delta === null) return { available: false, reason: 'insufficient_history' }
+
+    const byPeriod = new Map(records.map((r) => [r.periodKey, r]))
+    const latest = trend[trend.length - 1]
+    const latestRecord = byPeriod.get(latest.periodKey)
+    const latestManagerCount =
+      latestRecord?.scope === 'league' ? latestRecord.facts.activeManagerIds.length : 0
+
+    return {
+      available: true,
+      periodsTracked: trend.length,
+      earliestPeriodKey: trend[0].periodKey,
+      latestPeriodKey: latest.periodKey,
+      latestEventCount: latest.eventCount,
+      latestManagerCount,
+      eventCountDelta: delta,
+      direction: delta > 0 ? 'increasing' : delta < 0 ? 'decreasing' : 'flat',
+    }
+  } catch {
+    return { available: false, reason: 'no_snapshots' }
+  }
+}
+
 export type ManagerIntelligencePayload = {
   managerDna: ManagerDnaProfile | null
   recommendations: RecommendationSet | null
+  /** Additive (Phase B Increment 2) — never affects managerDna/recommendations either way. */
+  leagueTrend: LeagueActivityTrendSummary
 }
 
 /**
@@ -185,6 +247,11 @@ export async function resolveManagerIntelligencePayload({
   managerId: string
   now?: Date
 }): Promise<ManagerIntelligencePayload> {
+  // Resolved independently of the DNA/Recommendations computation below: `resolveLeagueActivityTrend`
+  // never throws (fully self-contained), so a trend-read hiccup can never affect managerDna/
+  // recommendations, and a DNA/Recommendations failure below can never suppress a real trend result.
+  const leagueTrend = await resolveLeagueActivityTrend(leagueId)
+
   try {
     const lookback = lookbackDays()
     const since = sinceDate(lookback)
@@ -221,12 +288,13 @@ export async function resolveManagerIntelligencePayload({
       // benchmarking is out of this ticket's scope (documented deferral).
     })
 
-    return { managerDna: targetProfile, recommendations }
+    return { managerDna: targetProfile, recommendations, leagueTrend }
   } catch {
     // Degraded-safe, matching real-data-provider.ts's own contract: a
     // failure here must never break the page. Callers already handle
     // `null` as "insufficient data" via buildManagerDnaViewModel/
     // buildDecisionRecommendationsViewModel's existing fallback paths.
-    return { managerDna: null, recommendations: null }
+    // leagueTrend is independent of this failure — still returned honestly.
+    return { managerDna: null, recommendations: null, leagueTrend }
   }
 }

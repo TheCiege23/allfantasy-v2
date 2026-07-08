@@ -72,7 +72,7 @@ systems that predate Phase A.
 | **Automations** | ❌ no unified surface; only scattered per-feature toggles (survivor challenges, waiver automation, etc.) | N/A | Not a Commissioner OS surface today | Undetermined | Low |
 | **Notifications** | `app/alerts` — a user-facing alert-*settings* page, not an intelligence surface | N/A | Different purpose entirely; not a Decision OS consumer | N/A | Low |
 | **Retention risk** | ❌ no discrete signal found anywhere (subsystem A/B/C/D) | No | This isn't a "wrong source" gap — **the signal itself doesn't exist yet** | New derivation needed in subsystem A or B (a Decision OS *feature* gap, not a surface-wiring gap) | High (named target) — **needs Decision OS work first, not surface wiring** |
-| **Trend movement over time** | Phase A Increment 5 (`lib/decision-os/snapshot/*`) exists and is tested | Yes — **built, but not consumed by any surface yet** | No surface calls `captureAndWriteBehavioralSnapshots`/`listTrend` at all | Wire snapshot/trend data into a surface (dashboard card or a new Commissioner Intelligence Hub module) | High (named target) — **clean, well-scoped next increment** |
+| **Trend movement over time** | Phase A Increment 5 (`lib/decision-os/snapshot/*`) | ✅ **Yes — wired this increment** (Increment 2, §4b): `dashboard-intelligence.ts`'s `leagueTrend` field | Read path is live; **no scheduler yet writes snapshot rows**, so it honestly reports `no_snapshots` until Increment 5's writer is scheduled somewhere real | Schedule `captureAndWriteBehavioralSnapshots` (a cron or similar) so real history accumulates | High (named target) — **wiring done; data-accumulation is the remaining piece** |
 
 ---
 
@@ -101,6 +101,56 @@ loadLeagueEvents(leagueId, since):
   profile; a manager (AF or external) with zero activity still gets the same honest zero-activity
   baseline as before (`primaryIdentity: 'unknown'`, `confidence: 0`) — never fabricated.
 
+## 4b. Increment 2 — behavioral snapshot/trend history wired into the same surface (implemented)
+
+**Goal:** make "is this league's activity trending up or down over time" visible, using Phase A's
+already-built, already-tested snapshot/trend module (Increment 5) — which, per §7 item 1 below (from
+Increment 1's own recommendation), was **built but consumed by nothing.**
+
+- **`lib/decision-os/snapshot/prismaBehavioralSnapshotStore.ts`** gains
+  `defaultListLeagueBehavioralTrend(leagueId, options?)` — a default reader mirroring Increment 3's
+  `defaultLoadImportedActivityRows` exactly: if the `decisionOsBehavioralSnapshot` model isn't
+  generated/migrated, or the read fails, it returns `[]` — **never throws, never fabricates a point.**
+- **`lib/decision-os/dashboard-intelligence.ts`** gains `resolveLeagueActivityTrend(leagueId)` (a
+  standalone, independently-testable function) and an additive `leagueTrend` field on
+  `ManagerIntelligencePayload` — the same payload `resolveManagerIntelligencePayload` already returns
+  to the **already-live** Commissioner Hub / Dashboard Overview / `LeagueTab` composition.
+- **Honest by construction, not just by accident:** `direction` describes **activity-volume movement**
+  (period-over-period event count), explicitly `'increasing' | 'decreasing' | 'flat'` — **not**
+  `'improving' | 'declining'`, because this codebase's actual *health score* is subsystem C
+  (`monitorLeagueHealth`/`IntelligenceLeagueSnapshot`), a separate, still-unaligned system (§3/§7
+  item 2). Naming it "increasing/decreasing" avoids implying a value judgment the data doesn't
+  support — the same honest-degradation discipline this whole workstream has followed.
+- **Availability contract** (mirrors `deriveEventCountDelta`'s own "< 2 points → `null`" rule):
+  - 0 captured periods → `{ available: false, reason: 'no_snapshots' }`
+  - 1 captured period → `{ available: false, reason: 'insufficient_history' }`
+  - ≥2 captured periods → `{ available: true, periodsTracked, earliestPeriodKey, latestPeriodKey,
+    latestEventCount, latestManagerCount, eventCountDelta, direction }`
+- **Decoupled failure domains:** `leagueTrend` is resolved **independently** of the
+  DNA/Recommendations computation (not inside the same `try/catch`) — a trend-read hiccup can never
+  suppress a real `managerDna`/`recommendations` result, and a DNA/Recommendations failure can never
+  hide a real trend result. Both directions are tested.
+- **Imported/external activity flows through:** since Increment 5's snapshots already capture
+  `activeManagerIds` from the full behavioral event stream (which, after Increment 1's alignment,
+  includes imported/external-league managers), `latestManagerCount` on the trend honestly reflects
+  external-only managers too — tested directly.
+
+### Tests added (Increment 2)
+
+`dashboard-intelligence-pipeline.test.ts` gains 9 tests (31/31 total in this file, up from 22/22):
+empty league → `no_snapshots`; one snapshot → `insufficient_history`; two-plus snapshots → a real
+`increasing` trend with correct delta/period fields; a declining count → `decreasing`; an unchanged
+count → `flat`; an external-only manager's activity reflected in `latestManagerCount`; existing
+managerDna/recommendations behavior unchanged when there's no trend history (regression guard); a
+trend-store failure never affects managerDna/recommendations (decoupled-failure proof); and a wiring
+proof that the reader is called with the league id, league-scope (no managerId).
+
+**Full suite run:** `dashboard-intelligence-pipeline.test.ts` (31/31) + the full decision-os ingestion
+suite (Increments 1–5, 78/78) — **109/109 total, zero regressions.** Full-repo typecheck: 158 baseline
+errors (unchanged from Increment 1), **zero in any file this increment touched.** No schema change,
+no migration, no Neon proof needed (pure read-composition wiring; the model + migration already
+shipped in Phase A Increment 5).
+
 ## 5. Preserved honest degradation (Do #6)
 
 - No imported activity for a league → the merge contributes nothing; existing AF-native/redraft-only
@@ -108,8 +158,9 @@ loadLeagueEvents(leagueId, since):
 - Imported-activity loader failing → caught by the existing outer `try/catch` in
   `resolveManagerIntelligencePayload`, resolves to `{ managerDna: null, recommendations: null }` —
   the same honest-failure contract every other source already has (tested).
-- Trend data is not yet wired to any surface — this doc states that plainly rather than showing a
-  fabricated trend line anywhere.
+- ~~Trend data is not yet wired to any surface~~ **Wired in Increment 2** (§4b) — and while
+  wired-but-empty (no captured snapshot history yet, since no scheduler writes them), it reports
+  `no_snapshots` honestly rather than a fabricated trend line.
 
 ## 6. Tests added
 
@@ -135,10 +186,11 @@ errors (unchanged), **zero in any file this increment touched.**
 
 Most of the matrix's gaps are **not** safe to guess at — each is a real architecture decision:
 
-1. **Increment 2 (clean, low-risk, high demo value): wire Phase A's trend history into a surface.**
-   The snapshot/trend module (Increment 5) is built and tested but consumed by nothing. Lowest-risk
-   path: surface it as a read-only trend block on the already-aligned dashboard-intelligence surface
-   (no new UI framework, no Mission Control build).
+1. ~~Increment 2 (clean, low-risk, high demo value): wire Phase A's trend history into a surface.~~
+   **✅ DONE (§4b)** — `leagueTrend` is now on the same payload the live dashboard/Commissioner Hub
+   composition already returns. **Note carried forward:** no scheduler yet writes snapshot rows in any
+   real environment, so this will report `no_snapshots` until Increment 5's writer is scheduled — that
+   remains open (see Phase A's own remaining-work list).
 2. **Increment 3 (architecture decision required): League Health.** Decide replace-vs-federate
    `monitorLeagueHealth` with subsystem-A-derived facts. This is the same open question Phase A
    already surfaced — still unresolved, needs an explicit answer before code.

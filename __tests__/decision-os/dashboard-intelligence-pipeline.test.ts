@@ -24,6 +24,18 @@ import type {
   RawRedraftRosterMoveRow,
 } from '@/lib/decision-os/behavioral/port'
 import type { ImportedActivityEventRow } from '@/lib/decision-os/behavioral/importedActivityToEvents'
+import * as snapshotStore from '@/lib/decision-os/snapshot/prismaBehavioralSnapshotStore'
+import type { BehavioralSnapshotRecord, LeagueBehavioralSnapshotRecord } from '@/lib/decision-os/snapshot/behavioralSnapshotCapture'
+
+vi.mock('@/lib/decision-os/snapshot/prismaBehavioralSnapshotStore', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/decision-os/snapshot/prismaBehavioralSnapshotStore')>(
+    '@/lib/decision-os/snapshot/prismaBehavioralSnapshotStore',
+  )
+  return {
+    ...actual,
+    defaultListLeagueBehavioralTrend: vi.fn(),
+  }
+})
 
 vi.mock('@/lib/decision-os/behavioral/port', async () => {
   const actual = await vi.importActual<typeof import('@/lib/decision-os/behavioral/port')>(
@@ -158,6 +170,7 @@ function mockPorts(overrides: {
   redraftRosterPlayers?: RawRedraftRosterPlayerRow[]
   redraftRosterMoves?: RawRedraftRosterMoveRow[]
   importedActivity?: ImportedActivityEventRow[]
+  snapshotTrend?: BehavioralSnapshotRecord[]
 } = {}) {
   vi.mocked(port.loadWaiverClaimRows).mockResolvedValue(overrides.waivers ?? [])
   vi.mocked(port.loadLeagueTradeRows).mockResolvedValue(overrides.trades ?? [])
@@ -169,6 +182,8 @@ function mockPorts(overrides: {
   // Default: no imported/external-league activity — honest empty state (Commissioner OS
   // Surface Alignment, Phase B Increment 1). All pre-existing tests above exercise this default.
   vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockResolvedValue(overrides.importedActivity ?? [])
+  // Default: no captured snapshot history — honest "no_snapshots" (Phase B Increment 2).
+  vi.mocked(snapshotStore.defaultListLeagueBehavioralTrend).mockResolvedValue(overrides.snapshotTrend ?? [])
 }
 
 function makeImportedActivityRow(o: Partial<ImportedActivityEventRow> = {}): ImportedActivityEventRow {
@@ -182,6 +197,40 @@ function makeImportedActivityRow(o: Partial<ImportedActivityEventRow> = {}): Imp
     createdAt: '2026-01-12T12:00:00.000Z',
     normalized: { managerKeys: [MGR], hasExternalOnlyManager: false },
     appUserId: null,
+    ...o,
+  }
+}
+
+const DEFAULT_UNAVAILABLE_TREND = { available: false, reason: 'no_snapshots' } as const
+
+function makeLeagueSnapshotRecord(o: Partial<LeagueBehavioralSnapshotRecord> = {}): LeagueBehavioralSnapshotRecord {
+  return {
+    scope: 'league',
+    leagueId: LG,
+    managerId: null,
+    cadence: 'daily',
+    periodKey: '2026-01-08',
+    capturedAt: '2026-01-08T12:00:00.000Z',
+    lookbackDays: 90,
+    eventCount: 3,
+    completeness: 100,
+    facts: {
+      leagueId: LG,
+      totalTradeCount: 1,
+      totalWaiverClaimCount: 0,
+      totalWaiverSuccessCount: 0,
+      totalCommissionerActionCount: 0,
+      totalRulesChangeCount: 0,
+      activeManagerIds: [MGR],
+      lastActivity: null,
+      draftCount: 0,
+      totalDraftPickCount: 0,
+      completeness: 100,
+      eventCount: 3,
+      managerCount: 1,
+      lookbackDays: 90,
+      warnings: [],
+    },
     ...o,
   }
 }
@@ -228,10 +277,11 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
     vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockResolvedValue([])
+    vi.mocked(snapshotStore.defaultListLeagueBehavioralTrend).mockResolvedValue([])
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
-    expect(result).toEqual({ managerDna: null, recommendations: null })
+    expect(result).toEqual({ managerDna: null, recommendations: null, leagueTrend: DEFAULT_UNAVAILABLE_TREND })
   })
 
   it('is degraded-safe when specifically the NEW redraft loaders fail (missing redraft data fails safely)', async () => {
@@ -243,10 +293,11 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
     vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockResolvedValue([])
+    vi.mocked(snapshotStore.defaultListLeagueBehavioralTrend).mockResolvedValue([])
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
-    expect(result).toEqual({ managerDna: null, recommendations: null })
+    expect(result).toEqual({ managerDna: null, recommendations: null, leagueTrend: DEFAULT_UNAVAILABLE_TREND })
   })
 
   it('is degraded-safe when specifically the Phase 2H lineup-history loader fails (missing history fails safely)', async () => {
@@ -258,10 +309,11 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterMoveRows).mockRejectedValue(new Error('redraft_roster_move_history unavailable'))
     vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockResolvedValue([])
+    vi.mocked(snapshotStore.defaultListLeagueBehavioralTrend).mockResolvedValue([])
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
-    expect(result).toEqual({ managerDna: null, recommendations: null })
+    expect(result).toEqual({ managerDna: null, recommendations: null, leagueTrend: DEFAULT_UNAVAILABLE_TREND })
   })
 
   it('is degraded-safe when specifically the imported-activity loader fails (missing imported activity fails safely, Commissioner OS Surface Alignment)', async () => {
@@ -273,10 +325,25 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
     vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockRejectedValue(new Error('decision_os_imported_activity unavailable'))
+    vi.mocked(snapshotStore.defaultListLeagueBehavioralTrend).mockResolvedValue([])
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
-    expect(result).toEqual({ managerDna: null, recommendations: null })
+    expect(result).toEqual({ managerDna: null, recommendations: null, leagueTrend: DEFAULT_UNAVAILABLE_TREND })
+  })
+
+  it('a trend-read failure is independent: managerDna/recommendations still resolve normally when the snapshot store throws (Phase B Increment 2)', async () => {
+    mockPorts({
+      waivers: [makeWaiverRow({ id: 'wc-1' })],
+      trades: [makeTradeRow()],
+    })
+    vi.mocked(snapshotStore.defaultListLeagueBehavioralTrend).mockRejectedValue(new Error('decision_os_behavioral_snapshot unavailable'))
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result.managerDna).not.toBeNull() // unaffected by the trend failure
+    expect(result.recommendations).not.toBeNull()
+    expect(result.leagueTrend).toEqual(DEFAULT_UNAVAILABLE_TREND) // honest, not thrown
   })
 
   it('includes other active managers in the same league so Phase 6.1/6.2 classify against the real league context', async () => {
@@ -536,5 +603,134 @@ describe('resolveManagerIntelligencePayload', () => {
     await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
     expect(realDataProvider.defaultLoadImportedActivityRows).toHaveBeenCalledWith(LG, expect.any(Date))
+  })
+
+  // ── Phase B Increment 2: league activity trend, wired additively into this ──
+  // ALREADY-LIVE composition. `leagueTrend` never affects managerDna/recommendations.
+
+  describe('leagueTrend (Decision OS Phase A snapshot/trend history, surfaced here)', () => {
+    it('an empty league (zero captured snapshots) is honestly unavailable — reason "no_snapshots", never a fabricated trend', async () => {
+      mockPorts({ snapshotTrend: [] })
+
+      const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+      expect(result.leagueTrend).toEqual({ available: false, reason: 'no_snapshots' })
+    })
+
+    it('a single captured snapshot is insufficient history — reason "insufficient_history", not a fake direction', async () => {
+      mockPorts({
+        snapshotTrend: [makeLeagueSnapshotRecord({ periodKey: '2026-01-08', eventCount: 3 })],
+      })
+
+      const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+      expect(result.leagueTrend).toEqual({ available: false, reason: 'insufficient_history' })
+    })
+
+    it('two or more captured periods produce a real, honest trend: direction, delta, and period fields', async () => {
+      mockPorts({
+        snapshotTrend: [
+          makeLeagueSnapshotRecord({
+            periodKey: '2026-01-08',
+            eventCount: 3,
+            facts: { ...makeLeagueSnapshotRecord().facts, eventCount: 3, activeManagerIds: [MGR] },
+          }),
+          makeLeagueSnapshotRecord({
+            periodKey: '2026-01-09',
+            eventCount: 7,
+            facts: { ...makeLeagueSnapshotRecord().facts, eventCount: 7, totalTradeCount: 2, activeManagerIds: [MGR, 'sleeper:user:2'] },
+          }),
+        ],
+      })
+
+      const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+      expect(result.leagueTrend).toEqual({
+        available: true,
+        periodsTracked: 2,
+        earliestPeriodKey: '2026-01-08',
+        latestPeriodKey: '2026-01-09',
+        latestEventCount: 7,
+        latestManagerCount: 2,
+        eventCountDelta: 4,
+        direction: 'increasing',
+      })
+    })
+
+    it('a declining period-over-period event count is reported honestly as "decreasing", not smoothed or hidden', async () => {
+      mockPorts({
+        snapshotTrend: [
+          makeLeagueSnapshotRecord({ periodKey: '2026-01-08', eventCount: 10 }),
+          makeLeagueSnapshotRecord({ periodKey: '2026-01-09', eventCount: 4 }),
+        ],
+      })
+
+      const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+      expect(result.leagueTrend).toMatchObject({ available: true, direction: 'decreasing', eventCountDelta: -6 })
+    })
+
+    it('an unchanged event count across periods is reported as "flat", not fabricated movement', async () => {
+      mockPorts({
+        snapshotTrend: [
+          makeLeagueSnapshotRecord({ periodKey: '2026-01-08', eventCount: 5 }),
+          makeLeagueSnapshotRecord({ periodKey: '2026-01-09', eventCount: 5 }),
+        ],
+      })
+
+      const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+      expect(result.leagueTrend).toMatchObject({ available: true, direction: 'flat', eventCountDelta: 0 })
+    })
+
+    it('imported/external-league activity contributes to the trend facts: a snapshot capturing an external-only manager reflects them in latestManagerCount', async () => {
+      mockPorts({
+        snapshotTrend: [
+          makeLeagueSnapshotRecord({
+            periodKey: '2026-01-08',
+            eventCount: 2,
+            facts: { ...makeLeagueSnapshotRecord().facts, eventCount: 2, activeManagerIds: [MGR] },
+          }),
+          makeLeagueSnapshotRecord({
+            periodKey: '2026-01-09',
+            eventCount: 4,
+            // 'sleeper:user:2' is a stable external-manager key (no AllFantasy account) —
+            // exactly how Increment 3/4's imported activity attributes non-AF managers.
+            facts: { ...makeLeagueSnapshotRecord().facts, eventCount: 4, activeManagerIds: [MGR, 'sleeper:user:2'] },
+          }),
+        ],
+      })
+
+      const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+      expect(result.leagueTrend).toMatchObject({ available: true, latestManagerCount: 2 })
+    })
+
+    it('existing dashboard-intelligence behavior (managerDna/recommendations) is unchanged when there are no snapshots (regression guard)', async () => {
+      mockPorts({
+        waivers: [makeWaiverRow({ id: 'wc-1' })],
+        trades: [makeTradeRow()],
+        snapshotTrend: [],
+      })
+
+      const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+      // Byte-identical to the pre-Increment-2 "real activity" assertions — adding the
+      // (empty-by-default) trend field changes nothing about the existing payload fields.
+      expect(result.managerDna).not.toBeNull()
+      expect(result.managerDna!.managerId).toBe(MGR)
+      expect(result.managerDna!.leagueId).toBe(LG)
+      expect(result.recommendations).not.toBeNull()
+      expect(result.recommendations!.entityId).toBe(MGR)
+      expect(result.recommendations!.tier).toBe('manager')
+      expect(result.leagueTrend).toEqual({ available: false, reason: 'no_snapshots' })
+    })
+
+    it('calls defaultListLeagueBehavioralTrend with the league id (league scope, no managerId)', async () => {
+      mockPorts()
+      await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+      expect(snapshotStore.defaultListLeagueBehavioralTrend).toHaveBeenCalledWith(LG)
+    })
   })
 })
