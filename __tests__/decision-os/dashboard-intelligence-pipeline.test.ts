@@ -12,6 +12,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { resolveManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
 import * as port from '@/lib/decision-os/behavioral/port'
+import * as realDataProvider from '@/lib/decision-os/behavioral/api/real-data-provider'
 import type {
   RawWaiverClaimRow,
   RawLeagueTradeRow,
@@ -22,6 +23,7 @@ import type {
   RawRedraftRosterPlayerRow,
   RawRedraftRosterMoveRow,
 } from '@/lib/decision-os/behavioral/port'
+import type { ImportedActivityEventRow } from '@/lib/decision-os/behavioral/importedActivityToEvents'
 
 vi.mock('@/lib/decision-os/behavioral/port', async () => {
   const actual = await vi.importActual<typeof import('@/lib/decision-os/behavioral/port')>(
@@ -36,6 +38,16 @@ vi.mock('@/lib/decision-os/behavioral/port', async () => {
     loadRedraftTradeRows: vi.fn(),
     loadRedraftRosterPlayerRows: vi.fn(),
     loadRedraftRosterMoveRows: vi.fn(),
+  }
+})
+
+vi.mock('@/lib/decision-os/behavioral/api/real-data-provider', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/decision-os/behavioral/api/real-data-provider')>(
+    '@/lib/decision-os/behavioral/api/real-data-provider',
+  )
+  return {
+    ...actual,
+    defaultLoadImportedActivityRows: vi.fn(),
   }
 })
 
@@ -145,6 +157,7 @@ function mockPorts(overrides: {
   redraftTrades?: RawRedraftTradeRow[]
   redraftRosterPlayers?: RawRedraftRosterPlayerRow[]
   redraftRosterMoves?: RawRedraftRosterMoveRow[]
+  importedActivity?: ImportedActivityEventRow[]
 } = {}) {
   vi.mocked(port.loadWaiverClaimRows).mockResolvedValue(overrides.waivers ?? [])
   vi.mocked(port.loadLeagueTradeRows).mockResolvedValue(overrides.trades ?? [])
@@ -153,6 +166,24 @@ function mockPorts(overrides: {
   vi.mocked(port.loadRedraftTradeRows).mockResolvedValue(overrides.redraftTrades ?? [])
   vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue(overrides.redraftRosterPlayers ?? [])
   vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue(overrides.redraftRosterMoves ?? [])
+  // Default: no imported/external-league activity — honest empty state (Commissioner OS
+  // Surface Alignment, Phase B Increment 1). All pre-existing tests above exercise this default.
+  vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockResolvedValue(overrides.importedActivity ?? [])
+}
+
+function makeImportedActivityRow(o: Partial<ImportedActivityEventRow> = {}): ImportedActivityEventRow {
+  return {
+    externalSourceKey: 'dos:act:sleeper:league-alpha:trade:txn-1',
+    provider: 'sleeper',
+    afLeagueId: null,
+    providerLeagueId: LG,
+    activityType: 'trade',
+    occurredAt: '2026-01-12T12:00:00.000Z',
+    createdAt: '2026-01-12T12:00:00.000Z',
+    normalized: { managerKeys: [MGR], hasExternalOnlyManager: false },
+    appUserId: null,
+    ...o,
+  }
 }
 
 describe('resolveManagerIntelligencePayload', () => {
@@ -196,6 +227,7 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadRedraftTradeRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
+    vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockResolvedValue([])
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
@@ -210,6 +242,7 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadRedraftTradeRows).mockRejectedValue(new Error('redraft_trade_proposals unavailable'))
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
+    vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockResolvedValue([])
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
@@ -224,6 +257,22 @@ describe('resolveManagerIntelligencePayload', () => {
     vi.mocked(port.loadRedraftTradeRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
     vi.mocked(port.loadRedraftRosterMoveRows).mockRejectedValue(new Error('redraft_roster_move_history unavailable'))
+    vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockResolvedValue([])
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result).toEqual({ managerDna: null, recommendations: null })
+  })
+
+  it('is degraded-safe when specifically the imported-activity loader fails (missing imported activity fails safely, Commissioner OS Surface Alignment)', async () => {
+    vi.mocked(port.loadWaiverClaimRows).mockResolvedValue([])
+    vi.mocked(port.loadLeagueTradeRows).mockResolvedValue([])
+    vi.mocked(port.loadRosterMoveRows).mockResolvedValue([])
+    vi.mocked(port.loadDraftRows).mockImplementation(emptyDraftResult)
+    vi.mocked(port.loadRedraftTradeRows).mockResolvedValue([])
+    vi.mocked(port.loadRedraftRosterPlayerRows).mockResolvedValue([])
+    vi.mocked(port.loadRedraftRosterMoveRows).mockResolvedValue([])
+    vi.mocked(realDataProvider.defaultLoadImportedActivityRows).mockRejectedValue(new Error('decision_os_imported_activity unavailable'))
 
     const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
 
@@ -408,5 +457,84 @@ describe('resolveManagerIntelligencePayload', () => {
     // Both sources contribute to the same manager's facts without conflict —
     // no crash, no duplicate-event rejection, a real (non-error) profile.
     expect(result.managerDna).not.toBeNull()
+  })
+
+  // ── Commissioner OS Surface Alignment (Phase B Increment 1): imported/external- ──
+  // league activity (Decision OS Phase A) now reaches this ALREADY-LIVE surface too
+  // (Commissioner Hub, Dashboard Overview, LeagueTab all call resolveManagerIntelligencePayload
+  // via this file), not just the flag-gated realDataProvider path.
+
+  it('regression: existing behavior is unchanged when there is zero imported activity (the default)', async () => {
+    mockPorts({
+      waivers: [makeWaiverRow({ id: 'wc-1' })],
+      trades: [makeTradeRow()],
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.managerId).toBe(MGR)
+    expect(result.recommendations).not.toBeNull()
+  })
+
+  it('imported Sleeper trade activity ALONE (zero AF-native/redraft data) now contributes to a real, non-unknown profile', async () => {
+    mockPorts({
+      importedActivity: [
+        makeImportedActivityRow({ externalSourceKey: 'dos:act:sleeper:league-alpha:trade:txn-1', occurredAt: '2026-01-08T12:00:00.000Z' }),
+        makeImportedActivityRow({ externalSourceKey: 'dos:act:sleeper:league-alpha:trade:txn-2', occurredAt: '2026-01-09T12:00:00.000Z' }),
+      ],
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    // Before this alignment, imported activity never reached this composition at all —
+    // only real-data-provider.ts's separate (and, per the surface audit, not-UI-wired)
+    // path saw it. transactionStyle is the reliable, directly-attributable signal proving
+    // imported trade data now reaches the SAME pipeline the live UI calls.
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.transactionStyle).toBe('trade_dominant')
+  })
+
+  it('an EXTERNAL-ONLY manager (no AllFantasy account) gets a real profile from imported activity alone — the core Replacements-demo case', async () => {
+    const externalManagerKey = 'sleeper:user:9001'
+    mockPorts({
+      importedActivity: [
+        makeImportedActivityRow({
+          externalSourceKey: 'dos:act:sleeper:league-alpha:waiver:wv-1',
+          activityType: 'waiver',
+          normalized: { managerKeys: [externalManagerKey], hasExternalOnlyManager: true },
+        }),
+      ],
+    })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: externalManagerKey })
+
+    // The real, directly-attributable proof: a stable provider key (no AppUser id, no AF
+    // account) resolves to a real profile keyed to that exact id, with real recommendations.
+    // Whether it crosses into a specific non-'unknown' DNA label additionally depends on
+    // Phase 6.1's own pattern-detection thresholds (a separately-tested layer) — matching
+    // this file's existing convention of not asserting that layer's internals here.
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.managerId).toBe(externalManagerKey) // no AppUser id required
+    expect(result.managerDna!.leagueId).toBe(LG)
+    expect(result.recommendations).not.toBeNull()
+    expect(result.recommendations!.entityId).toBe(externalManagerKey)
+  })
+
+  it('never fakes trend/demo metrics: an empty imported-activity result still yields the SAME honest zero-activity baseline as before this alignment', async () => {
+    mockPorts({ importedActivity: [] })
+
+    const result = await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(result.managerDna).not.toBeNull()
+    expect(result.managerDna!.primaryIdentity).toBe('unknown')
+    expect(result.managerDna!.confidence).toBe(0)
+  })
+
+  it('calls defaultLoadImportedActivityRows with the league id and a since Date, alongside the other real sources', async () => {
+    mockPorts()
+    await resolveManagerIntelligencePayload({ leagueId: LG, managerId: MGR })
+
+    expect(realDataProvider.defaultLoadImportedActivityRows).toHaveBeenCalledWith(LG, expect.any(Date))
   })
 })

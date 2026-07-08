@@ -80,8 +80,13 @@ export interface RealDataProviderDeps {
 /**
  * Default imported-activity loader. Degrades honestly: if the `decisionOsImportedActivity`
  * model isn't generated/migrated yet, returns [] so AF-native behavior is unchanged (never crashes).
+ *
+ * Exported (Commissioner OS Surface Alignment, Phase B Increment 1) so other real behavioral-facts
+ * compositions — e.g. `dashboard-intelligence.ts`, which duplicates this file's event-loading shape
+ * for its own additional redraft sources — can reuse the SAME imported-activity loader instead of
+ * re-implementing its honest-degradation logic a second time.
  */
-async function defaultLoadImportedActivityRows(leagueId: string, since?: Date): Promise<ImportedActivityEventRow[]> {
+export async function defaultLoadImportedActivityRows(leagueId: string, since?: Date): Promise<ImportedActivityEventRow[]> {
   try {
     const delegate = (defaultPrisma as unknown as {
       decisionOsImportedActivity?: { findMany(args: unknown): Promise<ImportedActivityEventRow[]> }

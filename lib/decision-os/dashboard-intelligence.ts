@@ -50,6 +50,8 @@ import {
   mapRedraftRosterPlayersToEvents,
   mapRedraftRosterMovesToEvents,
 } from '@/lib/decision-os/behavioral/mappers'
+import { mapImportedActivityRowsToEvents } from '@/lib/decision-os/behavioral/importedActivityToEvents'
+import { defaultLoadImportedActivityRows } from '@/lib/decision-os/behavioral/api/real-data-provider'
 import {
   assembleManagerBehavioralFacts,
   assembleLeagueBehavioralFacts,
@@ -89,6 +91,14 @@ function sinceDate(days: number): Date {
  * would never reach this pipeline at all. `redraftRosterMoveRows` (Phase 2H)
  * is the only source with a real, non-null week — everything else composed
  * here is unchanged.
+ *
+ * Commissioner OS Surface Alignment (Phase B Increment 1): also merges imported/
+ * external-league activity (Decision OS Phase A) via the SAME
+ * `defaultLoadImportedActivityRows`/`mapImportedActivityRowsToEvents` real-data-provider.ts
+ * uses — so this surface (which real UI already calls: Commissioner Hub, Dashboard
+ * Overview, LeagueTab) reflects imported Sleeper/external activity too, including managers
+ * with no AllFantasy account. Purely additive; degrades to `[]` honestly if no imported
+ * activity exists for this league (never fabricated).
  */
 async function loadLeagueEvents(leagueId: string, since: Date): Promise<BehavioralEvent[]> {
   const [
@@ -99,6 +109,7 @@ async function loadLeagueEvents(leagueId: string, since: Date): Promise<Behavior
     redraftTradeRows,
     redraftRosterPlayerRows,
     redraftRosterMoveRows,
+    importedActivityRows,
   ] = await Promise.all([
     loadWaiverClaimRows(leagueId, since),
     loadLeagueTradeRows(leagueId, since),
@@ -107,6 +118,7 @@ async function loadLeagueEvents(leagueId: string, since: Date): Promise<Behavior
     loadRedraftTradeRows(leagueId, since),
     loadRedraftRosterPlayerRows(leagueId, since),
     loadRedraftRosterMoveRows(leagueId, since),
+    defaultLoadImportedActivityRows(leagueId, since),
   ])
   return [
     ...mapWaiverClaimsToEvents(waiverRows),
@@ -116,6 +128,7 @@ async function loadLeagueEvents(leagueId: string, since: Date): Promise<Behavior
     ...mapRedraftTradesToEvents(redraftTradeRows),
     ...mapRedraftRosterPlayersToEvents(redraftRosterPlayerRows),
     ...mapRedraftRosterMovesToEvents(redraftRosterMoveRows),
+    ...mapImportedActivityRowsToEvents(importedActivityRows).events,
   ]
 }
 
