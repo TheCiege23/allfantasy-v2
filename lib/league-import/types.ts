@@ -179,6 +179,14 @@ export interface NormalizedImportResult {
   league_branding?: { avatar_url?: string | null; name?: string }
   previous_seasons?: Array<{ season: string; source_league_id: string }>
   coverage: ImportCoverage
+  /**
+   * Phase 2.4 (§5) — non-fatal source-fetch failures forwarded from the provider
+   * fetch layer (e.g. Sleeper `SleeperImportPayload.fetchWarnings`). The canonical
+   * normalizer folds these into `CanonicalImportBundle.warnings`, which the commit
+   * layer already persists as `ImportWarning` records — so an incomplete import is
+   * surfaced, never silently marked complete. Absent = every resource fetched cleanly.
+   */
+  fetchWarnings?: string[]
 }
 
 /** Identity mapping: source id -> AF canonical id or stable key. */

@@ -36,6 +36,8 @@ export const SleeperAdapter: ILeagueImportAdapter<SleeperImportPayload> = {
 
     const result: NormalizedImportResult = {
       source,
+      // Phase 2.4 (§5) — forward non-fatal fetch failures so they persist as ImportWarnings.
+      fetchWarnings: raw.fetchWarnings,
       league: league ?? {
         name: raw.league?.name ?? 'Imported League',
         sport: 'NFL',
