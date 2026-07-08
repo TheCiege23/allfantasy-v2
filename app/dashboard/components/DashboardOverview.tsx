@@ -795,6 +795,21 @@ export function DashboardOverview({
           selectedLeague={selectedLeague}
           onSelectLeagueId={setSelectedLeagueId}
           urgentTodayCount={urgentTodayCount}
+          leaguesNeedingAttention={(initialCommissionerHealthSnapshots ?? []).filter((s) => s.healthScore < 55).length}
+          upcomingDraftCount={upcomingDrafts.length}
+          commissionerHealth={
+            selectedLeague ? initialCommissionerHealthSnapshots?.find((s) => s.leagueId === selectedLeague.id) ?? null : null
+          }
+          teamLineupDecisions={
+            selectedLeague ? (lineupData?.actions ?? []).filter((a) => a.leagueId === selectedLeague.id).length : 0
+          }
+          waiverPriority={
+            selectedLeague && waiverData
+              ? waiverData.recommendations
+                  .filter((r) => r.leagueId === selectedLeague.id)
+                  .reduce((n, r) => n + (r.pickups?.length ?? 0), 0)
+              : 0
+          }
         />
 
         {allDone ? (
