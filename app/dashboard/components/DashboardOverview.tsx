@@ -812,6 +812,16 @@ export function DashboardOverview({
           }
         />
 
+        {/* 2-7. Command-center grid — Dashboard V2 Phase 3.8A. Same components/engines; a
+            primary decision column (~2/3) beside a secondary context/portfolio column (~1/3) on
+            wide screens, collapsing to a single stack below `xl`. Phase 3.8D moves this directly
+            under the hero (ahead of the setup checklist) so the hero flows straight into Platform
+            Pulse; the onboarding checklist now sits below the intelligence. */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 xl:items-start">
+          <div className="space-y-5 xl:col-span-2">{layout.primary}</div>
+          <div className="space-y-5">{layout.secondary}</div>
+        </div>
+
         {allDone ? (
           <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
         ) : checklistExpanded ? (
@@ -956,14 +966,6 @@ export function DashboardOverview({
             />
           </button>
         )}
-
-        {/* 2-7. Command-center grid — Dashboard V2 Phase 3.8A. Same components/engines; a
-            primary decision column (~2/3) beside a secondary context/portfolio column (~1/3) on
-            wide screens, collapsing to a single stack below `xl`. */}
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 xl:items-start">
-          <div className="space-y-5 xl:col-span-2">{layout.primary}</div>
-          <div className="space-y-5">{layout.secondary}</div>
-        </div>
 
         {/* 8. FOOTER */}
         <footer className="border-t border-white/[0.06] pt-4 text-center text-[11px] text-white/25">

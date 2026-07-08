@@ -43,6 +43,14 @@ export type AppShellProps = {
    * When true, `leftPanel` is ignored and the left `<aside>` is not rendered.
    */
   hideLeftRail?: boolean
+  /**
+   * Drop the right rail entirely (balanced-three-panel only) so the center workspace reclaims that
+   * column — symmetric to `hideLeftRail`, for surfaces that rehome the rail's affordances elsewhere
+   * (Dashboard V2 Phase 3.8D moves profile/Create/Import into the header). Default false: every
+   * existing consumer keeps the right rail unchanged. When true, `rightPanel` is ignored and the
+   * right `<aside>` is not rendered.
+   */
+  hideRightRail?: boolean
 }
 
 /**
@@ -64,6 +72,10 @@ const BALANCED_COLS = {
   noLeftBoth: 'md:[grid-template-columns:minmax(0,1fr)_minmax(240px,340px)]',
   // hideLeftRail + right collapsed: workspace full width + slim My Leagues strip.
   noLeftRightCollapsed: 'md:[grid-template-columns:minmax(0,1fr)_3rem]',
+  // hideRightRail + hideLeftRail: single full-width workspace column (Phase 3.8D dashboard).
+  noLeftNoRight: 'md:[grid-template-columns:minmax(0,1fr)]',
+  // hideRightRail only (left rail kept): chat + workspace, no My Leagues column.
+  leftNoRight: 'md:[grid-template-columns:minmax(280px,40fr)_minmax(0,60fr)]',
 }
 
 /**
@@ -86,6 +98,7 @@ export default function AppShell({
   embedCenterOnly = false,
   layoutMode = 'legacy-rail-clamp',
   hideLeftRail = false,
+  hideRightRail = false,
 }: AppShellProps) {
   if (embedCenterOnly) {
     return (
@@ -115,6 +128,7 @@ export default function AppShell({
 
   // Use static class literals so Tailwind's JIT scanner can detect all variants.
   const balancedDesktopColumns = !balancedDesktopLayout ? '' :
+    hideRightRail ? (hideLeftRail ? BALANCED_COLS.noLeftNoRight : BALANCED_COLS.leftNoRight) :
     hideLeftRail ? (rightRailCollapsed ? BALANCED_COLS.noLeftRightCollapsed : BALANCED_COLS.noLeftBoth) :
     leftRailCollapsed && rightRailCollapsed ? BALANCED_COLS.none :
     leftRailCollapsed ? BALANCED_COLS.leftOnly :
@@ -196,7 +210,9 @@ export default function AppShell({
         {children}
       </div>
 
-      {/* Right: My Leagues — full strip or slim expand control */}
+      {/* Right: My Leagues — full strip or slim expand control; omitted entirely when hideRightRail
+          (Phase 3.8D rehomes the rail's affordances into the header). */}
+      {hideRightRail ? null : (
       <aside
         className={cn(
           balancedDesktopLayout
@@ -233,6 +249,7 @@ export default function AppShell({
           rightPanel
         )}
       </aside>
+      )}
     </div>
   )
 }

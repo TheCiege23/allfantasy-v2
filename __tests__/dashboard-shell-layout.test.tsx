@@ -36,4 +36,22 @@ describe('Dashboard shell layout preset', () => {
     expect(appShell).toContain('hideLeftRail = false')
     expect(appShell).toContain('{hideLeftRail ? null : (')
   })
+
+  it('AppShell hideRightRail is additive — the right rail still renders by default (Phase 3.8D)', () => {
+    // Symmetric to hideLeftRail: default false so LeagueShell / matchups / standings / survivor /
+    // ProductShell keep their right rail unchanged. When true the right <aside> is omitted and the
+    // grid becomes a single full-width column.
+    expect(appShell).toContain('hideRightRail = false')
+    expect(appShell).toContain('{hideRightRail ? null : (')
+    expect(appShell).toContain("noLeftNoRight: 'md:[grid-template-columns:minmax(0,1fr)]'")
+  })
+
+  it('the dashboard overview drops its right rail and rehomes the rail affordances into the header (Phase 3.8D)', () => {
+    // Rail removed on the dashboard overview only — the embedded league route keeps its right panel.
+    expect(dashboardShell).toContain('hideRightRail={!isLeagueRoute}')
+    // rightPanel is still passed (the rail remains for the embedded league route + mobile drawer).
+    expect(dashboardShell).toContain('rightPanel={')
+    // Create/Import + profile/plan/account are rehomed into the desktop header.
+    expect(dashboardShell).toContain('<DashboardHeaderControls')
+  })
 })
