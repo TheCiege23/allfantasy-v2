@@ -10,6 +10,7 @@ import {
   resolveNflRedraftLiveScoringRuntime,
   type NflRedraftStatPayloadRow,
 } from '@/lib/scoring-runtime'
+import { parseOptionalRedraftPositiveInteger } from '@/lib/redraft/betaRouteInput'
 
 export const dynamic = 'force-dynamic'
 
@@ -63,10 +64,15 @@ export async function GET(req: NextRequest) {
   const gate = await assertLeagueMember(resolvedLeagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
+  const parsedWeek = parseOptionalRedraftPositiveInteger(week, 'week')
+  if (!parsedWeek.ok) {
+    return NextResponse.json({ error: parsedWeek.error }, { status: 400 })
+  }
+
   const resolved = await resolveNflRedraftLiveScoringRuntime({
     seasonId,
     leagueId: resolvedLeagueId,
-    week: week != null ? Number(week) : null,
+    week: parsedWeek.value,
   })
   if (!resolved.ok) {
     const status = resolved.reason === 'season_not_found' || resolved.reason === 'league_not_found' ? 404 : 400
@@ -89,6 +95,12 @@ export async function POST(request: Request) {
   const gate = await assertLeagueCommissioner(resolvedLeagueId, userId)
   if (!gate.ok) return NextResponse.json({ error: 'Forbidden' }, { status: gate.status })
 
+  const parsedWeek = parseOptionalRedraftPositiveInteger(body.week, 'week')
+  if (!parsedWeek.ok) {
+    return NextResponse.json({ error: parsedWeek.error }, { status: 400 })
+  }
+  const week = parsedWeek.value ?? undefined
+
   try {
     if (action === 'ingest_stats') {
       if (!Array.isArray(body.rows)) {
@@ -97,7 +109,7 @@ export async function POST(request: Request) {
       const result = await ingestNflRedraftStatPayload({
         seasonId: body.seasonId,
         leagueId: resolvedLeagueId,
-        week: body.week,
+        week,
         rows: body.rows,
         actorUserId: userId,
         source: body.source ?? 'manual_provider_payload',
@@ -112,7 +124,7 @@ export async function POST(request: Request) {
       const result = await applyNflRedraftStatCorrectionToSeason({
         seasonId: body.seasonId,
         leagueId: resolvedLeagueId,
-        week: body.week,
+        week,
         playerId: body.playerId,
         correctedStats: body.correctedStats,
         isFinalized: body.isFinalized,
@@ -126,7 +138,7 @@ export async function POST(request: Request) {
       const result = await persistNflRedraftLiveScoringWeek({
         seasonId: body.seasonId,
         leagueId: resolvedLeagueId,
-        week: body.week,
+        week,
         actorUserId: userId,
       })
       return NextResponse.json({ ok: true, scoring: result.state, standings: result.standings })

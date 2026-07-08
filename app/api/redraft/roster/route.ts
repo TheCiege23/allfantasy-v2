@@ -23,6 +23,7 @@ import { serializeUnifiedPlayerForApi } from '@/lib/player-data/serializeUnified
 import { getTeamLogo } from '@/lib/players/getTeamLogo'
 import { resolveRedraftRosterLookup } from '@/lib/redraft/redraftRosterIdentity'
 import { recordRedraftRosterMoveHistory } from '@/lib/redraft/rosterMoveHistory'
+import { parseOptionalRedraftPositiveInteger } from '@/lib/redraft/betaRouteInput'
 
 export const dynamic = 'force-dynamic'
 
@@ -122,10 +123,14 @@ export async function GET(req: NextRequest) {
   const rosterId = req.nextUrl.searchParams?.get('rosterId')?.trim()
   const seasonId = req.nextUrl.searchParams?.get('seasonId')?.trim()
   const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
-  const week = Number(req.nextUrl.searchParams?.get('week') ?? '1')
   if (!rosterId && !seasonId && !leagueId) {
     return NextResponse.json({ error: 'rosterId, seasonId, or leagueId required' }, { status: 400 })
   }
+  const parsedWeek = parseOptionalRedraftPositiveInteger(req.nextUrl.searchParams?.get('week'), 'week')
+  if (!parsedWeek.ok) {
+    return NextResponse.json({ error: parsedWeek.error }, { status: 400 })
+  }
+  const week = parsedWeek.value ?? 1
 
   const lookup = await resolveRedraftRosterLookup({
     userId,
