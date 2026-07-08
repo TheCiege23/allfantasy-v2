@@ -233,10 +233,12 @@ export function LeagueImportFlow({
   const mainContainerClassName =
     'container mx-auto max-w-3xl px-4' + (hideMainChrome ? ' hidden' : '')
 
+  // Phase 4.1 — pin dark tokens on the /import shell so labels/text/borders stay
+  // readable in light mode (see `.af-import-shell` in globals.css).
   const rootShellClassName =
     mode === 'embedded'
       ? ''
-      : 'min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 py-12 sm:py-20'
+      : 'af-import-shell min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 py-12 sm:py-20'
 
   return (
     <div className={rootShellClassName}>
@@ -283,13 +285,25 @@ export function LeagueImportFlow({
           {topNavRight}
         </div>
 
-        <div className="relative mb-10">
-          <h1 className="relative text-center text-4xl font-bold text-transparent sm:text-5xl">
-            <span className="bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text">
+        {/*
+          Phase 4.1 visual upgrade — Dashboard V2 hero language: tightened
+          gradient headline (single-color to match the dashboard's premium
+          restraint), an eyebrow chip anchoring the "step 1 of 2" mental model,
+          and shared motion (`warroom-fade-in-stagger` on both the hero + card).
+        */}
+        <div className="warroom-fade-in-stagger relative mb-8">
+          <div className="mx-auto mb-4 inline-flex w-full items-center justify-center">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/25 bg-cyan-500/[0.06] px-3 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300/85">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.6)]" aria-hidden />
+              Step 1 · Choose Platform
+            </span>
+          </div>
+          <h1 className="relative text-center text-4xl font-black tracking-tight text-transparent sm:text-5xl">
+            <span className="bg-gradient-to-r from-cyan-300 via-cyan-200 to-white bg-clip-text">
               {t('import.title')}
             </span>
           </h1>
-          <p className="relative mt-3 text-center text-white/55">
+          <p className="relative mx-auto mt-3 max-w-xl text-center text-white/60">
             Build your legacy profile or import a league using the same engines as AF Legacy and rankings.
           </p>
           <p className="relative mt-2 text-center text-[13px] text-white/40">
@@ -301,62 +315,120 @@ export function LeagueImportFlow({
           </p>
         </div>
 
-        <div className="relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
-          <div className="h-1 bg-gradient-to-r from-cyan-400/60 via-purple-400/60 to-cyan-400/60" />
+        <div className="warroom-card warroom-fade-in-stagger relative overflow-hidden rounded-3xl border border-white/10 bg-white/5">
+          <div className="h-1 bg-gradient-to-r from-cyan-400/70 via-blue-400/50 to-cyan-400/70" />
           <div className="p-6 sm:p-8">
-            <h2 className="text-2xl font-bold text-white">Build Your Legacy Profile</h2>
-            <p className="mt-1 text-sm text-white/60">
-              Choose your platform — Sleeper powers full career rank import and legacy score.
-            </p>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-2xl font-black tracking-tight text-white">Build Your Legacy Profile</h2>
+                <p className="mt-1 text-sm text-white/60">
+                  Choose your platform — Sleeper powers full career rank import and legacy score.
+                </p>
+              </div>
+              <span className="hidden shrink-0 rounded-full border border-emerald-500/20 bg-emerald-500/[0.08] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-emerald-300 sm:inline-block">
+                Live
+              </span>
+            </div>
 
-            <div className="mt-6 flex flex-wrap gap-2">
+            {/*
+              Phase 4.1 — provider tabs upgraded from emoji chips to premium
+              tiles with proper icons, a "Recommended" badge on Sleeper (the
+              audit-blessed reference provider), shared `warroom-pressable`
+              motion for hover+press, and a persistent status dot for the
+              selected provider (color-grammar Recommend emerald when live).
+              Test IDs preserved for regression safety.
+            */}
+            <div className="mt-6 grid grid-cols-2 gap-2 sm:grid-cols-5">
               {(
                 [
-                  ['sleeper', '🌙', 'Sleeper'],
-                  ['yahoo', '🏈', 'Yahoo'],
-                  ['mfl', '🏆', 'MFL'],
-                  ['fantrax', '📊', 'Fantrax'],
-                  ['espn', '🔴', 'ESPN'],
+                  { id: 'sleeper', label: 'Sleeper', accent: 'cyan', recommended: true },
+                  { id: 'yahoo', label: 'Yahoo', accent: 'purple', recommended: false },
+                  { id: 'mfl', label: 'MFL', accent: 'amber', recommended: false },
+                  { id: 'fantrax', label: 'Fantrax', accent: 'emerald', recommended: false },
+                  { id: 'espn', label: 'ESPN', accent: 'red', recommended: false },
                 ] as const
-              ).map(([id, icon, label]) => (
-                <button
-                  key={id}
-                  type="button"
-                  onClick={() => {
-                    setTab(id)
-                    setFormError(null)
-                    setPreviewInfo(null)
-                    setConflict(null)
-                  }}
-                  className={`min-w-[100px] flex-1 rounded-xl px-2 py-2.5 text-sm font-semibold transition ${
-                    tab === id
-                      ? 'border border-cyan-400/50 bg-gradient-to-r from-cyan-500/30 to-purple-500/30 text-white'
-                      : 'border border-white/10 bg-black/30 text-white/60 hover:border-white/25 hover:text-white'
-                  }`}
-                  data-testid={`import-tab-${id}`}
-                >
-                  <span className="mr-1">{icon}</span>
-                  {label}
-                </button>
-              ))}
+              ).map(({ id, label, accent, recommended }) => {
+                const isActive = tab === id
+                const accentRing =
+                  accent === 'cyan'
+                    ? 'border-cyan-400/50 bg-cyan-500/[0.12] text-white'
+                    : accent === 'purple'
+                      ? 'border-purple-400/45 bg-purple-500/[0.10] text-white'
+                      : accent === 'amber'
+                        ? 'border-amber-400/45 bg-amber-500/[0.10] text-white'
+                        : accent === 'emerald'
+                          ? 'border-emerald-400/45 bg-emerald-500/[0.10] text-white'
+                          : 'border-red-400/45 bg-red-500/[0.10] text-white'
+                const accentDot =
+                  accent === 'cyan'
+                    ? 'bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.6)]'
+                    : accent === 'purple'
+                      ? 'bg-purple-400 shadow-[0_0_10px_rgba(192,132,252,0.6)]'
+                      : accent === 'amber'
+                        ? 'bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.6)]'
+                        : accent === 'emerald'
+                          ? 'bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]'
+                          : 'bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.6)]'
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => {
+                      setTab(id)
+                      setFormError(null)
+                      setPreviewInfo(null)
+                      setConflict(null)
+                    }}
+                    aria-pressed={isActive}
+                    className={`warroom-pressable relative flex min-w-[100px] flex-col items-center gap-1.5 rounded-xl border px-3 py-3 text-center text-sm font-black ${
+                      isActive
+                        ? accentRing
+                        : 'border-white/10 bg-black/30 text-white/60 hover:border-white/25 hover:bg-black/40 hover:text-white'
+                    }`}
+                    data-testid={`import-tab-${id}`}
+                  >
+                    <span
+                      className={`inline-block h-2 w-2 rounded-full ${
+                        isActive ? accentDot : 'bg-white/25'
+                      }`}
+                      aria-hidden
+                    />
+                    <span className="text-[13px]">{label}</span>
+                    {recommended ? (
+                      <span
+                        className="absolute -top-1.5 right-2 rounded-full border border-emerald-500/40 bg-emerald-500/[0.14] px-1.5 py-0 text-[8px] font-black uppercase tracking-wider text-emerald-300"
+                        aria-label="Recommended provider"
+                      >
+                        Recommended
+                      </span>
+                    ) : null}
+                  </button>
+                )
+              })}
             </div>
 
             {tab === 'sleeper' && (
               <form onSubmit={(e) => void onSleeperSubmit(e)} className="mt-8 space-y-4">
                 <div>
                   <div className="mb-2 flex items-center justify-between">
-                    <label className="text-[11px] uppercase tracking-wide text-white/50">
-                      Sleeper username
+                    <label htmlFor="import-sleeper-username" className="text-[11px] font-black uppercase tracking-[0.18em] text-white/60">
+                      Sleeper Username
                     </label>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-white/35">Step 2 of 2</span>
                   </div>
+                  {/*
+                    Premium input: dashboard focus-ring (2px cyan glow), tabular
+                    padding, and larger min-height for mobile touch targets.
+                  */}
                   <input
+                    id="import-sleeper-username"
                     type="text"
                     value={sleeperUsername}
                     onChange={(e) => setSleeperUsername(e.target.value)}
                     placeholder="your_username"
                     autoFocus={autoFocus && mode !== 'embedded'}
                     autoComplete="username"
-                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-white placeholder:text-white/25 focus:border-cyan-400/60 focus:outline-none focus:ring-2 focus:ring-cyan-400/20"
+                    className="w-full rounded-2xl border border-white/10 bg-black/30 px-4 py-3.5 text-[15px] text-white placeholder:text-white/25 focus:border-cyan-400/60 focus:outline-none focus:ring-2 focus:ring-cyan-400/25 disabled:opacity-60"
                     disabled={sleeperBootLoading || sleeperPhase === 'importing'}
                   />
                   <p className="mt-2 text-[11px] text-white/45">
@@ -368,17 +440,21 @@ export function LeagueImportFlow({
                   </p>
                 </div>
                 {(sleeperPhase === 'failed' || formError) && (
-                  <div className="rounded-xl border border-red-500/25 bg-red-500/10 px-3 py-2 text-sm text-red-200">
-                    {sleeperError || formError}
+                  <div
+                    role="alert"
+                    className="flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/[0.08] px-3 py-2.5 text-sm text-red-200"
+                  >
+                    <HelpCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" aria-hidden />
+                    <span>{sleeperError || formError}</span>
                   </div>
                 )}
                 <button
                   type="submit"
                   disabled={sleeperBootLoading || !sleeperUsername.trim()}
-                  className="w-full rounded-2xl bg-gradient-to-r from-cyan-500/90 to-purple-600/90 py-3.5 text-base font-bold text-white shadow-lg disabled:opacity-40"
+                  className="warroom-pressable w-full rounded-2xl bg-gradient-to-r from-cyan-500 to-blue-600 py-3.5 text-base font-black text-white shadow-[0_10px_40px_-15px_rgba(34,211,238,0.75)] disabled:opacity-40 disabled:shadow-none"
                   data-testid="import-build-legacy-cta"
                 >
-                  {sleeperBootLoading ? 'Starting…' : '🔥 Build My Legacy Profile'}
+                  {sleeperBootLoading ? 'Starting…' : 'Build My Legacy Profile'}
                 </button>
               </form>
             )}

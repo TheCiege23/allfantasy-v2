@@ -299,6 +299,30 @@
   box-shadow: 0 18px 54px -42px color-mix(in srgb, var(--accent-cyan) 50%, transparent);
 }
 
+.af-import-shell {
+  /* Phase 4.1 — the /import surface is a deliberately dark experience (mirrors
+     the Dashboard V2 command-center pattern). Re-scope the dark-mode design
+     tokens so text/border/panel values inside this class resolve to their dark
+     values in every app theme, preventing washed-out labels in the "Claro"
+     light theme. Same pattern as `.af-dashboard-topbar` (Phase 3.9A). */
+  --bg: #020617;
+  --panel: #0a0a0a;
+  --panel2: #141414;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.68);
+  --muted2: rgba(255, 255, 255, 0.48);
+  --accent: #22d3ee;
+  --accent-cyan: #67e8f9;
+  --accent-cyan-strong: #22d3ee;
+  --accent-emerald: #6ee7b7;
+  --accent-emerald-strong: #34d399;
+  --subtle-bg: rgba(255, 255, 255, 0.1);
+  --badge-text-cyan: #a5f3fc;
+  --badge-text-emerald: #a7f3d0;
+  color-scheme: dark;
+}
+
 .af-world-cup-page {
   background: var(--bg) !important;
   color: var(--text) !important;
