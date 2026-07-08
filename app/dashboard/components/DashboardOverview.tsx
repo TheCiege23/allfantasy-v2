@@ -41,6 +41,7 @@ import { TeamThisWeek } from './warroom/TeamThisWeek'
 import { SeasonOutlook } from './warroom/SeasonOutlook'
 import { SeasonJourney } from './warroom/SeasonJourney'
 import { WaiverWirePreview } from './warroom/WaiverWirePreview'
+import { RecommendationTimeline } from './warroom/RecommendationTimeline'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
@@ -663,6 +664,13 @@ export function DashboardOverview({
 
   const leagueBuzzSection = <LeagueActivityFeed key="leagueBuzz" />
 
+  /** Phase 3.1 — Recommendation Timeline (Decision OS "Recommend + Explain" centerpiece). Surfaces
+   *  the real AI lineup/start-sit/waiver/matchup signals with their confidence, expected gain, and
+   *  inline reasoning. Self-gates when there are no recommendations. */
+  const recommendationsSection = (
+    <RecommendationTimeline key="recommendations" actions={lineupData?.actions ?? []} />
+  )
+
   /** Dashboard V2 Phase 2.4 — Team Focus sections, scoped to the one selected league (only
    *  rendered in team context, where selectedLeague is guaranteed non-null). Each reuses an
    *  existing component; nothing here is a new data source. */
@@ -716,6 +724,7 @@ export function DashboardOverview({
   const sectionsByContext: Record<PrimaryContext, ReactNode[]> = {
     global: [
       todaysAgendaSection,
+      recommendationsSection,
       myLeaguesSection,
       commissionerHubSection,
       weeklyGamePlanSection,
@@ -734,6 +743,7 @@ export function DashboardOverview({
       weeklyGamePlanSection,
       teamMatchupSection,
       teamSeasonOutlookSection,
+      recommendationsSection,
       todaysAgendaSection,
       teamWaiverSection,
       teamSeasonJourneySection,
