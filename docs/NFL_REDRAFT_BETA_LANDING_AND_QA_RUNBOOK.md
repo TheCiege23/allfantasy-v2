@@ -26,6 +26,16 @@ DB, or change product code. Companion to [`NFL_REDRAFT_LAUNCH_READINESS_AUDIT.md
 - **Do not solve deployment in this phase.** This runbook is the map; the *decision to land* is the
   next phase.
 
+> **Phase 3 refinement → [`NFL_REDRAFT_BETA_SLICE_AUDIT.md`](./NFL_REDRAFT_BETA_SLICE_AUDIT.md).** The
+> commit-level audit shows the beta is a **clean, sequential, labeled `G30–G44` series** (create →
+> home/shell → league runtime → draft → roster → schedule → scoring → waiver → trade → playoff →
+> player-data → notifications → full-season → polish), plus the later UI/fix commits (#137 trades,
+> #156 playoffs, P0 `0de7bc889`). So the refined recommendation is a **curated cherry-pick of that
+> series** onto a focused `nfl-redraft-beta` branch (not a PR-first stack — #154's merge gate is
+> currently blocked by *pre-existing `main`* CI failures), **excluding G28 (Decision OS), G45–G48
+> (provider), G49A–J (premium, incl. the G49E paywall), and the Replay card**. Two files need
+> hunk-surgery (`LeagueShell` ← G28, `HomeDashboard` ← Replay); `PlayerStatCard` is a file-transplant.
+
 ---
 
 ## 1. Branch / Landing dependency map (verified 2026-07-08)
