@@ -479,3 +479,89 @@ Full-repo typecheck: 158 baseline errors (unchanged), zero new errors in any tou
 - No shadow-gated Phase 5.3/5.4/5.5 pipeline crossed — this route still only calls the already-
   cut-over `resolvePlatformOsSnapshot`/Mission Control composition.
 - No retention-lift, ROI, or engagement-improvement claims anywhere in this document.
+
+---
+
+## 19. Increment 12 — operator input UX (implemented)
+
+**§17/§18's own explicitly-left-open question — "how does an operator supply a league-id list?" — is
+now answered the honest way: they type it in.** New `components/admin/PlatformOsOperatorPanel.tsx` —
+a client component modeled directly on the existing `AiAuditLogsPanel.tsx` (same fetch/loading/error
+state shape, same Tailwind admin-panel visual language) rather than the customer-facing
+`DecisionOsCardPrimitives` used by `UserOsCard`/Mission Control — this panel lives inside `/admin`
+next to other operator tooling, not next to a commissioner's own league cards, so it matches its
+actual neighbors instead of a customer-facing design system.
+
+**The one deliberate difference from every other admin panel in this codebase**: it does **not**
+auto-fetch on mount. `AiAuditLogsPanel` and its siblings all load real data immediately with a
+sensible default filter; `PlatformOsOperatorPanel` has no default league list to auto-load — an
+empty `<textarea>`, a disabled Fetch button until at least one character is typed, and an honest
+"Enter league IDs above and click Fetch" empty state are the whole of its initial render. The
+Fetch button calls the exact, unchanged `GET /api/decision-os/platform-os?leagueIds=...` route
+(Increment 11) with whatever the operator typed, URL-encoded as-is — **no client-side parsing,
+trimming-into-a-list, or validation beyond "is anything typed at all"**; the server's own
+`parseExplicitLeagueIds` remains the single source of truth for what counts as a valid league id,
+so there is exactly one place in the whole stack that decides what an "explicit league ID" is.
+
+**Wired into the existing `/admin` dashboard**, not a new page: one import line and one new
+`<AccordionSection id="platform-os" title="Platform OS" ...>` block in `app/admin/page.tsx`,
+collapsed by default (`defaultOpen={false}`, matching every other secondary panel on that page) —
+the exact same low-risk, additive pattern already used for `AiProviderHealthPanel`/`AiAuditLogsPanel`.
+No new route, no new page-level gate needed: the existing page-level `getAdminAccessState()` +
+`redirect()` at the top of `app/admin/page.tsx` and the API route's own `authorizePlatformOsRequest`
+(Increment 11) both already gate this — defense in depth, not a new authorization surface.
+
+**Every field the increment's own instructions listed is rendered**: total monitored leagues,
+healthy/at-risk/unavailable league counts, active/inactive managers, trades/waiver
+claims/draft picks/roster activity, retention-risk managers, the intervention queue (per-league
+urgent-action count + sample message, or an honest "no leagues with urgent actions" empty state),
+trend coverage (available/insufficient-history/no-snapshots/unavailable tallied), provenance
+(source + requested/resolved/unavailable counts), and any warnings — nothing from
+`PlatformOsSnapshot` is silently dropped.
+
+**Error handling is honest, not decorative**: a 401/403/400 response from the route renders the
+server's own real error message (e.g. "leagueIds is required (comma-separated). Platform OS never
+auto-discovers leagues.") verbatim — never a generic "something went wrong," so an operator who
+mistypes or is denied sees exactly why.
+
+### Tests added (Increment 12)
+
+`__tests__/decision-os/platform-os-operator-panel.test.tsx` (7/7, `@testing-library/react`, mirroring
+the existing `checkout-coverage-panel.test.tsx` fetch-mock convention): renders the empty state and
+never calls `fetch` on mount; Fetch stays disabled until a league id is typed; fetches the exact,
+comma-separated string the operator entered and renders every field of a realistic snapshot
+(monitored/healthy/at-risk/unavailable counts, manager/activity counts, trend coverage, intervention
+queue entries with league id + urgent count + sample message, provenance); renders the honest empty
+intervention-queue message when there are none; surfaces the server's real error message on a 401;
+surfaces the server's real 400 refusal message when the input resolves to nothing meaningful; renders
+honest warnings when present.
+
+**Live browser verification not completed this increment** — the Next.js dev server's first compile
+did not finish within this sandbox's available time (a large app, and this session couldn't reach the
+already-running dev server from an earlier chat), and `/admin` is itself gated behind a real
+authenticated admin session this sandbox has no real credentials for regardless — so component-level
+testing against the exact `PlatformOsSnapshot` shape, plus a clean full-repo typecheck, are the
+verification this increment could actually perform. This mirrors the same honesty convention this
+whole workstream has applied to the Sleeper proof scripts (real, tested, not yet executed live).
+
+**Full suite run:** 7 new tests, **2758/2758 total in `__tests__/decision-os`, zero regressions.**
+Full-repo typecheck: 158 baseline errors (unchanged), zero new errors in any touched file.
+
+---
+
+## 20. Boundaries honored (Increment 12)
+
+- No auto-fetch, no default/example league IDs pre-filled — nothing is queried until an operator
+  explicitly types and submits.
+- `leagueIds` parsing remains entirely server-side (Increment 11's `parseExplicitLeagueIds`) — the
+  client sends the raw typed string as-is, never pre-parses or guesses at a list client-side.
+- No new authorization surface — reuses the existing page-level admin gate (`getAdminAccessState`)
+  and the existing route-level gate (`authorizePlatformOsRequest`) unchanged.
+- No fake/demo data — all rendered fields come from the real `PlatformOsSnapshot` shape; test fixtures
+  are clearly-labeled test data, never presented as a production default.
+- No DFS OS work. No adapter code, no `IMPORT_PROVIDERS` change.
+- No production DB touched; no production cron enabled.
+- PR #183 untouched, still draft, not merged.
+- No Redraft/Start-Draft/PR-#166/AF-hosted-league work touched.
+- No shadow-gated Phase 5.3/5.4/5.5 pipeline crossed.
+- No retention-lift, ROI, or engagement-improvement claims anywhere in this document.

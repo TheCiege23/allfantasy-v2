@@ -203,6 +203,19 @@ UI convention to build on, and choosing one is a separate design decision this i
 left open rather than improvising. 12 new tests, 2751/2751 total, zero regressions, zero new
 typecheck errors.
 
+**Phase D Increment 12 update (2026-07-09):** Platform OS now has its first real UI —
+`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md` §19. New `components/admin/PlatformOsOperatorPanel.tsx`,
+wired into the existing `/admin` dashboard (`app/admin/page.tsx`) as one more collapsed
+`AccordionSection`, no new page. An operator pastes an explicit, comma-separated league-id list into
+a plain textarea and clicks Fetch — there is no default list and nothing auto-fetches on mount, so
+the panel is inert until a real operator types something real. The button calls the unchanged
+`GET /api/decision-os/platform-os` route (Increment 11) and renders every field of the returned
+`PlatformOsSnapshot`: league counts, manager/activity totals, the intervention queue, trend coverage,
+provenance, and warnings. 7 new component tests (`@testing-library/react`), 2758/2758 total, zero
+regressions. Live browser verification wasn't completed — the dev server's first compile didn't
+finish inside this sandbox's available time, and `/admin` needs a real admin session this sandbox
+doesn't have regardless — so the component tests exercise the interactive flow directly instead.
+
 ---
 
 ## 8. DFS OS Future Scope
@@ -277,7 +290,7 @@ required zero new lines in any layer below the (not-yet-built) emitter.
 | Platform Behavioral Intelligence (Phase 5.4/6.5) | Real, tested, **shadow-only, wired to nothing** |
 | League-level deterministic recommendations (Phase 5.3) | Real, tested, **shadow-only** behind its own cutover-ADR gate |
 | User OS | Does not exist as a distinct surface |
-| Platform OS | Composition + authorized route exist (Increments 4/11); no UI/card yet |
+| Platform OS | Composition + authorized route + minimal admin UI exist (Increments 4/11/12) |
 | DFS OS | Does not exist |
 
 ---
