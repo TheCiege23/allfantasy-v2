@@ -397,6 +397,21 @@ small, safe fix made: corrected a stale comment in `real-data-provider.ts` that 
 routes were still hardcoded to the stub provider (they've called `resolveDataProvider()` since Phase
 5.9) — zero behavior change, no gate crossed.
 
+**Phase D Increment 10 update (2026-07-08):** the real Sleeper proof chain is now execution-ready.
+Verified all three write/read scripts' CLI contracts are copy/paste-correct, then built
+[`SLEEPER_PROOF_EXECUTION_PACKET.md`](SLEEPER_PROOF_EXECUTION_PACKET.md) — a short, fill-in-the-
+blanks operator packet (six labeled placeholders, exact command order, browser steps) — as a
+companion to the fuller `SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`. Added one small, genuinely-missing
+safety check: `decision-os-ingest-sleeper-activity-nonprod.ts` now supports `--dryRun`, running every
+real step (league lookup, real Sleeper fetches, real identity mapping) but stopping before the actual
+write — a zero-risk checkpoint for a first real run. Did not add a dry-run to the import-seeding
+script (pre-existing, reused-as-is, lower-risk to leave alone) or the conformance script (already
+fully read-only). Also built
+[`OS_PROGRESS_DASHBOARD.md`](OS_PROGRESS_DASHBOARD.md) — a scannable status table across all five OS
+products, the shadow-gate decisions, and Phase D's full increment history. **Still not executed
+against a live Sleeper league or a real non-prod database in this sandbox** (no live network access
+here) — that remains the concrete next step, now with a packet ready for whoever runs it.
+
 ---
 
 ## 16. What Each OS Must Show

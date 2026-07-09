@@ -33,7 +33,16 @@
  *
  *   DATABASE_URL=<non-prod db> npx tsx scripts/decision-os-ingest-sleeper-activity-nonprod.ts \
  *     --afLeagueId=<AF leagueId already imported via decision-os-import-sleeper-nonprod.ts> \
- *     [--weeks=<N, default 18>]
+ *     [--weeks=<N, default 18>] [--dryRun]
+ *
+ * `--dryRun` (Phase D Increment 10): runs every real step through fetching + identity-mapping +
+ * building the activity payload, but stops BEFORE calling `ingestSleeperImportedActivity` — no write
+ * happens. Prints the same counts a real run would, prefixed `DRY RUN`, plus a distinct
+ * `SLEEPER_ACTIVITY_INGEST_DRY_RUN_OK` sentinel (never the real `SLEEPER_ACTIVITY_INGEST_OK`) so a
+ * caller can tell dry-run output apart from a real write. Lets an operator verify a real Sleeper
+ * league id, DB connectivity, and identity-mapping resolution before committing to a first real write
+ * — the writer itself is already idempotent/safe-to-rerun (see the checklist), so this is an added
+ * zero-write checkpoint, not a fix for an unsafe write path.
  *
  * Note the flag is `--afLeagueId`, not `--league` — the sibling
  * `decision-os-import-sleeper-nonprod.ts` uses `--league` for the SLEEPER SOURCE league id, the
@@ -63,6 +72,7 @@ function arg(name: string): string | undefined {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`))
   return hit ? hit.slice(name.length + 3) : undefined
 }
+const hasFlag = (name: string) => process.argv.slice(2).includes(`--${name}`)
 
 function hostOf(url: string | null): string {
   if (!url) return '?'
@@ -95,8 +105,9 @@ function hostOf(url: string | null): string {
     process.exit(1)
   }
   const weeks = Number.parseInt(arg('weeks') ?? '18', 10)
+  const dryRun = hasFlag('dryRun')
 
-  console.log(`Sleeper activity ingestion orchestration — DB host: ${host}`)
+  console.log(`Sleeper activity ingestion orchestration — DB host: ${host}${dryRun ? ' (DRY RUN — no writes)' : ''}`)
   console.log(`league=${leagueId} weeks=1..${Math.max(1, Math.min(18, Number.isFinite(weeks) ? weeks : 18))}`)
 
   const { prisma } = await import('../lib/prisma')
@@ -192,7 +203,20 @@ function hostOf(url: string | null): string {
       )
     }
 
-    // 7) Ingest — the existing, unchanged Phase A pipeline: emitter → normalizer → writer → store.
+    // 7) Dry run stops here — no write. Everything above (league lookup, delegate check, real
+    //    fetches, real identity mapping) already ran for real; only the write itself is skipped.
+    if (dryRun) {
+      console.log(
+        `DRY RUN — would ingest: transactions=${transactions.length} draftPicks=${validDraftPicks.length} ` +
+          `rosters=${rosters.length} identityMappings=${mappings.length} (linked=${mappings.length - externalOnlyCount} external-only=${externalOnlyCount})`,
+      )
+      console.log(`SLEEPER_ACTIVITY_INGEST_DRY_RUN_OK leagueId=${leagueId}`)
+      console.log(`Next (real write): re-run this exact command without --dryRun.`)
+      await prisma.$disconnect().catch(() => undefined)
+      process.exit(0)
+    }
+
+    // Ingest — the existing, unchanged Phase A pipeline: emitter → normalizer → writer → store.
     const result = await ingestSleeperImportedActivity(
       {
         leagueId,

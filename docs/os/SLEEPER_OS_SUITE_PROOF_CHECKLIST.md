@@ -74,8 +74,16 @@ modified for this increment; it already existed and is reused as-is.
 ```
 DATABASE_URL=<same-nonprod-db> npx tsx scripts/decision-os-ingest-sleeper-activity-nonprod.ts \
   --afLeagueId=<leagueId from step 1> \
-  [--weeks=<N, default 18>]
+  [--weeks=<N, default 18>] [--dryRun]
 ```
+
+**`--dryRun` (Increment 10):** runs every real step (league lookup, real Sleeper roster/transaction/
+draft-pick fetch, real identity-mapping resolution) but stops before the actual write, printing the
+same counts a real run would under a `DRY RUN` prefix and a distinct
+`SLEEPER_ACTIVITY_INGEST_DRY_RUN_OK` sentinel. Use this first on a real run to confirm the league id,
+DB connectivity, and identity mapping all resolve as expected with zero risk, then re-run the exact
+same command without `--dryRun` to actually write. (The writer itself is already idempotent/safe to
+re-run — see below — so `--dryRun` is an added zero-write checkpoint, not a fix for an unsafe path.)
 
 **Flag name note (Increment 8):** this script's flag is `--afLeagueId`, deliberately **not**
 `--league` — §3's `decision-os-import-sleeper-nonprod.ts` uses `--league` for the **Sleeper source**
