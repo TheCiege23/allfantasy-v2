@@ -1,9 +1,11 @@
 # Platform OS / Client Intelligence — Audit
 
-**Status: audit + plan. No code implemented.** Unlike the User OS audit, this one found a
+**Status: audit + plan + implemented minimum surface.** Unlike the User OS audit, this one found a
 **fully-built, fully-tested, cross-league aggregation function already wired end-to-end** in one
 code path — but reaching it safely surfaces a real, pre-existing architecture gate this audit
-recommends routing around, not crossing silently.
+recommends routing around, not crossing silently. **Phase D Increment 4 (§15) built and shipped the
+narrower, non-gate-crossing minimum surface this audit recommended** — a real composition module and
+7 tests, no UI/route yet (see §15 for why).
 
 **Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Phase D Increment 3** (successor to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md)'s
@@ -309,7 +311,71 @@ production today.
 
 ---
 
-## 15. Boundaries honored (this increment)
+## 15. Increment 4 — minimum Platform OS surface (implemented)
+
+**Built exactly the recommended narrow path (§10/§12), not the shadow-gated Phase 5.4 pipeline.**
+New `lib/decision-os/platformOs.ts` — `resolvePlatformOsSnapshot(leagueIds, now?)` — takes an
+**explicit** list of league IDs (no auto-discovery of every production league, by design) and, for
+each, calls the already-cut-over `resolveMissionControlSnapshot` (which itself already composes
+League Health alignment + trend availability) — the same composition Mission Control uses in
+production today. Zero new derivation; this module only aggregates.
+
+**Aggregates into:** `totalMonitoredLeagues`, `healthyLeagueCount`/`atRiskLeagueCount` (from each
+league's real `engine.overallStatus` — `excellent`/`healthy` → healthy, `watch`/`at_risk`/`critical`
+→ at-risk; `'watch'` was deliberately bucketed as at-risk, not healthy, since an operator surface
+should flag a league already trending toward trouble rather than call it healthy — a real
+classification decision, documented in the code), `unavailableLeagueCount`, summed
+`totalActiveManagers`/`totalInactiveManagers`/`totalTrades`/`totalWaiverClaims`/`totalDraftPicks`/
+`totalRosterActivity`/`totalRetentionRiskManagers`, an `interventionQueue` (leagues with a real
+`'urgent'`-priority recommended action, capped at 20 — mirroring Phase 5.4's own `INTERVENTION_CAP`
+precedent, one more sign this narrower path deliberately preserves the richer pipeline's better
+ideas without crossing its gate), a `trendCoverage` tally (`available`/`noSnapshots`/
+`insufficientHistory`/`unavailable` league counts — an honest **coverage** signal, not a fabricated
+platform-wide trend line), and a `provenance` object (`source: 'commissioner_os_composition'` +
+requested/resolved/unavailable counts) that makes explicit this surface reads Commissioner OS's
+already-live data, not the richer Phase 5.4 pipeline.
+
+**Honest degradation:** an empty `leagueIds` array returns an all-zero snapshot with
+`warnings: ['no_leagues_specified']`, never calling the underlying composition at all. Each league is
+resolved in its own try/catch (defense-in-depth over `resolveMissionControlSnapshot`'s own
+never-throws contract, matching every other Decision OS composition's own pattern) — one league's
+failure marks it unavailable and excludes it from every aggregate, but never fails the whole
+snapshot. A league whose own `leagueHealth` is unavailable is treated identically to a hard failure
+(both count toward `unavailableLeagueCount` and `trendCoverage.unavailable`).
+
+**No route or card was built this increment — a deliberate scope stop, for a real reason, not
+caution for its own sake.** Unlike Mission Control/League Analytics (both session-scoped: "show me
+my own league"), Platform OS's composition accepts an **arbitrary, caller-supplied list of league
+IDs** — meaning a route exposing it would need to answer "who is authorized to request aggregate
+data about which leagues?" (an operator-level authorization model, not the ordinary any-signed-in-
+user session check Mission Control/League Analytics use — those never risked exposing one user's
+league data to another). That authorization model does not exist yet and is not designed by this
+audit or this increment. Building a route without deciding it first would either under-protect the
+data (any signed-in user could query any leagueIds) or require inventing an access-control scheme
+on the spot — exactly the kind of "silent side-effect decision" this whole workstream has
+consistently avoided (paralleling the Phase 5.3/5.4/5.5 gate-avoidance decision made earlier in this
+same document). Composition + tests only was judged the correct, honest stopping point.
+
+### Tests added (Increment 4)
+
+`__tests__/decision-os/platform-os.test.ts` (7/7): multi-league aggregation sums counts and splits
+health status correctly across 2 leagues; one league's dependency throwing does not break the whole
+snapshot (excluded, others still aggregate); a league whose own `leagueHealth` is unavailable is
+excluded from aggregates and counted in `trendCoverage.unavailable`, never fabricated; an empty
+league list degrades to an honest all-zero snapshot with the exact expected shape, never calling the
+underlying composition; trend coverage tallies `available`/`insufficientHistory`/`noSnapshots`
+correctly across 3 leagues; the intervention queue is built only from leagues with a real
+`'urgent'`-priority action, with the correct count and a real sample message; counts stay honestly
+zero for a genuinely quiet league.
+
+**Full suite run:** 7 new + the full decision-os regression suite — **2693/2693 total in
+`__tests__/decision-os`, zero regressions.** Full-repo typecheck: 158 baseline errors (unchanged),
+zero new errors in `platformOs.ts`. No schema/migration change — pure composition over already-live
+Commissioner OS outputs, no new Decision OS derivation.
+
+---
+
+## 16. Boundaries honored (this increment)
 
 - No code implemented — audit + plan only, per explicit instruction (no "tiny, obvious, low-risk"
   wiring change was found safe enough to also ship this increment; reusing the existing wiring would

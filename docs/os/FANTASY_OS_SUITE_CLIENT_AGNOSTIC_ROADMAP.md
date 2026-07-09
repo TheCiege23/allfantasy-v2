@@ -182,6 +182,15 @@ aggregation directly over the already-cut-over Commissioner OS composition (Miss
 Analytics' own data, summed across leagues), giving up some richness (an activity heatmap, a
 recency-based momentum signal) for zero new architecture-gate crossings.
 
+**Phase D Increment 4 update (2026-07-08):** that narrower minimum surface is now built —
+`lib/decision-os/platformOs.ts`'s `resolvePlatformOsSnapshot(leagueIds, now?)`, an explicit-league-
+list aggregation over `resolveMissionControlSnapshot` (7 tests, zero regressions; see
+`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md` §15 for full detail). **No route or UI card was built** —
+unlike Mission Control/League Analytics (session-scoped to "my own league"), this composition
+accepts an arbitrary caller-supplied league list, which needs an operator-level authorization model
+that doesn't exist yet; exposing a route without deciding that first was judged unsafe, so this
+increment deliberately stopped at composition + tests.
+
 ---
 
 ## 8. DFS OS Future Scope
