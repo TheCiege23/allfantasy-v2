@@ -6,7 +6,7 @@ real-activity-populated per Increment 7) imported league data, or honestly repor
 isn't populated yet.**
 
 **Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Phase D Increment 6, updated by
-Increment 7** (successor to
+Increment 7, hardened into an operator-ready runbook by Increment 8** (successor to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md),
 [`USER_OS_MANAGER_OS_SLEEPER_PROOF_AUDIT.md`](USER_OS_MANAGER_OS_SLEEPER_PROOF_AUDIT.md), and
 [`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md`](PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md)).
@@ -32,7 +32,7 @@ already-built Phase A pipeline. **Honesty caveat, carried forward from every pri
 step in this workstream:** this script's logic is real and type-correct, reusing only already-tested
 pipeline pieces, but has **not been executed against a live Sleeper league in this sandbox** — there
 is no live network access here. Running it for real, against a real non-prod database and a real
-Sleeper league, is the next concrete step (§9).
+Sleeper league, is the next concrete step (§10).
 
 ---
 
@@ -69,13 +69,22 @@ modified for this increment; it already existed and is reused as-is.
 
 ---
 
-## 3b. Step 1.5 — Ingest that same league's REAL Sleeper activity (new, Increment 7)
+## 3b. Step 1.5 — Ingest that same league's REAL Sleeper activity (Increment 7, flag hardened in Increment 8)
 
 ```
 DATABASE_URL=<same-nonprod-db> npx tsx scripts/decision-os-ingest-sleeper-activity-nonprod.ts \
-  --league=<leagueId from step 1> \
+  --afLeagueId=<leagueId from step 1> \
   [--weeks=<N, default 18>]
 ```
+
+**Flag name note (Increment 8):** this script's flag is `--afLeagueId`, deliberately **not**
+`--league` — §3's `decision-os-import-sleeper-nonprod.ts` uses `--league` for the **Sleeper source**
+league id, the opposite meaning. Using the same flag name across both scripts in this same proof
+chain would be a real, easy copy/paste mistake; they're named differently on purpose.
+
+**Safe to re-run.** The underlying writer is idempotent by natural key (proven in Phase A's own
+tests) — re-running this script for the same league converges to updated rows, never duplicates.
+Re-run it later to pick up new real activity that happened since the last run.
 
 **New file: `scripts/decision-os-ingest-sleeper-activity-nonprod.ts`** — closes the gap that used to
 be described in this section as still-open. Reuses the existing, unchanged Phase A pipeline
@@ -101,14 +110,19 @@ this script's only new logic is orchestration:
    time.
 6. Prints a full writer summary (created/updated/skipped counts, skip reasons, external-only-manager
    count, per-activity-type counts) — honest, never claims success it can't show.
+7. **(Increment 8)** If rosters resolved but BOTH transactions and draft picks came back completely
+   empty, prints an explicit `WARNING` and a direct Sleeper API URL to manually check. Necessary
+   because `lib/sleeper-client.ts`'s fetchers catch every error and silently return `[]` — without
+   this warning, a genuinely quiet league and a silently-failed fetch (wrong league id, network
+   hiccup, Sleeper API downtime) would look identical in the script's own log output.
 
 **New file: `scripts/decision-os-ingest-sleeper-activity-helpers.ts`** — the pure, unit-tested seam
 behind the script: real-Sleeper-API-shape reconciliation (`SleeperTransaction` →
 `SleeperTransactionRaw`; a raw draft-pick response item → `SleeperDraftPickRaw`, returning `null`
 rather than fabricating a pick when required fields are missing), the week-range builder, real
-draft-timestamp extraction, and the identity-mapping builder (with an injectable AF-account lookup
-so it's testable without a database). 16 tests in
-`__tests__/decision-os/ingest-sleeper-activity-helpers.test.ts`.
+draft-timestamp extraction, the identity-mapping builder (with an injectable AF-account lookup so
+it's testable without a database), and the silent-fetch-failure warning check (Increment 8). 19
+tests in `__tests__/decision-os/ingest-sleeper-activity-helpers.test.ts`.
 
 **Honesty caveat:** this script has not been run against a live Sleeper league in this sandbox (no
 live network access here) — the logic is real and reuses only already-tested pieces, but running it
@@ -122,8 +136,15 @@ something this increment could execute itself.
 ```
 DATABASE_URL=<same-nonprod-db> npx tsx scripts/decision-os-suite-conformance.ts \
   --leagueIds=<leagueId from step 1> \
-  --managerId=<the importer AppUser's id, or any other real claimed manager's id>
+  --managerId=<see the managerId value convention below>
 ```
+
+**`--managerId` value convention (Increment 8 clarification):** §3b's identity mapping (§3b step 3)
+assigns each real Sleeper manager EITHER a real AF `userId` (if `UserProfile.sleeperUserId` links
+one) OR an honest `stable_key` of the exact shape `sleeper:<sleeperUserId>` (external-only, no AF
+account). To check User OS for the importer account itself, pass their real AF `userId`. To check it
+for an external-only manager (no AF account, the core "prove it works without one" case), pass the
+`sleeper:<sleeperUserId>` string, not the bare Sleeper id and not an AF id that doesn't exist.
 
 **New file: `scripts/decision-os-suite-conformance.ts`** — READ-ONLY, mirrors the exact safety
 contract of every existing `scripts/decision-os-*-nonprod.ts` script (skips cleanly without
@@ -140,8 +161,17 @@ For each supplied league, it calls the real, production compositions directly:
 
 ...and reports a pass/fail line per check plus a real detail string (e.g.
 `status=healthy activeManagers=8 trades=0 waivers=0`), using the same `✅`/`❌` reporter convention as
-`decision-os-world-conformance.ts`. **A failing or all-zero check here is expected for a league §3b
-hasn't been run for yet, not a bug** — run §3b first if real, non-zero activity is wanted.
+`decision-os-world-conformance.ts`.
+
+**Read `✅`/`❌` precisely — they mean "resolved" vs "failed to resolve," not "has activity" vs
+"empty" (a real distinction, clarified in Increment 8):** every check's PASS/FAIL is driven by
+whether the underlying composition resolved at all (`leagueHealth.available` / `available` on the
+snapshot), not by whether its counts are non-zero. A league with genuinely zero activity (§3b not
+yet run, or a real but quiet league) still shows **`✅` with honest zero counts in the detail
+string** (e.g. `activeManagers=0 trades=0`) — that is a passing check. A **`❌`** means the
+composition itself could not resolve (e.g. the league id is wrong, the Prisma delegate isn't
+generated, or a genuine exception) — a real problem worth investigating, unrelated to whether §3b
+has been run. See §11 for concrete troubleshooting steps if you see a `❌`.
 
 **New file: `scripts/decision-os-suite-conformance-helpers.ts`** — the pure, unit-tested seam behind
 the script (host/production-refusal checks, explicit-only CLI arg parsing, the check-line
@@ -165,7 +195,7 @@ fixtures, with a real (not fabricated) manager identity mapping built from the p
 
 **What remains, honestly:** this script has not been executed against a live Sleeper league in this
 sandbox (no live network access here). Running §3 → §3b → §4 in sequence, against a real non-prod
-database and a real Sleeper league, is the concrete way to fully close this out — see §9.
+database and a real Sleeper league, is the concrete way to fully close this out — see §10.
 
 ---
 
@@ -205,7 +235,39 @@ script run — confirm `Platform OS aggregates N explicit league(s)` reports the
 
 ---
 
-## 9. Summary checklist
+## 9. Troubleshooting (Increment 8)
+
+Concrete, real failure modes an operator running this end-to-end is likely to actually hit:
+
+- **§3b refuses with "not a Sleeper-imported league".** The `--afLeagueId` you passed either
+  doesn't exist or has `platform` set to something other than `'sleeper'` — double-check you copied
+  `IMPORTED_LEAGUE_ID` from §3's own output, not the `--league` (Sleeper source id) you passed
+  *into* §3.
+- **§3b refuses with "the decisionOsImportedActivity Prisma delegate is not generated".** Run
+  `prisma generate` against a schema that includes the `DecisionOsImportedActivity` model in this
+  environment first (see `DECISION_OS_PHASE_A_IMPLEMENTATION.md` for why this is a real, known
+  environment-setup step, not a script bug).
+- **§3b prints the `WARNING: ... zero transactions AND zero draft picks` line.** Manually hit the
+  Sleeper API URL the warning prints in a browser. If it returns real data, something in the
+  script's fetch path is wrong (open an issue); if it returns an empty array, the league genuinely
+  has no activity yet — a normal outcome for a very new league, not a bug.
+- **§4 (`decision-os-suite-conformance.ts`) shows a real `❌`, not just zero counts.** Per §4's own
+  clarification, `❌` means the composition itself failed to resolve — not that activity is
+  low/absent (that's an honest `✅` with zero counts). Check: is the league id correct? Is
+  `DATABASE_URL` pointed at the same non-prod database §3/§3b used? Did §3 actually succeed (check
+  its own exit code/output)?
+- **User OS check in §4 shows `user_os_unavailable`.** Confirm the `--managerId` you passed actually
+  has a resolvable identity for this league — either a real AF `userId` that owns a roster, or the
+  exact `sleeper:<sleeperUserId>` stable-key form for an external-only manager (see §4's
+  `--managerId` value convention). A raw, un-prefixed Sleeper user id will not resolve.
+- **The browser shows a real session but no cards render on `/commissioner-hub` or
+  `/league/<leagueId>`.** Confirm you're signed in as an account that actually has access to this
+  specific league (§6/§7) — `isOwner` or a real claimed `LeagueTeam`/`Roster` row, per
+  `USER_OS_MANAGER_OS_SLEEPER_PROOF_AUDIT.md` §14. Being signed in generally is not sufficient.
+
+---
+
+## 10. Summary checklist
 
 - [ ] Ran `decision-os-import-sleeper-nonprod.ts` against a non-prod DB, got a real
       `IMPORTED_LEAGUE_ID`.
@@ -224,7 +286,7 @@ script run — confirm `Platform OS aggregates N explicit league(s)` reports the
 
 ---
 
-## 10. Boundaries honored (this increment)
+## 11. Boundaries honored (this increment)
 
 - No production DB touched — every script hard-refuses the production host.
 - No auto-discovery of leagues — `decision-os-suite-conformance.ts` and
@@ -241,3 +303,5 @@ script run — confirm `Platform OS aggregates N explicit league(s)` reports the
   already-cut-over Mission Control/League Analytics/User OS/Platform OS compositions and Phase A's
   already-built ingestion pipeline.
 - PR #183 untouched, still draft, not merged.
+- No measured retention/engagement/ROI outcome claimed anywhere in this document — Increment 8 is
+  runbook hardening (clarity, safety checks, troubleshooting), not a measurement of any outcome.

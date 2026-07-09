@@ -15,6 +15,7 @@ import {
   getDraftId,
   buildSleeperManagerMapping,
   collectRosterOwnerIds,
+  shouldWarnPossibleSilentFetchFailure,
 } from '@/scripts/decision-os-ingest-sleeper-activity-helpers'
 import type { SleeperTransaction } from '@/lib/sleeper-client'
 
@@ -132,6 +133,21 @@ describe('buildSleeperManagerMapping', () => {
     const mapping = await buildSleeperManagerMapping('sleeper-user-2', resolveAfUserId)
     expect(mapping.af_id).toBeNull()
     expect(mapping.stable_key).toBe('sleeper:sleeper-user-2')
+  })
+})
+
+describe('shouldWarnPossibleSilentFetchFailure', () => {
+  it('warns when rosters resolved but both transactions and draft picks came back empty', () => {
+    expect(shouldWarnPossibleSilentFetchFailure(10, 0, 0)).toBe(true)
+  })
+
+  it('does not warn when there is real transaction or draft-pick activity', () => {
+    expect(shouldWarnPossibleSilentFetchFailure(10, 5, 0)).toBe(false)
+    expect(shouldWarnPossibleSilentFetchFailure(10, 0, 3)).toBe(false)
+  })
+
+  it('does not warn when there are no rosters at all — a different, already-refused case', () => {
+    expect(shouldWarnPossibleSilentFetchFailure(0, 0, 0)).toBe(false)
   })
 })
 

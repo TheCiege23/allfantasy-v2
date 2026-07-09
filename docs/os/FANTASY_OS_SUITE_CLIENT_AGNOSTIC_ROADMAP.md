@@ -372,6 +372,18 @@ honest external-only `stable_key` when none does — never fabricated). Full pro
 `SLEEPER_OS_SUITE_PROOF_CHECKLIST.md` §3b. Not yet executed against a live Sleeper league in this
 sandbox (no live network access here) — that real execution is the concrete remaining step.
 
+**Phase D Increment 8 update (2026-07-08):** the checklist is now hardened into an operator-ready
+runbook. Renamed the ingestion script's `--league` flag to `--afLeagueId` (it was easy to confuse
+with the seeding script's own `--league`, which means the opposite — the Sleeper source id).
+Added an honest warning when a fetch might have silently failed (rosters resolved but zero
+transactions and zero draft picks came back — `lib/sleeper-client.ts`'s fetchers swallow every
+error and return `[]`). Clarified that the conformance script's `✅`/`❌` mean "resolved" vs "failed
+to resolve," not "has activity" vs "empty" — a real distinction that was previously conflated in the
+doc's own wording. Documented the `--managerId` value convention (a real AF `userId`, or the exact
+`sleeper:<id>` stable-key form for an external-only manager). Added a Troubleshooting section
+covering the concrete failure modes an operator is actually likely to hit. 3 new tests for the new
+warning helper; 2739/2739 total, zero regressions, zero new typecheck errors.
+
 ---
 
 ## 16. What Each OS Must Show

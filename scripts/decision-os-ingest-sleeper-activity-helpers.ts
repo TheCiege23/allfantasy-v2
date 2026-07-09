@@ -144,6 +144,22 @@ export async function buildSleeperManagerMapping(
   }
 }
 
+/**
+ * Phase D Increment 8 (runbook hardening). `lib/sleeper-client.ts`'s fetchers catch every error and
+ * return `[]` on failure — a genuine zero-activity league and a silently-failed fetch (bad league
+ * id, network hiccup, Sleeper API downtime) are otherwise indistinguishable to an operator reading
+ * the script's own log output. This makes that distinction explicit: rosters resolved (the earlier
+ * "zero rosters" check already refuses honestly) but BOTH transactions and draft picks came back
+ * empty is worth a warning, not a silent "0 activity, done."
+ */
+export function shouldWarnPossibleSilentFetchFailure(
+  rosterCount: number,
+  transactionCount: number,
+  draftPickCount: number,
+): boolean {
+  return rosterCount > 0 && transactionCount === 0 && draftPickCount === 0
+}
+
 /** De-duplicated, order-stable list of every real Sleeper user id that owns at least one roster. */
 export function collectRosterOwnerIds(rosters: readonly { owner_id?: string | null }[]): string[] {
   const seen = new Set<string>()

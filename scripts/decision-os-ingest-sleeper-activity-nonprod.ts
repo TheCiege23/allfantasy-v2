@@ -32,8 +32,13 @@
  *     same provider-neutral table Phase A already designed with zero AF-native FK coupling.
  *
  *   DATABASE_URL=<non-prod db> npx tsx scripts/decision-os-ingest-sleeper-activity-nonprod.ts \
- *     --league=<AF leagueId already imported via decision-os-import-sleeper-nonprod.ts> \
+ *     --afLeagueId=<AF leagueId already imported via decision-os-import-sleeper-nonprod.ts> \
  *     [--weeks=<N, default 18>]
+ *
+ * Note the flag is `--afLeagueId`, not `--league` — the sibling
+ * `decision-os-import-sleeper-nonprod.ts` uses `--league` for the SLEEPER SOURCE league id, the
+ * opposite meaning. Deliberately different names to avoid a real copy/paste mix-up between the two
+ * scripts in the same proof chain.
  *
  * Honesty caveat, matching Phase A's own established caveat exactly: this script has real,
  * type-correct logic that reuses only already-tested pipeline pieces, but has not been executed
@@ -49,6 +54,7 @@ import {
   getDraftId,
   buildSleeperManagerMapping,
   collectRosterOwnerIds,
+  shouldWarnPossibleSilentFetchFailure,
 } from './decision-os-ingest-sleeper-activity-helpers'
 
 const PROD_HOST_MARKER = 'ep-curly-block'
@@ -79,9 +85,13 @@ function hostOf(url: string | null): string {
     process.exit(1)
   }
 
-  const leagueId = arg('league')?.trim()
+  // Deliberately named `--afLeagueId=` (not `--league=`, which the sibling
+  // `decision-os-import-sleeper-nonprod.ts` uses for the SLEEPER SOURCE league id — the opposite
+  // meaning). Using the same flag name across the two scripts in this proof chain would be a real,
+  // easy copy/paste mistake for an operator running the runbook end-to-end.
+  const leagueId = arg('afLeagueId')?.trim()
   if (!leagueId) {
-    console.error('REFUSED: --league=<AF leagueId> is required. This script never auto-discovers leagues.')
+    console.error('REFUSED: --afLeagueId=<AF leagueId from step 1> is required. This script never auto-discovers leagues.')
     process.exit(1)
   }
   const weeks = Number.parseInt(arg('weeks') ?? '18', 10)
@@ -171,6 +181,16 @@ function hostOf(url: string | null): string {
     }
     const validDraftPicks = draftPicks.filter((p): p is NonNullable<typeof p> => p !== null)
     console.log(`Fetched ${validDraftPicks.length} real draft pick(s)${draftPicksOccurredAt ? ` (occurredAt=${draftPicksOccurredAt})` : ' (no real draft timestamp available — will be honestly skipped)'}.`)
+
+    if (shouldWarnPossibleSilentFetchFailure(rosters.length, transactions.length, validDraftPicks.length)) {
+      console.warn(
+        'WARNING: rosters resolved, but zero transactions AND zero draft picks were fetched. This may be a ' +
+          'genuinely quiet league — or a silently-failed Sleeper API fetch (lib/sleeper-client.ts catches every ' +
+          'fetch error and returns []). Before trusting a zero result, manually verify the Sleeper source league ' +
+          `id (${sourceLeagueId}) is correct and reachable, e.g. by checking ` +
+          `https://api.sleeper.app/v1/league/${sourceLeagueId}/transactions/1 directly in a browser.`,
+      )
+    }
 
     // 7) Ingest — the existing, unchanged Phase A pipeline: emitter → normalizer → writer → store.
     const result = await ingestSleeperImportedActivity(
