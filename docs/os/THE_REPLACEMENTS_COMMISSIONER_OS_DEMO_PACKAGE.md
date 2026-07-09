@@ -22,6 +22,11 @@ plain-language questions, and explicit "what we're not asking for" boundaries �
 the next actual conversation with The Replacements:
 [`THE_REPLACEMENTS_TECHNICAL_DISCOVERY_HANDOFF.md`](THE_REPLACEMENTS_TECHNICAL_DISCOVERY_HANDOFF.md).
 
+**Phase C Increment 3 update (2026-07-08):** a concise, live-call-ready script and talking-points
+guide — pulling the highest-value points from this package, the adapter plan, and the technical
+discovery handoff into something usable on the actual call — is now available:
+[`THE_REPLACEMENTS_CALL_SCRIPT.md`](THE_REPLACEMENTS_CALL_SCRIPT.md).
+
 ---
 
 ## 1. Executive summary

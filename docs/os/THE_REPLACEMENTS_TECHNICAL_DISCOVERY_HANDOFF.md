@@ -10,6 +10,11 @@ measured results.** No retention-lift, engagement-lift, or ROI figures are state
 none have been measured yet on any partner's data, and any pilot's first job is to start measuring,
 not to assume an outcome.
 
+**For live use on the call itself:** see
+[`THE_REPLACEMENTS_CALL_SCRIPT.md`](THE_REPLACEMENTS_CALL_SCRIPT.md) — a shorter, spoken-language
+talking-points guide distilled from this document, meant to be used in the room; use this document
+as the detailed leave-behind afterward.
+
 ---
 
 ## 1. Executive Summary
