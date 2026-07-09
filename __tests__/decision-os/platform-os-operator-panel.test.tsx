@@ -27,8 +27,19 @@ const SNAPSHOT = {
   totalDraftPicks: 20,
   totalRosterActivity: 3,
   totalRetentionRiskManagers: 1,
-  interventionQueue: [
-    { leagueId: "league-2", urgentActionCount: 2, sampleMessage: "3 managers at risk of leaving" },
+  attentionQueue: [
+    {
+      id: "league_requires_review:league-2:0",
+      leagueId: "league-2",
+      type: "league_requires_review",
+      severity: "high",
+      priorityScore: 400,
+      title: "Requires immediate review",
+      explanation: "3 managers at risk of leaving",
+      recommendedAction: null,
+      timestamp: "2026-07-09T00:00:00.000Z",
+      source: "league_health_engine",
+    },
   ],
   trendCoverage: { available: 1, noSnapshots: 1, insufficientHistory: 0, unavailable: 0 },
   provenance: {
@@ -88,21 +99,21 @@ describe("PlatformOsOperatorPanel", () => {
 
     expect(screen.getByTestId("platform-os-snapshot").textContent).toMatch(/Monitored leagues/)
     expect(screen.getByTestId("platform-os-trend-coverage").textContent).toMatch(/1 available/)
-    const interventionList = screen.getByTestId("platform-os-intervention-list")
-    expect(interventionList.textContent).toMatch(/league-2/)
-    expect(interventionList.textContent).toMatch(/3 managers at risk of leaving/)
+    const attentionList = screen.getByTestId("platform-os-attention-list")
+    expect(attentionList.textContent).toMatch(/league-2/)
+    expect(attentionList.textContent).toMatch(/3 managers at risk of leaving/)
     expect(screen.getByTestId("platform-os-provenance").textContent).toMatch(/requested=2/)
   })
 
-  it("renders an honest empty intervention queue message when there are no urgent actions", async () => {
-    fetchMock.mockResolvedValueOnce(okResponse({ ...SNAPSHOT, interventionQueue: [] }))
+  it("renders an honest empty attention queue message when there are no signals", async () => {
+    fetchMock.mockResolvedValueOnce(okResponse({ ...SNAPSHOT, attentionQueue: [] }))
     render(<PlatformOsOperatorPanel />)
 
     fireEvent.change(screen.getByTestId("platform-os-league-ids-input"), { target: { value: "league-1" } })
     fireEvent.click(screen.getByTestId("platform-os-fetch-button"))
 
     await waitFor(() => {
-      expect(screen.getByTestId("platform-os-intervention-empty")).toBeInTheDocument()
+      expect(screen.getByTestId("platform-os-attention-empty")).toBeInTheDocument()
     })
   })
 

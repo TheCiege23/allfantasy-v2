@@ -27,7 +27,12 @@ vi.mock('@/lib/decision-os/leagueContext', async () => {
   const actual = await vi.importActual<typeof import('@/lib/decision-os/leagueContext')>(
     '@/lib/decision-os/leagueContext',
   )
-  return { ...actual, resolveLeagueFinancialContext: vi.fn() }
+  // Mock `resolveLeagueFinancialContextSafely` — the function `commissionerCommandCenter.ts` actually
+  // calls as of Phase OS-B4.5's shared-helper consolidation. Mocking `resolveLeagueFinancialContext`
+  // alone would NOT take effect: `resolveLeagueFinancialContextSafely` is copied verbatim from `actual`
+  // and its closure still calls the REAL, unmocked inner function — `{...actual, x: vi.fn()}` doesn't
+  // rebind one export's internal call to a sibling export in the same module.
+  return { ...actual, resolveLeagueFinancialContextSafely: vi.fn() }
 })
 
 vi.mock('@/lib/decision-os/attentionQueue', async () => {
@@ -83,7 +88,7 @@ const FREE_CONTEXT = {
 }
 
 const mockResolve = () => vi.mocked(missionControl.resolveMissionControlSnapshot)
-const mockFinancialContext = () => vi.mocked(leagueContext.resolveLeagueFinancialContext)
+const mockFinancialContext = () => vi.mocked(leagueContext.resolveLeagueFinancialContextSafely)
 const mockDraftDates = () => vi.mocked(attentionQueue.loadUpcomingDraftDates)
 
 afterEach(() => {

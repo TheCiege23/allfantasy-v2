@@ -18,6 +18,14 @@ import { useState } from "react"
 import { RefreshCw, AlertTriangle } from "lucide-react"
 import type { PlatformOsSnapshot } from "@/lib/decision-os/platformOs"
 
+const SEVERITY_TONE: Record<string, string> = {
+  critical: "border-rose-500/25 bg-rose-500/[0.08] text-rose-200",
+  high: "border-orange-500/25 bg-orange-500/[0.08] text-orange-200",
+  medium: "border-amber-500/25 bg-amber-500/[0.08] text-amber-200",
+  low: "border-sky-500/25 bg-sky-500/[0.08] text-sky-200",
+  informational: "border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-200",
+}
+
 function StatChip({ label, value, tone }: { label: string; value: number; tone?: "healthy" | "risk" | "muted" }) {
   const toneClass =
     tone === "healthy" ? "border-emerald-500/25 bg-emerald-500/10 text-emerald-300" :
@@ -142,22 +150,26 @@ export function PlatformOsOperatorPanel() {
             </p>
           </div>
 
-          {/* ── Intervention queue ──────────────────────────────────────────────────────── */}
+          {/* ── Attention queue ─────────────────────────────────────────────────────────── */}
           <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
             <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-white/40">
-              Intervention queue ({snapshot.interventionQueue.length})
+              Attention queue ({snapshot.attentionQueue.length})
             </p>
-            {snapshot.interventionQueue.length === 0 ? (
-              <p data-testid="platform-os-intervention-empty" className="text-xs text-white/40">
-                No leagues with urgent recommended actions.
+            {snapshot.attentionQueue.length === 0 ? (
+              <p data-testid="platform-os-attention-empty" className="text-xs text-white/40">
+                Nothing needs attention across these leagues.
               </p>
             ) : (
-              <ul className="space-y-1.5" data-testid="platform-os-intervention-list">
-                {snapshot.interventionQueue.map((entry) => (
-                  <li key={entry.leagueId} className="rounded-lg border border-rose-500/20 bg-rose-500/[0.06] px-3 py-1.5 text-xs">
-                    <span className="font-mono text-rose-200">{entry.leagueId}</span>{" "}
-                    <span className="text-white/50">— {entry.urgentActionCount} urgent action(s)</span>
-                    {entry.sampleMessage ? <span className="block text-white/40">{entry.sampleMessage}</span> : null}
+              <ul className="space-y-1.5" data-testid="platform-os-attention-list">
+                {snapshot.attentionQueue.map((signal) => (
+                  <li
+                    key={signal.id}
+                    data-testid={`platform-os-attention-item-${signal.id}`}
+                    className={`rounded-lg border px-3 py-1.5 text-xs ${SEVERITY_TONE[signal.severity]}`}
+                  >
+                    <span className="font-mono">{signal.leagueId}</span>{" "}
+                    <span className="text-white/50">— {signal.title}</span>
+                    <span className="block text-white/40">{signal.explanation}</span>
                   </li>
                 ))}
               </ul>

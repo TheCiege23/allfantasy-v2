@@ -104,7 +104,7 @@ function check(name: string, ok: boolean, detail = ''): void {
     check(
       `Platform OS aggregates ${leagueIds.length} explicit league(s)`,
       platformOs.totalMonitoredLeagues === leagueIds.length,
-      `healthy=${platformOs.healthyLeagueCount} atRisk=${platformOs.atRiskLeagueCount} unavailable=${platformOs.unavailableLeagueCount} interventionQueue=${platformOs.interventionQueue.length}`,
+      `healthy=${platformOs.healthyLeagueCount} atRisk=${platformOs.atRiskLeagueCount} unavailable=${platformOs.unavailableLeagueCount} attentionQueue=${platformOs.attentionQueue.length}`,
     )
 
     const failures = results.filter((r) => !r.ok).length

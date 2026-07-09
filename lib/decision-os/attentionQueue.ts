@@ -20,15 +20,13 @@
  */
 import { prisma as defaultPrisma } from '@/lib/prisma'
 import { resolveMissionControlSnapshot } from './missionControl'
-import { resolveLeagueFinancialContext } from './leagueContext'
-import type { LeagueFinancialContext } from './leagueFinancialContext'
+import { resolveLeagueFinancialContextSafely } from './leagueContext'
 import {
+  ATTENTION_QUEUE_CAP,
   deriveLeagueAttentionSignals,
   sortAttentionSignals,
   type DecisionOsAttentionSignal,
 } from './attentionSignals'
-
-const ATTENTION_QUEUE_CAP = 20
 
 export interface AttentionQueueSnapshot {
   generatedAt: string
@@ -64,14 +62,6 @@ export async function loadUpcomingDraftDates(
   }
 }
 
-async function resolveFinancialContextSafely(leagueId: string): Promise<LeagueFinancialContext | null> {
-  try {
-    return await resolveLeagueFinancialContext(leagueId)
-  } catch {
-    return null
-  }
-}
-
 /**
  * Resolves the full, cross-league, priority-sorted Attention Queue for an EXPLICIT set of league IDs —
  * the same "explicit-list only, caller resolves authorization" contract every sibling Decision OS
@@ -93,7 +83,7 @@ export async function resolveAttentionQueueSnapshot(
   for (const leagueId of leagueIds) {
     const [missionControl, financialContext] = await Promise.all([
       resolveMissionControlSnapshot(leagueId, now).catch(() => null),
-      resolveFinancialContextSafely(leagueId),
+      resolveLeagueFinancialContextSafely(leagueId).catch(() => null),
     ])
 
     let overallStatus: string | null = null

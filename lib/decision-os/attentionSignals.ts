@@ -70,6 +70,13 @@ export interface DecisionOsAttentionSignal {
   source: AttentionSignalSource
 }
 
+/** Phase OS-B4.5: the shared cap every Decision OS composition that surfaces a signal LIST applies
+ * before returning it (`attentionQueue.ts`, `commissionerCommandCenter.ts`, `platformOs.ts` as of this
+ * phase). Previously each file re-declared its own local `= 20` constant — moved here once a third
+ * occurrence made that duplication worth consolidating (the same "rule of three" reasoning
+ * `SEVERITY_DOT_CLASS` was consolidated under in OS-B4). */
+export const ATTENTION_QUEUE_CAP = 20
+
 /** Large, sparse gaps by design — leaves room for future finer-grained severities without renumbering. */
 export const SEVERITY_RANK: Record<AttentionSignalSeverity, number> = {
   critical: 500,

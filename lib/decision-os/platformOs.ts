@@ -1,5 +1,6 @@
 /**
- * Fantasy OS Suite — Phase D Increment 4.
+ * Fantasy OS Suite — Phase D Increment 4; migrated onto the shared Attention Signal model in
+ * Phase OS-B4.5.
  *
  * Platform OS / Client Intelligence: the minimum operator-facing aggregation, built the same way
  * Mission Control and League Analytics were — compose over already-real, already-tested Decision OS
@@ -22,26 +23,39 @@
  * Explicit-list only, by design (matches Increment 4's cron route precedent): the caller supplies
  * the exact league IDs to monitor. There is no "discover every league on the platform" mode here —
  * that is a separate, larger scope decision this module does not make.
+ *
+ * Phase OS-B4.5: `attentionQueue` (renamed from the older, bespoke `interventionQueue`) is now the
+ * SAME `DecisionOsAttentionSignal[]` shape Commissioner OS's own `attentionQueue` uses — real signals
+ * across all 5 types (draft approaching, league context incomplete, low/high league health, league
+ * requires review), not just a hand-filtered subset of `recommendedActions` with `priority === 'urgent'`.
+ * Found via `docs/os/OS_B_ARCHITECTURE_AUDIT.md` §3: this module predates the Attention Signal model
+ * (Phase D vs. OS-B2) and had never been migrated onto it. Signals are derived INLINE using the
+ * `MissionControlSnapshot` this loop already fetches per league — deliberately does NOT call the
+ * standalone `resolveAttentionQueueSnapshot` (`attentionQueue.ts`), which would fetch Mission Control a
+ * second time per league on this ALREADY-LIVE admin route's every real request (unlike OS-B2–B4's own
+ * standalone resolvers, which currently have no live caller, this module backs a real, already-shipped
+ * endpoint — the double-fetch cost here is not hypothetical). Reuses the shared
+ * `loadUpcomingDraftDates`/`resolveLeagueFinancialContextSafely` helpers instead of duplicating them a
+ * third time. Notification Engine (`notifications.ts`/`notificationResolver.ts`) is UNCHANGED by this
+ * migration — Platform OS does not (yet) produce or consume `DecisionOsNotification`.
  */
 
 import { resolveMissionControlSnapshot } from './missionControl'
 import type { MissionControlSnapshot } from './missionControl'
-
-const INTERVENTION_CAP = 20
+import { resolveLeagueFinancialContextSafely } from './leagueContext'
+import { loadUpcomingDraftDates } from './attentionQueue'
+import {
+  ATTENTION_QUEUE_CAP,
+  deriveLeagueAttentionSignals,
+  sortAttentionSignals,
+  type DecisionOsAttentionSignal,
+} from './attentionSignals'
 
 /** Mirrors `OverallStatus` from `lib/league-health`, classified into two buckets for this surface. */
 const HEALTHY_STATUSES = new Set(['excellent', 'healthy'])
 /** 'watch' is bucketed as at-risk, not healthy — an operator surface should flag early rather than
  * bucket a league already trending toward trouble as "healthy". */
 const AT_RISK_STATUSES = new Set(['watch', 'at_risk', 'critical'])
-
-export interface PlatformOsInterventionEntry {
-  leagueId: string
-  /** How many 'urgent'-priority recommended actions this league's Mission Control snapshot has. */
-  urgentActionCount: number
-  /** The first urgent action's message, for a short, honest preview — never fabricated. */
-  sampleMessage: string | null
-}
 
 export interface PlatformOsTrendCoverage {
   /** Leagues with a real, 2+ period trend (`available: true`). */
@@ -74,7 +88,7 @@ export interface PlatformOsSnapshot {
   totalDraftPicks: number
   totalRosterActivity: number
   totalRetentionRiskManagers: number
-  interventionQueue: PlatformOsInterventionEntry[]
+  attentionQueue: DecisionOsAttentionSignal[]
   trendCoverage: PlatformOsTrendCoverage
   provenance: PlatformOsProvenance
   /** Honest notes about the snapshot as a whole (e.g. no leagues were specified). */
@@ -99,7 +113,7 @@ function emptySnapshot(now: Date, requestedLeagueCount: number, warnings: string
     totalDraftPicks: 0,
     totalRosterActivity: 0,
     totalRetentionRiskManagers: 0,
-    interventionQueue: [],
+    attentionQueue: [],
     trendCoverage: emptyTrendCoverage(),
     provenance: {
       source: 'commissioner_os_composition',
@@ -146,18 +160,42 @@ export async function resolvePlatformOsSnapshot(
   let totalRosterActivity = 0
   let totalRetentionRiskManagers = 0
   const trendCoverage = emptyTrendCoverage()
-  const interventionQueue: PlatformOsInterventionEntry[] = []
+  const attentionSignals: DecisionOsAttentionSignal[] = []
+
+  // Batched once, up front — the same shared lookup `attentionQueue.ts`/`commissionerCommandCenter.ts`
+  // already use, not a per-league query.
+  const draftDates = await loadUpcomingDraftDates(leagueIds)
 
   for (const leagueId of leagueIds) {
-    const snapshot = await resolveLeagueSafely(leagueId, now)
+    const [snapshot, financialContext] = await Promise.all([
+      resolveLeagueSafely(leagueId, now),
+      resolveLeagueFinancialContextSafely(leagueId).catch(() => null),
+    ])
+    const financialStatus = financialContext?.financialStatus ?? 'UNKNOWN'
+    const draftDateUtc = draftDates.get(leagueId) ?? null
 
     if (!snapshot || !snapshot.leagueHealth.available) {
       unavailableLeagueCount += 1
       trendCoverage.unavailable += 1
+      // League health being unavailable doesn't mean EVERY signal source is unavailable — League
+      // Context and the real draft date are independent tables (same reasoning
+      // `commissionerCommandCenter.ts` already applies).
+      attentionSignals.push(
+        ...deriveLeagueAttentionSignals({
+          leagueId,
+          now,
+          overallStatus: null,
+          leagueHealthScore: null,
+          recommendedActions: [],
+          financialStatus,
+          draftDateUtc,
+        }),
+      )
       continue
     }
 
-    const status = snapshot.leagueHealth.result.engine.overallStatus
+    const engine = snapshot.leagueHealth.result.engine
+    const status = engine.overallStatus
     if (HEALTHY_STATUSES.has(status)) healthyLeagueCount += 1
     else if (AT_RISK_STATUSES.has(status)) atRiskLeagueCount += 1
 
@@ -173,15 +211,23 @@ export async function resolvePlatformOsSnapshot(
     else if (snapshot.trend.reason === 'no_snapshots') trendCoverage.noSnapshots += 1
     else trendCoverage.insufficientHistory += 1
 
-    const urgentActions = snapshot.recommendedActions.filter((a) => a.priority === 'urgent')
-    if (urgentActions.length > 0 && interventionQueue.length < INTERVENTION_CAP) {
-      interventionQueue.push({
+    const leagueHealthScore = typeof engine.leagueHealthScore === 'number' ? engine.leagueHealthScore : null
+    attentionSignals.push(
+      ...deriveLeagueAttentionSignals({
         leagueId,
-        urgentActionCount: urgentActions.length,
-        sampleMessage: urgentActions[0]?.message ?? null,
-      })
-    }
+        now,
+        overallStatus: status,
+        leagueHealthScore,
+        recommendedActions: snapshot.recommendedActions,
+        financialStatus,
+        draftDateUtc,
+      }),
+    )
   }
+
+  // Highest severity first across ALL monitored leagues, capped only after the full comparison — same
+  // "never crowd out a later league's more urgent signal" discipline every sibling composition follows.
+  const attentionQueue = sortAttentionSignals(attentionSignals).slice(0, ATTENTION_QUEUE_CAP)
 
   const resolvedLeagueCount = leagueIds.length - unavailableLeagueCount
 
@@ -198,7 +244,7 @@ export async function resolvePlatformOsSnapshot(
     totalDraftPicks,
     totalRosterActivity,
     totalRetentionRiskManagers,
-    interventionQueue,
+    attentionQueue,
     trendCoverage,
     provenance: {
       source: 'commissioner_os_composition',

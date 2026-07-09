@@ -28,7 +28,12 @@ vi.mock('@/lib/decision-os/leagueContext', async () => {
   const actual = await vi.importActual<typeof import('@/lib/decision-os/leagueContext')>(
     '@/lib/decision-os/leagueContext',
   )
-  return { ...actual, resolveLeagueFinancialContext: vi.fn() }
+  // Mocking `resolveLeagueFinancialContext` alone would NOT take effect: `resolveLeagueFinancialContextSafely`
+  // (what the code under test actually calls, as of Phase OS-B4.5's shared-helper consolidation) is copied
+  // verbatim from `actual` and its closure still calls the REAL, unmocked `resolveLeagueFinancialContext` —
+  // `{...actual, x: vi.fn()}` doesn't rebind one export's internal call to a sibling export. Mock the function
+  // actually invoked instead.
+  return { ...actual, resolveLeagueFinancialContextSafely: vi.fn() }
 })
 
 const { mockLeagueSettingsFindMany } = vi.hoisted(() => ({ mockLeagueSettingsFindMany: vi.fn() }))
@@ -95,7 +100,7 @@ const FREE_CONTEXT = {
 }
 
 const mockMissionControl = () => vi.mocked(missionControl.resolveMissionControlSnapshot)
-const mockFinancialContext = () => vi.mocked(leagueContext.resolveLeagueFinancialContext)
+const mockFinancialContext = () => vi.mocked(leagueContext.resolveLeagueFinancialContextSafely)
 
 afterEach(() => {
   vi.clearAllMocks()

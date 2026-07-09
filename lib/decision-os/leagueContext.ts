@@ -137,6 +137,25 @@ export async function resolveLeagueFinancialContext(
   }
 }
 
+/**
+ * Phase OS-B4.5: shared defense-in-depth wrapper — `resolveLeagueFinancialContext` above already never
+ * throws on its own, but every per-league Decision OS composition that reads League Context treats it
+ * the same way anyway (`resolveLeagueSafely`'s identical precedent for Mission Control). Was previously
+ * a module-private copy in both `attentionQueue.ts` and `commissionerCommandCenter.ts`; consolidated
+ * here once `platformOs.ts` needed a third copy (the same "rule of three" reasoning `SEVERITY_DOT_CLASS`
+ * was consolidated under in OS-B4). Returns `null` (never throws) on any failure.
+ */
+export async function resolveLeagueFinancialContextSafely(
+  leagueId: string,
+  deps: LeagueContextStoreDeps = defaultDeps,
+): Promise<LeagueFinancialContext | null> {
+  try {
+    return await resolveLeagueFinancialContext(leagueId, deps)
+  } catch {
+    return null
+  }
+}
+
 export type LeagueFinancialConfirmationAction =
   | { type: 'confirm'; input: ManualFinancialConfirmationInput }
   | { type: 'reset' }

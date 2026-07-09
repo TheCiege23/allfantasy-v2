@@ -738,6 +738,32 @@ here. 35 new tests, `__tests__/decision-os` 2898 → 2933/2933 — zero regressi
 typecheck unchanged (error set byte-identical to the OS-B3 baseline). Full detail:
 `NOTIFICATION_ENGINE.md`.
 
+### OS-B Architecture Audit + OS-B4.5 — Platform OS Attention Signal Alignment (2026-07-09)
+
+Requested as a short review before OS-B5: confirm one canonical path per model
+(`DecisionOsAttentionSignal`/`DailyBrief`/`DecisionOsNotification`), verify no duplicate resolver
+chains, check Manager OS/Platform OS could reuse the models without Commissioner assumptions. Findings
+(`OS_B_ARCHITECTURE_AUDIT.md`): each model has exactly one canonical type + derivation site; the two
+orchestration entry points per model (standalone resolver + zero-fetch UI composition) are a
+documented tradeoff, not drift — traced line-by-line, no behavioral divergence found; one minor
+duplication (`resolveFinancialContextSafely`, copy-pasted in 2 files); Platform OS (`platformOs.ts`,
+Phase D — predates OS-B2) does NOT consume the Attention Signal model, running its own older, narrower
+`interventionQueue` instead.
+
+**OS-B4.5 closed that gap.** `platformOs.ts`'s `interventionQueue: PlatformOsInterventionEntry[]` →
+`attentionQueue: DecisionOsAttentionSignal[]`, deriving signals inline (same no-double-fetch discipline
+as `commissionerCommandCenter.ts` — this route is ALREADY LIVE with real traffic, unlike OS-B2–B4's own
+standalone resolvers). Consolidated the audit's own duplication finding: `resolveLeagueFinancialContextSafely`
+(previously 2 local copies) and `ATTENTION_QUEUE_CAP` (previously 2 local copies) are now single shared
+exports (`leagueContext.ts`/`attentionSignals.ts`), used by all 3 composition files. **A real bug found
+during migration**: 3 test files mocked the wrong function (`resolveLeagueFinancialContext`, not
+`resolveLeagueFinancialContextSafely` — a known ESM-mocking gotcha where `{...actual, x: vi.fn()}`
+doesn't rebind one export's internal call to a sibling export in the same module), silently corrupting
+4 test assertions; fixed by mocking the function actually called. Also added `.catch(() => null)` at
+all 3 composition call sites — a genuine defense-in-depth gap the bug investigation surfaced, not just
+a test fix. 4 new tests, 2935/2935 total — zero regressions. 158/158 baseline typecheck unchanged
+(byte-identical to OS-B4). Full detail: `OS_B4_5_PLATFORM_OS_ALIGNMENT.md`.
+
 ---
 
 ## 26. Boundaries honored
@@ -745,13 +771,15 @@ typecheck unchanged (error set byte-identical to the OS-B3 baseline). Full detai
 - No code changes to this document's own original content — §23/§24/§25 are additive.
 - No multi-channel delivery built (OS-B5) — `resolveNotificationFeed`/`surfacePolicy` are designed to be
   read by one later, but nothing sends an email/push notification today.
-- No Manager OS or Platform OS changes in OS-B1, OS-B2, OS-B3, or OS-B4.
-- No backend schema changes in OS-B1, OS-B2, OS-B3, or OS-B4 — `LeagueSettings.draftDateUtc` and
+- No Manager OS changes in OS-B1 through OS-B4.5; no Platform OS changes before OS-B4.5.
+- No backend schema changes in OS-B1 through OS-B4.5 — `LeagueSettings.draftDateUtc` and
   `DecisionOsLeagueContext` are both real, pre-existing sources; OS-B2 added zero new columns/tables.
 - No AI-generated or fabricated signals in OS-B2 — every signal type traces to an existing, already-real
   data source; two originally-suggested types were deliberately left unbuilt for lacking real data.
 - No email delivery, push notifications, notification persistence/read-dismiss state, background jobs,
   or scheduling built in OS-B3 — `dailyBriefResolver.ts` is a pure request/response function, not a job.
+- No Notification Engine behavior changed in OS-B4.5 — `notifications.ts`/`notificationResolver.ts`
+  untouched; Platform OS still does not produce or consume `DecisionOsNotification`.
 - No email sending, push notifications, cron/scheduled jobs, notification database persistence, new
   Decision OS signal generation, or LeagueSafe/FanCred integration built in OS-B4.
 - The Replacements documents were not deleted, only recontextualized via pointer updates.

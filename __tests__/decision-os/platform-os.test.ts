@@ -1,16 +1,20 @@
 /**
- * Fantasy OS Suite — Phase D Increment 4.
+ * Fantasy OS Suite — Phase D Increment 4; migrated onto the shared Attention Signal model in
+ * Phase OS-B4.5.
  *
  * `resolvePlatformOsSnapshot` is pure composition over the already-tested
  * `resolveMissionControlSnapshot` (Commissioner OS Surface Alignment Increment 5) — this file mocks
  * that boundary directly (matching `league-analytics.test.ts`'s own precedent of mocking one layer
  * down) and proves ONLY Platform OS's own aggregation/degradation contract: multi-league summation,
- * per-league failure isolation, trend-coverage tallying, and intervention-queue construction from
- * real per-league recommended actions. It does not re-test Mission Control's own correctness.
+ * per-league failure isolation, trend-coverage tallying, and (as of OS-B4.5) real Attention Signal
+ * derivation via `deriveLeagueAttentionSignals` — not `attentionSignals.test.ts`'s own severity-rule
+ * correctness, already covered there.
  */
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { resolvePlatformOsSnapshot } from '@/lib/decision-os/platformOs'
 import * as missionControl from '@/lib/decision-os/missionControl'
+import * as leagueContext from '@/lib/decision-os/leagueContext'
+import * as attentionQueue from '@/lib/decision-os/attentionQueue'
 import type { MissionControlSnapshot } from '@/lib/decision-os/missionControl'
 import type { LeagueHealthResult } from '@/lib/league-health'
 import type { DecisionOsLeagueHealthResult } from '@/lib/decision-os/leagueHealthAlignment'
@@ -20,6 +24,24 @@ vi.mock('@/lib/decision-os/missionControl', async () => {
     '@/lib/decision-os/missionControl',
   )
   return { ...actual, resolveMissionControlSnapshot: vi.fn() }
+})
+
+vi.mock('@/lib/decision-os/leagueContext', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/decision-os/leagueContext')>(
+    '@/lib/decision-os/leagueContext',
+  )
+  // Mock `resolveLeagueFinancialContextSafely` — the function `platformOs.ts` actually calls (Phase
+  // OS-B4.5's shared-helper consolidation). Mocking `resolveLeagueFinancialContext` alone would NOT take
+  // effect: `resolveLeagueFinancialContextSafely` is copied verbatim from `actual` and its closure still
+  // calls the REAL, unmocked inner function.
+  return { ...actual, resolveLeagueFinancialContextSafely: vi.fn() }
+})
+
+vi.mock('@/lib/decision-os/attentionQueue', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/decision-os/attentionQueue')>(
+    '@/lib/decision-os/attentionQueue',
+  )
+  return { ...actual, loadUpcomingDraftDates: vi.fn() }
 })
 
 const NOW = new Date('2026-07-08T12:00:00Z')
@@ -61,7 +83,20 @@ function makeSnapshot(leagueId: string, o: Partial<MissionControlSnapshot> = {})
   }
 }
 
+const FREE_CONTEXT = {
+  leagueId: 'x', financialStatus: 'FREE' as const, buyInAmount: null, buyInCurrency: null,
+  escrowProvider: 'UNKNOWN' as const, financialConfidence: 'UNKNOWN' as const, financialNotes: null,
+  isUserConfirmed: false, lastVerifiedAt: null,
+}
+
 const mockResolve = () => vi.mocked(missionControl.resolveMissionControlSnapshot)
+const mockFinancialContext = () => vi.mocked(leagueContext.resolveLeagueFinancialContextSafely)
+const mockDraftDates = () => vi.mocked(attentionQueue.loadUpcomingDraftDates)
+
+function setDefaults() {
+  mockFinancialContext().mockResolvedValue(FREE_CONTEXT)
+  mockDraftDates().mockResolvedValue(new Map())
+}
 
 afterEach(() => {
   vi.clearAllMocks()
@@ -69,6 +104,7 @@ afterEach(() => {
 
 describe('resolvePlatformOsSnapshot', () => {
   it('aggregates multiple leagues correctly: counts, health split, retention risk', async () => {
+    setDefaults()
     mockResolve().mockImplementation(async (leagueId: string) => {
       if (leagueId === 'L1') {
         return makeSnapshot('L1', {
@@ -118,6 +154,7 @@ describe('resolvePlatformOsSnapshot', () => {
   })
 
   it('one failed league does not break the whole platform snapshot', async () => {
+    setDefaults()
     mockResolve().mockImplementation(async (leagueId: string) => {
       if (leagueId === 'L-bad') throw new Error('boom')
       return makeSnapshot(leagueId)
@@ -133,6 +170,7 @@ describe('resolvePlatformOsSnapshot', () => {
   })
 
   it('a league whose own leagueHealth is unavailable is excluded from aggregates, not fabricated', async () => {
+    setDefaults()
     mockResolve().mockImplementation(async (leagueId: string) => {
       if (leagueId === 'L-unavailable') {
         return {
@@ -173,7 +211,7 @@ describe('resolvePlatformOsSnapshot', () => {
       totalDraftPicks: 0,
       totalRosterActivity: 0,
       totalRetentionRiskManagers: 0,
-      interventionQueue: [],
+      attentionQueue: [],
       trendCoverage: { available: 0, noSnapshots: 0, insufficientHistory: 0, unavailable: 0 },
       provenance: { source: 'commissioner_os_composition', requestedLeagueCount: 0, resolvedLeagueCount: 0, unavailableLeagueCount: 0 },
       warnings: ['no_leagues_specified'],
@@ -182,6 +220,7 @@ describe('resolvePlatformOsSnapshot', () => {
   })
 
   it('tallies trend coverage correctly across available/no_snapshots/insufficient_history leagues', async () => {
+    setDefaults()
     mockResolve().mockImplementation(async (leagueId: string) => {
       if (leagueId === 'L-available') {
         return makeSnapshot(leagueId, {
@@ -199,27 +238,73 @@ describe('resolvePlatformOsSnapshot', () => {
     expect(snapshot.trendCoverage).toEqual({ available: 1, noSnapshots: 1, insufficientHistory: 1, unavailable: 0 })
   })
 
-  it('builds the intervention queue from real per-league urgent recommended actions only', async () => {
+  it('builds the attention queue from real DecisionOsAttentionSignals, including standard-priority review signals the old interventionQueue never showed', async () => {
+    setDefaults()
     mockResolve().mockImplementation(async (leagueId: string) => {
       if (leagueId === 'L-urgent') {
         return makeSnapshot(leagueId, {
-          recommendedActions: [
-            { priority: 'urgent', message: 'ALERT: 30%+ of managers inactive.' },
-            { priority: 'standard', message: 'Post a weekly recap.' },
-          ],
+          recommendedActions: [{ priority: 'urgent', message: 'ALERT: 30%+ of managers inactive.' }],
         })
       }
-      return makeSnapshot(leagueId, { recommendedActions: [{ priority: 'standard', message: 'Post a weekly recap.' }] })
+      if (leagueId === 'L-standard') {
+        return makeSnapshot(leagueId, {
+          recommendedActions: [{ priority: 'standard', message: 'Post a weekly recap.' }],
+        })
+      }
+      return makeSnapshot(leagueId) // L-quiet: no recommendedActions, no signals
     })
 
-    const snapshot = await resolvePlatformOsSnapshot(['L-urgent', 'L-quiet'], NOW)
+    const snapshot = await resolvePlatformOsSnapshot(['L-urgent', 'L-standard', 'L-quiet'], NOW)
 
-    expect(snapshot.interventionQueue).toEqual([
-      { leagueId: 'L-urgent', urgentActionCount: 1, sampleMessage: 'ALERT: 30%+ of managers inactive.' },
-    ])
+    expect(snapshot.attentionQueue).toHaveLength(2)
+    // Sorted highest-severity first: the urgent (high) review comes before the standard (medium) one.
+    expect(snapshot.attentionQueue[0]).toMatchObject({
+      leagueId: 'L-urgent',
+      type: 'league_requires_review',
+      severity: 'high',
+      explanation: 'ALERT: 30%+ of managers inactive.',
+    })
+    expect(snapshot.attentionQueue[1]).toMatchObject({
+      leagueId: 'L-standard',
+      type: 'league_requires_review',
+      severity: 'medium',
+      explanation: 'Post a weekly recap.',
+    })
+  })
+
+  it('derives a league_context_incomplete signal when financial status is UNKNOWN (a real signal type absent from the old interventionQueue)', async () => {
+    mockDraftDates().mockResolvedValue(new Map())
+    mockFinancialContext().mockResolvedValue({ ...FREE_CONTEXT, financialStatus: 'UNKNOWN' })
+    mockResolve().mockResolvedValue(makeSnapshot('L1'))
+
+    const snapshot = await resolvePlatformOsSnapshot(['L1'], NOW)
+
+    expect(snapshot.attentionQueue.some((s) => s.type === 'league_context_incomplete')).toBe(true)
+  })
+
+  it('still derives attention signals for a league whose Mission Control health is unavailable', async () => {
+    mockFinancialContext().mockResolvedValue({ ...FREE_CONTEXT, financialStatus: 'UNKNOWN' })
+    mockDraftDates().mockResolvedValue(new Map())
+    mockResolve().mockResolvedValue({
+      leagueId: 'L1',
+      generatedAt: NOW.toISOString(),
+      leagueHealth: { available: false, reason: 'league_health_unavailable' },
+      trend: { available: false, reason: 'no_snapshots' },
+      managerCounts: { activeManagers: 0, inactiveManagers: 0 },
+      activity: { tradeCount: 0, waiverClaimCount: 0, draftPickCount: 0, rosterActivityCount: 0 },
+      managersAtRetentionRisk: [],
+      recommendedActions: [],
+      fieldProvenance: null,
+    } satisfies MissionControlSnapshot)
+
+    const snapshot = await resolvePlatformOsSnapshot(['L1'], NOW)
+
+    expect(snapshot.unavailableLeagueCount).toBe(1)
+    expect(snapshot.attentionQueue.some((s) => s.type === 'league_context_incomplete')).toBe(true)
   })
 
   it('counts stay honestly zero for a quiet league with no activity', async () => {
+    setDefaults()
     mockResolve().mockImplementation(async (leagueId: string) =>
       makeSnapshot(leagueId, {
         managerCounts: { activeManagers: 0, inactiveManagers: 0 },
@@ -232,6 +317,6 @@ describe('resolvePlatformOsSnapshot', () => {
     expect(snapshot.totalActiveManagers).toBe(0)
     expect(snapshot.totalTrades).toBe(0)
     expect(snapshot.totalRetentionRiskManagers).toBe(0)
-    expect(snapshot.interventionQueue).toEqual([])
+    expect(snapshot.attentionQueue).toEqual([])
   })
 })

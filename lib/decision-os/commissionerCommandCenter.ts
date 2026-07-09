@@ -34,16 +34,15 @@
  */
 import { resolveMissionControlSnapshot } from './missionControl'
 import type { MissionControlSnapshot } from './missionControl'
-import { resolveLeagueFinancialContext } from './leagueContext'
-import type { LeagueFinancialContext } from './leagueFinancialContext'
+import { resolveLeagueFinancialContextSafely } from './leagueContext'
 import { loadUpcomingDraftDates } from './attentionQueue'
 import {
+  ATTENTION_QUEUE_CAP,
   deriveLeagueAttentionSignals,
   sortAttentionSignals,
   type DecisionOsAttentionSignal,
 } from './attentionSignals'
 
-const ATTENTION_QUEUE_CAP = 20
 const RECENT_CHANGES_CAP = 20
 
 /** Mirrors `platformOs.ts`'s own (module-private, unexported) status bucketing exactly — duplicated
@@ -116,16 +115,6 @@ async function resolveLeagueSafely(leagueId: string, now: Date): Promise<Mission
   }
 }
 
-/** Same defense-in-depth as `resolveLeagueSafely` — `resolveLeagueFinancialContext` already never
- * throws on its own, but this composition treats every per-league dependency the same way. */
-async function resolveFinancialContextSafely(leagueId: string): Promise<LeagueFinancialContext | null> {
-  try {
-    return await resolveLeagueFinancialContext(leagueId)
-  } catch {
-    return null
-  }
-}
-
 /**
  * Resolves the command-center snapshot for an EXPLICIT set of commissioner league IDs. Never throws —
  * a failure for one league marks it unavailable and excludes it from aggregate counts/ranking; it
@@ -156,7 +145,7 @@ export async function resolveCommissionerCommandCenterSnapshot(
   for (const leagueId of leagueIds) {
     const [snapshot, financialContext] = await Promise.all([
       resolveLeagueSafely(leagueId, now),
-      resolveFinancialContextSafely(leagueId),
+      resolveLeagueFinancialContextSafely(leagueId).catch(() => null),
     ])
     const financialStatus = financialContext?.financialStatus ?? 'UNKNOWN'
     const draftDateUtc = draftDates.get(leagueId) ?? null
