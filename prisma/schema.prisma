@@ -16202,3 +16202,56 @@ model DecisionOsBehavioralSnapshot {
   @@index([leagueId, managerId, capturedAt])
   @@map("decision_os_behavioral_snapshot")
 }
+
+/// Fantasy OS Suite — Phase OS-A1. Decision OS's provider-agnostic BELIEF about whether real money
+/// is involved in a league, and how confident that belief is. Deliberately separate from
+/// `LeagueFinance` (AF-native Stripe/PayPal treasury processing for leagues that opt into AllFantasy's
+/// own paid-league feature) — this model answers "what do we know," not "how do we collect/hold
+/// money." A league can have real money riding on it via LeagueSafe, FanCred, Yahoo, ESPN, or a
+/// handshake deal with zero rows in `LeagueFinance` ever created.
+/// Deliberately NOT FK-related to `League` (plain `leagueId` string), matching
+/// `DecisionOsImportedActivity`/`DecisionOsBehavioralSnapshot`'s existing provider-agnostic,
+/// storage-decoupled convention — this context must be settable for any league id AllFantasy knows
+/// about, imported or native, without requiring a specific relational shape.
+model DecisionOsLeagueContext {
+  id                  String                              @id @default(uuid())
+  leagueId            String                              @unique
+  financialStatus     DecisionOsLeagueFinancialStatus      @default(UNKNOWN)
+  buyInAmount         Float?
+  buyInCurrency       String?                              @db.VarChar(8)
+  escrowProvider      DecisionOsLeagueEscrowProvider        @default(UNKNOWN)
+  financialConfidence DecisionOsLeagueFinancialConfidence   @default(UNKNOWN)
+  financialNotes      String?                              @db.VarChar(512)
+  isUserConfirmed     Boolean                              @default(false)
+  lastVerifiedAt      DateTime?
+  createdAt           DateTime                             @default(now())
+  updatedAt           DateTime                             @updatedAt
+
+  @@map("decision_os_league_context")
+}
+
+enum DecisionOsLeagueFinancialStatus {
+  UNKNOWN
+  FREE
+  PAID
+  VERIFIED_PAID
+}
+
+/// Adapter hooks only (Phase OS-A1) — no real integration built for any of these yet.
+enum DecisionOsLeagueEscrowProvider {
+  LEAGUESAFE
+  FANCRED
+  YAHOO
+  ESPN
+  MANUAL
+  OTHER
+  UNKNOWN
+}
+
+enum DecisionOsLeagueFinancialConfidence {
+  UNKNOWN
+  USER_CONFIRMED
+  PROVIDER_CONFIRMED
+  ESCROW_VERIFIED
+  INFERRED
+}

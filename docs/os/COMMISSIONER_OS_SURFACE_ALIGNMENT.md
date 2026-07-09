@@ -20,6 +20,17 @@ full reframing, what each OS must answer, and the roadmap to a genuinely client-
 (commissioner + manager-only) Sleeper proof path. Nothing already built or documented in this file
 changes as a result — this is a positioning update, not a rearchitecture.
 
+**Phase OS-A1 note (2026-07-09):** a new, separate workstream — Fantasy OS Operating-System Alignment
+— has begun, updating Commissioner/User/Platform OS so they read and behave like an operating system
+(multi-league command center, AI as background infrastructure) rather than a single-league AI
+dashboard. Its first increment, League Context Foundation, adds a provider-agnostic model for what
+Decision OS believes about a league's financial state (free/paid/verified-paid, confidence),
+deliberately separate from this doc's own `LeagueFinance`/payout work (an AF-native Stripe/PayPal
+treasury system) — see
+[`LEAGUE_CONTEXT_FOUNDATION.md`](LEAGUE_CONTEXT_FOUNDATION.md) and
+[`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md) §24.
+Nothing in this document's own Mission Control/League Analytics work changes as a result.
+
 **Increment 7 note:** The Replacements Commissioner OS demo package now exists —
 [`THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md`](THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md).
 Documentation only (no code changes, no tests to run) — a demo walkthrough script, current

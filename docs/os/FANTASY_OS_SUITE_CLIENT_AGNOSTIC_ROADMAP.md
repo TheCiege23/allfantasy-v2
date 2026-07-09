@@ -548,14 +548,79 @@ Replacements-specific assumptions.
 
 ---
 
-## 22. Boundaries honored (this increment)
+## 23. Phase E — Live Proof Executed (2026-07-09)
 
-- No code changes — this is a positioning/roadmap document.
+Every claim in §12/§13 above is no longer just a design intention — it happened for real. Phase E
+(`715b9209f`) executed the complete Sleeper proof chain against a real Sleeper account (`theciege24`),
+a real completed league, and a dedicated isolated non-prod database: real import, real activity
+ingestion, real snapshot capture, and real authenticated verification of Commissioner OS, User OS
+(both commissioner and member roles), and Platform OS. Zero code defects found; zero code changed.
+**Verdict: READY FOR CUSTOMER DEMO.** Full detail:
+[`PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md`](PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md).
+
+## 24. Phase OS-A — Fantasy OS Operating-System Alignment
+
+**A new workstream, distinct from Phase D/E**: updating the existing Decision OS / Commissioner OS /
+User OS / Platform OS codebase so it reads and behaves like an **operating system**, not an AI
+dashboard bolted onto a single league. Seven primary product decisions govern this workstream:
+
+1. **AI is background infrastructure, not the selling point.** Decision OS's intelligence should show
+   up as correct, well-labeled signals throughout the product — not as a chatbot or "AI feature" the
+   product is sold around.
+2. **Commissioner OS's default view is a multi-league command center**, not a single selected league —
+   the current Commissioner Hub (Mission Control/League Analytics for `commissionerLeagues[0]`) is a
+   first step, not the final shape.
+3. **Selecting a league switches INTO a league-focused Commissioner OS view** — the command center and
+   the single-league view are two distinct modes of the same product, not two different products.
+4. **Decision OS is global/app-wide intelligence, not username-scoped** — its outputs should be usable
+   platform-wide (Platform OS), not conceptually tied to "whichever Sleeper account was used to prove
+   it."
+5. **`theciege24` (and the Phase E "Parbur" league) are proof data only** — never a hardcoded
+   dependency, default, or assumption baked into any product code path.
+6. **Paid/free league context is crucial and must be modeled provider-agnostically** — not coupled to
+   Sleeper chat, a single escrow provider, or any one specific payment rail. **Phase OS-A1 (below)
+   builds this foundation.**
+7. **Notifications become an OS output surface for high-importance events** — a future, not-yet-built
+   consumer of Decision OS signals (retention risk, financial-context changes, intervention-queue
+   entries), not a separate, disconnected feature.
+
+### OS-A1 — League Context Foundation (2026-07-09)
+
+The first piece: a provider-agnostic **League Context** model answering "what does Decision OS believe
+about this league's financial state, and how confident is that belief" — deliberately separate from
+`LeagueFinance` (the existing AF-native Stripe/PayPal treasury system for leagues that opt into
+AllFantasy's own paid-league feature; see `LEAGUE_CONTEXT_FOUNDATION.md` §1 for the full distinction).
+
+New Prisma model `DecisionOsLeagueContext` (schema + migration `20260709000000_decision_os_league_context`
+written and validated, **not applied to any database** this phase) with `financialStatus`
+(`UNKNOWN|FREE|PAID|VERIFIED_PAID`), `escrowProvider` (`LEAGUESAFE|FANCRED|YAHOO|ESPN|MANUAL|OTHER|UNKNOWN`
+— adapter hooks only, nothing integrated), and `financialConfidence`
+(`UNKNOWN|USER_CONFIRMED|PROVIDER_CONFIRMED|ESCROW_VERIFIED|INFERRED`) as three independent axes. New
+pure module `lib/decision-os/leagueFinancialContext.ts` — `defaultLeagueFinancialContext` (identical
+fully-`UNKNOWN` result for every provider, Sleeper included — no chat/name/heuristic inference
+anywhere), `applyManualFinancialConfirmation` (the only path to `FREE`, and to `PAID` short of a real
+verification), `applyEscrowVerification` (the adapter hook for a future real integration — the only
+path to `VERIFIED_PAID`/`ESCROW_VERIFIED`), plus confidence-gating and description helpers. 14 tests
+covering the Sleeper-unknown default, manual paid/free confirmation, escrow-verified context, and an
+explicit "unknown context never fakes confidence" case (including a PAID status with no real
+confidence behind it — status alone can never imply confidence). 2772/2772 total, zero regressions,
+zero new typecheck errors. **Foundation only** — no persistence-layer resolver, no route, no
+Commissioner OS UI control yet; see `LEAGUE_CONTEXT_FOUNDATION.md` §6 for the recommended next phase.
+
+---
+
+## 25. Boundaries honored
+
+- No code changes to this document's own original content — §23/§24 are additive.
 - The Replacements documents were not deleted, only recontextualized via pointer updates.
 - No adapter code written for any client. `IMPORT_PROVIDERS` not modified.
 - No DFS OS work — explicitly deferred pending legal/compliance review.
 - No fake/demo data anywhere in this document.
-- No production DB touched; no production cron enabled.
+- No production DB touched; no production cron enabled; the OS-A1 migration was written and
+  validated but never applied to any database.
+- No LeagueSafe/FanCred/payment/escrow integration built — `applyEscrowVerification` is an adapter
+  hook only, per explicit instruction.
+- No chat-based or heuristic inference of league financial status, for Sleeper or any provider.
 - PR #183 untouched, still draft, not merged.
 - No Redraft/Start-Draft/PR-#166/AF-hosted-league work touched.
 - No retention-lift or ROI numbers claimed anywhere in this document.

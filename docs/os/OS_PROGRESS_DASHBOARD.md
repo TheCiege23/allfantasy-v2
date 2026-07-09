@@ -1,14 +1,16 @@
 # Fantasy OS Suite — Progress Dashboard
 
-**Phase D Increments 1-14, validated live in Phase E.** A single, scannable status view across the
-whole OS suite — a companion to
+**Phase D Increments 1-14, validated live in Phase E, now extending into Phase OS-A (OS Alignment).**
+A single, scannable status view across the whole OS suite — a companion to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md) (the
 prose narrative), [`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) /
-[`SLEEPER_PROOF_EXECUTION_PACKET.md`](SLEEPER_PROOF_EXECUTION_PACKET.md) (the procedure), and
+[`SLEEPER_PROOF_EXECUTION_PACKET.md`](SLEEPER_PROOF_EXECUTION_PACKET.md) (the procedure),
 [`PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md`](PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md) (the real, live
-execution — **all engineering blockers now closed; recommendation: READY FOR CUSTOMER DEMO**).
+execution — **all engineering blockers closed; recommendation: READY FOR CUSTOMER DEMO**), and
+[`LEAGUE_CONTEXT_FOUNDATION.md`](LEAGUE_CONTEXT_FOUNDATION.md) (Phase OS-A1 — the product-level shift
+toward Commissioner OS as an operating system, not an AI dashboard).
 This doc answers one question fast: **where does each OS and the Sleeper proof stand right now?**
-Update it whenever a Phase D/E increment lands.
+Update it whenever a Phase D/E/OS-A increment lands.
 
 ---
 
@@ -25,6 +27,18 @@ Update it whenever a Phase D/E increment lands.
 **Overall completion — the four in-scope OS products (excluding explicitly-deferred DFS OS): ~98%.**
 **Overall completion — all five OS products including DFS OS as a future vertical: ~78%** (DFS OS's 0%
 pulls this down; it was never scoped as "in progress," it's a distinct, deliberately-parked vertical).
+
+## 1b. Fantasy OS Operating-System Alignment (Phase OS-A)
+
+A new, separate workstream from Phase D/E: updating Commissioner/User/Platform OS so they read and
+behave like an operating system (multi-league command center, AI as background infrastructure, global
+Decision OS intelligence) rather than a single-league AI dashboard. Seven primary product decisions
+guide this workstream (see `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md` §24 for the full list);
+`theciege24`/the Phase E league remain proof data only, never a product dependency.
+
+| Phase | Delivered | Status |
+| --- | --- | --- |
+| **OS-A1 — League Context Foundation** | `DecisionOsLeagueContext` model (schema + migration, not applied to any DB) + `lib/decision-os/leagueFinancialContext.ts` (pure helpers) + 14 tests | **Foundation only** — no route/UI/persistence wiring yet (see `LEAGUE_CONTEXT_FOUNDATION.md` §6 for recommended next phase) |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
 
@@ -83,7 +97,8 @@ Zero engineering blockers found; zero code changes were required.
 | 12 | Platform OS operator input UX | `PlatformOsOperatorPanel.tsx`, wired into `/admin`, 7 tests | `a47dba565` |
 | 13 | Customer demo readiness audit | `CUSTOMER_DEMO_READINESS_AUDIT.md`, no code | `afdf2a06f` |
 | 14 | Proof packet documentation cleanup | Checklist §3c/§8 rewrite, packet Step 4/6.4, no code | `db3bb5186` |
-| E | **Live Fantasy OS proof — real Sleeper data, real infra** | `PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md`; zero code changes; verdict READY FOR CUSTOMER DEMO | *(this commit)* |
+| E | **Live Fantasy OS proof — real Sleeper data, real infra** | `PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md`; zero code changes; verdict READY FOR CUSTOMER DEMO | `715b9209f` |
+| OS-A1 | **League Context Foundation** | `DecisionOsLeagueContext` (schema+migration, unapplied), `leagueFinancialContext.ts`, 14 tests | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 
