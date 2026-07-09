@@ -125,6 +125,18 @@ describe('ManagerCommandCenterSection', () => {
     expect(screen.getByTestId('manager-league-switcher-item-league-2')).toHaveAttribute('href', '/league/league-2')
   })
 
+  it('Phase OS-C3: collapses to ONE combined empty state (not 3 separate empty boxes) when no priorities exist in any category', async () => {
+    fetchMock.mockResolvedValueOnce(okResponse({ ...SNAPSHOT, recommendations: [] }))
+    render(<ManagerCommandCenterSection leagues={LEAGUES} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('manager-priorities-empty')).toBeInTheDocument()
+    })
+    expect(screen.queryByTestId('manager-priority-lineup_discipline-empty')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('manager-priority-trade_coaching-empty')).not.toBeInTheDocument()
+    expect(screen.queryByTestId('manager-priority-waiver_opportunity-empty')).not.toBeInTheDocument()
+  })
+
   it("Today's Brief renders an honest healthy state before the snapshot has loaded, with no extra fetch", () => {
     fetchMock.mockReturnValueOnce(new Promise(() => {}))
     render(<ManagerCommandCenterSection leagues={LEAGUES} />)

@@ -127,7 +127,7 @@ describe('ManagerPriorityModule', () => {
     expect(item).toHaveTextContent('You have 4 startable RBs')
   })
 
-  it('falls back to the module title as headline when a recommendation has no recommendedActions', () => {
+  it('Phase OS-C3: falls back to a humanized real category (never the panel title) when a recommendation has no recommendedActions', () => {
     render(
       <ManagerPriorityModule
         title="Lineup Priorities"
@@ -138,7 +138,7 @@ describe('ManagerPriorityModule', () => {
         emptyMessage="empty"
       />,
     )
-    expect(screen.getByTestId('manager-priority-lineup_discipline-item-r1')).toHaveTextContent('Lineup Priorities')
+    expect(screen.getByTestId('manager-priority-lineup_discipline-item-r1')).toHaveTextContent('Lineup discipline')
   })
 
   it('caps displayed entries at the limit prop', () => {

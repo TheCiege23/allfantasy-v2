@@ -23,7 +23,7 @@
  * systems.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Compass, ListChecks, Repeat, ShoppingCart } from 'lucide-react'
+import { CheckCircle2, Compass, ListChecks, Repeat, ShoppingCart } from 'lucide-react'
 import type { ManagerCommandCenterSnapshot } from '@/lib/decision-os/managerCommandCenter'
 import { composeDailyBrief } from '@/lib/decision-os/dailyBrief'
 import { composeNotificationFeed } from '@/lib/decision-os/notifications'
@@ -101,6 +101,16 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
 
   const deliveryPlan = useMemo(() => resolveDeliveryPlan(notifications), [notifications])
 
+  // Phase OS-C3: found during live validation — 3 separate empty Priority Module boxes stacked
+  // together (the common case: not every manager has an active recommendation in every category every
+  // week) read as clutter, the same "near-permanently-empty standalone card" anti-pattern OS-B6 already
+  // removed for Commissioner OS's Recent Changes card. Collapses to ONE honest combined empty state
+  // only when ALL THREE categories are empty; any real content still renders each module individually.
+  const priorityCategories = new Set(['lineup_discipline', 'trade_coaching', 'waiver_opportunity'])
+  const hasAnyPriorities = (snapshot?.recommendations ?? []).some((entry) =>
+    priorityCategories.has(entry.recommendation.category),
+  )
+
   if (!hasLeagues) {
     return (
       <section data-testid="manager-command-center-section" className={decisionOsCardClassName}>
@@ -155,31 +165,44 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
         {/* Phase OS-C2: Priority Modules — real Phase 6.4 manager-tier recommendations, grouped by
             their own real category. Same source data as the Attention Queue above (see
             docs/os/OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md for why this is intentional, not
-            duplication). */}
-        <ManagerPriorityModule
-          title="Lineup Priorities"
-          icon={ListChecks}
-          category="lineup_discipline"
-          entries={snapshot?.recommendations ?? []}
-          leagueNameById={leagueNameById}
-          emptyMessage="No lineup priorities right now."
-        />
-        <ManagerPriorityModule
-          title="Trade Priorities"
-          icon={Repeat}
-          category="trade_coaching"
-          entries={snapshot?.recommendations ?? []}
-          leagueNameById={leagueNameById}
-          emptyMessage="No trade priorities right now."
-        />
-        <ManagerPriorityModule
-          title="Waiver Priorities"
-          icon={ShoppingCart}
-          category="waiver_opportunity"
-          entries={snapshot?.recommendations ?? []}
-          leagueNameById={leagueNameById}
-          emptyMessage="No waiver priorities right now."
-        />
+            duplication). Phase OS-C3: collapsed to one combined empty state when all 3 are empty —
+            see the `hasAnyPriorities` comment above. */}
+        {hasAnyPriorities ? (
+          <>
+            <ManagerPriorityModule
+              title="Lineup Priorities"
+              icon={ListChecks}
+              category="lineup_discipline"
+              entries={snapshot?.recommendations ?? []}
+              leagueNameById={leagueNameById}
+              emptyMessage="No lineup priorities right now."
+            />
+            <ManagerPriorityModule
+              title="Trade Priorities"
+              icon={Repeat}
+              category="trade_coaching"
+              entries={snapshot?.recommendations ?? []}
+              leagueNameById={leagueNameById}
+              emptyMessage="No trade priorities right now."
+            />
+            <ManagerPriorityModule
+              title="Waiver Priorities"
+              icon={ShoppingCart}
+              category="waiver_opportunity"
+              entries={snapshot?.recommendations ?? []}
+              leagueNameById={leagueNameById}
+              emptyMessage="No waiver priorities right now."
+            />
+          </>
+        ) : (
+          <div
+            className="flex items-center gap-2 rounded-xl border border-subtle bg-surface-muted px-4 py-3 text-sm text-muted"
+            data-testid="manager-priorities-empty"
+          >
+            <CheckCircle2 className="h-4 w-4 shrink-0 text-status-success" aria-hidden />
+            No lineup, trade, or waiver priorities right now.
+          </div>
+        )}
 
         <NotificationCenter notifications={deliveryPlan.inApp} leagueNameById={leagueNameById} />
 

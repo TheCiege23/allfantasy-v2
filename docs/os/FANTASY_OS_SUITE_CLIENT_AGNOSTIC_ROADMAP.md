@@ -926,6 +926,39 @@ Live-verified: `/manager-hub` re-rendered correctly after the change with zero n
 honest signed-out-sandbox limitation as OS-C1 (the populated-Priorities-module path is covered by
 fixture-based component tests, not live browser). Full detail: `OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md`.
 
+### OS-C3 — Manager OS Live Validation & Demo Excellence (2026-07-09)
+
+A validation/polish phase over OS-C1/C2's own work, not a feature phase — re-reading everything already
+built with a critical eye rather than assuming it was correct because it just shipped. This sandbox's
+session still has no stored credentials (re-confirmed before starting), so the populated multi-league
+path remains unverified live — the same honest gap every OS-C phase has carried, named explicitly rather
+than glossed over.
+
+**Recommendation Quality Audit** found and fixed 2 real issues: `ManagerPriorityModule.tsx`'s headline
+fallback repeated the panel's own title verbatim (e.g. "Lineup Priorities" as an item's headline under a
+"Lineup Priorities (2)" panel) instead of matching `deriveManagerAttentionSignals`'s own existing
+treatment of the identical "no recommendedActions" case (a humanized category label) — fixed for
+consistency, still zero invented text. More significantly: `managerCommandCenter.ts`'s `AT_RISK_RETENTION`
+bucketing set only included `high`/`critical`, while `attentionSignals.ts`'s `MANAGER_RETENTION_SEVERITY`
+(the set that actually fires the real `manager_engagement_risk` signal) also includes `medium` — meaning
+a `medium`-risk league could show a genuine Attention Queue item while the "Need attention" stat chip and
+`healthyLeagueCount` both silently counted it as healthy. Commissioner OS's own equivalent sets are kept
+in exact sync for this identical reason; Manager OS now matches that discipline.
+
+**Manager UX Refinement** found and fixed the "empty state pile" risk: 3 separate Priority Module empty
+boxes stacking directly beneath the Attention Queue for the common case (zero active recommendations in
+every category) — the same "near-permanently-empty standalone card" anti-pattern OS-B6 already removed
+for Commissioner OS's Recent Changes card. Collapsed to ONE combined empty state when all 3 categories
+are simultaneously empty; any real content in even one category still renders all 3 individually.
+
+**Truthfulness Audit**: grepped every Manager-OS-facing file for fallback/placeholder/demo/mock/hardcoded
+language — zero matches. The 2 bugs above are the only real findings, both presentation/consistency
+issues rather than fabrication.
+
+12 new/updated tests, 158/158 baseline typecheck unchanged, live-verified (honest empty state
+re-confirmed after every change, zero new console errors, checked at both desktop and mobile widths).
+Full detail: `OS_C3_MANAGER_OS_VALIDATION.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -958,6 +991,9 @@ fixture-based component tests, not live browser). Full detail: `OS_C2_PRIORITIES
   6.4 `Recommendation` objects grouped by their own already-real category; the Notification Engine was
   not touched; the shadow-only trade/waiver/lineup Decision Objects were read for the audit but never
   wired into anything customer-facing.
+- No new backend systems, database schema, provider integrations, AI models, notification types, or
+  trade/waiver/lineup algorithms in OS-C3 either — every fix is presentation logic (a headline fallback
+  string, a bucketing threshold set, a conditional render) over data OS-C1/C2 already computed.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

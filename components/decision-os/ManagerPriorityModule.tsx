@@ -45,6 +45,17 @@ type ManagerPriorityModuleProps = {
 
 const EVIDENCE_DISPLAY_CAP = 2
 
+/** Phase OS-C3: found during the live-validation pass — the previous fallback (`?? title`) repeated
+ * the panel's own title verbatim as an item's headline (e.g. "Lineup Priorities" as a list item under
+ * a "Lineup Priorities (2)" panel), an uninformative duplicate. `deriveManagerAttentionSignals`
+ * (`attentionSignals.ts`) already faces the identical "no recommendedActions" case for the same
+ * `Recommendation` data and falls back to a humanized category label — this mirrors that treatment
+ * for consistency, still zero invented text (the category is the recommendation's own real field). */
+function humanizeCategory(category: string): string {
+  const spaced = category.replace(/_/g, ' ')
+  return spaced.length > 0 ? spaced[0].toUpperCase() + spaced.slice(1) : spaced
+}
+
 export default function ManagerPriorityModule({
   title,
   icon: Icon,
@@ -75,7 +86,7 @@ export default function ManagerPriorityModule({
         <ul className="mt-2 space-y-2" data-testid={`manager-priority-${category}-list`}>
           {matching.map((entry) => {
             const { recommendation } = entry
-            const headline = recommendation.recommendedActions[0]?.action ?? title
+            const headline = recommendation.recommendedActions[0]?.action ?? humanizeCategory(recommendation.category)
             const evidence = recommendation.evidence.slice(0, EVIDENCE_DISPLAY_CAP)
             return (
               <li

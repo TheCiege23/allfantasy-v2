@@ -35,8 +35,17 @@ const MANAGER_RECOMMENDATIONS_CAP = 60
 
 /** `'low'` retention risk + active participation is the only "healthy" bucket — mirrors
  * `commissionerCommandCenter.ts`'s own `HEALTHY_STATUSES`/`AT_RISK_STATUSES` bucketing pattern, just
- * over `ManagerRetentionRisk` instead of the league-health engine's `overallStatus`. */
-const AT_RISK_RETENTION = new Set<ManagerRetentionRisk>(['high', 'critical'])
+ * over `ManagerRetentionRisk` instead of the league-health engine's `overallStatus`.
+ *
+ * Phase OS-C3: found during live validation — this originally only included `high`/`critical`, while
+ * `attentionSignals.ts`'s `MANAGER_RETENTION_SEVERITY` (the set that actually fires a real
+ * `manager_engagement_risk` Attention Queue signal) also includes `medium`. That mismatch meant a
+ * `medium`-risk league could show a real signal in the Attention Queue while the "Need attention" stat
+ * chip and `healthyLeagueCount` both counted it as healthy — two real numbers on the same screen
+ * silently contradicting each other. Commissioner OS's own `HEALTHY_STATUSES`/`AT_RISK_STATUSES` are
+ * kept in exact sync with `LOW_HEALTH_SEVERITY`'s 3 severities for the identical reason; this now
+ * matches that same discipline. */
+const AT_RISK_RETENTION = new Set<ManagerRetentionRisk>(['medium', 'high', 'critical'])
 
 export interface ManagerCommandCenterLeagueSummary {
   leagueId: string

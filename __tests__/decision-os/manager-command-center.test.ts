@@ -113,7 +113,7 @@ describe('resolveManagerCommandCenterSnapshot', () => {
     expect(snapshot.atRiskLeagueCount).toBe(0)
   })
 
-  it('buckets low retention risk + active as healthy, high/critical or inactive as at-risk', async () => {
+  it('buckets low retention risk + active as healthy, medium/high/critical or inactive as at-risk', async () => {
     mockResolve
       .mockResolvedValueOnce(availableSnapshot({ leagueId: 'L1', retentionRisk: 'low' }))
       .mockResolvedValueOnce(availableSnapshot({ leagueId: 'L2', retentionRisk: 'critical' }))
@@ -121,6 +121,19 @@ describe('resolveManagerCommandCenterSnapshot', () => {
     const snapshot = await resolveManagerCommandCenterSnapshot('user-1', ['L1', 'L2', 'L3'], NOW)
     expect(snapshot.healthyLeagueCount).toBe(1)
     expect(snapshot.atRiskLeagueCount).toBe(2)
+  })
+
+  // Phase OS-C3: real bug found during live validation — `medium` retention risk fires a real
+  // `manager_engagement_risk` Attention Queue signal (see `MANAGER_RETENTION_SEVERITY` in
+  // attentionSignals.ts) but was NOT counted as at-risk here, so the "Need attention" stat chip could
+  // read 0 while the Attention Queue showed a real item — two real numbers silently contradicting
+  // each other on the same screen.
+  it('counts medium retention risk as at-risk, consistent with the Attention Queue signal it produces', async () => {
+    mockResolve.mockResolvedValueOnce(availableSnapshot({ leagueId: 'L1', retentionRisk: 'medium' }))
+    const snapshot = await resolveManagerCommandCenterSnapshot('user-1', ['L1'], NOW)
+    expect(snapshot.atRiskLeagueCount).toBe(1)
+    expect(snapshot.healthyLeagueCount).toBe(0)
+    expect(snapshot.attentionQueue.find((s) => s.type === 'manager_engagement_risk')).toBeDefined()
   })
 
   it('derives real attention signals from each league\'s own real UserOsSnapshot data', async () => {
