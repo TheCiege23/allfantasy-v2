@@ -1,12 +1,13 @@
 # Fantasy OS Suite — Progress Dashboard
 
-**Phase D Increment 10, updated by Increments 11 and 12.** A single, scannable status view across the whole
+**Phase D Increment 10, updated by Increments 11, 12, and 13.** A single, scannable status view across the whole
 OS suite — a companion to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md) (the
-prose narrative) and [`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) /
-[`SLEEPER_PROOF_EXECUTION_PACKET.md`](SLEEPER_PROOF_EXECUTION_PACKET.md) (the procedure). This doc
-answers one question fast: **where does each OS and the Sleeper proof stand right now?** Update it
-whenever a Phase D increment lands.
+prose narrative), [`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) /
+[`SLEEPER_PROOF_EXECUTION_PACKET.md`](SLEEPER_PROOF_EXECUTION_PACKET.md) (the procedure), and
+[`CUSTOMER_DEMO_READINESS_AUDIT.md`](CUSTOMER_DEMO_READINESS_AUDIT.md) (the demo-readiness detail).
+This doc answers one question fast: **where does each OS and the Sleeper proof stand right now?**
+Update it whenever a Phase D increment lands.
 
 ---
 
@@ -43,7 +44,23 @@ ready once placeholders in `SLEEPER_PROOF_EXECUTION_PACKET.md` are filled in). *
 against a live Sleeper league or a live non-prod database in this sandbox** — that requires a real
 non-prod `DATABASE_URL` and a real Sleeper account/league, neither of which exist in this environment.
 
-## 4. Phase D increment history
+## 4. Customer demo readiness (Increment 13)
+
+Full detail in [`CUSTOMER_DEMO_READINESS_AUDIT.md`](CUSTOMER_DEMO_READINESS_AUDIT.md). Headline:
+**zero engineering blockers** — every gap found is either "hasn't been run yet" or a one-time
+operational/environment step, not missing code.
+
+| Kind | Item |
+| --- | --- |
+| Operational blocker | Sleeper proof chain has never been run live against real infrastructure |
+| Operational blocker | No customer-reachable environment established yet (local dev + screen-share, or a Vercel preview, both work — zero engineering) |
+| Operational blocker | Demo presenter's account needs `ADMIN_EMAILS` access in the demo environment to show Platform OS |
+| Polish | Snapshot-capture route (`/api/cron/decision-os-snapshot-capture`) isn't in the execution packet yet — without it every trend panel shows "no snapshots yet" |
+| Polish | `SLEEPER_OS_SUITE_PROOF_CHECKLIST.md` §8 is stale — still says Platform OS has no route/UI |
+| Polish | A second imported league would make Platform OS's healthy/at-risk split more visually compelling |
+| Polish | Platform OS admin panel has never rendered in a live browser, only in component tests |
+
+## 5. Phase D increment history
 
 | # | Name | Delivered | Commit |
 | --- | --- | --- | --- |
@@ -58,9 +75,10 @@ non-prod `DATABASE_URL` and a real Sleeper account/league, neither of which exis
 | 9 | Platform Intelligence cutover ADR | `PLATFORM_INTELLIGENCE_CUTOVER_ADR.md`, 1 comment fix | `0d03a8e10` |
 | 10 | Real execution prep | Execution packet + dashboard + `--dryRun` | `9e90a5c1a` |
 | 11 | Platform OS operator authorization | `platformOsAuthorization.ts`, `/api/decision-os/platform-os` route, 12 tests | `cf2d7ae5d` |
-| 12 | Platform OS operator input UX | `PlatformOsOperatorPanel.tsx`, wired into `/admin`, 7 tests | *(this commit)* |
+| 12 | Platform OS operator input UX | `PlatformOsOperatorPanel.tsx`, wired into `/admin`, 7 tests | `a47dba565` |
+| 13 | Customer demo readiness audit | `CUSTOMER_DEMO_READINESS_AUDIT.md`, no code | *(this commit)* |
 
-## 5. Open, honestly-unresolved items
+## 6. Open, honestly-unresolved items
 
 - Live execution of the Sleeper proof chain against a real non-prod DB + real Sleeper account — needs
   real credentials this sandbox doesn't have.
@@ -74,7 +92,7 @@ non-prod `DATABASE_URL` and a real Sleeper account/league, neither of which exis
   non-prod orchestration script.
 - Snapshot-capture cron exists but is not registered in `vercel.json` — no automatic scheduling yet.
 
-## 6. Standing boundaries (unchanged since Phase D began)
+## 7. Standing boundaries (unchanged since Phase D began)
 
 No production DB touched. No fake/demo data. No auto-discovery of leagues. No DFS OS work. No
 `the_replacements` provider work. PR #183 untouched (draft, unmerged). No Redraft/Start-Draft/PR-#166/
