@@ -886,6 +886,46 @@ Facebook-SDK-over-HTTP sandbox noise). The authenticated, populated-leagues path
 (no stored credentials in this sandbox), covered instead by real-fixture render tests. Full detail:
 `OS_C1_MANAGER_OS_FOUNDATION.md`.
 
+### OS-C2 — Manager Priorities Alignment & Operating System Expansion (2026-07-09)
+
+Explicitly split into an architecture audit BEFORE any build, per this phase's own instruction not to
+skip it — the highest-risk part of expanding Manager OS, since 3 real candidate systems could plausibly
+back Lineup/Trade/Waiver Priorities and picking wrong would fork Decision OS intelligence.
+
+**Part 1 — Audit** (`OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md`): read all three candidates directly.
+Candidate A (`ManagerIntelligenceHub`'s Team Health/Weekly Outlook/Transaction Readiness) is real,
+deterministic, explicitly "not a recommendation" by its own docstrings, gated off by default
+(`NEXT_PUBLIC_MANAGER_INTELLIGENCE_HUB_ENABLED`, confirmed unset anywhere in this repo), and lives on a
+completely different route family (`/api/app/leagues/*`, not `/api/decision-os/*`) — real value, but
+would need new cross-league aggregation work to use here. Candidate C (the trade/waiver/lineup card
+adapters) was disqualified outright after reading `trade/shadow.ts` directly: this pathway runs as a
+shadow/parity check beside the LEGACY trade flow, gated by `DECISION_OS_TRADE_SHADOW`, with a separate,
+unflipped `DECISION_OS_TRADE_LIVE` kill switch for a cutover that has not happened — using it as a
+customer-facing Priorities source would be an undocumented, unilateral cutover decision this phase has
+no standing to make. Candidate B (`UserOsSnapshot.recommendations`, Phase 6.4's real recommendation
+engine) won: it's already live with no gate, already cross-league via OS-C1's own
+`managerCommandCenter.ts`, and its `RecommendationCategory` union already includes `lineup_discipline`/
+`trade_coaching`/`waiver_opportunity` — the Decision Rule's "if one system already owns the intelligence,
+reuse it" applied directly. Presented to the user for confirmation before Part 2 began.
+
+**Part 2 — Build**: `managerCommandCenter.ts` gained a `recommendations` field exposing the real
+`Recommendation` objects directly (the SAME data `manager_recommendation` signals already read — a
+second, richer view of already-computed data, not new derivation). One new generic
+`ManagerPriorityModule.tsx`, deliberately built as a single shared component from the start (not 3 near-
+copies) since 3 occurrences were known up front. Each module filters by its own real category, orders by
+the recommendation's own real `priority`, and renders its own real `expectedImpact`/`evidence`/
+`recommendedActions` — never invented text. Documented one honest UX gap rather than fabricating an
+answer: no `Recommendation` field supports "what happens if you ignore this," so that UX question is
+left honestly unanswered rather than papered over. **Found and fixed a real bug during the build**: a
+`const { recommendations } = snapshot` destructure inside the aggregation loop silently shadowed an
+outer `recommendations` accumulator array of the exact same name — caught by `npm run typecheck` (2 new
+errors) before it ever reached a test or the browser, not by manual review.
+
+30 new/updated tests, 158/158 baseline typecheck unchanged (re-confirmed after the shadowing-bug fix).
+Live-verified: `/manager-hub` re-rendered correctly after the change with zero new console errors — same
+honest signed-out-sandbox limitation as OS-C1 (the populated-Priorities-module path is covered by
+fixture-based component tests, not live browser). Full detail: `OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -913,6 +953,11 @@ Facebook-SDK-over-HTTP sandbox noise). The authenticated, populated-leagues path
   presentation labels over already-real `UserOsSnapshot`/`Recommendation` fields, never a new judgment
   layer; `dailyBrief.ts`/`notifications.ts`/`deliveryResolver.ts` are consumed exactly as OS-B3/B4/B5
   left them, byte-for-byte unchanged.
+- No new Decision OS intelligence, no forked User OS logic, no second recommendation engine, and no
+  redesign of Trade OS/Waiver OS/Lineup OS in OS-C2 — the 3 Priority Modules render already-real Phase
+  6.4 `Recommendation` objects grouped by their own already-real category; the Notification Engine was
+  not touched; the shadow-only trade/waiver/lineup Decision Objects were read for the audit but never
+  wired into anything customer-facing.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

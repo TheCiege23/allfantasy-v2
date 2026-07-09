@@ -27,6 +27,11 @@ import {
   type DecisionOsAttentionSignal,
 } from './attentionSignals'
 import type { DailyBriefLeagueTrend } from './dailyBrief'
+import type { Recommendation } from './phase6/recommendations/types'
+
+/** Phase OS-C2: same cap discipline as `ATTENTION_QUEUE_CAP` — a safety ceiling on payload size, not a
+ * UX limit (each Priority Module caps its own displayed count independently). */
+const MANAGER_RECOMMENDATIONS_CAP = 60
 
 /** `'low'` retention risk + active participation is the only "healthy" bucket — mirrors
  * `commissionerCommandCenter.ts`'s own `HEALTHY_STATUSES`/`AT_RISK_STATUSES` bucketing pattern, just
@@ -43,6 +48,18 @@ export interface ManagerCommandCenterLeagueSummary {
   recommendationCount: number
 }
 
+/** Phase OS-C2: a real, already-computed Phase 6.4 manager-tier `Recommendation`, tagged with the
+ * league it belongs to (a `Recommendation`'s own `entityId` is the managerId, not a leagueId — this
+ * wrapper is the same "id-only pairing, zipped on by the composition" pattern every other multi-league
+ * aggregation in this codebase already uses). Exposed alongside `attentionQueue` — the SAME source
+ * data `deriveManagerAttentionSignals` already reads to produce `manager_recommendation` signals, not
+ * a second derivation. See `docs/os/OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md` for why this is the
+ * canonical source for Lineup/Trade/Waiver Priorities. */
+export interface ManagerCommandCenterRecommendation {
+  leagueId: string
+  recommendation: Recommendation
+}
+
 export interface ManagerCommandCenterSnapshot {
   generatedAt: string
   totalLeagues: number
@@ -51,6 +68,7 @@ export interface ManagerCommandCenterSnapshot {
   unavailableLeagueCount: number
   leagueSummaries: ManagerCommandCenterLeagueSummary[]
   attentionQueue: DecisionOsAttentionSignal[]
+  recommendations: ManagerCommandCenterRecommendation[]
   leagueTrends: DailyBriefLeagueTrend[]
   warnings: string[]
 }
@@ -64,6 +82,7 @@ function emptySnapshot(now: Date, warnings: string[]): ManagerCommandCenterSnaps
     unavailableLeagueCount: 0,
     leagueSummaries: [],
     attentionQueue: [],
+    recommendations: [],
     leagueTrends: [],
     warnings,
   }
@@ -104,6 +123,7 @@ export async function resolveManagerCommandCenterSnapshot(
   let unavailableLeagueCount = 0
   const leagueSummaries: ManagerCommandCenterLeagueSummary[] = []
   const attentionSignals: DecisionOsAttentionSignal[] = []
+  const recommendationEntries: ManagerCommandCenterRecommendation[] = []
   const leagueTrends: DailyBriefLeagueTrend[] = []
 
   for (const leagueId of leagueIds) {
@@ -153,6 +173,7 @@ export async function resolveManagerCommandCenterSnapshot(
         recommendations: managerRecommendations,
       }),
     )
+    recommendationEntries.push(...managerRecommendations.map((recommendation) => ({ leagueId, recommendation })))
 
     if (leagueTrend.available) {
       leagueTrends.push({
@@ -176,6 +197,7 @@ export async function resolveManagerCommandCenterSnapshot(
     unavailableLeagueCount,
     leagueSummaries,
     attentionQueue,
+    recommendations: recommendationEntries.slice(0, MANAGER_RECOMMENDATIONS_CAP),
     leagueTrends,
     warnings: [],
   }

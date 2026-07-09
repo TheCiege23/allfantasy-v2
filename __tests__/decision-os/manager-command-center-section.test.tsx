@@ -39,6 +39,30 @@ const SNAPSHOT = {
       source: 'user_os',
     },
   ],
+  recommendations: [
+    {
+      leagueId: 'league-1',
+      recommendation: {
+        id: 'rec-lineup-1',
+        tier: 'manager',
+        category: 'lineup_discipline',
+        entityId: 'user-1',
+        priority: 'high',
+        severity: 'elevated',
+        confidence: 'high',
+        affectedDimensions: [],
+        expectedImpact: 'Setting your lineup improves weekly win probability.',
+        derivation: [],
+        evidence: [],
+        benchmarkComparison: null,
+        prerequisites: [],
+        recommendedActions: [{ action: 'Start your bench RB over your injured starter.', rationale: 'r' }],
+        rollbackCriteria: [],
+        completeness: 100,
+        uncertainty: [],
+      },
+    },
+  ],
   leagueTrends: [],
   warnings: [],
   draftsApproachingCount: 1,
@@ -87,6 +111,14 @@ describe('ManagerCommandCenterSection', () => {
 
     // Reused NotificationCenter, composed with zero additional request.
     expect(screen.getByTestId('notification-center')).toBeInTheDocument()
+
+    // Phase OS-C2: Lineup Priorities renders the real recommendation; Trade/Waiver show their
+    // honest empty states since the fixture has no recommendations in those categories.
+    expect(screen.getByTestId('manager-priority-lineup_discipline-item-rec-lineup-1')).toHaveTextContent(
+      'Start your bench RB over your injured starter.',
+    )
+    expect(screen.getByTestId('manager-priority-trade_coaching-empty')).toBeInTheDocument()
+    expect(screen.getByTestId('manager-priority-waiver_opportunity-empty')).toBeInTheDocument()
 
     // New Manager League Switcher, real navigation hrefs.
     expect(screen.getByTestId('manager-league-switcher-list')).toBeInTheDocument()

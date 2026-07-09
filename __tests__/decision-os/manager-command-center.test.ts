@@ -152,4 +152,29 @@ describe('resolveManagerCommandCenterSnapshot', () => {
     const snapshot = await resolveManagerCommandCenterSnapshot('user-1', ['L1'], NOW)
     expect(snapshot.leagueTrends).toEqual([{ leagueId: 'L1', direction: 'increasing', eventCountDelta: 2 }])
   })
+
+  // Phase OS-C2: `recommendations` exposes the same real Phase 6.4 objects `manager_recommendation`
+  // signals are already derived from — the canonical source for Lineup/Trade/Waiver Priorities per
+  // docs/os/OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md.
+  it('exposes the real recommendations, each tagged with its own real leagueId (never the recommendation\'s own entityId)', async () => {
+    mockResolve.mockResolvedValueOnce(availableSnapshot({ leagueId: 'L1', recommendationCount: 2 }))
+    const snapshot = await resolveManagerCommandCenterSnapshot('user-1', ['L1'], NOW)
+    expect(snapshot.recommendations).toHaveLength(2)
+    expect(snapshot.recommendations[0].leagueId).toBe('L1')
+    expect(snapshot.recommendations[0].recommendation.id).toBe('rec-0')
+  })
+
+  it('never includes recommendations for an unavailable league', async () => {
+    mockResolve.mockResolvedValueOnce(unavailableSnapshot('L1'))
+    const snapshot = await resolveManagerCommandCenterSnapshot('user-1', ['L1'], NOW)
+    expect(snapshot.recommendations).toEqual([])
+  })
+
+  it('aggregates recommendations across multiple leagues, each correctly tagged', async () => {
+    mockResolve
+      .mockResolvedValueOnce(availableSnapshot({ leagueId: 'L1', recommendationCount: 1 }))
+      .mockResolvedValueOnce(availableSnapshot({ leagueId: 'L2', recommendationCount: 1 }))
+    const snapshot = await resolveManagerCommandCenterSnapshot('user-1', ['L1', 'L2'], NOW)
+    expect(snapshot.recommendations.map((r) => r.leagueId).sort()).toEqual(['L1', 'L2'])
+  })
 })

@@ -15,9 +15,15 @@
  * intentional, not an oversight; renaming it is a separate, low-risk cleanup this phase deliberately
  * did not take on, to avoid touching a component with existing call sites/tests for a cosmetic
  * reason.
+ *
+ * Phase OS-C2 added the 3 Priority Modules (Lineup/Trade/Waiver) below the Attention Queue — built on
+ * `ManagerCommandCenterSnapshot.recommendations`, the same real Phase 6.4 data the Attention Queue's
+ * own `manager_recommendation` signals already read, chosen as the canonical source after an explicit
+ * architecture audit (`docs/os/OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md`) ruled out 2 other candidate
+ * systems.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { Compass } from 'lucide-react'
+import { Compass, ListChecks, Repeat, ShoppingCart } from 'lucide-react'
 import type { ManagerCommandCenterSnapshot } from '@/lib/decision-os/managerCommandCenter'
 import { composeDailyBrief } from '@/lib/decision-os/dailyBrief'
 import { composeNotificationFeed } from '@/lib/decision-os/notifications'
@@ -29,6 +35,7 @@ import {
 } from './DecisionOsCardPrimitives'
 import ManagerCommandCenterOverview from './ManagerCommandCenterOverview'
 import CommissionerAttentionQueue from './CommissionerAttentionQueue'
+import ManagerPriorityModule from './ManagerPriorityModule'
 import ManagerLeagueSwitcher from './ManagerLeagueSwitcher'
 import TodaysBriefCard from './TodaysBriefCard'
 import NotificationCenter from './NotificationCenter'
@@ -144,6 +151,35 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
         <TodaysBriefCard brief={brief} leagueNameById={leagueNameById} />
 
         <CommissionerAttentionQueue entries={snapshot?.attentionQueue ?? []} leagueNameById={leagueNameById} />
+
+        {/* Phase OS-C2: Priority Modules — real Phase 6.4 manager-tier recommendations, grouped by
+            their own real category. Same source data as the Attention Queue above (see
+            docs/os/OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md for why this is intentional, not
+            duplication). */}
+        <ManagerPriorityModule
+          title="Lineup Priorities"
+          icon={ListChecks}
+          category="lineup_discipline"
+          entries={snapshot?.recommendations ?? []}
+          leagueNameById={leagueNameById}
+          emptyMessage="No lineup priorities right now."
+        />
+        <ManagerPriorityModule
+          title="Trade Priorities"
+          icon={Repeat}
+          category="trade_coaching"
+          entries={snapshot?.recommendations ?? []}
+          leagueNameById={leagueNameById}
+          emptyMessage="No trade priorities right now."
+        />
+        <ManagerPriorityModule
+          title="Waiver Priorities"
+          icon={ShoppingCart}
+          category="waiver_opportunity"
+          entries={snapshot?.recommendations ?? []}
+          leagueNameById={leagueNameById}
+          emptyMessage="No waiver priorities right now."
+        />
 
         <NotificationCenter notifications={deliveryPlan.inApp} leagueNameById={leagueNameById} />
 
