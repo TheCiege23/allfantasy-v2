@@ -4,7 +4,15 @@
 merged.** No Redraft/Start-Draft/PR-#166 work. No League Analytics UI built. No fake
 demo data. Primary business target: **The Replacements demo.**
 
-**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–6 landed.**
+**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–7 landed.**
+
+**Increment 7 note:** The Replacements Commissioner OS demo package now exists —
+[`THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md`](THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md).
+Documentation only (no code changes, no tests to run) — a demo walkthrough script, current
+built-surface inventory, real-vs-unavailable-vs-future breakdown, the integration inputs The
+Replacements would need to provide, an integration architecture sketch, a proposed (not committed)
+pilot plan, a licensing-tier sketch, and the concrete engineering gaps before a live pilot. Makes no
+ROI/retention-lift claims anywhere.
 
 ---
 
