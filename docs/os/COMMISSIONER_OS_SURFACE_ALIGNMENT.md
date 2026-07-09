@@ -1,10 +1,12 @@
 # Commissioner OS Surface Alignment — Phase B
 
 **Audit + incremental, safe alignments. PR #183 (Decision OS Phase A) stays draft, untouched, not
-merged.** No Redraft/Start-Draft/PR-#166 work. No League Analytics UI built. No fake
-demo data. Primary business target: **The Replacements demo.**
+merged.** No Redraft/Start-Draft/PR-#166 work. No fake demo data. Primary business target:
+**The Replacements demo.**
 
-**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–7 landed.**
+**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–8 landed** (7 was
+docs-only Phase C kickoff; 8 is "Demo Breadth Increment 4" — a Phase B-style code increment done
+under the Phase C umbrella, see §4g).
 
 **Increment 7 note:** The Replacements Commissioner OS demo package now exists —
 [`THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md`](THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md).
@@ -58,10 +60,14 @@ instead of guessing" instruction.
 - ✅ **Increment 6:** **Mission Control is now visible** — `MissionControlCard` renders inside the
   already-live Commissioner Hub dashboard, reusing the SAME `decisionOsCardClassName` card system
   (§4f). No new visual system, no new page, no rebuild of the hub.
+- ✅ **Increment 8 (Demo Breadth):** **League Analytics is now visible** — a second, sibling surface
+  to Mission Control: `LeagueAnalyticsCard` renders directly after it on the Commissioner Hub
+  dashboard, reusing the SAME card system, composed from the SAME federated League Health data,
+  but answering a different question ("what's happening over time" vs. Mission Control's "what
+  should I do now") (§4g).
 - ⛔ **Still needing their own architecture decision, not a guess:** the Commissioner Intelligence
-  Hub's 7 modules (a *third* system), Manager Hub's P2–P4 contracts (a *fourth* system), a real
-  retention-risk *derivation* at the platform level, and building League Analytics (still doesn't
-  exist).
+  Hub's 7 modules (a *third* system), Manager Hub's P2–P4 contracts (a *fourth* system), and a real
+  retention-risk *derivation* at the platform level.
 
 ---
 
@@ -88,7 +94,7 @@ systems that predate Phase A.
 | Surface | Current source | Real Decision OS (subsystem A) available? | Gap | Needed implementation | Demo priority |
 | --- | --- | --- | --- | --- | --- |
 | **Mission Control** | ✅ `lib/decision-os/missionControl.ts` + `GET /api/decision-os/mission-control` (Increment 5) + `MissionControlCard` rendered on the Commissioner Hub dashboard (Increment 6, §4f) — composes Increment 3's federated League Health + Increment 2's trend | ✅ Yes — federated from real subsystem A data via subsystems' existing alignment | None for the read path. Only shown on the Commissioner Hub dashboard so far — not (yet) on `/league/[id]/intelligence` or a dedicated Mission Control page/route | Done for composition + route + first visible card. Remaining: decide if/when Mission Control gets its own page, vs. staying a Commissioner Hub card | High (named target) — **composition + route + visible UI done** |
-| **League Analytics** | ❌ does not exist by this name anywhere | N/A | Not built | New surface (explicitly out of scope this increment) | High (named target) — **defer** |
+| **League Analytics** | ✅ `lib/decision-os/leagueAnalytics.ts` + `GET /api/decision-os/league-analytics` + `LeagueAnalyticsCard` rendered on the Commissioner Hub dashboard (Increment 8, §4g) — composes the SAME federated League Health/trend Mission Control uses, reshaped for counts-over-time instead of actions | ✅ Yes — federated from real subsystem A data | None for the "minimal viable" scope. No historical/season-over-season charting, no cross-league comparison — just current counts + the same single-league trend Mission Control already shows | Done for a first minimal version. Remaining: a genuinely broader analytics surface (season history, cross-league comparison) if ever prioritized — explicitly NOT attempted this increment | High (named target) — **first minimal version done** |
 | **League Health** (`app/api/league-health`) | `monitorLeagueHealth` (`lib/league-health/*`) — a pure scoring function; **fed by real Decision OS counts as of Increment 3** via `lib/decision-os/leagueHealthAlignment.ts` (opt-in `source: 'decision_os'`, legacy explicit-body contract unchanged) | ✅ **Yes — federated this increment** | ~~Totally separate system~~ Resolved: **federate, not replace** (§4c) — the scoring engine itself was never touched | Done. Remaining: no live UI caller yet (same as before this increment — the route was already orphaned) | High — ✅ **decision made + implemented (federate)** |
 | **Manager Intelligence** — Commissioner Hub / Dashboard Overview / `LeagueTab` (`dashboard-intelligence.ts`) | Subsystem A (behavioral pipeline) directly | **Yes — was already the real source** | Was missing the Phase A imported-activity merge (external managers invisible) | ✅ **DONE this increment** | **Highest — directly serves the Replacements case** |
 | **Recommendations** (`DecisionRecommendationsCard`, dashboard) | Subsystem B (Phase 6), derived from subsystem A via `dashboard-intelligence.ts` | Yes, indirectly | Inherits the same gap as above | ✅ **Fixed as a side effect of the same change** (same composition function) | High |
@@ -515,6 +521,85 @@ this page requires a real authenticated session + real league data neither avail
 fabricate in this sandbox; verification here follows the same Vitest/RTL + full-repo-typecheck
 method every prior increment in this workstream has used.
 
+## 4g. Increment 8 (Demo Breadth) — first minimal League Analytics surface (implemented)
+
+**Goal:** give the demo a second visible surface beyond Mission Control. Mission Control answers
+"what should the commissioner do right now?" (health status, named at-risk managers, recommended
+actions). League Analytics answers **"what is happening in this league over time?"** — activity
+counts, manager counts, activity trend, and a bare retention-risk count.
+
+**Confirmed nothing existed:** re-searched the codebase — the only prior mention of "League
+Analytics" anywhere was a forward-looking doc comment in `behavioralTrend.ts` describing a future
+consumer; no page, component, or route existed under that name.
+
+**Zero new derivation logic — same discipline as Mission Control.** New
+**`lib/decision-os/leagueAnalytics.ts`** — `resolveLeagueAnalyticsSnapshot(leagueId, now?)` — is a
+**sibling**, not a wrapper, of `missionControl.ts`: both independently call the SAME
+`resolveDecisionOsLeagueHealth` (Increment 3) directly, so neither depends on the other and either
+can evolve or degrade without affecting the other. League Analytics reshapes the identical
+`decisionOs` context into a leaner, counts-and-trend-only shape:
+- `trend` (reused `LeagueActivityTrendSummary` type, unchanged).
+- `managerCounts` (active/inactive).
+- `activity` (trade/waiver/draft/roster counts).
+- `retentionRiskCount` — **a bare number only.** Named managers + their specific reasons stay
+  Mission Control's job; League Analytics deliberately never repeats that list, keeping the two
+  surfaces' framing distinct (a count belongs to "what's happening," a named list + reasons belongs
+  to "what to do about it").
+
+**Honest degradation, mirroring Mission Control's own contract exactly:**
+- `resolveDecisionOsLeagueHealth` itself never throws, but `resolveLeagueAnalyticsSnapshot` wraps
+  the call in its own outer try/catch anyway (the same defense-in-depth reasoning as Mission
+  Control) — degrades to an explicit `{ available: false, reason: 'league_health_unavailable' }`,
+  never a crash, never a fabricated number.
+- No captured snapshots → `trend: { available: false, reason: 'no_snapshots' }`; exactly one
+  snapshot → `insufficient_history` (both pass through unchanged from Increments 2/3).
+- No activity → real honest zero counts, not this module's own fabrication.
+
+**New component: `components/decision-os/LeagueAnalyticsCard.tsx`** — reuses the exact same
+`DecisionOsCardPrimitives` as `MissionControlCard` (`decisionOsCardClassName`, `DecisionOsBadge`,
+`DecisionOsPanel`, `DecisionOsEmptyState`, `DecisionOsInsufficientDataCallout`,
+`DecisionOsUpdatedStamp`) — **zero new visual system.** Deliberately **leaner** than
+`MissionControlCard`: six stat chips + a trend panel + a single retention-risk **count** (with a
+line pointing to Mission Control for names/reasons) — no recommended-actions list, no named
+at-risk-manager list. This is what keeps the two surfaces visually and conceptually distinct rather
+than duplicating each other.
+
+**New route: `app/api/decision-os/league-analytics/route.ts`** (`GET`) — mirrors
+`/api/decision-os/mission-control`'s contract exactly (session-gated 401, `leagueId` required 400,
+otherwise calls the composition and returns it verbatim).
+
+**Wired into `app/commissioner-hub/CommissionerHubPageClient.tsx`:** one more additive
+`useState`/`useEffect` pair (identical shape to the `missionControl` fetch) + one new `<section>`
+rendered directly after `<MissionControlCard>`, before `LeagueHealthDashboard`. Confirmed via
+`git diff` to touch nothing else on the page.
+
+### Tests added (Increment 8)
+
+- `__tests__/decision-os/league-analytics.test.ts` (7/7): a populated league maps trend/counts/
+  retention-risk count through honestly; `no_snapshots`/`insufficient_history` trend states pass
+  through; a no-activity league produces an honest all-zero snapshot; the retention-risk field is
+  proven to be a bare count (no named-manager list on this type at all); a dependency failure
+  degrades to an explicit unavailable state; a wiring proof the composition calls
+  `resolveDecisionOsLeagueHealth` with the league id.
+- `__tests__/decision-os/league-analytics-route-contract.test.ts` (3/3): 401 without a session; 400
+  without `leagueId`; a valid request calls the composition and returns its snapshot verbatim.
+- `__tests__/decision-os/league-analytics-card.test.tsx` (6/6): a populated league renders counts,
+  an available trend, and the retention-risk count; the honest `no_snapshots` state renders; the
+  honest `insufficient_history` state renders; an honest all-zero state renders "No managers
+  currently flagged"; an explicit unavailable state renders instead of fake values; the `null`
+  loading shell renders honestly.
+- `__tests__/commissioner-hub-league-analytics-wiring.test.ts` (3/3) — the same source-scan
+  convention as the Mission Control wiring test: proves the import, fetch, and render calls are
+  actually wired into the page (and that `LeagueAnalyticsCard` renders after `MissionControlCard`,
+  preserving the intended reading order).
+
+**Full suite run:** 19 new (7 composition + 3 route-contract + 6 card + 3 wiring) + the full
+decision-os regression suite + existing commissioner-hub tests — **2695/2695 total, zero
+regressions.** Full-repo typecheck: run against the same 158-error baseline, zero new errors in any
+file this increment touched. No schema/migration change. No browser/live-session verification
+performed, for the same reason as Increment 6 (needs a real authenticated session + real league
+data, neither available/safe to fabricate in this sandbox).
+
 ## 5. Preserved honest degradation (Do #6)
 
 - No imported activity for a league → the merge contributes nothing; existing AF-native/redraft-only
@@ -585,20 +670,23 @@ Most of the matrix's gaps are **not** safe to guess at — each is a real archit
    `decisionOsCardClassName` system (the "two incompatible systems" question from item 4's earlier
    note was resolved by choosing the Commissioner Hub's system and NOT touching the Commissioner
    Intelligence Hub's — see §4f).
-9. **League Analytics.** Still doesn't exist by this name anywhere; unlike Mission Control, this has
-   NOT been scoped or built yet.
+~~9. League Analytics.~~ **✅ DONE (§4g, actually executed as "Demo Breadth Increment 4"/Increment
+   8)** — a first minimal version, deliberately scoped to reuse the SAME federated data Mission
+   Control already has (no new derivation, no historical/season charting, no cross-league
+   comparison). A genuinely broader analytics surface remains open if ever prioritized.
 10. **Commissioner Intelligence Hub migration and Manager Intelligence Hub audit (items 5–6 above)
-   remain the largest open architecture decisions** — Mission Control's success composing only
-   subsystem A does not reduce their scope; they still require their own dedicated passes.
+   remain the largest open architecture decisions** — neither Mission Control's nor League
+   Analytics' success composing only subsystem A reduces their scope; they still require their own
+   dedicated passes.
 
 ## 8. Boundaries honored
 - PR #183 untouched, still draft, not merged.
 - No Redraft/Start-Draft/PR-#166/AF-hosted-league work.
-- No League Analytics UI built. No third card/visual system created — Mission Control reuses the
-  existing Commissioner Hub `decisionOsCardClassName` primitives exactly (§4f); the Commissioner
-  Hub itself was not rebuilt, only additively extended (one new `useState`/`useEffect` + one new
-  `<section>`).
+- No third/new card or visual system created at any point — Mission Control (§4f) and League
+  Analytics (§4g) both reuse the existing Commissioner Hub `decisionOsCardClassName` primitives
+  exactly; the Commissioner Hub itself was never rebuilt, only additively extended (one new
+  `useState`/`useEffect` + one new `<section>`, twice).
 - No fake/demo data; all new tests assert honest degradation, not fabricated metrics.
-- No production DB touched (Increment 6 is code + tests only — no migration, no Neon proof needed).
+- No production DB touched (Increment 8 is code + tests only — no migration, no Neon proof needed).
 - No production cron enabled (unrelated to this increment — Increment 4's cron route remains
   unregistered in `vercel.json`, unchanged).

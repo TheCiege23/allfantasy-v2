@@ -31,6 +31,7 @@ import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
 import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
 import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
 import MissionControlCard from '@/components/decision-os/MissionControlCard'
+import LeagueAnalyticsCard from '@/components/decision-os/LeagueAnalyticsCard'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
@@ -40,6 +41,7 @@ import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
 import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
 import type { ManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
 import type { MissionControlSnapshot } from '@/lib/decision-os/missionControl'
+import type { LeagueAnalyticsSnapshot } from '@/lib/decision-os/leagueAnalytics'
 
 // ─── Copy constants (future i18n wiring) ───────────────────────────────────
 const COPY = {
@@ -810,6 +812,28 @@ export default function CommissionerHubPageClient({
       cancelled = true
     }
   }, [representativeLeagueId])
+  const [leagueAnalytics, setLeagueAnalytics] = useState<LeagueAnalyticsSnapshot | null>(null)
+  useEffect(() => {
+    if (!representativeLeagueId) {
+      setLeagueAnalytics(null)
+      return
+    }
+    let cancelled = false
+    void fetch(`/api/decision-os/league-analytics?leagueId=${encodeURIComponent(representativeLeagueId)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<LeagueAnalyticsSnapshot>) : null))
+      .then((data) => {
+        if (!cancelled) setLeagueAnalytics(data)
+      })
+      .catch(() => {
+        if (!cancelled) setLeagueAnalytics(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [representativeLeagueId])
   const showDemoMode = demoMode || leagues.length === 0
   const primaryHeroHref = isAuthenticated ? '/create-league' : buildLoginHref('/create-league')
   const primaryHeroLabel = isAuthenticated ? COPY.hero.ctaCreate : 'Sign In'
@@ -973,6 +997,8 @@ export default function CommissionerHubPageClient({
         </section>
 
         <MissionControlCard snapshot={missionControl} variant="commissioner" compact />
+
+        <LeagueAnalyticsCard snapshot={leagueAnalytics} variant="commissioner" />
 
         <LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />
 

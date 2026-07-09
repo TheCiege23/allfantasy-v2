@@ -27,6 +27,14 @@ guide — pulling the highest-value points from this package, the adapter plan, 
 discovery handoff into something usable on the actual call — is now available:
 [`THE_REPLACEMENTS_CALL_SCRIPT.md`](THE_REPLACEMENTS_CALL_SCRIPT.md).
 
+**Demo Breadth Increment 4 update (2026-07-08):** **League Analytics is now part of the demo
+surface** — a first minimal version, visible on the Commissioner Hub dashboard directly below
+Mission Control (see `COMMISSIONER_OS_SURFACE_ALIGNMENT.md` §4g). It answers "what's happening in
+this league over time" (activity counts, manager counts, activity trend, a retention-risk count) as
+a sibling to Mission Control's "what should the commissioner do now." This is still the **first
+minimal version**, not the fuller Tier 2 packaging described in §10 below — no historical/
+season-over-season charting or cross-league comparison exists yet.
+
 ---
 
 ## 1. Executive summary
@@ -156,7 +164,7 @@ A concrete, step-by-step walkthrough for an internal or first external demo sess
 | Behavioral snapshot + trend history | Daily snapshot capture, idempotent by (league, manager, day), a callable capture job/route | Real, tested; **not scheduled to run automatically** (route exists, `vercel.json` registration is a deliberate future step) |
 | League Health federation | Existing scoring engine now fed real Decision OS counts via an explicit opt-in contract; legacy contract untouched | Real, tested; no live UI caller of the raw `/api/league-health` route itself (Mission Control reads the same underlying composition function directly) |
 | **Mission Control** | Single composition (`lib/decision-os/missionControl.ts`) + read API + a visible card on the Commissioner Hub dashboard | Real, tested, **visible today** |
-| League Analytics | — | Does not exist. Not started. |
+| **League Analytics** | Single composition (`lib/decision-os/leagueAnalytics.ts`) + read API + a visible card on the Commissioner Hub dashboard, directly below Mission Control | Real, tested, **visible today** — first minimal version only (counts + single-league trend; no season history or cross-league comparison) |
 | The Replacements provider adapter | — | Does not exist. Not started (see §7/§9). |
 | Commissioner Intelligence Hub (7-module hub) | A separate, older intelligence system (`/league/[id]/intelligence`) built on a different event taxonomy | Real, live, but **not connected to Decision OS** — a separate, larger migration decision, not part of this demo package |
 
@@ -182,8 +190,10 @@ A concrete, step-by-step walkthrough for an internal or first external demo sess
   "unavailable" state, never a guessed value.
 
 **Future — explicitly not built yet:**
-- A dedicated Mission Control page/route (today it is one card on an existing dashboard).
-- League Analytics (any name, any shape) — not scoped, not started.
+- A dedicated Mission Control or League Analytics page/route (today each is one card on an existing
+  dashboard).
+- A **broader** League Analytics — season-over-season history, cross-league comparison — beyond the
+  first minimal, single-league, current-counts-plus-trend version now live.
 - A real, live scheduler running the snapshot-capture job automatically (the job/route exists and is
   tested; nothing currently invokes it on a recurring schedule).
 - A The Replacements provider adapter (see §7).
@@ -287,14 +297,15 @@ business/product decisions outside engineering scope.
 This is a suggested shape for internal discussion — not a proposed price, contract, or commitment to
 The Replacements.
 
-- **Tier 1 — Mission Control (single surface).** League health, activity trend, manager
-  counts/activity, retention-risk flags, recommended actions — exactly what this demo package shows.
-  Lowest integration lift (one provider adapter, no new UI beyond what exists).
-- **Tier 2 — Mission Control + League Analytics** (once League Analytics is scoped and built —
-  explicitly not part of this package). Adds cross-league/season-over-season views.
-- **Tier 3 — Full Commissioner OS** (Mission Control + League Analytics + a resolved Commissioner
-  Intelligence Hub, i.e. the 7-module hub migrated onto Decision OS, or reconciled with it — a
-  large, separate architecture decision, see §11).
+- **Tier 1 — Mission Control + League Analytics (first minimal versions, both now live).** League
+  health, activity trend, manager counts/activity, retention-risk (named managers + reasons in
+  Mission Control, a count in League Analytics), recommended actions — exactly what this demo
+  package shows. Lowest integration lift (one provider adapter, no new UI beyond what exists).
+- **Tier 2 — Broader League Analytics** (season-over-season history, cross-league comparison — not
+  built yet, only the first minimal single-league version is live today).
+- **Tier 3 — Full Commissioner OS** (Tier 1/2 + a resolved Commissioner Intelligence Hub, i.e. the
+  7-module hub migrated onto Decision OS, or reconciled with it — a large, separate architecture
+  decision, see §11).
 
 Packaging by *surface* (what a licensee's commissioners actually see) rather than by internal
 subsystem names keeps this legible to a partner conversation and doesn't over-promise anything not
@@ -338,7 +349,9 @@ Concrete, in order of what blocks a live pilot the earliest:
 
 - **DFS OS.** Does not exist. Not scoped. Not part of this conversation.
 - **User OS.** Does not exist. Not scoped. Not part of this conversation.
-- **Full League Analytics.** Does not exist by this name anywhere in the codebase. Not started.
+- **Full/broader League Analytics.** A first minimal version is now live (counts + single-league
+  trend), but season-over-season history and cross-league comparison do not exist and are not
+  scoped.
 - **A fully productionized The Replacements adapter.** No adapter exists yet (§11 item 1). What can be
   promised is an existing, proven pattern (the Sleeper emitter) that a new adapter would follow —
   not a finished integration.
