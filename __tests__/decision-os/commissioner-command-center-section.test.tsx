@@ -54,7 +54,20 @@ const SNAPSHOT = {
       rosterActivityCount: 1,
     },
   ],
-  attentionQueue: [{ leagueId: "league-2", priority: "urgent", message: "3 managers at risk of leaving" }],
+  attentionQueue: [
+    {
+      id: "league_requires_review:league-2:0",
+      leagueId: "league-2",
+      type: "league_requires_review",
+      severity: "high",
+      priorityScore: 400,
+      title: "Requires immediate review",
+      explanation: "3 managers at risk of leaving",
+      recommendedAction: null,
+      timestamp: "2026-07-09T00:00:00.000Z",
+      source: "league_health_engine",
+    },
+  ],
   recentChanges: [],
   warnings: [],
   draftsApproachingCount: 1,
@@ -97,8 +110,8 @@ describe("CommissionerCommandCenterSection", () => {
       expect(screen.getByTestId("command-center-overview")).toBeInTheDocument()
     })
     expect(screen.getByTestId("league-health-ranking")).toBeInTheDocument()
-    expect(screen.getByTestId("attention-queue-urgent-item")).toHaveTextContent("Redraft Rebels")
-    expect(screen.getByTestId("attention-queue-urgent-item")).toHaveTextContent("3 managers at risk of leaving")
+    expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("Redraft Rebels")
+    expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("3 managers at risk of leaving")
     expect(screen.getByTestId("recent-changes-empty")).toBeInTheDocument()
     expect(screen.getByTestId("league-switcher-list")).toBeInTheDocument()
   })

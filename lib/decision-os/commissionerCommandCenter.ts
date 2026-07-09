@@ -22,9 +22,26 @@
  * Explicit-list only, matching `platformOs.ts`'s own precedent: the caller supplies the exact league
  * IDs to aggregate (here, always the session user's own commissioner leagues, resolved server-side —
  * never a client-supplied arbitrary list, so no admin gate is needed, unlike Platform OS).
+ *
+ * Phase OS-B2: the attention queue is now real Decision OS Attention Signals
+ * (`DecisionOsAttentionSignal`, see `attentionSignals.ts`), not an ad hoc relabeling of Mission
+ * Control's `recommendedActions`. This loop derives signals INLINE using the `MissionControlSnapshot`
+ * it already fetched per league — it deliberately does NOT call the standalone
+ * `resolveAttentionQueueSnapshot` (`attentionQueue.ts`), which would fetch Mission Control a second
+ * time for the same league on the same page load. It DOES reuse that module's small
+ * `loadUpcomingDraftDates` batched lookup and fetches League Context per league (both genuinely new
+ * I/O for this composition, not duplicates of anything already fetched here).
  */
 import { resolveMissionControlSnapshot } from './missionControl'
 import type { MissionControlSnapshot } from './missionControl'
+import { resolveLeagueFinancialContext } from './leagueContext'
+import type { LeagueFinancialContext } from './leagueFinancialContext'
+import { loadUpcomingDraftDates } from './attentionQueue'
+import {
+  deriveLeagueAttentionSignals,
+  sortAttentionSignals,
+  type DecisionOsAttentionSignal,
+} from './attentionSignals'
 
 const ATTENTION_QUEUE_CAP = 20
 const RECENT_CHANGES_CAP = 20
@@ -50,12 +67,6 @@ export interface CommissionerCommandCenterLeagueSummary {
   rosterActivityCount: number
 }
 
-export interface CommissionerAttentionQueueEntry {
-  leagueId: string
-  priority: 'urgent' | 'standard'
-  message: string
-}
-
 export interface CommissionerRecentChangeEntry {
   leagueId: string
   direction: 'increasing' | 'decreasing' | 'flat'
@@ -72,7 +83,7 @@ export interface CommissionerCommandCenterSnapshot {
   totalInactiveManagers: number
   totalRetentionRiskManagers: number
   leagueSummaries: CommissionerCommandCenterLeagueSummary[]
-  attentionQueue: CommissionerAttentionQueueEntry[]
+  attentionQueue: DecisionOsAttentionSignal[]
   recentChanges: CommissionerRecentChangeEntry[]
   warnings: string[]
 }
@@ -105,6 +116,16 @@ async function resolveLeagueSafely(leagueId: string, now: Date): Promise<Mission
   }
 }
 
+/** Same defense-in-depth as `resolveLeagueSafely` — `resolveLeagueFinancialContext` already never
+ * throws on its own, but this composition treats every per-league dependency the same way. */
+async function resolveFinancialContextSafely(leagueId: string): Promise<LeagueFinancialContext | null> {
+  try {
+    return await resolveLeagueFinancialContext(leagueId)
+  } catch {
+    return null
+  }
+}
+
 /**
  * Resolves the command-center snapshot for an EXPLICIT set of commissioner league IDs. Never throws —
  * a failure for one league marks it unavailable and excludes it from aggregate counts/ranking; it
@@ -126,11 +147,19 @@ export async function resolveCommissionerCommandCenterSnapshot(
   let totalInactiveManagers = 0
   let totalRetentionRiskManagers = 0
   const leagueSummaries: CommissionerCommandCenterLeagueSummary[] = []
-  const attentionQueue: CommissionerAttentionQueueEntry[] = []
+  const attentionSignals: DecisionOsAttentionSignal[] = []
   const recentChanges: CommissionerRecentChangeEntry[] = []
 
+  // Batched once, up front — not per league, matching `attentionQueue.ts`'s own resolver shape.
+  const draftDates = await loadUpcomingDraftDates(leagueIds)
+
   for (const leagueId of leagueIds) {
-    const snapshot = await resolveLeagueSafely(leagueId, now)
+    const [snapshot, financialContext] = await Promise.all([
+      resolveLeagueSafely(leagueId, now),
+      resolveFinancialContextSafely(leagueId),
+    ])
+    const financialStatus = financialContext?.financialStatus ?? 'UNKNOWN'
+    const draftDateUtc = draftDates.get(leagueId) ?? null
 
     if (!snapshot || !snapshot.leagueHealth.available) {
       unavailableLeagueCount += 1
@@ -148,6 +177,20 @@ export async function resolveCommissionerCommandCenterSnapshot(
         draftPickCount: 0,
         rosterActivityCount: 0,
       })
+      // League health being unavailable doesn't mean EVERY signal source is unavailable — League
+      // Context and the real draft date come from independent tables, so a league can still surface a
+      // genuine "draft approaching" or "financial status unconfirmed" signal here.
+      attentionSignals.push(
+        ...deriveLeagueAttentionSignals({
+          leagueId,
+          now,
+          overallStatus: null,
+          leagueHealthScore: null,
+          recommendedActions: [],
+          financialStatus,
+          draftDateUtc,
+        }),
+      )
       continue
     }
 
@@ -161,11 +204,12 @@ export async function resolveCommissionerCommandCenterSnapshot(
     totalRetentionRiskManagers += snapshot.managersAtRetentionRisk.length
 
     const urgentActions = snapshot.recommendedActions.filter((a) => a.priority === 'urgent')
+    const leagueHealthScore = typeof engine.leagueHealthScore === 'number' ? engine.leagueHealthScore : null
     leagueSummaries.push({
       leagueId,
       available: true,
       overallStatus: status,
-      leagueHealthScore: typeof engine.leagueHealthScore === 'number' ? engine.leagueHealthScore : null,
+      leagueHealthScore,
       activeManagers: snapshot.managerCounts.activeManagers,
       inactiveManagers: snapshot.managerCounts.inactiveManagers,
       retentionRiskCount: snapshot.managersAtRetentionRisk.length,
@@ -176,11 +220,17 @@ export async function resolveCommissionerCommandCenterSnapshot(
       rosterActivityCount: snapshot.activity.rosterActivityCount,
     })
 
-    for (const action of snapshot.recommendedActions) {
-      if (attentionQueue.length < ATTENTION_QUEUE_CAP) {
-        attentionQueue.push({ leagueId, priority: action.priority, message: action.message })
-      }
-    }
+    attentionSignals.push(
+      ...deriveLeagueAttentionSignals({
+        leagueId,
+        now,
+        overallStatus: status,
+        leagueHealthScore,
+        recommendedActions: snapshot.recommendedActions,
+        financialStatus,
+        draftDateUtc,
+      }),
+    )
 
     if (snapshot.trend.available && recentChanges.length < RECENT_CHANGES_CAP) {
       recentChanges.push({
@@ -191,8 +241,9 @@ export async function resolveCommissionerCommandCenterSnapshot(
     }
   }
 
-  // Urgent first, standard after — stable within each group (Array.prototype.sort is stable per spec).
-  attentionQueue.sort((a, b) => (a.priority === b.priority ? 0 : a.priority === 'urgent' ? -1 : 1))
+  // Highest severity first across ALL leagues together, capped only after the full comparison — never
+  // capped incrementally per league (which could crowd out a more urgent signal from a later league).
+  const attentionQueue = sortAttentionSignals(attentionSignals).slice(0, ATTENTION_QUEUE_CAP)
 
   return {
     generatedAt: now.toISOString(),

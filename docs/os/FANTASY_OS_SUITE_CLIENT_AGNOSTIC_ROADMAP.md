@@ -668,13 +668,31 @@ static foundation-readiness widget. This phase's new section is titled "Multi-Le
 instead — both surfaces remain on the page, neither touched or merged into the other. Full detail:
 `COMMISSIONER_COMMAND_CENTER.md` §1.
 
-44 new tests, 2819/2819 in `__tests__/decision-os` (2802 baseline + 17) plus all 14 pre-existing
+27 new tests, 2819/2819 in `__tests__/decision-os` (2802 baseline + 17) plus all 10 pre-existing
 `commissioner-hub-*-wiring` tests unchanged — zero regressions. 158/158 baseline typecheck errors
 unchanged (one real type mismatch found and fixed during this phase — `trend.direction`'s real third
 value is `'flat'`, not `'stable'`). Live-verified against the real Phase E database: the real route
 correctly returned an honest empty snapshot for a real account that — by the page's own established
 "commissioner" definition — genuinely commissions zero leagues today (a real, validating finding, not
 a bug); the browser correctly rendered that account's honest empty state with zero new console errors.
+
+### OS-B2 — Decision OS Attention Queue (2026-07-09)
+
+Turns OS-B1's Attention Queue from a relabeling of Mission Control's `recommendedActions` into a real,
+deterministic priority engine, per the phase's own rule: Decision OS owns signal generation,
+Commissioner OS owns presentation. New pure module `lib/decision-os/attentionSignals.ts` —
+`DecisionOsAttentionSignal` (5 signal types: draft approaching, league context incomplete, low/high
+league health, league requires review) + `deriveLeagueAttentionSignals` + `sortAttentionSignals`
+(severity-then-recency, spec-stable). New standalone resolver `lib/decision-os/attentionQueue.ts`
+(`resolveAttentionQueueSnapshot`) for future consumers without a resident Mission Control snapshot
+(Notification Engine, Daily Brief, Platform OS, mobile). `commissionerCommandCenter.ts` derives
+signals INLINE using the snapshot it already fetches — a documented decision to avoid double-fetching
+Mission Control, the same "sibling not wrapper" discipline this whole suite already follows. Two
+originally-suggested signal types ("Trade Activity Change", "Waiver Activity Change") deliberately NOT
+built — no per-activity-type historical trend exists anywhere in this codebase, only an aggregate
+event-count delta; building either would be a fabrication. 39 new tests, `__tests__/decision-os`
+2819 → 2858/2858, combined with unchanged wiring tests 2868/2868 — zero regressions. 158/158 baseline
+typecheck unchanged. Full detail: `ATTENTION_QUEUE.md`.
 
 ---
 
@@ -683,8 +701,11 @@ a bug); the browser correctly rendered that account's honest empty state with ze
 - No code changes to this document's own original content — §23/§24/§25 are additive.
 - No Notification Engine built (OS-B3) — the Attention Queue module is designed to be reusable by one
   later, but nothing sends a notification today.
-- No Manager OS or Platform OS changes in OS-B1.
-- No backend schema changes in OS-B1 — `LeagueSettings.draftDateUtc` is a real, pre-existing column.
+- No Manager OS or Platform OS changes in OS-B1 or OS-B2.
+- No backend schema changes in OS-B1 or OS-B2 — `LeagueSettings.draftDateUtc` and
+  `DecisionOsLeagueContext` are both real, pre-existing sources; OS-B2 added zero new columns/tables.
+- No AI-generated or fabricated signals in OS-B2 — every signal type traces to an existing, already-real
+  data source; two originally-suggested types were deliberately left unbuilt for lacking real data.
 - The Replacements documents were not deleted, only recontextualized via pointer updates.
 - No adapter code written for any client. `IMPORT_PROVIDERS` not modified.
 - No DFS OS work — explicitly deferred pending legal/compliance review.
