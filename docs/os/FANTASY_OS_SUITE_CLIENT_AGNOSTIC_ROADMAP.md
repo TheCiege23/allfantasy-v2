@@ -840,6 +840,52 @@ session), covered by unit tests with real fixture data instead. Full detail: `OS
 
 ---
 
+## 26a. Phase OS-C — Manager Operating System
+
+### OS-C1 — Manager Operating System Foundation (2026-07-09)
+
+The pivot away from Commissioner OS: "the highest ROI now is making the experience feel like a premium
+operating system" for the person PLAYING in a league, not just the person running it — reusing
+everything OS-B built rather than introducing new infrastructure. Investigation before writing any code
+found the single-league `resolveUserOsSnapshot` (`userOs.ts`) and its route/card already existed but had
+never been aggregated across leagues, and that `TodaysBriefCard`/`NotificationCenter` were already fully
+generic (zero commissioner-specific typing), confirming most of this phase really was composition, not
+invention.
+
+Built: `managerCommandCenter.ts` (new composition, sibling-not-wrapper over `resolveUserOsSnapshot`,
+matching `commissionerCommandCenter.ts`'s own precedent — every league a user belongs to, not just
+commissioned ones); `attentionSignals.ts` extended (additive to the closed `AttentionSignalType`/
+`AttentionSignalSource` unions, never forked into a parallel model) with `manager_engagement_risk`
+(reuses `UserOsSnapshot.teamHealth.retentionRisk` verbatim as severity) and `manager_recommendation`
+(reuses each real Phase 6.4 `Recommendation`'s own `priority`/`expectedImpact`/`recommendedActions[0]`
+verbatim); new session-scoped route `/api/decision-os/manager-command-center` (mirrors the commissioner
+route's exact contract, no `isCommissioner` filter); new standalone page `/manager-hub` (not folded into
+the existing, unaudited `/dashboard`/`DashboardShell`, matching how Commissioner OS itself got its own
+dedicated route rather than being added to an existing page); `ManagerCommandCenterSection`/`Overview`/
+`LeagueSwitcher` (the switcher navigates via a real `<Link href="/league/[id]">` instead of an in-page
+state toggle, satisfying "transition into the existing team-focused experience without regression" by
+construction — it touches zero existing single-league code). `TodaysBriefCard`, `NotificationCenter`,
+and `CommissionerAttentionQueue` are reused completely unchanged.
+
+**Explicit scope decision**: the kickoff's "Sections" list named 7 areas, but its own "Deliverables"
+list committed to only 5 (landing page, Today's Brief, Attention Queue, Notification Center, League
+Switcher) — Lineup/Trade/Waiver Priorities were absent from Deliverables. Built to the Deliverables list.
+Investigation found THREE candidate pre-existing systems that could back those 3 sections
+(`ManagerIntelligenceHub`'s modules, `UserOsSnapshot`'s own `recommendations`/`activitySummary`, or
+separate trade/waiver/lineup card adapters currently wired only into unrelated internal API routes) —
+picking the wrong one would be a real architecture mistake, so this was flagged and deferred to OS-C2
+rather than guessed at under phase pressure.
+
+31 new tests, 141 files/3010 tests passing (`__tests__/decision-os/` + commissioner-hub wiring), 158/158
+baseline typecheck unchanged (confirmed via `npm run typecheck`, the project's own memory-safe
+invocation — a plain `npx tsc` OOMs on this repo without it). **Live browser verification**: this
+sandbox's session was signed out, exercising the same honest zero-leagues fallback path OS-B7's own
+verification also hit — `/manager-hub` returned 200, rendered the correct unauthenticated header +
+`ManagerCommandCenterSection`'s honest empty state, zero new console errors (only the same pre-existing
+Facebook-SDK-over-HTTP sandbox noise). The authenticated, populated-leagues path was not verified live
+(no stored credentials in this sandbox), covered instead by real-fixture render tests. Full detail:
+`OS_C1_MANAGER_OS_FOUNDATION.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -862,6 +908,11 @@ session), covered by unit tests with real fixture data instead. Full detail: `OS
   a truthfulness/copy pass on one pre-existing widget's fallback logic plus one timestamp addition;
   every Decision OS composition/resolver (`attentionSignals.ts`, `dailyBrief.ts`, `notifications.ts`,
   `deliveryResolver.ts`) is untouched.
+- No new backend intelligence, database tables, provider integrations, AI models, notification types,
+  or trade/waiver/lineup algorithms in OS-C1 — `attentionSignals.ts`'s 2 new signal types are additive
+  presentation labels over already-real `UserOsSnapshot`/`Recommendation` fields, never a new judgment
+  layer; `dailyBrief.ts`/`notifications.ts`/`deliveryResolver.ts` are consumed exactly as OS-B3/B4/B5
+  left them, byte-for-byte unchanged.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

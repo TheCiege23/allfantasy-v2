@@ -21,8 +21,10 @@ per model, confirmed; Platform OS found not yet migrated),
 gap), [`DELIVERY_ADAPTER_LAYER.md`](DELIVERY_ADAPTER_LAYER.md) (Phase OS-B5 — the reusable,
 provider-agnostic delivery contract completing the intelligence-to-delivery pipeline), and
 [`OS_B6_DEMO_EXCELLENCE.md`](OS_B6_DEMO_EXCELLENCE.md) (Phase OS-B6 — presentation/polish pass, no new
-intelligence), and [`OS_B7_DEMO_TRUTHFULNESS.md`](OS_B7_DEMO_TRUTHFULNESS.md) (Phase OS-B7 — fabricated
-content removed, no new intelligence).
+intelligence), [`OS_B7_DEMO_TRUTHFULNESS.md`](OS_B7_DEMO_TRUTHFULNESS.md) (Phase OS-B7 — fabricated
+content removed, no new intelligence), and [`OS_C1_MANAGER_OS_FOUNDATION.md`](OS_C1_MANAGER_OS_FOUNDATION.md)
+(Phase OS-C1 — the first Manager OS Multi-League Overview, composed entirely from existing Decision OS
+primitives).
 This doc answers one question fast: **where does each OS and the Sleeper proof stand right now?**
 Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 
@@ -34,7 +36,7 @@ Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 | --- | --- | --- | --- | --- | --- |
 | **Decision OS** | What is happening across the platform, and why? | **Live-proven.** Real engine every other OS reads. | Behavioral pipeline, ingestion, snapshot capture — all real, tested, now confirmed against live Sleeper data (Phase E). | Richer Phase 5.3/5.4 signals remain deliberately shadow-gated (a decided "no," not a gap). | 95% |
 | **Commissioner OS** | What should this commissioner do? | **Live-proven** (`/commissioner-hub`). | Mission Control + League Analytics, real Sleeper data confirmed end-to-end in Phase E (real health score, status, narrative). **Now defaults to a real multi-league "Multi-League Overview" (Phase OS-B1)**, whose Attention Queue is real, prioritized Decision OS Attention Signals across 5 signal types (Phase OS-B2), summarized by a "Today's Brief" card (Phase OS-B3) and an in-app Notification Center with session-local read/dismiss (Phase OS-B4), now routed through a provider-agnostic Delivery Adapter Layer (Phase OS-B5) — all composed with zero extra fetch from the same underlying signals. League Focus (single-league cards) is reached by explicit selection, not shown automatically. | Real email/push/mobile sending (adapters are honest stubs today) remains future work, not a blocker for the demo-readiness pipeline. | 100% |
-| **User OS / Manager OS** | What should this manager do to compete better? | **Live-proven**, both commissioner and member roles (`/league/[leagueId]`). | Real per-manager tier/score/activity/retention-risk confirmed live in Phase E for a real, active manager. | Nothing blocking; demo setup needs both a roster claim AND a `UserProfile.sleeperUserId` link (Phase E finding). | 100% |
+| **User OS / Manager OS** | What should this manager do to compete better? | **Live-proven**, both commissioner and member roles (`/league/[leagueId]`), **plus a new cross-league landing experience (`/manager-hub`, Phase OS-C1)**. | Real per-manager tier/score/activity/retention-risk confirmed live in Phase E for a real, active manager. **OS-C1 adds a Multi-League Overview** — every league a user belongs to (not just commissioned ones), aggregating the same `resolveUserOsSnapshot` via a new `managerCommandCenter.ts`, reusing the Attention Queue/Daily Brief/Notification Center UI unchanged. | Lineup/Trade/Waiver Priorities sections deliberately deferred to OS-C2 pending a reuse audit (3 candidate pre-existing systems found, none picked yet — see `OS_C1_MANAGER_OS_FOUNDATION.md` §7); demo setup needs both a roster claim AND a `UserProfile.sleeperUserId` link (Phase E finding). | 100% (single-league) / new foundation (multi-league) |
 | **Platform OS** | What should the platform operator do? | **Live-proven** via the real admin panel (`/admin`). | Authorized route + admin UI, real cross-league aggregate confirmed live in Phase E. **Attention queue now shares the same `DecisionOsAttentionSignal` model Commissioner OS uses, across all 5 signal types (Phase OS-B4.5)** — was a bespoke, narrower `interventionQueue` before. | Multi-league demo (2+ leagues) would show a richer healthy/at-risk split — cosmetic, not blocking. | 100% |
 | **DFS OS** | (deferred) | Does not exist. Pending legal/compliance review. | — | Entire vertical — explicitly out of scope pending legal review. | 0% |
 
@@ -65,6 +67,16 @@ itself.
 | **OS-B5 — Multi-Channel Delivery Adapter Foundation** | New provider-agnostic `DeliveryAdapter` contract (`lib/decision-os/delivery/`) + 4 adapters (real in-app, honest email/push/mobile stubs) + pure `resolveDeliveryPlan` routing resolver; wired into Commissioner Hub with zero extra fetch; 28 new tests | **Code complete, 2965/2965 passing, typecheck byte-identical to OS-B4.5.** See `DELIVERY_ADAPTER_LAYER.md` |
 | **OS-B6 — Demo Excellence Pass** | Naming collision resolved (`CommissionerShowcasePanel` badge renamed); removed 2 duplicated sections (Recent Changes card, 2 redundant League Health Ranking panels); removed raw technical language from 3 user-facing strings; added real counts to 2 panel titles; stronger Today's Brief visual weight; 10 new tests; live browser-verified against a real account | **Code complete, typecheck byte-identical to OS-B5. No new intelligence, no schema changes.** See `OS_B6_DEMO_EXCELLENCE.md` |
 | **OS-B7 — Demo Truthfulness & Executive Experience Pass** | Removed `CommissionerShowcasePanel`'s 2 confirmed fabrication points (fake AI summary, fake flat draft-readiness %) plus a subtler fake-default pair (`\|\| 84`, `\|\| 72`), replacing all with honest degradation; added a timestamp to Notification Center for consistency with Attention Queue; audited Attention Queue/Today's Brief/empty states/badge casing and found them already compliant; 6 new/updated tests; live-verified the honest zero-data fallback state (desktop + mobile) | **Code complete, no new typecheck errors. No new intelligence, no schema changes.** See `OS_B7_DEMO_TRUTHFULNESS.md` |
+
+## 1c. Fantasy OS Operating-System Alignment (Phase OS-C — Manager OS)
+
+The pivot away from Commissioner OS: bringing the same operating-system experience to the person
+PLAYING in a league. Reuses Decision OS's existing Attention Signal/Daily Brief/Notification
+Engine/Delivery Layer primitives through a manager-facing lens — no new backend intelligence.
+
+| Phase | Delivered | Status |
+| --- | --- | --- |
+| **OS-C1 — Manager Operating System Foundation** | New `managerCommandCenter.ts` composition (aggregates `resolveUserOsSnapshot` across every league a user belongs to — commissioner, member, or imported); `attentionSignals.ts` extended with `manager_engagement_risk`/`manager_recommendation` signal types (reusing already-real `UserOsSnapshot`/`Recommendation` fields verbatim, never re-deriving); new `/manager-hub` route + `ManagerCommandCenterSection`/`ManagerCommandCenterOverview`/`ManagerLeagueSwitcher`; `TodaysBriefCard`/`NotificationCenter`/`CommissionerAttentionQueue` reused completely unchanged (all 3 already fully generic); 31 new tests | **Code complete, 141 files/3010 tests passing, 158/158 baseline typecheck unchanged, live-verified (honest empty state).** Lineup/Trade/Waiver Priorities sections explicitly deferred to OS-C2 pending a reuse audit. See `OS_C1_MANAGER_OS_FOUNDATION.md` |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
 
@@ -135,7 +147,8 @@ Zero engineering blockers found; zero code changes were required.
 | OS-B4.5 | **Platform OS Attention Signal Alignment** | `platformOs.ts` migrated onto `DecisionOsAttentionSignal`; shared-helper consolidation (`resolveLeagueFinancialContextSafely`, `ATTENTION_QUEUE_CAP`); 4 new tests, 2935/2935, 158/158 baseline typecheck unchanged | `d370a18ca` |
 | OS-B5 | **Multi-Channel Delivery Adapter Foundation** | `DeliveryAdapter` contract + 4 adapters (real in-app, honest email/push/mobile stubs) + `resolveDeliveryPlan`; Commissioner Hub wired end-to-end; 28 new tests, 2965/2965, 158/158 baseline typecheck unchanged | `43504dd4b` |
 | OS-B6 | **Demo Excellence Pass** | Naming collision fix, 2 duplicated sections removed, jargon removed from 3 strings, count labels, Today's Brief weight; 10 new tests, live-verified, 158/158 baseline typecheck unchanged | `04c2cff34` |
-| OS-B7 | **Demo Truthfulness & Executive Experience Pass** | `CommissionerShowcasePanel` fabrication fixed (fake AI summary, fake flat draft-readiness %, 2 subtler fake-default fallbacks); Notification Center timestamp added for consistency; Attention Queue/Today's Brief/empty states audited and found compliant; 6 new/updated tests, 2981/2981, live-verified (honest zero-data fallback state) | *(this commit)* |
+| OS-B7 | **Demo Truthfulness & Executive Experience Pass** | `CommissionerShowcasePanel` fabrication fixed (fake AI summary, fake flat draft-readiness %, 2 subtler fake-default fallbacks); Notification Center timestamp added for consistency; Attention Queue/Today's Brief/empty states audited and found compliant; 6 new/updated tests, 2981/2981, live-verified (honest zero-data fallback state) | `98362016c` |
+| OS-C1 | **Manager Operating System Foundation** | `managerCommandCenter.ts` (new composition, aggregates `resolveUserOsSnapshot` across every league a user belongs to); `attentionSignals.ts` extended (not forked) with 2 manager-facing signal types; new `/manager-hub` route + `ManagerCommandCenterSection`/`Overview`/`LeagueSwitcher`; `TodaysBriefCard`/`NotificationCenter`/`CommissionerAttentionQueue` reused completely unchanged; 31 new tests, 141 files/3010 tests passing, 158/158 baseline typecheck unchanged, live-verified (honest empty state) | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 

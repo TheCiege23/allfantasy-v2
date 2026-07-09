@@ -31,6 +31,8 @@
  */
 
 import type { LeagueFinancialStatus } from './leagueFinancialContext'
+import type { ManagerRetentionRisk } from './behavioral/manager-intelligence'
+import type { Recommendation } from './phase6/recommendations/types'
 
 export type AttentionSignalSeverity = 'critical' | 'high' | 'medium' | 'low' | 'informational'
 
@@ -40,8 +42,20 @@ export type AttentionSignalType =
   | 'low_league_health'
   | 'high_league_health'
   | 'league_requires_review'
+  /** Phase OS-C1: manager-facing signal types, added for `deriveManagerAttentionSignals` below. Same
+   * model, same severity/sort infrastructure — these are presentation labels for already-real,
+   * already-computed manager-tier values (`UserOsSnapshot.teamHealth`/`recommendations`), not a new
+   * judgment layer. */
+  | 'manager_engagement_risk'
+  | 'manager_recommendation'
 
-export type AttentionSignalSource = 'league_health_engine' | 'league_context' | 'league_settings_draft_date'
+export type AttentionSignalSource =
+  | 'league_health_engine'
+  | 'league_context'
+  | 'league_settings_draft_date'
+  /** Phase OS-C1: `resolveUserOsSnapshot` (`userOs.ts`) — the single-manager, single-league Decision OS
+   * composition `deriveManagerAttentionSignals` reads from. */
+  | 'user_os'
 
 export interface DecisionOsAttentionSignal {
   /** Stable and deterministic — the same underlying condition always produces the same id, so a
@@ -219,6 +233,90 @@ function leagueRequiresReviewSignals(input: LeagueAttentionSignalInputs): Decisi
       source: 'league_health_engine',
     }
   })
+}
+
+/**
+ * Phase OS-C1: manager-facing signal inputs — one manager, one league, sourced entirely from
+ * `resolveUserOsSnapshot`'s (`userOs.ts`) already-real, already-computed output. `null`/empty fields
+ * mean the underlying `UserOsSnapshot` was itself unavailable (`available: false`) or had nothing to
+ * report — matching `LeagueAttentionSignalInputs`'s own "null overallStatus means unavailable"
+ * convention.
+ */
+export interface ManagerAttentionSignalInputs {
+  leagueId: string
+  now: Date
+  retentionRisk: ManagerRetentionRisk | null
+  retentionRiskReasons: readonly string[]
+  isInactive: boolean
+  /** Real, already-computed Phase 6.4 manager-tier recommendations — reused verbatim, never
+   * re-derived, re-scored, or re-prioritized. */
+  recommendations: readonly Recommendation[]
+}
+
+/** `'low'` retention risk is the healthy default — never a signal, matching
+ * `lowLeagueHealthSignal`'s own "healthy states don't queue" precedent. */
+const MANAGER_RETENTION_SEVERITY: Partial<Record<ManagerRetentionRisk, AttentionSignalSeverity>> = {
+  critical: 'critical',
+  high: 'high',
+  medium: 'medium',
+}
+
+function managerEngagementRiskSignal(input: ManagerAttentionSignalInputs): DecisionOsAttentionSignal | null {
+  if (!input.retentionRisk) return null
+  const severity = MANAGER_RETENTION_SEVERITY[input.retentionRisk]
+  if (!severity) return null
+  const reasonSuffix = input.retentionRiskReasons.length > 0 ? ` (${input.retentionRiskReasons.join(', ')})` : ''
+  return {
+    id: `manager_engagement_risk:${input.leagueId}`,
+    leagueId: input.leagueId,
+    type: 'manager_engagement_risk',
+    severity,
+    priorityScore: SEVERITY_RANK[severity],
+    title: input.isInactive ? 'This team has gone inactive' : "This team's engagement needs attention",
+    explanation: `Your retention risk for this team is "${input.retentionRisk}"${reasonSuffix}.`,
+    recommendedAction: 'Check in on your lineup, waivers, and league activity to stay engaged.',
+    timestamp: input.now.toISOString(),
+    source: 'user_os',
+  }
+}
+
+function capitalize(value: string): string {
+  return value.length > 0 ? value[0].toUpperCase() + value.slice(1) : value
+}
+
+/** One signal per real, already-scored manager-tier recommendation — reuses each recommendation's own
+ * `priority` as the signal severity verbatim (every `RecommendationPriority` value is a valid
+ * `AttentionSignalSeverity`), never re-deriving urgency from scratch. */
+function managerRecommendationSignals(input: ManagerAttentionSignalInputs): DecisionOsAttentionSignal[] {
+  return input.recommendations.map((rec) => {
+    const severity: AttentionSignalSeverity = rec.priority
+    return {
+      id: `manager_recommendation:${input.leagueId}:${rec.id}`,
+      leagueId: input.leagueId,
+      type: 'manager_recommendation',
+      severity,
+      priorityScore: SEVERITY_RANK[severity],
+      title: capitalize(humanizeStatus(rec.category)),
+      explanation: rec.expectedImpact,
+      recommendedAction: rec.recommendedActions[0]?.action ?? null,
+      timestamp: input.now.toISOString(),
+      source: 'user_os',
+    }
+  })
+}
+
+/**
+ * Derives every real, explainable attention signal for ONE manager in ONE league from an
+ * already-resolved `UserOsSnapshot`. Same "never fabricate, only omit" contract as
+ * `deriveLeagueAttentionSignals`. Order is insertion order only; a multi-league caller should sort
+ * with `sortAttentionSignals`.
+ */
+export function deriveManagerAttentionSignals(input: ManagerAttentionSignalInputs): DecisionOsAttentionSignal[] {
+  const signals: DecisionOsAttentionSignal[] = []
+  const engagement = managerEngagementRiskSignal(input)
+  if (engagement) signals.push(engagement)
+  signals.push(...managerRecommendationSignals(input))
+  return signals
 }
 
 /**
