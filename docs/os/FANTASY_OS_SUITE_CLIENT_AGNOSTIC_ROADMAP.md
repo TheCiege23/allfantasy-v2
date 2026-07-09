@@ -306,6 +306,17 @@ same way Mission Control was built directly over League Health rather than waiti
 migration.
 Both options are laid out, not decided, in §16/Phase D Increment 2.
 
+**Phase D Increment 2 update (2026-07-08):** the audit is done —
+[`USER_OS_MANAGER_OS_SLEEPER_PROOF_AUDIT.md`](USER_OS_MANAGER_OS_SLEEPER_PROOF_AUDIT.md). Its
+finding sharpens option (b) above into the clear lower-risk path: `resolveManagerIntelligencePayload`
+is already provider-agnostic, already role-agnostic, and already reachable without a commissioner
+gate on at least one existing page (`LeagueTab.tsx`'s unconditional manager-intelligence fetch) —
+option (a), aligning the separate, provider-specific Manager Hub (redraft-only, zero Decision OS
+calls), is now the higher-risk path and not recommended first. One real open question remains before
+building anything: whether an imported Sleeper league, viewed by a non-commissioner member, actually
+routes through a page that already makes this fetch — unverified, and why no code was written this
+increment.
+
 ---
 
 ## 16. What Each OS Must Show
