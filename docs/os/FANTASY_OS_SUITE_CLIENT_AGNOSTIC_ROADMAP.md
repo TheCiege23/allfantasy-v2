@@ -351,6 +351,18 @@ cards. 18 new tests, zero regressions. See
 real, visible (or composition-level, for Platform OS) proof: Commissioner OS, User OS, and Platform
 OS.**
 
+**Phase D Increment 6 update (2026-07-08):** a real, repeatable end-to-end proof procedure now
+exists — [`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md). It reuses the
+existing `scripts/decision-os-import-sleeper-nonprod.ts` (which runs the real production import
+pipeline against the real, public Sleeper API into a non-prod DB) and adds a new, read-only,
+explicit-league-only `scripts/decision-os-suite-conformance.ts` that exercises Mission Control,
+League Analytics, User OS, and Platform OS directly against real infrastructure. It also names,
+precisely, the one remaining gap for seeing non-zero activity signals: no existing script yet
+orchestrates pulling a real imported league's actual Sleeper transactions/rosters/draft picks and
+running them through the already-built `ingestSleeperImportedActivity` emitter — the pieces all
+exist, the connecting orchestration (with real per-league identity mapping) does not, and closing it
+is deliberately out of scope for a verification-harness increment.
+
 ---
 
 ## 16. What Each OS Must Show

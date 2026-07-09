@@ -5,7 +5,12 @@
 code path — but reaching it safely surfaces a real, pre-existing architecture gate this audit
 recommends routing around, not crossing silently. **Phase D Increment 4 (§15) built and shipped the
 narrower, non-gate-crossing minimum surface this audit recommended** — a real composition module and
-7 tests, no UI/route yet (see §15 for why).
+7 tests, no UI/route yet (see §15 for why). **Phase D Increment 6 added a real, read-only
+conformance script** (`scripts/decision-os-suite-conformance.ts`) that exercises this composition
+directly against a real, non-prod database for an explicit set of leagues — see
+[`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) §8 for the exact
+command; Platform OS still has no route/UI (§15's authorization gap is unchanged), so this script is
+currently its only real-infrastructure verification path.
 
 **Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Phase D Increment 3** (successor to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md)'s

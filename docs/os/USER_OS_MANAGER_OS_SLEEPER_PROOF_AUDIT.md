@@ -3,7 +3,12 @@
 **Status: audit + plan + implemented minimum surface.** Increment 2 was audit-only. **Increment 5
 (§14) resolved the one open verification question this audit left unanswered, then built and
 shipped the minimum User OS surface** — a real composition module, a route, a card wired into the
-one page already confirmed reachable by any league role, and 18 tests.
+one page already confirmed reachable by any league role, and 18 tests. **Increment 6 adds a real,
+repeatable end-to-end proof procedure** —
+[`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) — covering how to seed
+a real imported Sleeper league, verify User OS against it via script and browser, and the one
+remaining precisely-named gap (real activity ingestion for that league) before non-zero signals are
+visible.
 
 **Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Phase D Increment 2** (successor to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md)'s
