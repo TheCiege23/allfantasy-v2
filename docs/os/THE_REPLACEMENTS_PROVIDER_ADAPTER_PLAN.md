@@ -13,6 +13,12 @@ data would power), and
 [`DECISION_OS_PHASE_A_IMPLEMENTATION.md`](DECISION_OS_PHASE_A_IMPLEMENTATION.md) (the ingestion
 pipeline this plan targets).
 
+**Phase C Increment 2 update (2026-07-08):** this internal plan now has a client-facing counterpart
+— [`THE_REPLACEMENTS_TECHNICAL_DISCOVERY_HANDOFF.md`](THE_REPLACEMENTS_TECHNICAL_DISCOVERY_HANDOFF.md)
+— written for the next conversation with The Replacements themselves (sample payloads, plain-
+language questions, explicit "not asking for" boundaries). Use this internal plan for engineering
+scoping; use the handoff document on an actual call with them.
+
 ---
 
 ## 0. A scoping decision made while reading the existing code

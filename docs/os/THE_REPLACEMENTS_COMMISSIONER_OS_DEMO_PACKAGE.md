@@ -17,6 +17,11 @@ questions for the next call — is now written up in
 [`THE_REPLACEMENTS_PROVIDER_ADAPTER_PLAN.md`](THE_REPLACEMENTS_PROVIDER_ADAPTER_PLAN.md). Still a
 plan only — no adapter code exists yet.
 
+**Phase C Increment 2 update (2026-07-08):** a client-facing version of that plan — sample payloads,
+plain-language questions, and explicit "what we're not asking for" boundaries — is now available for
+the next actual conversation with The Replacements:
+[`THE_REPLACEMENTS_TECHNICAL_DISCOVERY_HANDOFF.md`](THE_REPLACEMENTS_TECHNICAL_DISCOVERY_HANDOFF.md).
+
 ---
 
 ## 1. Executive summary
