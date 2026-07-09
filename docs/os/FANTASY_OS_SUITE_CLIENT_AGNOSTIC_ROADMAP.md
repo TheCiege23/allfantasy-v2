@@ -169,6 +169,19 @@ opportunities are (e.g. "these 40 leagues show early churn signals").
 architecture decision (does it read the SAME federated League Health data Commissioner OS uses, or
 directly the underlying facts?) and is not attempted here — flagged as a future roadmap item (§15).
 
+**Phase D Increment 3 update (2026-07-08):** the audit is done —
+[`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md`](PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md). It found
+`derivePlatformBehavioralIntelligence` isn't just built and tested — it's already wired end-to-end
+in `lib/decision-os/behavioral/api/real-data-provider.ts` (which fetches real leagues, computes
+per-league intelligence for each, and aggregates them). The reason it still isn't a live surface:
+`real-data-provider.ts` as a whole has never been the provider any production route actually uses,
+and reaching it means crossing a stacked Phase 5.3→5.4→5.5 cutover-ADR gate sequence, one level
+higher than the gate already avoided for Mission Control. The audit recommends NOT crossing that
+gate as a side effect of building a demo surface — instead building a narrower Platform OS
+aggregation directly over the already-cut-over Commissioner OS composition (Mission Control/League
+Analytics' own data, summed across leagues), giving up some richness (an activity heatmap, a
+recency-based momentum signal) for zero new architecture-gate crossings.
+
 ---
 
 ## 8. DFS OS Future Scope
