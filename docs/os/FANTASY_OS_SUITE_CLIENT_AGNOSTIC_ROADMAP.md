@@ -384,6 +384,19 @@ doc's own wording. Documented the `--managerId` value convention (a real AF `use
 covering the concrete failure modes an operator is actually likely to hit. 3 new tests for the new
 warning helper; 2739/2739 total, zero regressions, zero new typecheck errors.
 
+**Phase D Increment 9 update (2026-07-08):** the shadow-gated Platform Intelligence cutover question
+(§7) is formally decided —
+[`PLATFORM_INTELLIGENCE_CUTOVER_ADR.md`](PLATFORM_INTELLIGENCE_CUTOVER_ADR.md). The audit found the
+question conflates two separate paths: (1) an internal AllFantasy UI reading Phase 5.3/5.4 directly
+— still genuinely shadow-gated, no ADR authorizes it, **decision: do not cut over**, the minimum
+Platform OS composition remains correct; (2) the external hosted Intelligence API
+(`/api/v1/intelligence/*`) — has its **own**, already-Accepted ADR chain (5.5-5.10), is
+**staging-verified with real test API keys** (`.env.staging`), and is only missing a **production**
+enablement decision (a business/ops call, not a code gap). Neither path is cut over by this ADR. One
+small, safe fix made: corrected a stale comment in `real-data-provider.ts` that incorrectly claimed
+routes were still hardcoded to the stub provider (they've called `resolveDataProvider()` since Phase
+5.9) — zero behavior change, no gate crossed.
+
 ---
 
 ## 16. What Each OS Must Show

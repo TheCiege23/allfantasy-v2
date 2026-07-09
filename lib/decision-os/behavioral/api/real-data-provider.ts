@@ -248,6 +248,10 @@ export function createRealDataProvider(
 
 /**
  * Default singleton real provider for route file opt-in.
- * Routes currently use stubDataProvider (Phase 5.7); swap to this in Phase 5.9.
+ * Phase 5.9 wired the `/api/v1/intelligence/*` routes to select this at call time via
+ * `resolveDataProvider()` (`provider-selector.ts`) when `DECISION_OS_INTELLIGENCE_API_PROVIDER=real`
+ * — routes are NOT hardcoded to the stub anymore (this comment previously said otherwise; corrected
+ * in Phase D Increment 9, see `docs/os/PLATFORM_INTELLIGENCE_CUTOVER_ADR.md`). The remaining gate is
+ * environment configuration (the env var itself, plus real tenant/API-key issuance), not this code.
  */
 export const realDataProvider: IntelligenceDataProvider = createRealDataProvider()
