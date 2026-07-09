@@ -191,6 +191,18 @@ accepts an arbitrary caller-supplied league list, which needs an operator-level 
 that doesn't exist yet; exposing a route without deciding that first was judged unsafe, so this
 increment deliberately stopped at composition + tests.
 
+**Phase D Increment 11 update (2026-07-08):** that authorization gap is now closed —
+`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md` §17. Rather than inventing a new authorization system,
+this increment reused the existing internal site-admin gate (`requireAdmin`/`lib/adminAuth.ts` — the
+same one every `/api/admin/*` route already uses) via a new, narrow, injectable-deps wrapper,
+`lib/decision-os/platformOsAuthorization.ts`. A new, authorized-and-tested route now exists —
+`GET /api/decision-os/platform-os` — requiring an explicit `leagueIds` query param (never a default
+or discovered list) and recording every query in the existing `AdminAuditLog`. **Still no UI/card**:
+authorization is solved, but how an operator would actually supply a league-id list has no existing
+UI convention to build on, and choosing one is a separate design decision this increment deliberately
+left open rather than improvising. 12 new tests, 2751/2751 total, zero regressions, zero new
+typecheck errors.
+
 ---
 
 ## 8. DFS OS Future Scope
@@ -265,7 +277,7 @@ required zero new lines in any layer below the (not-yet-built) emitter.
 | Platform Behavioral Intelligence (Phase 5.4/6.5) | Real, tested, **shadow-only, wired to nothing** |
 | League-level deterministic recommendations (Phase 5.3) | Real, tested, **shadow-only** behind its own cutover-ADR gate |
 | User OS | Does not exist as a distinct surface |
-| Platform OS | Does not exist as a distinct surface |
+| Platform OS | Composition + authorized route exist (Increments 4/11); no UI/card yet |
 | DFS OS | Does not exist |
 
 ---

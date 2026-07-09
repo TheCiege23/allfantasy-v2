@@ -1,6 +1,7 @@
 # Fantasy OS Suite — Progress Dashboard
 
-**Phase D Increment 10.** A single, scannable status view across the whole OS suite — a companion to
+**Phase D Increment 10, updated by Increment 11.** A single, scannable status view across the whole
+OS suite — a companion to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md) (the
 prose narrative) and [`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) /
 [`SLEEPER_PROOF_EXECUTION_PACKET.md`](SLEEPER_PROOF_EXECUTION_PACKET.md) (the procedure). This doc
@@ -16,7 +17,7 @@ whenever a Phase D increment lands.
 | **Decision OS** | What is happening across the platform, and why? | Real, tested. The shared brain every other OS reads. | `lib/decision-os/behavioral/*` | Not a UI itself |
 | **Commissioner OS** | What should this commissioner do? | **Built, live.** | `lib/decision-os/missionControl.ts`, `leagueAnalytics.ts` | `/commissioner-hub` |
 | **User OS / Manager OS** | What should this manager do to compete better? | **Built, live.** (Phase D Inc. 5) | `lib/decision-os/userOs.ts` | `/league/[leagueId]` (`UserOsCard`) |
-| **Platform OS** | What should the platform operator do? | **Built, composition + tests only.** No route (auth model undecided). (Phase D Inc. 4) | `lib/decision-os/platformOs.ts` | None |
+| **Platform OS** | What should the platform operator do? | **Built + authorized route.** No UI yet (input-UX undecided). (Phase D Inc. 4/11) | `lib/decision-os/platformOs.ts`, `platformOsAuthorization.ts` | `GET /api/decision-os/platform-os` (site-admin only) |
 | **DFS OS** | (deferred) | Does not exist. Pending legal/compliance review. | — | — |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
@@ -55,14 +56,15 @@ non-prod `DATABASE_URL` and a real Sleeper account/league, neither of which exis
 | 7 | Sleeper imported-activity orchestration | `decision-os-ingest-sleeper-activity-nonprod.ts`, 16 tests | `ac2f75d72` |
 | 8 | Runbook hardening | Flag rename, silent-fetch warning, troubleshooting doc, 3 more tests | `333a1fddf` |
 | 9 | Platform Intelligence cutover ADR | `PLATFORM_INTELLIGENCE_CUTOVER_ADR.md`, 1 comment fix | `0d03a8e10` |
-| 10 | Real execution prep | This packet + dashboard + `--dryRun` | *(this commit)* |
+| 10 | Real execution prep | Execution packet + dashboard + `--dryRun` | `9e90a5c1a` |
+| 11 | Platform OS operator authorization | `platformOsAuthorization.ts`, `/api/decision-os/platform-os` route, 12 tests | *(this commit)* |
 
 ## 5. Open, honestly-unresolved items
 
 - Live execution of the Sleeper proof chain against a real non-prod DB + real Sleeper account — needs
   real credentials this sandbox doesn't have.
-- Platform OS has no route/UI — needs an operator-authorization model for arbitrary caller-supplied
-  league lists, not yet designed.
+- Platform OS has no UI — authorization + a route now exist (site-admin gated, Inc. 11), but there is
+  no decided UX for how an operator supplies the required explicit `leagueIds` list.
 - Whether path 1 (internal UI cutover for Phase 5.3/5.4) is ever pursued — currently decided **no**.
 - Whether path 2 (external Intelligence API) is ever enabled in production — a business/ops decision,
   not an engineering one.

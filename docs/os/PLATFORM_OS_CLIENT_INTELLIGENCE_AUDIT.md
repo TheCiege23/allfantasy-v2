@@ -380,7 +380,7 @@ Commissioner OS outputs, no new Decision OS derivation.
 
 ---
 
-## 16. Boundaries honored (this increment)
+## 16. Boundaries honored (Increment 4, historical)
 
 - No code implemented — audit + plan only, per explicit instruction (no "tiny, obvious, low-risk"
   wiring change was found safe enough to also ship this increment; reusing the existing wiring would
@@ -391,4 +391,91 @@ Commissioner OS outputs, no new Decision OS derivation.
 - No production DB touched; no production cron enabled.
 - PR #183 untouched, still draft, not merged.
 - No Redraft/Start-Draft/PR-#166/AF-hosted-league work touched.
+- No retention-lift, ROI, or engagement-improvement claims anywhere in this document.
+
+---
+
+## 17. Increment 11 — operator authorization model (implemented)
+
+**§15's own open blocker — "who is authorized to request aggregate data about which leagues?" — is
+now answered**, without inventing a new authorization system. Three existing internal patterns were
+read before deciding: (1) the Intelligence API's tenant/API-key/tier gate
+(`lib/decision-os/behavioral/api/gate.ts`) — the wrong fit, since that's built for external, hosted,
+multi-tenant consumption (already its own separately-ADR'd concern, see
+`PLATFORM_INTELLIGENCE_CUTOVER_ADR.md`), not internal operator tooling; (2) `getLeagueRole`
+(`lib/league/permissions.ts`) — also the wrong fit, since it answers "is this user
+commissioner/member of ONE league", not "may this caller aggregate data across MANY leagues they may
+not personally belong to" (checking it per requested league would mean an operator could only ever
+see leagues they already commission — defeating Platform OS's whole point); (3) `requireAdmin`/
+`getAdminAccessState` (`lib/adminAuth.ts`) — the correct fit: a real, already-tested, already-in-
+production internal site-admin gate, the same one every existing `/api/admin/*` route already uses.
+
+**Decision: Platform OS requires the caller to be a site admin** (`requireAdmin`), full stop — no new
+tenant/tier/per-league concept invented. New `lib/decision-os/platformOsAuthorization.ts` —
+`authorizePlatformOsRequest(deps?)` — a thin, injectable-deps wrapper around `requireAdmin` (deps
+pattern matches this codebase's existing `RealDataProviderDeps`/`WaiverLoaderDeps` convention, so the
+authorization decision itself is unit-testable without mocking `next/headers`). Returns
+`{authorized:true, adminUserId}` or `{authorized:false, status: 401|403}` — 401 for unauthenticated,
+403 for signed-in-but-non-admin, mirroring `requireAdmin`'s own two-failure-mode contract exactly.
+
+**New route `GET /api/decision-os/platform-os`** (`app/api/decision-os/platform-os/route.ts`):
+authorizes first (before touching any league data — an unauthorized caller learns nothing about any
+league, partial or otherwise), then requires an explicit, comma-separated `leagueIds` query param
+(missing/empty → 400, **never** falls back to a default or discovered list — this route has no
+discovery code path at all), then calls the unchanged `resolvePlatformOsSnapshot`, then records a
+best-effort audit entry via the existing `logAdminAudit` (`lib/admin-audit.ts`, already backed by a
+real `AdminAuditLog` table) — the first Decision OS route that can read data spanning leagues the
+caller doesn't personally belong to, so a real accountability trail is a genuine safety measure here,
+not decoration.
+
+**Partial league access**: unchanged from Increment 4 — `resolvePlatformOsSnapshot`'s own per-league
+try/catch already degrades a single bad/inaccessible league id to `unavailableLeagueCount` without
+failing the whole request; the route passes that snapshot straight through as an honest 200, proven
+by a dedicated test.
+
+**No UI/card built this increment — a deliberate, separate stopping point from the authorization
+question.** Authorization is now solved, but Platform OS still requires an EXPLICIT list of league
+IDs as input, and there is no existing admin-surface convention for how an operator would supply that
+list (the existing `/admin` dashboard, `app/admin/page.tsx`, is server-rendered from data computed at
+page-load with no concept of "which leagues to monitor" — inventing a default list would itself be a
+form of auto-discovery, which is exactly what every step of this instruction forbids). Deciding that
+input UX (a paste-a-list form? a saved-list picker? something else?) is a real, separate design
+question this increment does not answer — building a UI without deciding it first would repeat the
+exact "silent side-effect decision" this workstream has consistently avoided elsewhere.
+
+### Tests added (Increment 11)
+
+`__tests__/decision-os/platform-os-authorization.test.ts` (5/5): denies unauthenticated (401) and
+non-admin (403) callers; authorizes a real admin and echoes their `id`; falls back to `email` when
+`id` is absent; never fabricates an authorized outcome when neither is present.
+
+`__tests__/decision-os/platform-os-route-contract.test.ts` (7/7): denies unauthenticated and
+non-admin callers with 401/403 before ever calling `resolvePlatformOsSnapshot`; refuses an authorized
+admin who omits `leagueIds` or supplies only whitespace/empty entries (400, proving no
+auto-discovery); aggregates explicit, comma-separated (whitespace-trimmed) league ids for an
+authorized admin; passes a partially-unavailable snapshot through as an honest 200; logs an admin
+audit entry recording the caller's id and the exact requested league ids.
+
+**Full suite run:** 12 new tests, **2751/2751 total in `__tests__/decision-os`, zero regressions.**
+Full-repo typecheck: 158 baseline errors (unchanged), zero new errors in any touched file.
+
+---
+
+## 18. Boundaries honored (Increment 11)
+
+- Reused the existing internal site-admin gate (`requireAdmin`/`lib/adminAuth.ts`) — no new
+  authorization system, no new tenant/tier concept, no crossing into the separately-ADR'd external
+  Intelligence API gate.
+- `leagueIds` remains explicit and required — the route has no code path that discovers or defaults
+  to any league list; a missing/empty param is refused (400), never silently substituted.
+- No UI/card built — the authorization question is answered, but the "how does an operator supply a
+  league list" question is separate and explicitly left open, not answered by inventing a default.
+- No DFS OS work. No adapter code, no `IMPORT_PROVIDERS` change.
+- No fake/demo data anywhere — every test uses fabricated *test* fixtures (mocked `requireAdmin`/
+  `resolvePlatformOsSnapshot`/`logAdminAudit`), never a fabricated production data path.
+- No production DB touched; no production cron enabled.
+- PR #183 untouched, still draft, not merged.
+- No Redraft/Start-Draft/PR-#166/AF-hosted-league work touched.
+- No shadow-gated Phase 5.3/5.4/5.5 pipeline crossed — this route still only calls the already-
+  cut-over `resolvePlatformOsSnapshot`/Mission Control composition.
 - No retention-lift, ROI, or engagement-improvement claims anywhere in this document.
