@@ -16,6 +16,13 @@ Replacements would need to provide, an integration architecture sketch, a propos
 pilot plan, a licensing-tier sketch, and the concrete engineering gaps before a live pilot. Makes no
 ROI/retention-lift claims anywhere.
 
+**Phase C Increment 5 note:** a final, consolidated demo-readiness checklist + runbook now exists —
+[`THE_REPLACEMENTS_DEMO_READINESS_CHECKLIST.md`](THE_REPLACEMENTS_DEMO_READINESS_CHECKLIST.md).
+Documentation only. Pulls the demo package, adapter plan, technical discovery handoff, and call
+script into one pre-call checklist: current demo-ready surfaces, what to show/avoid, a pre-demo
+technical + talking-points checklist, honest-unavailable-states reference, a demo script order, and
+a Go/No-Go checklist.
+
 **Phase C has begun (Commissioner OS External Licensing, successor to Phase B):** Increment 1 —
 [`THE_REPLACEMENTS_PROVIDER_ADAPTER_PLAN.md`](THE_REPLACEMENTS_PROVIDER_ADAPTER_PLAN.md) — the
 technical adapter plan (minimum data contract, identity/league/manager/roster/transaction/waiver/

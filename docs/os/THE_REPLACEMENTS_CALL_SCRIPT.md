@@ -11,6 +11,11 @@ to reach for, plus explicit lines not to cross.
 (client-facing technical discovery doc, sample payloads). This script pulls the highest-value points
 from all three into something usable live on a call.
 
+**Before the call:** run through
+[`THE_REPLACEMENTS_DEMO_READINESS_CHECKLIST.md`](THE_REPLACEMENTS_DEMO_READINESS_CHECKLIST.md) —
+the pre-demo technical + talking-points checklists and the Go/No-Go criteria — before using this
+script live.
+
 ---
 
 ## 1. Opening Positioning

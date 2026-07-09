@@ -35,6 +35,12 @@ a sibling to Mission Control's "what should the commissioner do now." This is st
 minimal version**, not the fuller Tier 2 packaging described in §10 below — no historical/
 season-over-season charting or cross-league comparison exists yet.
 
+**Phase C Increment 5 update (2026-07-08):** a final, practical pre-call checklist consolidating
+this package, the adapter plan, the technical discovery handoff, and the call script — including a
+Go/No-Go checklist and a concrete demo script order — is now available:
+[`THE_REPLACEMENTS_DEMO_READINESS_CHECKLIST.md`](THE_REPLACEMENTS_DEMO_READINESS_CHECKLIST.md).
+Review this immediately before the actual call.
+
 ---
 
 ## 1. Executive summary
