@@ -1,13 +1,20 @@
 # Sleeper OS Suite — Real Execution Packet
 
-**Phase D Increment 10.** This is the short, fill-in-the-blanks version of
+**Phase D Increment 10, updated by Increment 14.** This is the short, fill-in-the-blanks version of
 [`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) — read that doc for
 full explanations, troubleshooting, and boundaries. This doc is meant to be read top-to-bottom once,
 then executed. Every command below is copy/paste-ready once the placeholders are filled in.
 
-**Before you start:** none of this should ever point at the production database. Every script below
-hard-refuses the production host on its own, but you are the last line of defense — double-check
-`<NONPROD_DATABASE_URL>` yourself before running anything.
+**Before you start:**
+- None of this should ever point at the production database. Every script below hard-refuses the
+  production host on its own, but you are the last line of defense — double-check
+  `<NONPROD_DATABASE_URL>` yourself before running anything.
+- **(Increment 14)** Platform OS now has a real admin route + UI (Increments 11/12), gated by the
+  existing internal site-admin check. Add `<PRESENTER_ACCOUNT_EMAIL>` to that environment's
+  `ADMIN_EMAILS` env var *before* the demo — there is no demo-mode bypass, by design.
+- **(Increment 14)** You need a browser-reachable app pointed at `<NONPROD_DATABASE_URL>` (a local
+  `npm run dev`, or a deployed preview/staging environment) — the scripts below only write to the
+  database; something else has to actually render the pages for Step 5's browser checks.
 
 ---
 
@@ -22,6 +29,8 @@ hard-refuses the production host on its own, but you are the last line of defens
 | `<MANAGER_ID>` | Either a real AF `userId`, or `sleeper:<sleeperUserId>` for an external-only manager | Printed by Step 2's identity-mapping log line, or looked up in `UserProfile.sleeperUserId` |
 | `<COMMISSIONER_ACCOUNT>` | The account used for Step 1 (`decision-os-nonprod-importer@allfantasy.local`) or a real account that owns the league | Created automatically by Step 1 |
 | `<MEMBER_ACCOUNT>` | A second, real AF account that has claimed a *different* roster/team in the same league | You create/claim this yourself in the non-prod environment, for the manager-only browser check |
+| `<PRESENTER_ACCOUNT_EMAIL>` | The real account that will show the Platform OS panel — needs `ADMIN_EMAILS` access | Can be the same as `<COMMISSIONER_ACCOUNT>`, or a separate account; you add this yourself |
+| `<CRON_SECRET>` | The value of `process.env.CRON_SECRET` in the environment you're demoing in | Set by whoever configured that environment; needed only for the optional snapshot-capture step |
 
 ---
 
@@ -63,7 +72,19 @@ DATABASE_URL=<NONPROD_DATABASE_URL> npx tsx scripts/decision-os-ingest-sleeper-a
 Same command as Step 2, minus `--dryRun`. Safe to re-run any time (idempotent writer). Look for
 `SLEEPER_ACTIVITY_INGEST_OK`.
 
-## 4. Verify all three OS surfaces resolve (read-only)
+## 4. Capture a real behavioral snapshot (optional, recommended before presenting)
+
+```
+curl "<your-app-base-url>/api/cron/decision-os-snapshot-capture?leagueId=<AF_LEAGUE_ID>&secret=<CRON_SECRET>"
+```
+
+Not required — every OS surface degrades honestly without it (trend shows `no_snapshots`). But if you
+want a real trend line during the demo, call this once now (right after Step 3, so it reflects real
+ingested activity), then again later with real elapsed time before you actually present. This route
+already exists and is already tested (`app/api/cron/decision-os-snapshot-capture/route.ts`) — it was
+simply never mentioned in this packet until Increment 14.
+
+## 5. Verify all three OS surfaces resolve (read-only)
 
 ```
 DATABASE_URL=<NONPROD_DATABASE_URL> npx tsx scripts/decision-os-suite-conformance.ts \
@@ -75,7 +96,7 @@ Look for `SUITE_CONFORMANCE_RESULT: N/N checks passed.` Every line should be `�
 composition failed to resolve — not "zero activity" (see the full checklist §4 for that
 distinction) — and is worth investigating before moving to the browser steps.
 
-## 5. Browser verification
+## 6. Browser verification
 
 1. Sign in as `<COMMISSIONER_ACCOUNT>`, visit `/commissioner-hub` — confirm Mission Control + League
    Analytics render with real counts.
@@ -84,6 +105,10 @@ distinction) — and is worth investigating before moving to the browser steps.
 3. Sign in as `<MEMBER_ACCOUNT>` (plain member, not commissioner), visit `/league/<AF_LEAGUE_ID>` —
    confirm the same User OS card renders identically for a non-commissioner role. This is the
    concrete manager-only proof.
+4. **(Increment 14)** Sign in as `<PRESENTER_ACCOUNT_EMAIL>` (must already be in `ADMIN_EMAILS` for
+   this environment), visit `/admin`, open the **"Platform OS"** panel, paste `<AF_LEAGUE_ID>`
+   (comma-separated with a second league id for a richer demo) into the textarea, click **Fetch** —
+   confirm the aggregate snapshot renders.
 
 ---
 
@@ -93,8 +118,10 @@ distinction) — and is worth investigating before moving to the browser steps.
 1. decision-os-import-sleeper-nonprod.ts              (writes: League/LeagueTeam/Roster + import audit)
 2. decision-os-ingest-sleeper-activity-nonprod.ts --dryRun   (writes: none)
 3. decision-os-ingest-sleeper-activity-nonprod.ts            (writes: DecisionOsImportedActivity)
-4. decision-os-suite-conformance.ts                    (writes: none — read-only)
-5. Browser: /commissioner-hub, /league/<AF_LEAGUE_ID> as two different accounts
+4. GET /api/cron/decision-os-snapshot-capture          (writes: one BehavioralSnapshot row; optional)
+5. decision-os-suite-conformance.ts                    (writes: none — read-only)
+6. Browser: /commissioner-hub, /league/<AF_LEAGUE_ID>, and /admin (Platform OS panel) as up to
+   three different accounts
 ```
 
 ## What this packet does NOT do
@@ -107,3 +134,5 @@ distinction) — and is worth investigating before moving to the browser steps.
   passed in.
 - Does not touch Redraft/Start-Draft/PR-#166/AF-hosted-league work, DFS OS, or `the_replacements`
   provider work.
+- Does not grant admin access automatically — `<PRESENTER_ACCOUNT_EMAIL>`'s `ADMIN_EMAILS` entry is a
+  manual environment-configuration step you must do yourself before Step 6.4.

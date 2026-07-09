@@ -5,11 +5,14 @@ in this procedure — every step either reads/writes real (if currently activity
 real-activity-populated per Increment 7) imported league data, or honestly reports why a signal
 isn't populated yet.**
 
-**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Phase D Increment 6, updated by
-Increment 7, hardened into an operator-ready runbook by Increment 8** (successor to
+**Date:** 2026-07-09 · **Branch:** `g15-event-foundation`. **Phase D Increment 6, updated by
+Increment 7, hardened into an operator-ready runbook by Increment 8, updated for real Platform OS
+route/UI + snapshot capture by Increment 14** (successor to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md),
 [`USER_OS_MANAGER_OS_SLEEPER_PROOF_AUDIT.md`](USER_OS_MANAGER_OS_SLEEPER_PROOF_AUDIT.md), and
-[`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md`](PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md)).
+[`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md`](PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md)). See also
+[`CUSTOMER_DEMO_READINESS_AUDIT.md`](CUSTOMER_DEMO_READINESS_AUDIT.md) (Increment 13) for the full
+demo-readiness picture this update closes the documentation gaps for.
 
 ---
 
@@ -43,6 +46,14 @@ Sleeper league, is the next concrete step (§10).
   script below hard-refuses).
 - Node + `npx tsx` available (already a repo dependency).
 - No production DB credentials should ever be set in the shell running these commands.
+- **(Increment 14, if doing §3c snapshot capture)** `CRON_SECRET` must be set in the environment you
+  call `/api/cron/decision-os-snapshot-capture` against.
+- **(Increment 14, if doing §8's browser step)** The presenter's account email must already be in
+  that environment's `ADMIN_EMAILS` env var (or match a hardcoded test account in `lib/auth/admin.ts`)
+  — this is required before the demo, not something any script here configures for you.
+- A browser-reachable app pointed at the same `DATABASE_URL` (a local `npm run dev`, or a deployed
+  preview/staging environment) — the scripts below only write to the database; something else needs
+  to actually render the pages for §6/§7/§8's browser steps.
 
 ---
 
@@ -139,6 +150,37 @@ something this increment could execute itself.
 
 ---
 
+## 3c. Step 1.75 — Capture a real behavioral snapshot (Increment 14, optional but recommended before a demo)
+
+```
+curl "<your-app-base-url>/api/cron/decision-os-snapshot-capture?leagueId=<leagueId from step 1>&secret=<CRON_SECRET>"
+```
+
+(Non-production only, per that route's own `authorizeCron` — in production this same call requires an
+`Authorization: Bearer $CRON_SECRET` header instead of `?secret=`. Either way, `CRON_SECRET` must
+already be set in whatever environment's `.env` you're hitting.)
+
+This calls the existing, already-tested `GET /api/cron/decision-os-snapshot-capture` route
+(`app/api/cron/decision-os-snapshot-capture/route.ts`, Commissioner OS Surface Alignment Phase B
+Increment 4) — real, authorized, callable on demand, but **not registered in `vercel.json`**, so it
+never runs automatically. Without at least one call to it, League Health/Mission Control/League
+Analytics/User OS/Platform OS will all honestly report `no_snapshots` for their trend panels — a
+correct but visually flat state for a first-time run.
+
+**Optional, not required for correctness** — every OS surface degrades honestly with zero snapshots.
+**Recommended before presenting a demo**: call this once now (ideally right after §3b, so the
+snapshot reflects real ingested activity, not a pre-ingestion zero baseline), then call it again later
+with real elapsed time before actually presenting — trend direction (`increasing`/`decreasing`/
+`stable`) needs 2+ captures with a real time gap between them, which is exactly the kind of signal a
+customer demo benefits from showing. Re-calling this route for the same league is safe (each call is
+an independent capture, not a destructive overwrite).
+
+**This step was found missing from this checklist, not missing from the codebase** — the route itself
+has existed and been tested since before this workstream began; Increment 14 is the first time this
+checklist mentions it.
+
+---
+
 ## 4. Step 2 — Run the OS Suite conformance script (new this increment)
 
 ```
@@ -232,14 +274,48 @@ database and a real Sleeper league, is the concrete way to fully close this out 
    is a plain member (not commissioner) of the same league, confirming the same card renders
    identically for them.
 
-## 8. Step 5 — Platform OS (script-only, no browser step)
+## 8. Step 5 — Platform OS (Increment 14: real admin route + UI now exist)
 
-Platform OS has no route or UI (see
-[`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md`](PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md) §15 for why —
-an unresolved operator-authorization question, not an oversight). Its proof is entirely the §4
-script run — confirm `Platform OS aggregates N explicit league(s)` reports the correct
-`totalMonitoredLeagues` matching however many `--leagueIds` were supplied, and that
-`healthy`/`atRisk`/`unavailable` sum correctly.
+**Updated in Increment 14 — this section was stale.** It previously said Platform OS had no route or
+UI; that has not been true since Increments 11/12: Platform OS now has an authorized route
+(`GET /api/decision-os/platform-os`) and a real admin panel (`/admin` → "Platform OS" section). The
+§4 script run below still works and is still useful for a scriptable/CI-style check, but a demo
+should use the real browser panel, not just the script.
+
+**Prerequisite specific to this step**: whoever presents this part of the demo must have their
+account email listed in that environment's `ADMIN_EMAILS` env var (or match one of the hardcoded
+test accounts in `lib/auth/admin.ts`) — Platform OS's route and `/admin` itself are both gated by the
+same internal site-admin check (`requireAdmin`/`isSiteAdmin`, see
+[`PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md`](PLATFORM_OS_CLIENT_INTELLIGENCE_AUDIT.md) §17), and there
+is no separate demo-mode bypass, by design. This is an environment-configuration step, not something
+any script here can do for you.
+
+**Script check (works today, no browser needed):**
+
+```
+DATABASE_URL=<same-nonprod-db> npx tsx scripts/decision-os-suite-conformance.ts \
+  --leagueIds=<leagueId from step 1> \
+  --managerId=<see the managerId value convention above>
+```
+
+Confirm `Platform OS aggregates N explicit league(s)` reports the correct `totalMonitoredLeagues`
+matching however many `--leagueIds` were supplied, and that `healthy`/`atRisk`/`unavailable` sum
+correctly.
+
+**Browser check (Increment 12, the real demo step):**
+
+1. Sign in as the site-admin-authorized presenter account (see the prerequisite above), against the
+   same non-prod environment.
+2. Visit `/admin`, open the collapsed **"Platform OS"** panel.
+3. Paste the same explicit league id(s) used above (comma-separated if more than one) into the
+   textarea and click **Fetch**.
+4. Confirm the panel renders: monitored/healthy/at-risk/unavailable league counts, active/inactive
+   manager counts, trade/waiver/draft/roster activity totals, the intervention queue (or its honest
+   empty state), trend coverage, provenance, and any warnings — every field `resolvePlatformOsSnapshot`
+   returns, nothing hidden.
+5. For a richer demo, repeat step 3 with a **second** real imported league's id alongside the first —
+   Platform OS's healthy/at-risk split and intervention queue are far more visually compelling with
+   2+ leagues than with a single one.
 
 ---
 
@@ -281,6 +357,9 @@ Concrete, real failure modes an operator running this end-to-end is likely to ac
       `IMPORTED_LEAGUE_ID`.
 - [ ] Ran `decision-os-ingest-sleeper-activity-nonprod.ts` against that same league id, reviewed the
       writer summary (created/updated/skipped counts, external-only-manager count).
+- [ ] (Optional, recommended before a demo — Increment 14) Called
+      `/api/cron/decision-os-snapshot-capture?leagueId=...` at least once; called it again later with
+      real elapsed time if a real trend line should show in the demo.
 - [ ] Ran `decision-os-suite-conformance.ts` against that league id (+ a manager id), reviewed the
       pass/fail + detail lines — non-zero activity expected now that §3b has run.
 - [ ] Verified Mission Control + League Analytics render in the browser at `/commissioner-hub`,
@@ -288,7 +367,8 @@ Concrete, real failure modes an operator running this end-to-end is likely to ac
 - [ ] Verified the User OS card renders in the browser at `/league/<leagueId>`, for both a
       commissioner-role account and a plain-member account, if a second claimed account is
       available.
-- [ ] Confirmed Platform OS's aggregate counts are internally consistent via the script output.
+- [ ] Confirmed the presenter's account has `ADMIN_EMAILS` access in this environment, then verified
+      the Platform OS panel renders at `/admin` with the real league counts (Increment 14).
 - [ ] Did NOT run any of this against the production database host.
 - [ ] Did NOT fabricate any activity, league, or manager data at any step.
 
@@ -313,3 +393,8 @@ Concrete, real failure modes an operator running this end-to-end is likely to ac
 - PR #183 untouched, still draft, not merged.
 - No measured retention/engagement/ROI outcome claimed anywhere in this document — Increment 8 is
   runbook hardening (clarity, safety checks, troubleshooting), not a measurement of any outcome.
+- **(Increment 14)** No new authorization surface introduced — §8's admin panel/route reuse the
+  existing site-admin gate (`requireAdmin`/`isSiteAdmin`, Increment 11), unchanged. No new code was
+  written this increment — documentation corrections only, reflecting Platform OS's real route/UI
+  (Increments 11/12) and the pre-existing snapshot-capture route that this checklist had simply never
+  mentioned before.

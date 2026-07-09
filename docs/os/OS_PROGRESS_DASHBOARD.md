@@ -1,6 +1,6 @@
 # Fantasy OS Suite — Progress Dashboard
 
-**Phase D Increment 10, updated by Increments 11, 12, and 13.** A single, scannable status view across the whole
+**Phase D Increment 10, updated by Increments 11, 12, 13, and 14.** A single, scannable status view across the whole
 OS suite — a companion to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md) (the
 prose narrative), [`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) /
@@ -36,29 +36,30 @@ Update it whenever a Phase D increment lands.
 | 1. Seed imported league | `decision-os-import-sleeper-nonprod.ts` | Yes (League/LeagueTeam/Roster) | No — no live network access here |
 | 2. Dry-run activity ingest | `decision-os-ingest-sleeper-activity-nonprod.ts --dryRun` | No (Inc. 10) | No |
 | 3. Real activity ingest | `decision-os-ingest-sleeper-activity-nonprod.ts` | Yes (`DecisionOsImportedActivity`) | No |
-| 4. Suite conformance | `decision-os-suite-conformance.ts` | No (read-only) | No |
-| 5. Browser checks | `/commissioner-hub`, `/league/[leagueId]` | No | No |
+| 4. Snapshot capture (optional, Inc. 14) | `GET /api/cron/decision-os-snapshot-capture` | Yes (one `BehavioralSnapshot` row) | No |
+| 5. Suite conformance | `decision-os-suite-conformance.ts` | No (read-only) | No |
+| 6. Browser checks | `/commissioner-hub`, `/league/[leagueId]`, `/admin` (Platform OS panel, Inc. 14) | No | No |
 
 **Everything is execution-ready** (real, type-correct, unit-tested logic; every command copy/paste-
 ready once placeholders in `SLEEPER_PROOF_EXECUTION_PACKET.md` are filled in). **Nothing has been run
 against a live Sleeper league or a live non-prod database in this sandbox** — that requires a real
 non-prod `DATABASE_URL` and a real Sleeper account/league, neither of which exist in this environment.
 
-## 4. Customer demo readiness (Increment 13)
+## 4. Customer demo readiness (Increment 13, docs fixed in Increment 14)
 
 Full detail in [`CUSTOMER_DEMO_READINESS_AUDIT.md`](CUSTOMER_DEMO_READINESS_AUDIT.md). Headline:
 **zero engineering blockers** — every gap found is either "hasn't been run yet" or a one-time
 operational/environment step, not missing code.
 
-| Kind | Item |
-| --- | --- |
-| Operational blocker | Sleeper proof chain has never been run live against real infrastructure |
-| Operational blocker | No customer-reachable environment established yet (local dev + screen-share, or a Vercel preview, both work — zero engineering) |
-| Operational blocker | Demo presenter's account needs `ADMIN_EMAILS` access in the demo environment to show Platform OS |
-| Polish | Snapshot-capture route (`/api/cron/decision-os-snapshot-capture`) isn't in the execution packet yet — without it every trend panel shows "no snapshots yet" |
-| Polish | `SLEEPER_OS_SUITE_PROOF_CHECKLIST.md` §8 is stale — still says Platform OS has no route/UI |
-| Polish | A second imported league would make Platform OS's healthy/at-risk split more visually compelling |
-| Polish | Platform OS admin panel has never rendered in a live browser, only in component tests |
+| Kind | Item | Status |
+| --- | --- | --- |
+| Operational blocker | Sleeper proof chain has never been run live against real infrastructure | Still open — needs real credentials |
+| Operational blocker | No customer-reachable environment established yet (local dev + screen-share, or a Vercel preview, both work — zero engineering) | Still open — an operator's choice to make |
+| Operational blocker | Demo presenter's account needs `ADMIN_EMAILS` access in the demo environment to show Platform OS | Now documented (Inc. 14) — still an operator step to actually do |
+| Polish | Snapshot-capture route (`/api/cron/decision-os-snapshot-capture`) wasn't in the execution packet — without it every trend panel shows "no snapshots yet" | **Fixed (Inc. 14)** — new §3c/Step 4 in both proof docs |
+| Polish | `SLEEPER_OS_SUITE_PROOF_CHECKLIST.md` §8 was stale — said Platform OS has no route/UI | **Fixed (Inc. 14)** — rewritten with real route/UI + browser step |
+| Polish | A second imported league would make Platform OS's healthy/at-risk split more visually compelling | Recommendation now documented (Inc. 14) — running it is still operational |
+| Polish | Platform OS admin panel has never rendered in a live browser, only in component tests | Still open — no browser-reachable environment available in this sandbox |
 
 ## 5. Phase D increment history
 
@@ -76,7 +77,8 @@ operational/environment step, not missing code.
 | 10 | Real execution prep | Execution packet + dashboard + `--dryRun` | `9e90a5c1a` |
 | 11 | Platform OS operator authorization | `platformOsAuthorization.ts`, `/api/decision-os/platform-os` route, 12 tests | `cf2d7ae5d` |
 | 12 | Platform OS operator input UX | `PlatformOsOperatorPanel.tsx`, wired into `/admin`, 7 tests | `a47dba565` |
-| 13 | Customer demo readiness audit | `CUSTOMER_DEMO_READINESS_AUDIT.md`, no code | *(this commit)* |
+| 13 | Customer demo readiness audit | `CUSTOMER_DEMO_READINESS_AUDIT.md`, no code | `afdf2a06f` |
+| 14 | Proof packet documentation cleanup | Checklist §3c/§8 rewrite, packet Step 4/6.4, no code | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 
