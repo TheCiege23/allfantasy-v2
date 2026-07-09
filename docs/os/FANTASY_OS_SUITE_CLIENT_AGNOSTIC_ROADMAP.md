@@ -607,9 +607,29 @@ confidence behind it — status alone can never imply confidence). 2772/2772 tot
 zero new typecheck errors. **Foundation only** — no persistence-layer resolver, no route, no
 Commissioner OS UI control yet; see `LEAGUE_CONTEXT_FOUNDATION.md` §6 for the recommended next phase.
 
+### OS-A2 — League Context Wiring (2026-07-09)
+
+Wires the OS-A1 foundation into real Commissioner OS flows. New Prisma-backed resolver
+`lib/decision-os/leagueContext.ts` — `resolveLeagueFinancialContext` mirrors the established
+honest-degradation pattern (no row/no delegate → the pure `UNKNOWN` default, never a crash);
+`persistLeagueFinancialConfirmation` throws a real, catchable error rather than reporting false
+success if the store can't persist. New `lib/decision-os/leagueContextAuthorization.ts` — combines the
+league's own `getLeagueRole` (commissioner/co-commissioner) with the existing site-admin gate
+(`requireAdmin`, the same one Platform OS uses) rather than inventing a new one; a plain member or
+viewer is denied. New route `GET`/`POST /api/decision-os/league-context` — reads follow the exact
+same session-only precedent every sibling Decision OS read route already sets; writes require the
+authorization above. New Commissioner OS control, `LeagueContextCard`, wired into
+`CommissionerHubPageClient.tsx` — safe to hardcode `canManage` since Commissioner Hub only ever
+renders for leagues the signed-in user already commissions; the route re-verifies independently
+regardless. The card's own copy explicitly distinguishes this from `LeagueFinance`/payment collection.
+30 new/extended tests (pure-function additions, resolver, authorization, route contract), 2802/2802
+total, zero regressions, zero new typecheck errors. **Still not exercised against a real database** —
+the OS-A1 migration remains unapplied anywhere; see `LEAGUE_CONTEXT_FOUNDATION.md` §8 for OS-A3
+candidates.
+
 ---
 
-## 25. Boundaries honored
+## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24 are additive.
 - The Replacements documents were not deleted, only recontextualized via pointer updates.

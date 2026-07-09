@@ -8,6 +8,7 @@ import {
   isConfidentlyFree,
   isConfidentlyPaid,
   isFinancialStatusConfident,
+  resetLeagueFinancialContext,
 } from '@/lib/decision-os/leagueFinancialContext'
 
 describe('defaultLeagueFinancialContext', () => {
@@ -167,5 +168,54 @@ describe('describeEscrowProvider', () => {
     expect(describeEscrowProvider('MANUAL')).toBe('Manually recorded')
     expect(describeEscrowProvider('OTHER')).toBe('Other provider')
     expect(describeEscrowProvider('UNKNOWN')).toBe('Unknown provider')
+  })
+})
+
+describe('applyManualFinancialConfirmation — optional escrowProvider label (Phase OS-A2)', () => {
+  it('records an escrow provider label on a manual paid confirmation without implying verification', () => {
+    const confirmed = applyManualFinancialConfirmation(defaultLeagueFinancialContext('league-12', 'sleeper'), {
+      financialStatus: 'PAID',
+      buyInAmount: 50,
+      escrowProvider: 'LEAGUESAFE',
+    })
+    expect(confirmed.escrowProvider).toBe('LEAGUESAFE')
+    // Confidence stays USER_CONFIRMED, never ESCROW_VERIFIED — a label is not a verification.
+    expect(confirmed.financialConfidence).toBe('USER_CONFIRMED')
+    expect(confirmed.financialStatus).toBe('PAID')
+  })
+
+  it('forces escrowProvider back to UNKNOWN when confirming free, even if one was previously set', () => {
+    const paid = applyManualFinancialConfirmation(defaultLeagueFinancialContext('league-13', 'sleeper'), {
+      financialStatus: 'PAID',
+      escrowProvider: 'FANCRED',
+    })
+    const free = applyManualFinancialConfirmation(paid, { financialStatus: 'FREE' })
+    expect(free.escrowProvider).toBe('UNKNOWN')
+  })
+})
+
+describe('resetLeagueFinancialContext (Phase OS-A2)', () => {
+  it('returns a fully unknown context, identical to a fresh default', () => {
+    const reset = resetLeagueFinancialContext('league-14', 'sleeper')
+    expect(reset).toEqual(defaultLeagueFinancialContext('league-14', 'sleeper'))
+  })
+
+  it('fully clears every field of a previously-confirmed paid context, not just financialStatus', () => {
+    const paid = applyManualFinancialConfirmation(defaultLeagueFinancialContext('league-15', 'sleeper'), {
+      financialStatus: 'PAID',
+      buyInAmount: 100,
+      buyInCurrency: 'usd',
+      financialNotes: 'Venmo pool',
+      escrowProvider: 'LEAGUESAFE',
+    })
+    const reset = resetLeagueFinancialContext(paid.leagueId, 'sleeper')
+    expect(reset.financialStatus).toBe('UNKNOWN')
+    expect(reset.buyInAmount).toBeNull()
+    expect(reset.buyInCurrency).toBeNull()
+    expect(reset.financialNotes).toBeNull()
+    expect(reset.escrowProvider).toBe('UNKNOWN')
+    expect(reset.financialConfidence).toBe('UNKNOWN')
+    expect(reset.isUserConfirmed).toBe(false)
+    expect(reset.lastVerifiedAt).toBeNull()
   })
 })

@@ -81,6 +81,11 @@ export interface ManualFinancialConfirmationInput {
   buyInAmount?: number | null
   buyInCurrency?: string | null
   financialNotes?: string | null
+  /** Optional — records which provider the commissioner SAYS they use (e.g. "we use LeagueSafe"),
+   * as a plain label only. This is NOT a verified escrow confirmation — confidence stays
+   * `USER_CONFIRMED` regardless of whether this is set (see `applyEscrowVerification` for the real,
+   * higher-confidence path). Ignored (forced to `UNKNOWN`) when `financialStatus` is `FREE`. */
+  escrowProvider?: LeagueEscrowProvider
 }
 
 /**
@@ -94,16 +99,28 @@ export function applyManualFinancialConfirmation(
   input: ManualFinancialConfirmationInput,
   now: Date = new Date(),
 ): LeagueFinancialContext {
+  const isFree = input.financialStatus === 'FREE'
   return {
     ...current,
     financialStatus: input.financialStatus,
-    buyInAmount: input.financialStatus === 'FREE' ? null : input.buyInAmount ?? current.buyInAmount,
-    buyInCurrency: input.financialStatus === 'FREE' ? null : input.buyInCurrency ?? current.buyInCurrency,
+    buyInAmount: isFree ? null : input.buyInAmount ?? current.buyInAmount,
+    buyInCurrency: isFree ? null : input.buyInCurrency ?? current.buyInCurrency,
+    escrowProvider: isFree ? 'UNKNOWN' : input.escrowProvider ?? current.escrowProvider,
     financialNotes: input.financialNotes ?? current.financialNotes,
     financialConfidence: 'USER_CONFIRMED',
     isUserConfirmed: true,
     lastVerifiedAt: now,
   }
+}
+
+/**
+ * A real person explicitly retracts any prior claim — the league returns to the exact same honest
+ * "we don't know" state as a freshly-imported league. A full reset, not a partial one: a lingering
+ * buy-in amount or escrow provider label next to `UNKNOWN` status would itself be a form of
+ * fabricated certainty, so every field is cleared, not just `financialStatus`.
+ */
+export function resetLeagueFinancialContext(leagueId: string, provider: string): LeagueFinancialContext {
+  return defaultLeagueFinancialContext(leagueId, provider)
 }
 
 export interface EscrowVerificationInput {

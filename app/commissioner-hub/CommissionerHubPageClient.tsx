@@ -32,6 +32,7 @@ import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
 import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
 import MissionControlCard from '@/components/decision-os/MissionControlCard'
 import LeagueAnalyticsCard from '@/components/decision-os/LeagueAnalyticsCard'
+import LeagueContextCard from '@/components/decision-os/LeagueContextCard'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
@@ -999,6 +1000,8 @@ export default function CommissionerHubPageClient({
         <MissionControlCard snapshot={missionControl} variant="commissioner" compact />
 
         <LeagueAnalyticsCard snapshot={leagueAnalytics} variant="commissioner" />
+
+        <LeagueContextCard leagueId={representativeLeagueId} canManage variant="commissioner" />
 
         <LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />
 

@@ -100,20 +100,21 @@ facing control is explicitly out of scope for this foundation phase).
 
 ## 4. What remains — LeagueSafe / FanCred / Yahoo / ESPN
 
-**Nothing beyond the enum value existing.** Per this phase's own instructions, no provider is
-integrated:
+**Nothing beyond the enum value existing, even after OS-A2.** No provider is integrated:
 
 - No LeagueSafe or FanCred API client, OAuth flow, or webhook exists.
 - No ESPN/Yahoo financial-data adapter exists (their general league-import adapters, unrelated to
   financial context, are a separate, already-existing concern).
-- `applyEscrowVerification` is a real, tested, callable function — but nothing calls it. Building the
-  first real integration means: pick one provider, build its API client, map its response onto
-  `EscrowVerificationInput`, and call this function — the interpretation and persistence shape are
-  already done.
-- No route, no UI control, no Commissioner OS card reads or writes `DecisionOsLeagueContext` yet —
-  that is the natural next phase (see §6).
+- `applyEscrowVerification` is a real, tested, callable function — but nothing calls it, still. OS-A2
+  only wired the MANUAL confirmation path (a real person's own word); the escrow-verification path
+  remains exactly the adapter hook OS-A1 left it as. Building the first real integration means: pick
+  one provider, build its API client, map its response onto `EscrowVerificationInput`, and call this
+  function — the interpretation and persistence shape are already done.
+- OS-A2's manual-confirm control (§7) DOES accept an `escrowProvider` value from the commissioner —
+  but that only records which provider they SAY they use, as a plain label. It does not call, verify
+  against, or authenticate with any real provider.
 
-## 5. Boundaries honored
+## 5. Boundaries honored (Phase OS-A1)
 
 - No Redraft/Start-Draft/PR-#166/AF-hosted-league work touched.
 - PR #183 untouched, still draft, not merged.
@@ -125,12 +126,72 @@ integrated:
   provider behind it, exactly as instructed.
 - No chat-based or heuristic inference of financial status, for Sleeper or any other provider.
 
-## 6. Recommended next phase
+## 6. OS-A2 — League Context wiring (implemented)
 
-**OS-A2 — League Context wiring**: a thin Prisma-backed resolver (mirroring
-`defaultLoadImportedActivityRows`'s honest-degradation pattern — no row yet → the pure default, never
-a crash) plus a real commissioner-facing control (a manual confirm-free/confirm-paid action,
-presumably on Commissioner OS) so `applyManualFinancialConfirmation` actually gets called by a real
-person instead of only by tests. That would be the first point at which League Context becomes
-visible anywhere in the product, and a natural prerequisite before Platform OS or notifications ever
-reference financial status.
+The recommended next phase from §6 (original) is now built:
+
+**New Prisma-backed resolver, `lib/decision-os/leagueContext.ts`** — mirrors
+`defaultLoadImportedActivityRows`'s honest-degradation pattern exactly: `resolveLeagueFinancialContext`
+checks for the `decisionOsLeagueContext` delegate + a real row, and degrades to the pure
+`defaultLeagueFinancialContext` (never a crash, never a 500) if either the delegate isn't
+generated/migrated in this environment or a genuine read failure occurs — the honest, expected path in
+every real environment today, since the OS-A1 migration still hasn't been applied anywhere (see §5).
+Writes are held to a stricter standard: `persistLeagueFinancialConfirmation` throws
+`LeagueContextStoreUnavailableError` if the store genuinely can't persist, rather than reporting a
+false "confirmed" success — the route below turns that into an honest `503`.
+
+**New authorization helper, `lib/decision-os/leagueContextAuthorization.ts`** — combines two
+already-existing, already-tested gates rather than inventing a new one: `getLeagueRole`
+(`lib/league/permissions.ts`) for the league's own commissioner/co-commissioner, and `requireAdmin`
+(`lib/adminAuth.ts`, the same site-admin gate Platform OS reuses — Phase D Increment 11) for operator
+correction. A plain member, a viewer, or a caller with no relationship to the league at all is denied
+(403) unless they're also a site admin. Reads are deliberately NOT gated by this module — the read
+route follows the exact same precedent every sibling Decision OS read route already sets (session-only,
+no per-league role check; enforcement is UI-level, matching Mission Control/League Analytics/User OS).
+
+**New route, `GET`/`POST /api/decision-os/league-context`** — `GET` returns the resolved context for
+any authenticated caller. `POST` accepts `{leagueId, action: 'confirm_free'|'confirm_paid'|'reset',
+buyInAmount?, buyInCurrency?, financialNotes?, escrowProvider?}`, gated by the authorization helper
+above, and returns the real persisted context (or a `503 context_store_unavailable` if the store can't
+persist).
+
+**New Commissioner OS control, `components/decision-os/LeagueContextCard.tsx`** — wired into
+`CommissionerHubPageClient.tsx` right after the existing Mission Control/League Analytics cards, with
+`canManage` hardcoded `true`. This is safe without per-league role plumbing: Commissioner Hub already
+only ever renders for `commissionerLeagues` — leagues the signed-in user commissions — so any league
+this card is ever shown for is, by definition, one the same user is authorized to manage; the server
+route re-verifies this independently regardless. The card's own copy states explicitly, in the UI
+itself, that this is a belief Decision OS records, not a payment or collection system — pointing
+readers to "League Finance" (the existing AF-native treasury feature) for that.
+
+**19 new/extended tests** (6 more pure-function tests for `resetLeagueFinancialContext` and the new
+`escrowProvider` label field; 6 resolver tests incl. store-unavailable degradation; 8 authorization
+tests covering commissioner/co-commissioner/member/viewer/no-relationship/site-admin; 10 route-contract
+tests covering the exact scenarios this phase's own instructions listed). 2802/2802 total in
+`__tests__/decision-os`, zero regressions.
+
+## 7. Boundaries honored (Phase OS-A2)
+
+- No LeagueSafe/FanCred integration built — the manual confirm path only records a person's own word,
+  never calls a real provider.
+- No payment handling promised anywhere in the UI copy or docs — the card explicitly names
+  `LeagueFinance` as the separate system for that.
+- No production DB touched — the OS-A1 migration remains unapplied to any database, including the
+  Phase E throwaway project; this phase adds code that WOULD read/write it once migrated, but does not
+  migrate it.
+- No chat/name/heuristic inference — the only ways to change status remain the explicit
+  `applyManualFinancialConfirmation`/`applyEscrowVerification` calls from OS-A1, now reachable via a
+  real, authorized route instead of only from tests.
+- No Redraft/Start-Draft/PR-#166/AF-hosted-league work touched.
+- No DFS OS work.
+- PR #183 untouched, still draft, not merged.
+
+## 8. Recommended next phase
+
+**OS-A3 candidates**: (a) apply the OS-A1 migration to a real non-prod database (e.g. the Phase E
+`cool-lab-87438174` project) and verify the new route/card against real, persisted rows — the
+resolver/route/UI are all written and unit-tested, but none have been exercised against an actual
+database yet; (b) begin OS-A product decision #2/#3 (the multi-league command-center default view and
+the league-switch mode) — a materially larger scope than this narrow foundation-and-wiring slice; (c)
+the first real escrow integration (LeagueSafe most likely, given its existing enum priority), calling
+the already-built `applyEscrowVerification` adapter hook for real.
