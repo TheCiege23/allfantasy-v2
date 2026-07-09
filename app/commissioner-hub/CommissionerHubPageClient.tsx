@@ -30,6 +30,7 @@ import CommissionerShowcasePanel from '@/components/redraft/CommissionerShowcase
 import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
 import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
 import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
+import MissionControlCard from '@/components/decision-os/MissionControlCard'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
@@ -38,6 +39,7 @@ import { buildCommissionerLeaguePulse } from '@/lib/decision-os/league-pulse'
 import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
 import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
 import type { ManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
+import type { MissionControlSnapshot } from '@/lib/decision-os/missionControl'
 
 // ─── Copy constants (future i18n wiring) ───────────────────────────────────
 const COPY = {
@@ -786,6 +788,28 @@ export default function CommissionerHubPageClient({
     () => buildDecisionRecommendationsViewModel({ source: managerIntelligence?.recommendations ?? null }),
     [managerIntelligence],
   )
+  const [missionControl, setMissionControl] = useState<MissionControlSnapshot | null>(null)
+  useEffect(() => {
+    if (!representativeLeagueId) {
+      setMissionControl(null)
+      return
+    }
+    let cancelled = false
+    void fetch(`/api/decision-os/mission-control?leagueId=${encodeURIComponent(representativeLeagueId)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<MissionControlSnapshot>) : null))
+      .then((data) => {
+        if (!cancelled) setMissionControl(data)
+      })
+      .catch(() => {
+        if (!cancelled) setMissionControl(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [representativeLeagueId])
   const showDemoMode = demoMode || leagues.length === 0
   const primaryHeroHref = isAuthenticated ? '/create-league' : buildLoginHref('/create-league')
   const primaryHeroLabel = isAuthenticated ? COPY.hero.ctaCreate : 'Sign In'
@@ -947,6 +971,8 @@ export default function CommissionerHubPageClient({
           <ManagerDnaCard profile={managerDna} variant="commissioner" compact />
           <DecisionRecommendationsCard model={recommendations} variant="commissioner" compact />
         </section>
+
+        <MissionControlCard snapshot={missionControl} variant="commissioner" compact />
 
         <LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />
 
