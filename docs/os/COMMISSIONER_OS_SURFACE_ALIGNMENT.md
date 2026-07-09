@@ -4,7 +4,7 @@
 merged.** No Redraft/Start-Draft/PR-#166 work. No Mission Control/League Analytics UI built. No fake
 demo data. Primary business target: **The Replacements demo.**
 
-**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–3 landed.**
+**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–4 landed.**
 
 ---
 
@@ -33,6 +33,10 @@ instead of guessing" instruction.
   — the existing, untouched `monitorLeagueHealth` scoring engine now runs on real trade/waiver/
   manager/trend counts via an explicit opt-in route contract; the legacy explicit-metrics contract
   is fully preserved.
+- ✅ **Increment 4:** the already-built snapshot writer (Phase A Increment 5) is now reachable from a
+  safe, authorized, on-demand/batch job path — `/api/cron/decision-os-snapshot-capture` — so trend
+  history can start accumulating for real. **Not registered in `vercel.json`**, i.e. **not scheduled
+  to run automatically yet** — that is a separate, deliberate deployment decision (§4d).
 - ⛔ **Still needing their own architecture decision, not a guess:** the Commissioner Intelligence
   Hub's 7 modules (a *third* system), Manager Hub's P2–P4 contracts (a *fourth* system), a real
   retention-risk *derivation* at the platform level, and building Mission Control / League Analytics
@@ -79,7 +83,7 @@ systems that predate Phase A.
 | **Automations** | ❌ no unified surface; only scattered per-feature toggles (survivor challenges, waiver automation, etc.) | N/A | Not a Commissioner OS surface today | Undetermined | Low |
 | **Notifications** | `app/alerts` — a user-facing alert-*settings* page, not an intelligence surface | N/A | Different purpose entirely; not a Decision OS consumer | N/A | Low |
 | **Retention risk** | ❌ no discrete signal found anywhere (subsystem A/B/C/D) | No | This isn't a "wrong source" gap — **the signal itself doesn't exist yet** | New derivation needed in subsystem A or B (a Decision OS *feature* gap, not a surface-wiring gap) | High (named target) — **needs Decision OS work first, not surface wiring** |
-| **Trend movement over time** | Phase A Increment 5 (`lib/decision-os/snapshot/*`) | ✅ **Yes — wired this increment** (Increment 2, §4b): `dashboard-intelligence.ts`'s `leagueTrend` field | Read path is live; **no scheduler yet writes snapshot rows**, so it honestly reports `no_snapshots` until Increment 5's writer is scheduled somewhere real | Schedule `captureAndWriteBehavioralSnapshots` (a cron or similar) so real history accumulates | High (named target) — **wiring done; data-accumulation is the remaining piece** |
+| **Trend movement over time** | Phase A Increment 5 (`lib/decision-os/snapshot/*`) | ✅ **Yes — wired this increment** (Increment 2, §4b): `dashboard-intelligence.ts`'s `leagueTrend` field | Read path was live; **write path now exists too** (§4d, `/api/cron/decision-os-snapshot-capture`) but is **not scheduled to run automatically** — it must be invoked (on demand, or registered as a cron) for real history to accumulate | ✅ Job/route built. Remaining: register a schedule + supply `CRON_SECRET` in a real environment | High (named target) — **wiring + write path done; scheduling is a deployment decision, not a code gap** |
 
 ---
 
@@ -224,6 +228,100 @@ discriminator is explicit, matching this workstream's established contract style
 Phase B 1–2, 109 unchanged). **Zero regressions.** Full-repo typecheck: 158 baseline errors
 (unchanged), **zero in any file this increment touched.** No schema change, no migration, no Neon
 proof needed (pure composition + route wiring over models Phase A already shipped).
+
+## 4d. Increment 4 — snapshot writer wired to a safe, repeatable job/route (implemented)
+
+**Goal:** trend data (§4b/§4c) has been *readable* since Increment 2, but nothing wrote real
+snapshot rows anywhere — every trend read has honestly reported `no_snapshots` in practice. This
+increment wires the already-built writer (`captureAndWriteBehavioralSnapshots`, Phase A Increment 5)
+into a callable job/route, without changing any capture/store logic.
+
+**Scheduling approach chosen:** mirror the repo's existing cron convention exactly
+(`app/api/cron/waivers/route.ts`) rather than invent a new auth/scheduling pattern —
+`Authorization: Bearer ${CRON_SECRET}`, with a non-production `?secret=` query fallback for local
+smoke tests; `runtime = 'nodejs'`, `dynamic = 'force-dynamic'`; a `dryRun` query flag; per-league
+try/catch isolation; the same `{ ok, dryRun, discovered, processed, failed, results }` response
+shape. This was the lowest-risk option because it reuses an already-audited, already-production
+auth convention instead of adding a second one.
+
+**Deliberate scope limit:** the route captures an **explicit** list of leagues
+(`?leagueId=<id>` for one, `?leagueIds=<id1>,<id2>,...` for a batch) — it does **not** auto-discover
+"every league on the platform." Building a platform-wide league-discovery query is a separate, larger
+scope decision (which table(s) count as "in scope," pagination, rate limiting against a real
+schedule) that this increment did not need to make to satisfy "capture one league on demand" +
+"capture multiple leagues in a batch."
+
+**New files:**
+- **`lib/decision-os/snapshot/captureLeagueSnapshotJob.ts`** — the reusable job unit.
+  `captureLeagueSnapshotJob(leagueId, { store, now?, lookbackDays? })` composes the SAME
+  `loadLeagueEvents`/`lookbackDays`/`sinceDate` (Increment 1/3's exports, already merging imported
+  activity) with the unchanged `captureAndWriteBehavioralSnapshots` writer — zero new derivation
+  logic, pure orchestration. Never throws: returns `{ leagueId, ok: false, error }` on failure.
+  `captureLeagueSnapshotsBatchJob(leagueIds, deps)` runs the single-league job per id, isolating one
+  league's failure from the rest (matches `waivers/route.ts`'s per-league try/catch exactly).
+- **`lib/decision-os/snapshot/prismaBehavioralSnapshotStore.ts`** gains
+  `createDefaultBehavioralSnapshotStore()` — the write-side counterpart to Increment 2's
+  `defaultListLeagueBehavioralTrend`. Returns `null` (not an in-memory store) when the
+  `decisionOsBehavioralSnapshot` Prisma delegate isn't present, so a caller can honestly report
+  "store unavailable" instead of silently discarding a capture and claiming success.
+- **`app/api/cron/decision-os-snapshot-capture/route.ts`** — `GET`, auth-gated exactly like
+  `waivers/route.ts`. Parses `leagueId`/`leagueIds`, short-circuits on `dryRun`, returns
+  `snapshot_store_unavailable` (503) honestly if the store factory returns `null`, otherwise calls
+  the single-league or batch job and reports `{ ok, dryRun, discovered, processed, failed, results }`.
+  **Deliberately NOT added to `vercel.json`'s `crons` array** — the route exists, is fully authorized
+  and testable, but nothing schedules it yet. Enabling automatic scheduling is a separate deployment
+  decision (needs `CRON_SECRET` set + a `vercel.json` entry in a real environment).
+
+**Idempotency and honesty are inherited, not re-implemented:** `upsertByPeriod`'s
+`findUnique`-before-`upsert` (Increment 5) already guarantees one row per `(leagueId, managerId,
+periodKey)`; `assembleLeagueBehavioralFacts` already emits `warnings: ['no_events']` for a zero-event
+capture. This increment's job function doesn't touch either — it only proves the *orchestration*
+converges correctly when called repeatedly or with different `now` values.
+
+### Tests added (Increment 4)
+
+- `__tests__/decision-os/capture-league-snapshot-job.test.ts` (6/6): one-league capture calls the
+  writer correctly (league + manager rows land in the store, keyed to today's period); a repeated
+  same-day capture **updates** the existing league/manager rows (`status: 'updated'`, row count
+  unchanged); a next-day capture **appends** a new trend row (`listTrend` returns both period keys in
+  order); an empty league still persists an honest zero snapshot with `facts.warnings` containing
+  `'no_events'` and zero manager rows; an event-loading failure degrades to `{ ok: false, error }`
+  without writing anything; a batch capture isolates one league's failure from another's success.
+- `__tests__/decision-os/decision-os-snapshot-capture-route-contract.test.ts` (12/12): unauthorized
+  (no secret, wrong bearer, unset `CRON_SECRET` even with a matching query param) all 401; no
+  league(s) specified → 400 `no_leagues_specified`; `dryRun` short-circuits before touching the store
+  or job; `snapshot_store_unavailable` → 503 when the store factory returns `null` (never calls the
+  job); a single `leagueId` calls the single-league job (not the batch job) and reports
+  processed/failed correctly on both success and failure; `leagueIds=a,b,c` parses an explicit
+  comma-separated batch (including a stray space) and calls the batch job, reporting a partial
+  failure's `failed` count honestly; the non-production `?secret=` fallback works and is rejected in
+  `NODE_ENV=production`.
+
+**Full suite run:** 18 new (6 job + 12 route-contract) + the full decision-os regression suite
+(Increments 1–5 + Phase B 1–3) — **2652/2652 total in `__tests__/decision-os`, zero regressions.**
+Full-repo typecheck: run against the same 158-error baseline, **zero new errors in any file this
+increment touched** (confirmed via `NODE_OPTIONS=--max-old-space-size=6144 npx tsc --noEmit`). No
+schema/migration change — this increment is code + tests only, reusing Phase A Increment 5's
+already-shipped `DecisionOsBehavioralSnapshot` model.
+
+**How trend data becomes live over time:** calling `GET /api/cron/decision-os-snapshot-capture
+?leagueId=<id>` (with a valid `CRON_SECRET` bearer token) on two or more different UTC calendar days
+for the same league is now sufficient to produce a real `leagueTrend`/League-Health-trend
+(`available: true`) instead of `no_snapshots`/`insufficient_history` — the read path (Increment 2)
+and this write path converge on the same store. Doing this manually (or via a temporary schedule) for
+one or two demo leagues ahead of the Replacements demo is enough to prove real trend movement without
+touching production defaults.
+
+**Remaining deployment/env requirements (not part of this increment, intentionally):**
+- `CRON_SECRET` must be set in whatever environment this is invoked from (already required for the
+  existing `waivers`/other cron routes — no new secret introduced).
+- The `decisionOsBehavioralSnapshot` Prisma model must be migrated + the client generated in that
+  environment (Phase A Increment 5 shipped the migration; it has never been generated in this shared
+  dev environment per established practice — see Phase A's own notes). Until then, the route honestly
+  returns `snapshot_store_unavailable` rather than silently doing nothing.
+- Actually registering a schedule (a `vercel.json` `crons` entry, or an external scheduler hitting
+  this route periodically) is a deliberate, separate action — not done here, per "no production
+  enablement by default."
 
 ## 5. Preserved honest degradation (Do #6)
 

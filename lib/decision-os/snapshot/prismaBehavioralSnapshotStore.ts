@@ -175,3 +175,19 @@ export async function defaultListLeagueBehavioralTrend(
     return []
   }
 }
+
+/**
+ * Default WRITE-side store factory (Commissioner OS Surface Alignment, Phase B Increment 4).
+ * Returns `null` — rather than an in-memory store, which would silently discard every capture and
+ * misrepresent a scheduled job as having persisted something real — when the
+ * `decisionOsBehavioralSnapshot` delegate isn't present (model not yet migrated/generated in this
+ * environment). Callers (the snapshot-capture job/route) must treat `null` as "store unavailable"
+ * and report that honestly rather than pretending to have captured anything.
+ */
+export function createDefaultBehavioralSnapshotStore(): PrismaBehavioralSnapshotStore | null {
+  const delegate = (defaultPrisma as unknown as {
+    decisionOsBehavioralSnapshot?: DecisionOsBehavioralSnapshotDelegate
+  })?.decisionOsBehavioralSnapshot
+  if (!delegate) return null
+  return new PrismaBehavioralSnapshotStore(delegate)
+}
