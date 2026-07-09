@@ -791,13 +791,37 @@ stage. Recommended next: OS-B6, a pivot toward demo excellence (richer Commissio
 polish, storytelling dashboards, executive summaries, real provider integrations) rather than further
 backend architecture.
 
+### OS-B6 — Demo Excellence Pass (2026-07-09)
+
+The pivot: no new intelligence, no new provider integrations, no notification sending, no schema
+changes — pure product-experience polish on the Commissioner Hub's Multi-League Overview. Resolved the
+naming collision (`CommissionerShowcasePanel`'s badge renamed "Commissioner Command Center" →
+"Platform Readiness Snapshot," a label matching its actual readiness/foundation-proof content). Removed
+2 real, live-verified instances of duplicated-section clutter: the standalone "Recent Changes" card
+(redundant with Today's Brief's own league highlights, near-permanently empty since the snapshot cron
+isn't scheduled) and 2 of League Health Ranking's 4 panels ("Healthiest"/"Least active," which for
+small league counts literally showed the same leagues their counterpart panel already showed). Removed
+raw technical language from 3 user-facing strings (`"Decision OS doesn't yet know..."` → plain English;
+raw `"at_risk"` enum → `"at risk"`; `"Tracked by Decision OS"` → `"Actively monitored"`). Added real
+counts to 2 panel titles (`"Attention queue (6)"`, `"Switch to a league (2)"`). Gave Today's Brief's
+summary sentence stronger visual weight. Deliberately did NOT touch: `CommissionerAttentionQueue`/
+`NotificationCenter` (kept as 2 distinct surfaces per this phase's own explicit review scope, not
+consolidated); the legacy "League Operations Summary" stat row (a real, flagged redundancy, out of this
+phase's named scope); `CommissionerShowcasePanel`'s own fabricated-fallback-content logic (a real,
+flagged violation of the "no fake data" discipline, predates this workstream, flagged as a separate
+task rather than rewritten here); the already-delegated duplicate-`data-testid` fix (open PR #185).
+10 new tests. 158/158 baseline typecheck unchanged (byte-identical to OS-B5). **Real, live browser
+verification** against a real developer account with 2 real leagues (not fixtures) — every change
+confirmed via direct DOM inspection, League Focus navigation confirmed with no regression, zero new
+console errors. Full detail: `OS_B6_DEMO_EXCELLENCE.md`.
+
 ---
 
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
-- No Manager OS changes in OS-B1 through OS-B5; no Platform OS changes before OS-B4.5.
-- No backend schema changes in OS-B1 through OS-B5 — `LeagueSettings.draftDateUtc` and
+- No Manager OS changes in OS-B1 through OS-B6; no Platform OS changes before OS-B4.5.
+- No backend schema changes in OS-B1 through OS-B6 — `LeagueSettings.draftDateUtc` and
   `DecisionOsLeagueContext` are both real, pre-existing sources; OS-B2 added zero new columns/tables.
 - No AI-generated or fabricated signals in OS-B2 — every signal type traces to an existing, already-real
   data source; two originally-suggested types were deliberately left unbuilt for lacking real data.
@@ -807,6 +831,10 @@ backend architecture.
   untouched; Platform OS still does not produce or consume `DecisionOsNotification`.
 - No email sending, push notifications, cron/scheduled jobs, notification database persistence, new
   Decision OS signal generation, or LeagueSafe/FanCred integration built in OS-B4.
+- No new intelligence, provider integrations, notification sending, or schema changes in OS-B6 — a pure
+  presentation/copy/layout pass; every underlying Decision OS composition/resolver is byte-for-byte
+  unchanged in behavior (only 2 explanation strings' RENDERED TEXT changed, never their derivation
+  logic).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

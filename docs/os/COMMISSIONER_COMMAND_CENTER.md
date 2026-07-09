@@ -26,6 +26,11 @@ surface would confuse anyone looking at both on the same page. This phase's new 
 removed, or merged into the other — that's a separate, larger decision this phase deliberately did
 not make unilaterally.
 
+**Update (Phase OS-B6, 2026-07-09):** that separate, larger decision was made. `CommissionerShowcasePanel`'s
+badge was renamed from "Commissioner Command Center" to **"Platform Readiness Snapshot"** — a label
+that more accurately describes its actual content anyway. Both widgets still remain on the page,
+untouched otherwise; only the collision itself was resolved. See `OS_B6_DEMO_EXCELLENCE.md` §1.
+
 ## 2. What was built
 
 **New Decision OS composition, `lib/decision-os/commissionerCommandCenter.ts`** —

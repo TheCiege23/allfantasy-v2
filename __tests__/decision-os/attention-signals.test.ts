@@ -118,7 +118,10 @@ describe('deriveLeagueAttentionSignals — low_league_health / high_league_healt
     const signal = signals.find((s) => s.type === 'low_league_health')
     expect(signal?.severity).toBe(severity)
     expect(signal?.explanation).toContain('42')
-    expect(signal?.explanation).toContain(overallStatus)
+    // Phase OS-B6: explanation text uses plain-English status (underscores replaced with spaces) —
+    // never raw technical enum jargon shown directly to a commissioner.
+    expect(signal?.explanation).toContain(overallStatus.replace(/_/g, ' '))
+    expect(signal?.explanation).not.toContain('_')
   })
 
   it('never fires low_league_health when overallStatus is null (league health unavailable)', () => {

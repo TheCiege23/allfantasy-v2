@@ -29,7 +29,6 @@ import {
 import CommissionerCommandCenterOverview from './CommissionerCommandCenterOverview'
 import CommissionerLeagueHealthRanking from './CommissionerLeagueHealthRanking'
 import CommissionerAttentionQueue from './CommissionerAttentionQueue'
-import CommissionerRecentChanges from './CommissionerRecentChanges'
 import CommissionerLeagueSwitcher from './CommissionerLeagueSwitcher'
 import TodaysBriefCard from './TodaysBriefCard'
 import NotificationCenter from './NotificationCenter'
@@ -161,10 +160,12 @@ export default function CommissionerCommandCenterSection({
 
         <CommissionerLeagueHealthRanking summaries={snapshot?.leagueSummaries ?? []} leagueNameById={leagueNameById} />
 
-        <div className="grid gap-4 lg:grid-cols-2">
-          <CommissionerAttentionQueue entries={snapshot?.attentionQueue ?? []} leagueNameById={leagueNameById} />
-          <CommissionerRecentChanges entries={snapshot?.recentChanges ?? []} leagueNameById={leagueNameById} />
-        </div>
+        {/* Phase OS-B6: the standalone "Recent Changes" card was removed — its own real data
+            (`snapshot.recentChanges`) is already surfaced by Today's Brief's league highlights above,
+            and the card itself was near-permanently empty in real environments (the snapshot-capture
+            cron isn't scheduled anywhere yet), making it a duplicated, low-value section rather than a
+            distinct source of information. See docs/os/OS_B6_DEMO_EXCELLENCE.md §2. */}
+        <CommissionerAttentionQueue entries={snapshot?.attentionQueue ?? []} leagueNameById={leagueNameById} />
 
         <NotificationCenter notifications={deliveryPlan.inApp} leagueNameById={leagueNameById} />
 

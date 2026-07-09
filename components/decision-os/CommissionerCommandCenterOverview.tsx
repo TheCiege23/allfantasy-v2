@@ -53,7 +53,7 @@ export default function CommissionerCommandCenterOverview({
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-testid="command-center-overview">
       <StatChip icon={Trophy} label="Total leagues" value={totalLeagues} />
-      <StatChip icon={ShieldCheck} label="Tracked by Decision OS" value={trackedLeagueCount} />
+      <StatChip icon={ShieldCheck} label="Actively monitored" value={trackedLeagueCount} />
       <StatChip icon={AlertTriangle} label="Need attention" value={leaguesNeedingAttentionCount} tone="risk" />
       <StatChip icon={CalendarClock} label="Drafts approaching" value={draftsApproachingCount} />
     </div>

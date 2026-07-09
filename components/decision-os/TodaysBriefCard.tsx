@@ -30,7 +30,7 @@ export default function TodaysBriefCard({ brief, leagueNameById }: TodaysBriefCa
         <div className="flex flex-wrap items-center gap-2">
           <DecisionOsBadge icon={Sparkles}>Today&apos;s Brief</DecisionOsBadge>
         </div>
-        <p className="mt-3 text-base font-bold text-primary" data-testid="todays-brief-summary">
+        <p className="mt-3 text-lg font-black leading-snug text-primary" data-testid="todays-brief-summary">
           {brief.summary}
         </p>
       </div>

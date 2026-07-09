@@ -460,7 +460,7 @@ export default function CommissionerShowcasePanel({
         <div>
           <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/25 bg-violet-500/[0.10] px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-violet-200/85">
             <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
-            Commissioner Command Center
+            Platform Readiness Snapshot
           </div>
           <h2 className="mt-3 text-[22px] font-black tracking-tight text-white sm:text-[26px]">
             League readiness, AI context, and foundation proof in one place.

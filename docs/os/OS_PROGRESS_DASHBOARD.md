@@ -18,8 +18,10 @@ OS-B4 — the reusable notification model and in-app Notification Center),
 [`OS_B_ARCHITECTURE_AUDIT.md`](OS_B_ARCHITECTURE_AUDIT.md) (pre-OS-B5 review — single canonical path
 per model, confirmed; Platform OS found not yet migrated),
 [`OS_B4_5_PLATFORM_OS_ALIGNMENT.md`](OS_B4_5_PLATFORM_OS_ALIGNMENT.md) (Phase OS-B4.5 — closes that
-gap), and [`DELIVERY_ADAPTER_LAYER.md`](DELIVERY_ADAPTER_LAYER.md) (Phase OS-B5 — the reusable,
-provider-agnostic delivery contract completing the intelligence-to-delivery pipeline).
+gap), [`DELIVERY_ADAPTER_LAYER.md`](DELIVERY_ADAPTER_LAYER.md) (Phase OS-B5 — the reusable,
+provider-agnostic delivery contract completing the intelligence-to-delivery pipeline), and
+[`OS_B6_DEMO_EXCELLENCE.md`](OS_B6_DEMO_EXCELLENCE.md) (Phase OS-B6 — presentation/polish pass, no new
+intelligence).
 This doc answers one question fast: **where does each OS and the Sleeper proof stand right now?**
 Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 
@@ -60,6 +62,7 @@ itself.
 | **OS-B4 — Notification Engine Foundation** | New reusable notification model (`notifications.ts`) + standalone resolver (`notificationResolver.ts`) + in-app `NotificationCenter` (session-local read/dismiss) composed with zero extra fetch + 35 new tests | **Code complete, all tests + typecheck green.** See `NOTIFICATION_ENGINE.md` |
 | **OS-B4.5 — Platform OS Attention Signal Alignment** | Migrated `platformOs.ts`'s bespoke `interventionQueue` onto the shared `DecisionOsAttentionSignal` model; consolidated `resolveLeagueFinancialContextSafely`/`ATTENTION_QUEUE_CAP` (previously duplicated 2-3×) into shared exports; found + fixed a test-mocking bug across 3 files + a real defense-in-depth gap; 4 new tests | **Code complete, 2935/2935 passing, typecheck byte-identical to OS-B4.** See `OS_B4_5_PLATFORM_OS_ALIGNMENT.md` |
 | **OS-B5 — Multi-Channel Delivery Adapter Foundation** | New provider-agnostic `DeliveryAdapter` contract (`lib/decision-os/delivery/`) + 4 adapters (real in-app, honest email/push/mobile stubs) + pure `resolveDeliveryPlan` routing resolver; wired into Commissioner Hub with zero extra fetch; 28 new tests | **Code complete, 2965/2965 passing, typecheck byte-identical to OS-B4.5.** See `DELIVERY_ADAPTER_LAYER.md` |
+| **OS-B6 — Demo Excellence Pass** | Naming collision resolved (`CommissionerShowcasePanel` badge renamed); removed 2 duplicated sections (Recent Changes card, 2 redundant League Health Ranking panels); removed raw technical language from 3 user-facing strings; added real counts to 2 panel titles; stronger Today's Brief visual weight; 10 new tests; live browser-verified against a real account | **Code complete, typecheck byte-identical to OS-B5. No new intelligence, no schema changes.** See `OS_B6_DEMO_EXCELLENCE.md` |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
 
@@ -128,7 +131,8 @@ Zero engineering blockers found; zero code changes were required.
 | OS-B4 | **Notification Engine Foundation** | `notifications.ts` (pure) + `notificationResolver.ts` (standalone resolver) + `NotificationCenter.tsx` (session-local read/dismiss) composed with zero extra fetch; 35 new tests, 158/158 baseline typecheck unchanged | `0b21342e2` |
 | — | **OS-B architecture audit** (pre-OS-B5, no code) | Confirmed single canonical path per model; found Platform OS not yet migrated onto the Attention Signal model | `6b83736e2` |
 | OS-B4.5 | **Platform OS Attention Signal Alignment** | `platformOs.ts` migrated onto `DecisionOsAttentionSignal`; shared-helper consolidation (`resolveLeagueFinancialContextSafely`, `ATTENTION_QUEUE_CAP`); 4 new tests, 2935/2935, 158/158 baseline typecheck unchanged | `d370a18ca` |
-| OS-B5 | **Multi-Channel Delivery Adapter Foundation** | `DeliveryAdapter` contract + 4 adapters (real in-app, honest email/push/mobile stubs) + `resolveDeliveryPlan`; Commissioner Hub wired end-to-end; 28 new tests, 2965/2965, 158/158 baseline typecheck unchanged | *(this commit)* |
+| OS-B5 | **Multi-Channel Delivery Adapter Foundation** | `DeliveryAdapter` contract + 4 adapters (real in-app, honest email/push/mobile stubs) + `resolveDeliveryPlan`; Commissioner Hub wired end-to-end; 28 new tests, 2965/2965, 158/158 baseline typecheck unchanged | `43504dd4b` |
+| OS-B6 | **Demo Excellence Pass** | Naming collision fix, 2 duplicated sections removed, jargon removed from 3 strings, count labels, Today's Brief weight; 10 new tests, live-verified, 158/158 baseline typecheck unchanged | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 
@@ -164,6 +168,15 @@ Zero engineering blockers found; zero code changes were required.
   with an explicit `stub_adapter_no_real_delivery` reason. This is the explicit, correct scope boundary
   for this phase (see `DELIVERY_ADAPTER_LAYER.md` §7), not an oversight — real sending is deliberately
   deferred past the backend-architecture arc this phase closes out.
+- **Real finding, deliberately not fixed in OS-B6**: `CommissionerShowcasePanel.tsx` (a separate,
+  Phase-D-era widget) returns hardcoded, fabricated "AI summary" strings when a commissioner has no real
+  health snapshots yet — a genuine violation of the "no fake data" discipline this whole workstream
+  otherwise holds to. Out of OS-B6's narrow naming-collision scope; flagged as a separate task rather
+  than rewritten under time pressure. See `OS_B6_DEMO_EXCELLENCE.md` §5.
+- **Real finding, deliberately not fixed in OS-B6**: the legacy "League Operations Summary" stat row
+  (rendered just below the Multi-League Overview) genuinely overlaps with the new Overview's own stat
+  chips. Not named in OS-B6's explicit review scope; a candidate for a future, more surgical page-
+  structure phase.
 - `draftsApproachingCount` (OS-B1) only counts AF-native leagues — Sleeper-imported leagues have no
   persisted draft date anywhere in this codebase today (confirmed by direct investigation, not
   assumption); see `COMMISSIONER_COMMAND_CENTER.md` §4.

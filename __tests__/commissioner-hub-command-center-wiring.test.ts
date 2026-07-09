@@ -91,7 +91,7 @@ describe('commissioner hub League Focus — no regression (Phase OS-B1)', () => 
     expect(source).toContain('<LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />')
   })
 
-  it('CommissionerShowcasePanel (the pre-existing "Commissioner Command Center" widget) is untouched', () => {
+  it('CommissionerShowcasePanel wiring (props) is untouched — only its own internal "Platform Readiness Snapshot" badge label was renamed in Phase OS-B6 to resolve the naming collision with this page\'s Multi-League Overview', () => {
     expect(source).toContain('<CommissionerShowcasePanel')
     expect(source).toContain('leagues={leagues}')
     expect(source).toContain('healthSnapshots={managedHealthSnapshots}')

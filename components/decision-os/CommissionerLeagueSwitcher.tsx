@@ -16,7 +16,7 @@ type CommissionerLeagueSwitcherProps = {
 
 export default function CommissionerLeagueSwitcher({ leagues, onSelect }: CommissionerLeagueSwitcherProps) {
   return (
-    <DecisionOsPanel title="Switch to a league">
+    <DecisionOsPanel title={leagues.length > 0 ? `Switch to a league (${leagues.length})` : 'Switch to a league'}>
       {leagues.length === 0 ? (
         <p className="mt-2 text-xs leading-5 text-muted" data-testid="league-switcher-empty">
           You don&apos;t commission any leagues yet.

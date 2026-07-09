@@ -112,7 +112,9 @@ describe("CommissionerCommandCenterSection", () => {
     expect(screen.getByTestId("league-health-ranking")).toBeInTheDocument()
     expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("Redraft Rebels")
     expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("3 managers at risk of leaving")
-    expect(screen.getByTestId("recent-changes-empty")).toBeInTheDocument()
+    // Phase OS-B6: the standalone "Recent Changes" card was removed (redundant with Today's Brief's
+    // own league highlights) — no `recent-changes-*` testid exists on the page anymore.
+    expect(screen.queryByTestId("recent-changes-empty")).not.toBeInTheDocument()
     expect(screen.getByTestId("league-switcher-list")).toBeInTheDocument()
 
     // Phase OS-B3: Today's Brief is composed from the SAME fetched snapshot — zero additional request.

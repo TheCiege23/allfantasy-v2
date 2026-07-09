@@ -151,7 +151,7 @@ function leagueContextIncompleteSignal(input: LeagueAttentionSignalInputs): Deci
     severity: 'low',
     priorityScore: SEVERITY_RANK.low,
     title: 'Financial status not confirmed',
-    explanation: "Decision OS doesn't yet know whether real money is involved in this league.",
+    explanation: "It isn't confirmed yet whether real money is involved in this league.",
     recommendedAction: 'Confirm this league is free or paid from the League Context card.',
     timestamp: input.now.toISOString(),
     source: 'league_context',
@@ -160,6 +160,13 @@ function leagueContextIncompleteSignal(input: LeagueAttentionSignalInputs): Deci
 
 function scoreSuffix(leagueHealthScore: number | null): string {
   return typeof leagueHealthScore === 'number' ? ` (health score ${leagueHealthScore})` : ''
+}
+
+/** Phase OS-B6: plain-English rendering of the internal status enum for user-facing explanation text
+ * (e.g. `at_risk` -> `at risk`) — never changes the underlying status value itself, only how it reads
+ * in a sentence a commissioner sees. */
+function humanizeStatus(status: string): string {
+  return status.replace(/_/g, ' ')
 }
 
 function lowLeagueHealthSignal(input: LeagueAttentionSignalInputs): DecisionOsAttentionSignal | null {
@@ -173,7 +180,7 @@ function lowLeagueHealthSignal(input: LeagueAttentionSignalInputs): DecisionOsAt
     severity,
     priorityScore: SEVERITY_RANK[severity],
     title: 'League health needs attention',
-    explanation: `This league's overall health status is "${input.overallStatus}"${scoreSuffix(input.leagueHealthScore)}.`,
+    explanation: `This league's overall health status is "${humanizeStatus(input.overallStatus)}"${scoreSuffix(input.leagueHealthScore)}.`,
     recommendedAction: 'Review League Health and consider a commissioner intervention.',
     timestamp: input.now.toISOString(),
     source: 'league_health_engine',

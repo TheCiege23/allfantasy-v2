@@ -59,7 +59,7 @@ export default function CommissionerAttentionQueue({ entries, leagueNameById, li
   const visible = typeof limit === 'number' ? entries.slice(0, limit) : entries
 
   return (
-    <DecisionOsPanel title="Attention queue">
+    <DecisionOsPanel title={visible.length > 0 ? `Attention queue (${visible.length})` : 'Attention queue'}>
       {visible.length === 0 ? (
         <div className="mt-2 flex items-center gap-2 text-sm text-muted" data-testid="attention-queue-empty">
           <CheckCircle2 className="h-4 w-4 shrink-0 text-status-success" aria-hidden />

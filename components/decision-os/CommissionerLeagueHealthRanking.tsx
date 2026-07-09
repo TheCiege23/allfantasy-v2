@@ -6,6 +6,17 @@
  * here, purely sorting/filtering `CommissionerCommandCenterLeagueSummary[]` (already-real Mission
  * Control fields). Leagues without an available Decision OS read are excluded from ranking entirely
  * (never ranked as "0" or "last" — that would fabricate a position for data that doesn't exist).
+ *
+ * Phase OS-B6: reduced from 4 ranking panels to 2 ("Needs the most attention" + "Most active leagues").
+ * The original "Healthiest leagues" and "Least active leagues" panels were dropped — for a commissioner
+ * with only 1-2 leagues (the common case), those two panels showed the EXACT SAME leagues their
+ * counterpart already showed (the healthiest league in a 2-league account is trivially also the
+ * "not-least-healthy" one), a real instance of the "duplicated sections" clutter this phase's own UX
+ * principles call out. "Healthiest" is also already covered, non-redundantly, by Today's Brief's own
+ * positive highlights (`high_league_health` signals) — dropping it here loses no real information, only
+ * a duplicate presentation of it. The two panels kept both answer "what should I do next?" (needs
+ * attention) or add genuine context ("most active") rather than restating a positive already shown
+ * elsewhere.
  */
 import type { CommissionerCommandCenterLeagueSummary } from '@/lib/decision-os/commissionerCommandCenter'
 import { DecisionOsEmptyState, DecisionOsPanel } from './DecisionOsCardPrimitives'
@@ -78,10 +89,6 @@ export default function CommissionerLeagueHealthRanking({
 
   const scored = available.filter((s) => s.leagueHealthScore != null)
   const byHealthAsc = [...scored].sort((a, b) => (a.leagueHealthScore ?? 0) - (b.leagueHealthScore ?? 0))
-  const healthiest: RankedEntry[] = [...byHealthAsc]
-    .reverse()
-    .slice(0, 3)
-    .map((s) => ({ leagueId: s.leagueId, label: label(s.leagueId), display: `${s.leagueHealthScore}/100` }))
   const leastHealthy: RankedEntry[] = byHealthAsc
     .slice(0, 3)
     .map((s) => ({ leagueId: s.leagueId, label: label(s.leagueId), display: `${s.leagueHealthScore}/100` }))
@@ -92,19 +99,9 @@ export default function CommissionerLeagueHealthRanking({
   const mostActive: RankedEntry[] = byActivity
     .slice(0, 3)
     .map((s) => ({ leagueId: s.leagueId, label: label(s.leagueId), display: `${s.totalActivity} events` }))
-  const leastActive: RankedEntry[] = [...byActivity]
-    .reverse()
-    .slice(0, 3)
-    .map((s) => ({ leagueId: s.leagueId, label: label(s.leagueId), display: `${s.totalActivity} events` }))
 
   return (
     <div className="grid gap-3 sm:grid-cols-2" data-testid="league-health-ranking">
-      <RankedList
-        title="Healthiest leagues"
-        entries={healthiest}
-        emptyMessage="No scored leagues yet."
-        testId="league-health-ranking-healthiest"
-      />
       <RankedList
         title="Needs the most attention"
         entries={leastHealthy}
@@ -116,12 +113,6 @@ export default function CommissionerLeagueHealthRanking({
         entries={mostActive}
         emptyMessage="No activity recorded yet."
         testId="league-health-ranking-most-active"
-      />
-      <RankedList
-        title="Least active leagues"
-        entries={leastActive}
-        emptyMessage="No activity recorded yet."
-        testId="league-health-ranking-least-active"
       />
     </div>
   )
