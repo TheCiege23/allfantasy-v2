@@ -12,8 +12,10 @@ execution — **all engineering blockers closed; recommendation: READY FOR CUSTO
 financial belief, live-verified), and
 [`COMMISSIONER_COMMAND_CENTER.md`](COMMISSIONER_COMMAND_CENTER.md) (Phase OS-B1 — the default
 multi-league landing experience), [`ATTENTION_QUEUE.md`](ATTENTION_QUEUE.md) (Phase OS-B2 — the
-reusable Decision OS Attention Signal model), and [`DAILY_BRIEF.md`](DAILY_BRIEF.md) (Phase OS-B3 — the
-reusable Daily Brief composition layer).
+reusable Decision OS Attention Signal model), [`DAILY_BRIEF.md`](DAILY_BRIEF.md) (Phase OS-B3 — the
+reusable Daily Brief composition layer), and
+[`NOTIFICATION_ENGINE.md`](NOTIFICATION_ENGINE.md) (Phase OS-B4 — the reusable notification model and
+in-app Notification Center).
 This doc answers one question fast: **where does each OS and the Sleeper proof stand right now?**
 Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 
@@ -24,7 +26,7 @@ Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 | OS | Answers | Status | Completed | Remaining | % |
 | --- | --- | --- | --- | --- | --- |
 | **Decision OS** | What is happening across the platform, and why? | **Live-proven.** Real engine every other OS reads. | Behavioral pipeline, ingestion, snapshot capture — all real, tested, now confirmed against live Sleeper data (Phase E). | Richer Phase 5.3/5.4 signals remain deliberately shadow-gated (a decided "no," not a gap). | 95% |
-| **Commissioner OS** | What should this commissioner do? | **Live-proven** (`/commissioner-hub`). | Mission Control + League Analytics, real Sleeper data confirmed end-to-end in Phase E (real health score, status, narrative). **Now defaults to a real multi-league "Multi-League Overview" (Phase OS-B1)**, whose Attention Queue is real, prioritized Decision OS Attention Signals across 5 signal types (Phase OS-B2), now summarized by a "Today's Brief" card composed with zero extra fetch from the same signals (Phase OS-B3) — League Focus (single-league cards) is reached by explicit selection, not shown automatically. | OS-B4/B5 (notification engine, multi-channel delivery) remain future work, not blockers. | 100% |
+| **Commissioner OS** | What should this commissioner do? | **Live-proven** (`/commissioner-hub`). | Mission Control + League Analytics, real Sleeper data confirmed end-to-end in Phase E (real health score, status, narrative). **Now defaults to a real multi-league "Multi-League Overview" (Phase OS-B1)**, whose Attention Queue is real, prioritized Decision OS Attention Signals across 5 signal types (Phase OS-B2), summarized by a "Today's Brief" card (Phase OS-B3) and an in-app Notification Center with session-local read/dismiss (Phase OS-B4), all composed with zero extra fetch from the same underlying signals — League Focus (single-league cards) is reached by explicit selection, not shown automatically. | OS-B5 (multi-channel delivery: email/push/mobile) remains future work, not a blocker. | 100% |
 | **User OS / Manager OS** | What should this manager do to compete better? | **Live-proven**, both commissioner and member roles (`/league/[leagueId]`). | Real per-manager tier/score/activity/retention-risk confirmed live in Phase E for a real, active manager. | Nothing blocking; demo setup needs both a roster claim AND a `UserProfile.sleeperUserId` link (Phase E finding). | 100% |
 | **Platform OS** | What should the platform operator do? | **Live-proven** via the real admin panel (`/admin`). | Authorized route + admin UI, real cross-league aggregate + intervention queue confirmed live in Phase E. | Multi-league demo (2+ leagues) would show a richer healthy/at-risk split — cosmetic, not blocking. | 100% |
 | **DFS OS** | (deferred) | Does not exist. Pending legal/compliance review. | — | Entire vertical — explicitly out of scope pending legal review. | 0% |
@@ -51,6 +53,7 @@ itself.
 | **OS-B1 — Commissioner Multi-League Command Center** | New composition (`commissionerCommandCenter.ts`), session-scoped route, 5 reusable UI modules, wired as Commissioner Hub's new default view (League Focus now reached by explicit selection) + 27 tests | **Verified live — zero regressions.** See `COMMISSIONER_COMMAND_CENTER.md` §6 |
 | **OS-B2 — Decision OS Attention Queue** | New reusable signal model (`attentionSignals.ts`, 5 signal types) + standalone resolver (`attentionQueue.ts`) + inline wiring into `commissionerCommandCenter.ts` (no double-fetch) + richer Attention Queue UI + 39 new tests | **Code complete, all tests + typecheck green.** See `ATTENTION_QUEUE.md` |
 | **OS-B3 — Daily Brief Composition Engine** | New reusable brief model (`dailyBrief.ts`) + standalone resolver (`dailyBriefResolver.ts`) + `TodaysBriefCard` composed with zero extra fetch inside `CommissionerCommandCenterSection.tsx` + 30 new tests | **Code complete, all tests + typecheck green.** See `DAILY_BRIEF.md` |
+| **OS-B4 — Notification Engine Foundation** | New reusable notification model (`notifications.ts`) + standalone resolver (`notificationResolver.ts`) + in-app `NotificationCenter` (session-local read/dismiss) composed with zero extra fetch + 35 new tests | **Code complete, all tests + typecheck green.** See `NOTIFICATION_ENGINE.md` |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
 
@@ -115,7 +118,8 @@ Zero engineering blockers found; zero code changes were required.
 | OS-A3 | **League Context Live DB Verification** | Migration applied to real Phase E DB; full live round-trip + live authorization check; zero bugs, zero code changes | `e372a1868` |
 | OS-B1 | **Commissioner Multi-League Command Center** | New composition + route + 5 reusable UI modules + Commissioner Hub default-view wiring; 27 tests; live-verified | `4c30d4d6e` |
 | OS-B2 | **Decision OS Attention Queue** | `attentionSignals.ts` (pure, 5 signal types) + `attentionQueue.ts` (standalone resolver) + inline wiring into `commissionerCommandCenter.ts` + richer Attention Queue UI; 39 new tests, 158/158 baseline typecheck unchanged | `0195944a8` |
-| OS-B3 | **Daily Brief Composition Engine** | `dailyBrief.ts` (pure) + `dailyBriefResolver.ts` (standalone resolver) + `TodaysBriefCard.tsx` composed with zero extra fetch; 30 new tests, 158/158 baseline typecheck unchanged | *(this commit)* |
+| OS-B3 | **Daily Brief Composition Engine** | `dailyBrief.ts` (pure) + `dailyBriefResolver.ts` (standalone resolver) + `TodaysBriefCard.tsx` composed with zero extra fetch; 30 new tests, 158/158 baseline typecheck unchanged | `a962533c3` |
+| OS-B4 | **Notification Engine Foundation** | `notifications.ts` (pure) + `notificationResolver.ts` (standalone resolver) + `NotificationCenter.tsx` (session-local read/dismiss) composed with zero extra fetch; 35 new tests, 158/158 baseline typecheck unchanged | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 
@@ -134,6 +138,13 @@ Zero engineering blockers found; zero code changes were required.
   this codebase (would require new I/O this phase's own instructions excluded), and a generic "strong
   engagement" threshold was rejected as inventing a first-ever `engagementScore` threshold nothing else
   in the suite uses; see `DAILY_BRIEF.md` §2.
+- **Real pre-existing bug found (OS-B4), fixed only where discovered**: `NotificationCenter.tsx`'s list
+  item test-id was keyed on severity alone (colliding whenever two notifications share a severity) —
+  fixed by keying on the notification's own unique id instead. `CommissionerAttentionQueue.tsx` (OS-B2)
+  has the identical pattern/bug — flagged as a separate out-of-scope task, not fixed in OS-B4 since that
+  component wasn't in this phase's scope. See `NOTIFICATION_ENGINE.md` §6.
+- OS-B4's Notification Center read/dismiss state is genuinely session-local (lost on refresh) — no
+  persistence layer exists, per the phase's own explicit instruction not to add one.
 - `draftsApproachingCount` (OS-B1) only counts AF-native leagues — Sleeper-imported leagues have no
   persisted draft date anywhere in this codebase today (confirmed by direct investigation, not
   assumption); see `COMMISSIONER_COMMAND_CENTER.md` §4.

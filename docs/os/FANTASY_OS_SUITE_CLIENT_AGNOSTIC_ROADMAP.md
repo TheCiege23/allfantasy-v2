@@ -715,20 +715,45 @@ the suite already computes. 30 new tests, `__tests__/decision-os` 2868 → 2898/
 158/158 baseline typecheck unchanged (error set byte-identical to the OS-B2 baseline). Full detail:
 `DAILY_BRIEF.md`.
 
+### OS-B4 — Notification Engine Foundation (2026-07-09)
+
+Completes the separation of concerns started in OS-B3: "Decision OS owns intelligence. Daily Brief owns
+digest composition. Notification Engine owns delivery-ready notification objects. Commissioner OS only
+displays them." New pure module `lib/decision-os/notifications.ts` — `DecisionOsNotification`
+(6 types: 4 named 1:1 from real Attention Signal types, plus `attention_signal` as the generic bucket
+for `league_requires_review`, plus `daily_brief`) + a deterministic severity→delivery-policy mapping
+(`critical`→immediate, `high`→prominent, `medium`→center, `low`/`informational`→inbox) + `id`-based
+deduplication (no fuzzy matching). Deliberately stateless — no `read`/`dismissed` fields on the model
+itself, since those are per-viewer session state, not something Decision OS can decide; built instead
+as session-local React state inside the new `NotificationCenter.tsx` (mark read, dismiss — no database
+persistence, per explicit instruction). New standalone resolver `lib/decision-os/notificationResolver.ts`
+(`resolveNotificationFeed`) for future consumers without a resident snapshot — the Commissioner Hub's
+own Notification Center does NOT call it, composing instead from data already on the page (the third
+time this exact no-double-fetch discipline has been applied). **A real bug found and fixed**: the
+Notification Center's list-item test-id was initially keyed on severity alone, colliding whenever two
+notifications shared a severity — caught by a real "multiple elements found" test failure, fixed by
+keying on the notification's own unique id. The identical pre-existing pattern in
+`CommissionerAttentionQueue.tsx` (OS-B2) was flagged as a separate out-of-scope task rather than fixed
+here. 35 new tests, `__tests__/decision-os` 2898 → 2933/2933 — zero regressions. 158/158 baseline
+typecheck unchanged (error set byte-identical to the OS-B3 baseline). Full detail:
+`NOTIFICATION_ENGINE.md`.
+
 ---
 
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
-- No Notification Engine built (OS-B4) — the Attention Queue and Daily Brief modules are designed to be
-  reusable by one later, but nothing sends a notification today.
-- No Manager OS or Platform OS changes in OS-B1, OS-B2, or OS-B3.
-- No backend schema changes in OS-B1, OS-B2, or OS-B3 — `LeagueSettings.draftDateUtc` and
+- No multi-channel delivery built (OS-B5) — `resolveNotificationFeed`/`surfacePolicy` are designed to be
+  read by one later, but nothing sends an email/push notification today.
+- No Manager OS or Platform OS changes in OS-B1, OS-B2, OS-B3, or OS-B4.
+- No backend schema changes in OS-B1, OS-B2, OS-B3, or OS-B4 — `LeagueSettings.draftDateUtc` and
   `DecisionOsLeagueContext` are both real, pre-existing sources; OS-B2 added zero new columns/tables.
 - No AI-generated or fabricated signals in OS-B2 — every signal type traces to an existing, already-real
   data source; two originally-suggested types were deliberately left unbuilt for lacking real data.
 - No email delivery, push notifications, notification persistence/read-dismiss state, background jobs,
   or scheduling built in OS-B3 — `dailyBriefResolver.ts` is a pure request/response function, not a job.
+- No email sending, push notifications, cron/scheduled jobs, notification database persistence, new
+  Decision OS signal generation, or LeagueSafe/FanCred integration built in OS-B4.
 - The Replacements documents were not deleted, only recontextualized via pointer updates.
 - No adapter code written for any client. `IMPORT_PROVIDERS` not modified.
 - No DFS OS work — explicitly deferred pending legal/compliance review.

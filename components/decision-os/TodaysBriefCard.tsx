@@ -14,20 +14,11 @@
  */
 import { CheckCircle2, Sparkles } from 'lucide-react'
 import type { DailyBrief } from '@/lib/decision-os/dailyBrief'
-import type { AttentionSignalSeverity } from '@/lib/decision-os/attentionSignals'
-import { DecisionOsBadge, DecisionOsPanel, decisionOsCardClassName } from './DecisionOsCardPrimitives'
+import { DecisionOsBadge, DecisionOsPanel, decisionOsCardClassName, SEVERITY_DOT_CLASS } from './DecisionOsCardPrimitives'
 
 type TodaysBriefCardProps = {
   brief: DailyBrief
   leagueNameById: Map<string, string>
-}
-
-const SEVERITY_DOT_CLASSES: Record<AttentionSignalSeverity, string> = {
-  critical: 'bg-rose-400',
-  high: 'bg-orange-400',
-  medium: 'bg-amber-400',
-  low: 'bg-sky-400',
-  informational: 'bg-emerald-400',
 }
 
 export default function TodaysBriefCard({ brief, leagueNameById }: TodaysBriefCardProps) {
@@ -50,7 +41,7 @@ export default function TodaysBriefCard({ brief, leagueNameById }: TodaysBriefCa
             {brief.topPriorityItems.map((item) => (
               <li key={item.id} className="flex items-start gap-2 text-sm">
                 <span
-                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${SEVERITY_DOT_CLASSES[item.severity]}`}
+                  className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${SEVERITY_DOT_CLASS[item.severity]}`}
                   aria-hidden
                 />
                 <span className="text-secondary">

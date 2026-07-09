@@ -19,6 +19,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Compass } from 'lucide-react'
 import type { CommissionerCommandCenterSnapshot } from '@/lib/decision-os/commissionerCommandCenter'
 import { composeDailyBrief } from '@/lib/decision-os/dailyBrief'
+import { composeNotificationFeed } from '@/lib/decision-os/notifications'
 import {
   DecisionOsBadge,
   DecisionOsEmptyState,
@@ -30,6 +31,7 @@ import CommissionerAttentionQueue from './CommissionerAttentionQueue'
 import CommissionerRecentChanges from './CommissionerRecentChanges'
 import CommissionerLeagueSwitcher from './CommissionerLeagueSwitcher'
 import TodaysBriefCard from './TodaysBriefCard'
+import NotificationCenter from './NotificationCenter'
 
 type CommissionerCommandCenterResponse = CommissionerCommandCenterSnapshot & { draftsApproachingCount: number }
 
@@ -95,6 +97,12 @@ export default function CommissionerCommandCenterSection({
     [snapshot, commissionerLeagues.length],
   )
 
+  // Same zero-extra-fetch discipline as `brief` above — composed from data already on the page.
+  const notifications = useMemo(
+    () => composeNotificationFeed({ signals: snapshot?.attentionQueue ?? [], brief }),
+    [snapshot, brief],
+  )
+
   if (demoMode || !hasLeagues) {
     return (
       <section data-testid="commissioner-command-center-section" className={decisionOsCardClassName}>
@@ -150,6 +158,8 @@ export default function CommissionerCommandCenterSection({
           <CommissionerAttentionQueue entries={snapshot?.attentionQueue ?? []} leagueNameById={leagueNameById} />
           <CommissionerRecentChanges entries={snapshot?.recentChanges ?? []} leagueNameById={leagueNameById} />
         </div>
+
+        <NotificationCenter notifications={notifications} leagueNameById={leagueNameById} />
 
         <CommissionerLeagueSwitcher leagues={commissionerLeagues} onSelect={onSelectLeague} />
       </div>

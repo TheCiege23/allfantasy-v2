@@ -121,6 +121,13 @@ describe("CommissionerCommandCenterSection", () => {
       "1 league needs your attention today. 1 draft approaching.",
     )
     expect(screen.getByTestId("todays-brief-priority-items")).toHaveTextContent("Redraft Rebels")
+
+    // Phase OS-B4: Notification Center is also composed with zero additional request.
+    expect(screen.getByTestId("notification-center")).toBeInTheDocument()
+    expect(screen.getByTestId("notification-center-item-notification:league_requires_review:league-2:0")).toHaveTextContent(
+      "Redraft Rebels",
+    )
+    expect(screen.getByTestId("notification-center-unread-count")).toHaveTextContent("2") // the signal + the derived daily-brief notification
   })
 
   it("Phase OS-B3: Today's Brief renders an honest healthy state before the snapshot has loaded, with no extra fetch", () => {

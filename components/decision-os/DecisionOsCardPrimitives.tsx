@@ -5,6 +5,22 @@ import { cn } from '@/lib/utils'
 
 export type DecisionOsConfidenceLabel = 'High' | 'Medium' | 'Low'
 
+/** Local mirror of `AttentionSignalSeverity` (`lib/decision-os/attentionSignals.ts`) — kept as its own
+ * literal union rather than importing that module, so this shared UI-primitives file stays free of any
+ * business-domain import. Structurally identical, so callers passing a real `AttentionSignalSeverity`
+ * value type-check against this without a cast. Shared here because, as of Phase OS-B4, three separate
+ * components (`CommissionerAttentionQueue`, `TodaysBriefCard`, `NotificationCenter`) each needed the
+ * exact same severity-to-color mapping — the third occurrence that justifies consolidating it. */
+export type DecisionOsSeverityLabel = 'critical' | 'high' | 'medium' | 'low' | 'informational'
+
+export const SEVERITY_DOT_CLASS: Record<DecisionOsSeverityLabel, string> = {
+  critical: 'bg-rose-400',
+  high: 'bg-orange-400',
+  medium: 'bg-amber-400',
+  low: 'bg-sky-400',
+  informational: 'bg-emerald-400',
+}
+
 type EvidenceItem = {
   label: string
   value: string
