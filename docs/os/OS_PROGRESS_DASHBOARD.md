@@ -16,9 +16,10 @@ reusable Decision OS Attention Signal model), [`DAILY_BRIEF.md`](DAILY_BRIEF.md)
 reusable Daily Brief composition layer), [`NOTIFICATION_ENGINE.md`](NOTIFICATION_ENGINE.md) (Phase
 OS-B4 — the reusable notification model and in-app Notification Center),
 [`OS_B_ARCHITECTURE_AUDIT.md`](OS_B_ARCHITECTURE_AUDIT.md) (pre-OS-B5 review — single canonical path
-per model, confirmed; Platform OS found not yet migrated), and
+per model, confirmed; Platform OS found not yet migrated),
 [`OS_B4_5_PLATFORM_OS_ALIGNMENT.md`](OS_B4_5_PLATFORM_OS_ALIGNMENT.md) (Phase OS-B4.5 — closes that
-gap).
+gap), and [`DELIVERY_ADAPTER_LAYER.md`](DELIVERY_ADAPTER_LAYER.md) (Phase OS-B5 — the reusable,
+provider-agnostic delivery contract completing the intelligence-to-delivery pipeline).
 This doc answers one question fast: **where does each OS and the Sleeper proof stand right now?**
 Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 
@@ -29,7 +30,7 @@ Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 | OS | Answers | Status | Completed | Remaining | % |
 | --- | --- | --- | --- | --- | --- |
 | **Decision OS** | What is happening across the platform, and why? | **Live-proven.** Real engine every other OS reads. | Behavioral pipeline, ingestion, snapshot capture — all real, tested, now confirmed against live Sleeper data (Phase E). | Richer Phase 5.3/5.4 signals remain deliberately shadow-gated (a decided "no," not a gap). | 95% |
-| **Commissioner OS** | What should this commissioner do? | **Live-proven** (`/commissioner-hub`). | Mission Control + League Analytics, real Sleeper data confirmed end-to-end in Phase E (real health score, status, narrative). **Now defaults to a real multi-league "Multi-League Overview" (Phase OS-B1)**, whose Attention Queue is real, prioritized Decision OS Attention Signals across 5 signal types (Phase OS-B2), summarized by a "Today's Brief" card (Phase OS-B3) and an in-app Notification Center with session-local read/dismiss (Phase OS-B4), all composed with zero extra fetch from the same underlying signals — League Focus (single-league cards) is reached by explicit selection, not shown automatically. | OS-B5 (multi-channel delivery: email/push/mobile) remains future work, not a blocker. | 100% |
+| **Commissioner OS** | What should this commissioner do? | **Live-proven** (`/commissioner-hub`). | Mission Control + League Analytics, real Sleeper data confirmed end-to-end in Phase E (real health score, status, narrative). **Now defaults to a real multi-league "Multi-League Overview" (Phase OS-B1)**, whose Attention Queue is real, prioritized Decision OS Attention Signals across 5 signal types (Phase OS-B2), summarized by a "Today's Brief" card (Phase OS-B3) and an in-app Notification Center with session-local read/dismiss (Phase OS-B4), now routed through a provider-agnostic Delivery Adapter Layer (Phase OS-B5) — all composed with zero extra fetch from the same underlying signals. League Focus (single-league cards) is reached by explicit selection, not shown automatically. | Real email/push/mobile sending (adapters are honest stubs today) remains future work, not a blocker for the demo-readiness pipeline. | 100% |
 | **User OS / Manager OS** | What should this manager do to compete better? | **Live-proven**, both commissioner and member roles (`/league/[leagueId]`). | Real per-manager tier/score/activity/retention-risk confirmed live in Phase E for a real, active manager. | Nothing blocking; demo setup needs both a roster claim AND a `UserProfile.sleeperUserId` link (Phase E finding). | 100% |
 | **Platform OS** | What should the platform operator do? | **Live-proven** via the real admin panel (`/admin`). | Authorized route + admin UI, real cross-league aggregate confirmed live in Phase E. **Attention queue now shares the same `DecisionOsAttentionSignal` model Commissioner OS uses, across all 5 signal types (Phase OS-B4.5)** — was a bespoke, narrower `interventionQueue` before. | Multi-league demo (2+ leagues) would show a richer healthy/at-risk split — cosmetic, not blocking. | 100% |
 | **DFS OS** | (deferred) | Does not exist. Pending legal/compliance review. | — | Entire vertical — explicitly out of scope pending legal review. | 0% |
@@ -58,6 +59,7 @@ itself.
 | **OS-B3 — Daily Brief Composition Engine** | New reusable brief model (`dailyBrief.ts`) + standalone resolver (`dailyBriefResolver.ts`) + `TodaysBriefCard` composed with zero extra fetch inside `CommissionerCommandCenterSection.tsx` + 30 new tests | **Code complete, all tests + typecheck green.** See `DAILY_BRIEF.md` |
 | **OS-B4 — Notification Engine Foundation** | New reusable notification model (`notifications.ts`) + standalone resolver (`notificationResolver.ts`) + in-app `NotificationCenter` (session-local read/dismiss) composed with zero extra fetch + 35 new tests | **Code complete, all tests + typecheck green.** See `NOTIFICATION_ENGINE.md` |
 | **OS-B4.5 — Platform OS Attention Signal Alignment** | Migrated `platformOs.ts`'s bespoke `interventionQueue` onto the shared `DecisionOsAttentionSignal` model; consolidated `resolveLeagueFinancialContextSafely`/`ATTENTION_QUEUE_CAP` (previously duplicated 2-3×) into shared exports; found + fixed a test-mocking bug across 3 files + a real defense-in-depth gap; 4 new tests | **Code complete, 2935/2935 passing, typecheck byte-identical to OS-B4.** See `OS_B4_5_PLATFORM_OS_ALIGNMENT.md` |
+| **OS-B5 — Multi-Channel Delivery Adapter Foundation** | New provider-agnostic `DeliveryAdapter` contract (`lib/decision-os/delivery/`) + 4 adapters (real in-app, honest email/push/mobile stubs) + pure `resolveDeliveryPlan` routing resolver; wired into Commissioner Hub with zero extra fetch; 28 new tests | **Code complete, 2965/2965 passing, typecheck byte-identical to OS-B4.5.** See `DELIVERY_ADAPTER_LAYER.md` |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
 
@@ -125,7 +127,8 @@ Zero engineering blockers found; zero code changes were required.
 | OS-B3 | **Daily Brief Composition Engine** | `dailyBrief.ts` (pure) + `dailyBriefResolver.ts` (standalone resolver) + `TodaysBriefCard.tsx` composed with zero extra fetch; 30 new tests, 158/158 baseline typecheck unchanged | `a962533c3` |
 | OS-B4 | **Notification Engine Foundation** | `notifications.ts` (pure) + `notificationResolver.ts` (standalone resolver) + `NotificationCenter.tsx` (session-local read/dismiss) composed with zero extra fetch; 35 new tests, 158/158 baseline typecheck unchanged | `0b21342e2` |
 | — | **OS-B architecture audit** (pre-OS-B5, no code) | Confirmed single canonical path per model; found Platform OS not yet migrated onto the Attention Signal model | `6b83736e2` |
-| OS-B4.5 | **Platform OS Attention Signal Alignment** | `platformOs.ts` migrated onto `DecisionOsAttentionSignal`; shared-helper consolidation (`resolveLeagueFinancialContextSafely`, `ATTENTION_QUEUE_CAP`); 4 new tests, 2935/2935, 158/158 baseline typecheck unchanged | *(this commit)* |
+| OS-B4.5 | **Platform OS Attention Signal Alignment** | `platformOs.ts` migrated onto `DecisionOsAttentionSignal`; shared-helper consolidation (`resolveLeagueFinancialContextSafely`, `ATTENTION_QUEUE_CAP`); 4 new tests, 2935/2935, 158/158 baseline typecheck unchanged | `d370a18ca` |
+| OS-B5 | **Multi-Channel Delivery Adapter Foundation** | `DeliveryAdapter` contract + 4 adapters (real in-app, honest email/push/mobile stubs) + `resolveDeliveryPlan`; Commissioner Hub wired end-to-end; 28 new tests, 2965/2965, 158/158 baseline typecheck unchanged | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 
@@ -156,6 +159,11 @@ Zero engineering blockers found; zero code changes were required.
   `DecisionOsAttentionSignal` model and derivation as Commissioner OS. Manager OS (`userOs.ts`) still
   does not consume the model — a clean slate, not migration debt, since it never built a competing
   concept; not addressed, out of the audit's own named scope.
+- **OS-B5's email/push/mobile adapters are honest stubs, not real delivery.** No SMTP/Resend, no
+  Firebase/APNs integration exists yet — every non-in-app `deliver()` call returns `delivered: false`
+  with an explicit `stub_adapter_no_real_delivery` reason. This is the explicit, correct scope boundary
+  for this phase (see `DELIVERY_ADAPTER_LAYER.md` §7), not an oversight — real sending is deliberately
+  deferred past the backend-architecture arc this phase closes out.
 - `draftsApproachingCount` (OS-B1) only counts AF-native leagues — Sleeper-imported leagues have no
   persisted draft date anywhere in this codebase today (confirmed by direct investigation, not
   assumption); see `COMMISSIONER_COMMAND_CENTER.md` §4.

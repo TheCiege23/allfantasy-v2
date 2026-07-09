@@ -764,15 +764,40 @@ all 3 composition call sites — a genuine defense-in-depth gap the bug investig
 a test fix. 4 new tests, 2935/2935 total — zero regressions. 158/158 baseline typecheck unchanged
 (byte-identical to OS-B4). Full detail: `OS_B4_5_PLATFORM_OS_ALIGNMENT.md`.
 
+### OS-B5 — Multi-Channel Delivery Adapter Foundation (2026-07-09)
+
+Closes the intelligence-to-delivery pipeline: `Decision OS → Attention Signals → Daily Brief →
+Notification Engine → Delivery Adapter Layer → In-App / Email / Push / Mobile`. New
+`lib/decision-os/delivery/` module — `types.ts` (`DeliveryAdapter` contract: `surface`,
+`supportedSeverities`, `supportedNotificationTypes`, `canDeliver()`, `deliver()`), `adapters.ts`
+(`createAdapter` shared capability-check factory, built up front rather than discovered after a third
+duplicate; 4 adapters — `inAppDeliveryAdapter` REAL, `emailDeliveryAdapter`/`pushDeliveryAdapter`/
+`mobileDeliveryAdapter` honest stubs that never claim `delivered: true` for a send that never happened),
+`deliveryResolver.ts` (`resolveDeliveryPlan`, pure, zero-I/O, deterministic severity → surface routing:
+critical → in-app + email, every other severity → in-app only; routing policy lives in the resolver, not
+on any adapter). Deliberately synchronous — a real future async adapter would need this to become async
+at that point, a deferred decision. Wired into `CommissionerCommandCenterSection.tsx` with zero extra
+fetch — `NotificationCenter` now renders `deliveryPlan.inApp` instead of the raw notification feed,
+exercising the real architecture end-to-end even though content is unchanged today (in-app accepts
+everything). **Exported `createAdapter`** specifically to avoid a repeat of the exact
+"spread-and-override doesn't rebind a closure" mocking trap OS-B4.5 found once already — caught before
+shipping this time, in a test written during this same phase. 28 new tests, 2965/2965 total — zero
+regressions. 158/158 baseline typecheck unchanged (byte-identical to OS-B4.5). Full detail:
+`DELIVERY_ADAPTER_LAYER.md`.
+
+**Closes the backend-architecture arc.** Per the user's own framing, the intelligence pipeline is now
+structurally complete end-to-end, provider-agnostic at every layer, with a single canonical model per
+stage. Recommended next: OS-B6, a pivot toward demo excellence (richer Commissioner workflows, visual
+polish, storytelling dashboards, executive summaries, real provider integrations) rather than further
+backend architecture.
+
 ---
 
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
-- No multi-channel delivery built (OS-B5) — `resolveNotificationFeed`/`surfacePolicy` are designed to be
-  read by one later, but nothing sends an email/push notification today.
-- No Manager OS changes in OS-B1 through OS-B4.5; no Platform OS changes before OS-B4.5.
-- No backend schema changes in OS-B1 through OS-B4.5 — `LeagueSettings.draftDateUtc` and
+- No Manager OS changes in OS-B1 through OS-B5; no Platform OS changes before OS-B4.5.
+- No backend schema changes in OS-B1 through OS-B5 — `LeagueSettings.draftDateUtc` and
   `DecisionOsLeagueContext` are both real, pre-existing sources; OS-B2 added zero new columns/tables.
 - No AI-generated or fabricated signals in OS-B2 — every signal type traces to an existing, already-real
   data source; two originally-suggested types were deliberately left unbuilt for lacking real data.
@@ -782,6 +807,10 @@ a test fix. 4 new tests, 2935/2935 total — zero regressions. 158/158 baseline 
   untouched; Platform OS still does not produce or consume `DecisionOsNotification`.
 - No email sending, push notifications, cron/scheduled jobs, notification database persistence, new
   Decision OS signal generation, or LeagueSafe/FanCred integration built in OS-B4.
+- No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
+  queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
+  non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely
+  unaware the Delivery Layer exists.
 - The Replacements documents were not deleted, only recontextualized via pointer updates.
 - No adapter code written for any client. `IMPORT_PROVIDERS` not modified.
 - No DFS OS work — explicitly deferred pending legal/compliance review.

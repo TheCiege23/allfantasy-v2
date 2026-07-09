@@ -20,6 +20,7 @@ import { Compass } from 'lucide-react'
 import type { CommissionerCommandCenterSnapshot } from '@/lib/decision-os/commissionerCommandCenter'
 import { composeDailyBrief } from '@/lib/decision-os/dailyBrief'
 import { composeNotificationFeed } from '@/lib/decision-os/notifications'
+import { resolveDeliveryPlan } from '@/lib/decision-os/delivery/deliveryResolver'
 import {
   DecisionOsBadge,
   DecisionOsEmptyState,
@@ -103,6 +104,12 @@ export default function CommissionerCommandCenterSection({
     [snapshot, brief],
   )
 
+  // Phase OS-B5: route the notification feed through the Delivery Adapter Layer rather than handing it
+  // to the UI directly — exercises the real architecture end-to-end even though, today, the in-app
+  // adapter always accepts everything (so `deliveryPlan.inApp` is currently equivalent in content to
+  // `notifications` itself).
+  const deliveryPlan = useMemo(() => resolveDeliveryPlan(notifications), [notifications])
+
   if (demoMode || !hasLeagues) {
     return (
       <section data-testid="commissioner-command-center-section" className={decisionOsCardClassName}>
@@ -159,7 +166,7 @@ export default function CommissionerCommandCenterSection({
           <CommissionerRecentChanges entries={snapshot?.recentChanges ?? []} leagueNameById={leagueNameById} />
         </div>
 
-        <NotificationCenter notifications={notifications} leagueNameById={leagueNameById} />
+        <NotificationCenter notifications={deliveryPlan.inApp} leagueNameById={leagueNameById} />
 
         <CommissionerLeagueSwitcher leagues={commissionerLeagues} onSelect={onSelectLeague} />
       </div>

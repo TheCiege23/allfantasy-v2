@@ -123,6 +123,9 @@ describe("CommissionerCommandCenterSection", () => {
     expect(screen.getByTestId("todays-brief-priority-items")).toHaveTextContent("Redraft Rebels")
 
     // Phase OS-B4: Notification Center is also composed with zero additional request.
+    // Phase OS-B5: ...and now routed through the Delivery Adapter Layer (resolveDeliveryPlan) rather
+    // than handed to the UI directly — content is unchanged today because the real in_app adapter
+    // always delivers everything, but the plan is genuinely in the render path (regression coverage).
     expect(screen.getByTestId("notification-center")).toBeInTheDocument()
     expect(screen.getByTestId("notification-center-item-notification:league_requires_review:league-2:0")).toHaveTextContent(
       "Redraft Rebels",
