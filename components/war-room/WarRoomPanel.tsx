@@ -111,6 +111,30 @@ export function WarRoomPanel({
   const [loadingIntel, setLoadingIntel] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
+  const handleDraftRoomLinkClick = useCallback(
+    async (event: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+      if (!dashboardEmbed) return
+      const intent = parseLeagueDraftNavigationIntent(href)
+      if (!intent) return
+      event.preventDefault()
+      if (intent.kind === 'dispersal') {
+        postOpenDraftOverlayMessage({
+          leagueId: intent.leagueId,
+          dispersalDraftId: intent.dispersalDraftId,
+          source: 'war-room',
+        })
+        return
+      }
+      await openDraftFromEmbeddedLeague({
+        leagueId: intent.leagueId,
+        draftId: sessionId ?? undefined,
+        dashboardEmbed,
+        source: 'war-room',
+      })
+    },
+    [dashboardEmbed, sessionId],
+  )
+
   useEffect(() => {
     if (draftSessionIdProp) setSessionId(draftSessionIdProp)
   }, [draftSessionIdProp])

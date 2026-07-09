@@ -193,7 +193,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               t.onload=function(){f.__afMetaFbeventsLoaded=!0};
               t.onerror=function(){f.__afMetaFbeventsLoaded=!1};
               t.src=v;s=b.getElementsByTagName(e)[0];
-              s.parentNode.insertBefore(t,s)}(window, document,'script',
+              if (s && s.parentNode) {
+                s.parentNode.insertBefore(t,s);
+              } else {
+                (b.head || b.body || b.documentElement).appendChild(t);
+              }}(window, document,'script',
               'https://connect.facebook.net/en_US/fbevents.js');
               window.__afMetaPixelId=${JSON.stringify(metaPixelId)};
               window.__afMetaPixelIds = window.__afMetaPixelIds instanceof Set

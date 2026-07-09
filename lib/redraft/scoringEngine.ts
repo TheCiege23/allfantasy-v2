@@ -11,6 +11,7 @@ import {
 } from '@/lib/sportConfig'
 import type { ScoringCategory } from '@/lib/sportConfig/types'
 import { bridgeUiRulesToEngineCategoryPoints } from '@/lib/nfl-scoring/scoringKeyBridge'
+import { isNflRedraftScoringStarterSlot } from '@/lib/scoring-runtime'
 import type { StatCategoryRow } from './types'
 
 export function calculateFantasyPoints(
@@ -102,15 +103,13 @@ export function scoreStatsWithCategories(
  * agree: previously only bench/taxi/devy were excluded, which let an IR- or
  * reserve-slotted player's points leak into the starter total.
  */
-const NON_SCORING_SLOTS = new Set(['bench', 'bn', 'ir', 'taxi', 'devy', 'reserve'])
-
 /**
  * Scoring-side starter classification: only true starter slots count toward a
  * matchup score. Exported so the contract test can prove bench/IR/taxi/devy/
  * reserve players never contribute points.
  */
 export function isScoringStarterSlot(slotType: string | null | undefined): boolean {
-  return !NON_SCORING_SLOTS.has(String(slotType ?? '').toLowerCase())
+  return isNflRedraftScoringStarterSlot(slotType)
 }
 
 type SportConfigBlob = Record<string, unknown>

@@ -19,6 +19,16 @@
       }
     },
     {
+      "name": "next-dev-partner-sandbox",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev"],
+      "port": 3000,
+      "autoPort": true,
+      "env": {
+        "PARTNER_SANDBOX_API_ENABLED": "true"
+      }
+    },
+    {
       "name": "prisma-studio",
       "runtimeExecutable": "npx",
       "runtimeArgs": ["prisma", "studio"],

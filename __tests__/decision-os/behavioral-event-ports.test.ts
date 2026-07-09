@@ -34,6 +34,15 @@ import {
   mapLeagueTradesToEvents,
   mapRosterMovesToEvents,
   mapDraftRowsToEvents,
+  mapRedraftTradeToCreatedEvent,
+  mapRedraftTradeToAcceptedEvent,
+  mapRedraftTradeToRejectedEvent,
+  mapRedraftTradeToEvents,
+  mapRedraftTradesToEvents,
+  mapRedraftRosterPlayerToLineupSavedEvent,
+  mapRedraftRosterPlayersToEvents,
+  mapRedraftRosterMoveToLineupSavedEvent,
+  mapRedraftRosterMovesToEvents,
 } from '@/lib/decision-os/behavioral/mappers'
 
 import {
@@ -48,6 +57,9 @@ import type {
   RawRosterMoveRow,
   RawDraftSessionRow,
   RawDraftPickRow,
+  RawRedraftTradeRow,
+  RawRedraftRosterPlayerRow,
+  RawRedraftRosterMoveRow,
 } from '@/lib/decision-os/behavioral/port'
 
 import type { BehavioralEvent } from '@/lib/decision-os/behavioral'
@@ -493,6 +505,238 @@ describe('mapDraftRowsToEvents', () => {
 
   it('returns empty array when session is null and no picks', () => {
     expect(mapDraftRowsToEvents(null, [])).toHaveLength(0)
+  })
+})
+
+// ── Phase 2E: Redraft trade + roster mappers ─────────────────────────────────
+
+function makeRedraftTradeRow(overrides: Partial<RawRedraftTradeRow> = {}): RawRedraftTradeRow {
+  return {
+    id: 'redraft-trade-001',
+    leagueId: 'lg-A',
+    proposerRosterId: 'ros-1',
+    receiverRosterId: 'ros-2',
+    proposerOwnerId: 'user-1',
+    receiverOwnerId: 'user-2',
+    status: 'pending',
+    vetoMode: 'commissioner',
+    acceptedAt: null,
+    rejectedAt: null,
+    expiresAt: null,
+    createdAt: T0,
+    itemCount: 3,
+    ...overrides,
+  }
+}
+
+function makeRedraftRosterPlayerRow(overrides: Partial<RawRedraftRosterPlayerRow> = {}): RawRedraftRosterPlayerRow {
+  return {
+    id: 'redraft-rp-001',
+    leagueId: 'lg-A',
+    rosterId: 'ros-1',
+    ownerUserId: 'user-1',
+    playerId: 'player-z',
+    playerName: 'Player Z',
+    acquisitionType: 'free_agent',
+    addedAt: T0,
+    droppedAt: null,
+    ...overrides,
+  }
+}
+
+describe('mapRedraftTradeToCreatedEvent', () => {
+  it('produces trade_created with the proposer roster owner as managerId', () => {
+    const e = mapRedraftTradeToCreatedEvent(makeRedraftTradeRow())
+    expect(e.eventType).toBe('trade_created')
+    expect(e.managerId).toBe('user-1')
+    expect(e.leagueId).toBe('lg-A')
+  })
+
+  it('maps vetoMode through unchanged (same vocabulary as AfLeagueTrade.reviewType)', () => {
+    expect(mapRedraftTradeToCreatedEvent(makeRedraftTradeRow({ vetoMode: 'league_vote' })).metadata).toMatchObject({
+      vetoMode: 'league_vote',
+    })
+    expect(mapRedraftTradeToCreatedEvent(makeRedraftTradeRow({ vetoMode: 'no_veto' })).metadata).toMatchObject({
+      vetoMode: 'no_veto',
+    })
+  })
+
+  it('carries itemCount as assetCount', () => {
+    const e = mapRedraftTradeToCreatedEvent(makeRedraftTradeRow({ itemCount: 5 }))
+    expect(e.metadata).toMatchObject({ assetCount: 5 })
+  })
+
+  it('provenance derivedFrom names RedraftTradeProposal + RedraftTradeAsset', () => {
+    const e = mapRedraftTradeToCreatedEvent(makeRedraftTradeRow())
+    expect(e.provenance.derivedFrom).toEqual(['RedraftTradeProposal', 'RedraftTradeAsset'])
+    expect(e.provenance.provider).toBeNull()
+  })
+})
+
+describe('mapRedraftTradeToAcceptedEvent', () => {
+  it('returns null when acceptedAt is null', () => {
+    expect(mapRedraftTradeToAcceptedEvent(makeRedraftTradeRow())).toBeNull()
+  })
+
+  it('produces trade_accepted with a REAL, confirmed managerId (unlike AfLeagueTrade, which cannot)', () => {
+    const e = mapRedraftTradeToAcceptedEvent(makeRedraftTradeRow({ acceptedAt: T1 }))!
+    expect(e.eventType).toBe('trade_accepted')
+    expect(e.managerId).toBe('user-2')
+    expect(e.uncertainty.actorConfidence).toBe('confirmed')
+  })
+})
+
+describe('mapRedraftTradeToRejectedEvent', () => {
+  it('returns null when rejectedAt is null', () => {
+    expect(mapRedraftTradeToRejectedEvent(makeRedraftTradeRow())).toBeNull()
+  })
+
+  it('produces trade_rejected with a REAL, confirmed managerId', () => {
+    const e = mapRedraftTradeToRejectedEvent(makeRedraftTradeRow({ rejectedAt: T1 }))!
+    expect(e.eventType).toBe('trade_rejected')
+    expect(e.managerId).toBe('user-2')
+    expect(e.uncertainty.actorConfidence).toBe('confirmed')
+  })
+})
+
+describe('mapRedraftTradeToEvents', () => {
+  it('emits 1 event for a pending trade', () => {
+    expect(mapRedraftTradeToEvents(makeRedraftTradeRow())).toHaveLength(1)
+  })
+
+  it('emits 2 events for an accepted trade', () => {
+    const events = mapRedraftTradeToEvents(makeRedraftTradeRow({ acceptedAt: T1 }))
+    expect(events.map((e) => e.eventType)).toEqual(['trade_created', 'trade_accepted'])
+  })
+
+  it('emits 2 events for a rejected trade', () => {
+    const events = mapRedraftTradeToEvents(makeRedraftTradeRow({ rejectedAt: T1 }))
+    expect(events.map((e) => e.eventType)).toEqual(['trade_created', 'trade_rejected'])
+  })
+})
+
+describe('mapRedraftTradesToEvents', () => {
+  it('flattens a batch of proposals into their combined events', () => {
+    const events = mapRedraftTradesToEvents([
+      makeRedraftTradeRow({ id: 't-1' }),
+      makeRedraftTradeRow({ id: 't-2', acceptedAt: T1 }),
+    ])
+    expect(events).toHaveLength(3) // 1 (pending) + 2 (accepted)
+  })
+
+  it('returns empty array for empty input (missing redraft data fails safely, not with an error)', () => {
+    expect(mapRedraftTradesToEvents([])).toEqual([])
+  })
+})
+
+describe('mapRedraftRosterPlayerToLineupSavedEvent', () => {
+  it('produces a lineup_saved event for a free_agent acquisition', () => {
+    const e = mapRedraftRosterPlayerToLineupSavedEvent(makeRedraftRosterPlayerRow())!
+    expect(e).not.toBeNull()
+    expect(e.eventType).toBe('lineup_saved')
+    expect(e.managerId).toBe('user-1')
+    expect(e.metadata).toMatchObject({ week: null, season: null, leagueType: 'redraft', slotChanges: 0 })
+  })
+
+  it('returns null for waiver-acquired rows (already covered by the WaiverClaim mapper)', () => {
+    expect(mapRedraftRosterPlayerToLineupSavedEvent(makeRedraftRosterPlayerRow({ acquisitionType: 'waiver' }))).toBeNull()
+  })
+
+  it('returns null for trade-acquired rows (already covered by the RedraftTradeProposal mapper)', () => {
+    expect(mapRedraftRosterPlayerToLineupSavedEvent(makeRedraftRosterPlayerRow({ acquisitionType: 'trade' }))).toBeNull()
+  })
+
+  it('returns null for drafted rows (already covered by the draft mapper)', () => {
+    expect(mapRedraftRosterPlayerToLineupSavedEvent(makeRedraftRosterPlayerRow({ acquisitionType: 'drafted' }))).toBeNull()
+  })
+
+  it('uses addedAt as occurredAt', () => {
+    const e = mapRedraftRosterPlayerToLineupSavedEvent(makeRedraftRosterPlayerRow({ addedAt: T2 }))!
+    expect(e.occurredAt).toBe(T2.toISOString())
+  })
+
+  it('provenance derivedFrom names RedraftRosterPlayer', () => {
+    const e = mapRedraftRosterPlayerToLineupSavedEvent(makeRedraftRosterPlayerRow())!
+    expect(e.provenance.derivedFrom).toEqual(['RedraftRosterPlayer'])
+  })
+})
+
+describe('mapRedraftRosterPlayersToEvents', () => {
+  it('emits one lineup_saved per free_agent row, skipping others', () => {
+    const events = mapRedraftRosterPlayersToEvents([
+      makeRedraftRosterPlayerRow({ id: 'rp-1', acquisitionType: 'free_agent' }),
+      makeRedraftRosterPlayerRow({ id: 'rp-2', acquisitionType: 'waiver' }),
+      makeRedraftRosterPlayerRow({ id: 'rp-3', acquisitionType: 'trade' }),
+      makeRedraftRosterPlayerRow({ id: 'rp-4', acquisitionType: 'free_agent' }),
+    ])
+    expect(events).toHaveLength(2)
+    expect(events.every((e) => e.eventType === 'lineup_saved')).toBe(true)
+  })
+
+  it('returns empty array for empty input', () => {
+    expect(mapRedraftRosterPlayersToEvents([])).toEqual([])
+  })
+})
+
+// ── Phase 2H: Redraft lineup-history mapper ──────────────────────────────────
+
+function makeRedraftRosterMoveRow(overrides: Partial<RawRedraftRosterMoveRow> = {}): RawRedraftRosterMoveRow {
+  return {
+    id: 'rmh-001',
+    leagueId: 'lg-A',
+    rosterId: 'ros-1',
+    seasonId: 'season-1',
+    season: 2026,
+    week: 7,
+    actorUserId: 'user-1',
+    source: 'user',
+    createdAt: T0,
+    ...overrides,
+  }
+}
+
+describe('mapRedraftRosterMoveToLineupSavedEvent', () => {
+  it('produces lineup_saved with a REAL, non-null week and season', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow({ week: 9, season: 2026 }))
+    expect(e.eventType).toBe('lineup_saved')
+    expect(e.metadata).toMatchObject({ week: 9, season: 2026, leagueType: 'redraft' })
+  })
+
+  it('uses actorUserId as managerId', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow({ actorUserId: 'user-42' }))
+    expect(e.managerId).toBe('user-42')
+  })
+
+  it('degrades completeness when actorUserId is null, but never fabricates one', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow({ actorUserId: null }))
+    expect(e.managerId).toBeNull()
+    expect(e.completeness).toBeLessThan(100)
+  })
+
+  it('provenance derivedFrom names RedraftRosterMoveHistory', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow())
+    expect(e.provenance.derivedFrom).toEqual(['RedraftRosterMoveHistory'])
+    expect(e.provenance.provider).toBeNull()
+  })
+
+  it('still sets honest zeros for slot-level detail (not stored per-event)', () => {
+    const e = mapRedraftRosterMoveToLineupSavedEvent(makeRedraftRosterMoveRow())
+    expect(e.metadata).toMatchObject({ slotChanges: 0, startedPlayerIds: [], benchedPlayerIds: [] })
+  })
+})
+
+describe('mapRedraftRosterMovesToEvents', () => {
+  it('emits one lineup_saved event per row', () => {
+    const events = mapRedraftRosterMovesToEvents([
+      makeRedraftRosterMoveRow({ id: 'rmh-1' }),
+      makeRedraftRosterMoveRow({ id: 'rmh-2' }),
+    ])
+    expect(events).toHaveLength(2)
+    expect(events.every((e) => e.eventType === 'lineup_saved')).toBe(true)
+  })
+
+  it('returns empty array for empty input (missing history fails safely, not with an error)', () => {
+    expect(mapRedraftRosterMovesToEvents([])).toEqual([])
   })
 })
 

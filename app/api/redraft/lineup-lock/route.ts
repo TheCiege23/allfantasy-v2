@@ -2,7 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 import { readLineupLockSettings, type LineupLockMode } from '@/lib/redraft/lineupLock'
+import { parseOptionalRedraftPositiveInteger } from '@/lib/redraft/betaRouteInput'
 
 export const dynamic = 'force-dynamic'
 
@@ -97,9 +99,13 @@ export async function POST(req: NextRequest) {
     ? (sportConfig.lineupLockOverrides as LockOverride[])
     : []
 
-  const week = body.week != null ? Number(body.week) : undefined
+  const parsedWeek = parseOptionalRedraftPositiveInteger(body.week, 'week')
+  if (!parsedWeek.ok) {
+    return NextResponse.json({ error: parsedWeek.error }, { status: 400 })
+  }
+  const week = parsedWeek.value ?? undefined
   const needsWeek = ['manual_lock_week', 'manual_unlock_week'].includes(action)
-  if (needsWeek && (!Number.isFinite(week) || (week as number) < 1)) {
+  if (needsWeek && week == null) {
     return NextResponse.json({ error: 'week must be a positive integer' }, { status: 400 })
   }
 
@@ -146,7 +152,7 @@ export async function POST(req: NextRequest) {
 
   await prisma.league.update({
     where: { id: season.leagueId },
-    data: { settings: { ...settings, sportConfig } },
+    data: { settings: toPrismaJsonInput({ ...settings, sportConfig }) },
   })
 
   // Audit roster-scoped changes (emergency unlock/clear). RedraftLeagueTransaction

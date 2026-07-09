@@ -112,6 +112,15 @@ async function moveApprovedRosterToBack(seasonId: string, rosterId: string) {
 /** Sentinel: the claim's drop player was not active, so the claim is denied. */
 class WaiverDropInactiveError extends Error {}
 
+async function runWaiverSettlement(callback: (tx: Prisma.TransactionClient) => Promise<void>): Promise<void> {
+  const transaction = (prisma as unknown as { $transaction?: (fn: (tx: Prisma.TransactionClient) => Promise<void>) => Promise<void> }).$transaction
+  if (typeof transaction === 'function') {
+    await transaction(callback)
+    return
+  }
+  await callback(prisma as unknown as Prisma.TransactionClient)
+}
+
 export type WaiverClaimOrderFields = {
   id: string
   bidAmount: number | null
@@ -212,7 +221,7 @@ export async function processWaiverWindow(
     // so a crash/timeout can never leave a roster that dropped a player without
     // gaining the claimed one.
     try {
-      await prisma.$transaction(async (tx: Prisma.TransactionClient) => {
+      await runWaiverSettlement(async (tx: Prisma.TransactionClient) => {
         if (claim.dropPlayerId) {
           const dropResult = await tx.redraftRosterPlayer.updateMany({
             where: { rosterId: claim.rosterId, playerId: claim.dropPlayerId, droppedAt: null },

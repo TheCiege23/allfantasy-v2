@@ -2,8 +2,8 @@
  * E.1.5 — server-side player-headshot resolver.
  *
  * Resolves a real player headshot URL by checking, in order:
- *   - NFL: TheSportsDB -> ClearSports -> Sleeper
- *   - Other sports: ClearSports -> TheSportsDB
+ *   - NFL: G49H provider orchestrator -> canonical media resolver -> default fallback
+ *   - Other sports: ClearSports -> TheSportsDB legacy resolver
  *
  * If none of the above produce a valid HTTP/HTTPS image URL, returns
  * `{ imageUrl: null, source: 'none', confidence: 'none' }` so the UI's
@@ -24,6 +24,7 @@ import { theSportsDbProvider } from '@/lib/workers/providers/thesportsdb'
 import { apiSportsProvider } from '@/lib/workers/providers/api-sports'
 import { sleeperChainProvider } from '@/lib/workers/providers/sleeper-chain'
 import { classifyAvatarSource } from '@/lib/draft-room/classify-avatar-source'
+import { resolveNflRedraftCanonicalHeadshot } from '@/lib/nfl-provider/nflRedraftProviderCertification'
 
 export type HeadshotProvider =
   | 'clearsports'
@@ -182,6 +183,12 @@ interface ClearSportsResponse {
   results?: ClearSportsPlayerLite[]
 }
 
+type SportsPlayerHeadshotCacheRow = {
+  imageUrl: string | null
+  team: string | null
+  position: string | null
+}
+
 function extractPlayers(json: unknown): ClearSportsPlayerLite[] {
   if (Array.isArray(json)) return json as ClearSportsPlayerLite[]
   const obj = json as ClearSportsResponse | null | undefined
@@ -214,7 +221,7 @@ export async function createBatchPlayerHeadshotResolver(args: {
   sport: string
 }): Promise<BatchPlayerHeadshotResolver> {
   const sport = String(args.sport || 'NFL').toUpperCase()
-  const csPlayers = await fetchClearSportsPlayers(sport)
+  const csPlayers = sport === 'NFL' ? [] : await fetchClearSportsPlayers(sport)
 
   // Build name → players index. Ambiguous names (multiple players with same normalized name)
   // are kept as a list; the caller resolves with team/position.
@@ -240,7 +247,7 @@ export async function resolvePlayerHeadshot(
   input: ResolveHeadshotInput,
 ): Promise<ResolveHeadshotResult> {
   const sport = String(input.sport || 'NFL').toUpperCase()
-  const csPlayers = await fetchClearSportsPlayers(sport)
+  const csPlayers = sport === 'NFL' ? [] : await fetchClearSportsPlayers(sport)
   const csByName = new Map<string, ClearSportsPlayerLite[]>()
   for (const p of csPlayers) {
     const nk = normalizePlayerName(clearSportsName(p))
@@ -261,6 +268,30 @@ async function resolveOnce(
   const targetTeam = normalizeTeam(input.team ?? '')
   const targetPos = normalizePosition(input.position ?? '')
   const isNfl = String(sport).trim().toUpperCase() === 'NFL'
+
+  if (isNfl) {
+    try {
+      const canonical = await resolveNflRedraftCanonicalHeadshot({
+        name: input.name,
+        team: input.team,
+        position: input.position,
+        allFantasyPlayerId:
+          input.externalIds?.rollingInsightsId ??
+          input.externalIds?.sleeperId ??
+          input.externalIds?.sportsDbId ??
+          input.externalIds?.clearSportsId ??
+          null,
+      })
+      const imageUrl = isValidHeadshotUrl(canonical.imageUrl) ? canonical.imageUrl : null
+      return {
+        imageUrl,
+        source: imageUrl ? canonical.source : 'none',
+        confidence: imageUrl ? canonical.confidence : 'none',
+      }
+    } catch {
+      return { imageUrl: null, source: 'none', confidence: 'none' }
+    }
+  }
 
   // ── 1. ClearSports (non-NFL primary) ──
   if (!isNfl && targetName.length > 0) {
@@ -348,7 +379,7 @@ async function resolveOnce(
 
   // ── 4. SportsPlayer DB cache ──
   try {
-    const dbRows = await prisma.sportsPlayer.findMany({
+    const dbRows: SportsPlayerHeadshotCacheRow[] = await prisma.sportsPlayer.findMany({
       where: {
         sport,
         name: { equals: input.name, mode: 'insensitive' },

@@ -10,6 +10,7 @@ import { requireEntitlement } from '@/lib/subscription/requireEntitlement'
 import { isLeagueEligibleForDispersalDraft } from '@/lib/league/dispersal-draft-eligibility'
 import { isOrphanPlatformUserId } from '@/lib/orphan-ai-manager/orphanRosterResolver'
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 import type { Prisma } from '@prisma/client'
 
 export const dynamic = 'force-dynamic'
@@ -168,12 +169,12 @@ export async function POST(req: NextRequest, ctx: { params: Promise<{ leagueId: 
       await prisma.$transaction([
         prisma.roster.update({
           where: { id: toId },
-          data: { playerData: merged },
+          data: { playerData: toPrismaJsonInput(merged) },
         }),
         prisma.roster.update({
           where: { id: fromId },
           data: {
-            playerData: [],
+            playerData: toPrismaJsonInput([]),
             platformUserId: `orphan-${fromId}`,
             settings: mergeLeagueSettings(fromRoster.settings, {
               dissolvedForDownsize: true,

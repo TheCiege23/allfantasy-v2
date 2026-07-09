@@ -3,6 +3,13 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
+import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
+import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
+import { buildDashboardLeaguePulse } from '@/lib/decision-os/league-pulse'
+import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
+import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
+import type { ManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
 import type { AiTimeContextPayload } from '@/lib/time-engine/types'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import type { TodayActionsEngineResponse } from '@/lib/today-actions-engine'
@@ -38,6 +45,7 @@ import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRe
 import { DashboardIntelligenceRail } from './DashboardIntelligenceRail'
 import { TodaysMissionStrip } from './TodaysMissionStrip'
 import { WarRoomPreviewBlock } from './WarRoomPreviewBlock'
+import { DashboardLiveScoresWidget } from './DashboardLiveScoresWidget'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
 import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'
 import { Swords, Sparkles, Crown, Trophy } from 'lucide-react'
@@ -111,6 +119,47 @@ export function DashboardOverview({
   const { t, tInterpolate } = useLanguage()
   const { hasPro } = useEntitlements()
   const { selectedLeagueId, selectedLeague, setSelectedLeagueId } = useDashboardToolLeague(leagues)
+  // Phase 8.3 — real Decision OS intelligence for the same league the mini-cards below already
+  // scope to (useDashboardToolLeague is the existing "League Intelligence" selector for this
+  // page; reused here, not a new anchor). Reuses the Phase 8.1/8.2 pipeline unchanged.
+  const [managerIntelligence, setManagerIntelligence] = useState<ManagerIntelligencePayload | null>(null)
+  useEffect(() => {
+    if (!selectedLeagueId) {
+      setManagerIntelligence(null)
+      return
+    }
+    let cancelled = false
+    void fetch(`/api/decision-os/manager-intelligence?leagueId=${encodeURIComponent(selectedLeagueId)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<ManagerIntelligencePayload>) : null))
+      .then((data) => {
+        if (!cancelled) setManagerIntelligence(data)
+      })
+      .catch(() => {
+        if (!cancelled) setManagerIntelligence(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [selectedLeagueId])
+  const leaguePulse = useMemo(
+    () =>
+      buildDashboardLeaguePulse({
+        connectedLeagues: leagues,
+        managerDna: managerIntelligence?.managerDna ?? null,
+      }),
+    [leagues, managerIntelligence],
+  )
+  const managerDna = useMemo(
+    () => buildManagerDnaViewModel({ source: managerIntelligence?.managerDna ?? null }),
+    [managerIntelligence],
+  )
+  const recommendations = useMemo(
+    () => buildDecisionRecommendationsViewModel({ source: managerIntelligence?.recommendations ?? null }),
+    [managerIntelligence],
+  )
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
   const [checklistExpanded, setChecklistExpanded] = useState(false)
@@ -840,7 +889,7 @@ export function DashboardOverview({
             }}
           />
           <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">
-            AllFantasy Command Center
+            Daily Briefing
           </p>
           <h1 className="mt-1.5 text-[26px] font-black leading-tight tracking-tight text-white sm:text-[30px]">
             Your fantasy command center is live.
@@ -977,6 +1026,8 @@ export function DashboardOverview({
           protectionActivityHint={stripProtectionActivityHint}
         />
 
+        <DashboardLiveScoresWidget leagues={leagues} />
+
         <WarRoomPreviewBlock />
 
         {(() => {
@@ -1106,6 +1157,12 @@ export function DashboardOverview({
             <InjuryImpactMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
             <WarRoomMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
             <MatchupPrepMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
+          </div>
+
+          <LeaguePulseCard pulse={leaguePulse} variant="dashboard" />
+          <div className="grid gap-3 sm:grid-cols-2">
+            <ManagerDnaCard profile={managerDna} variant="dashboard" compact />
+            <DecisionRecommendationsCard model={recommendations} variant="dashboard" compact />
           </div>
         </section>
 

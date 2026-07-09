@@ -569,7 +569,7 @@ export default function CommissionerShowcasePanel({
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
-                    Decision OS Shadow
+                    League Health Preview
                   </p>
                   <p className="mt-1 text-[18px] font-black text-white">
                     {shadowDecision.card.healthScore != null

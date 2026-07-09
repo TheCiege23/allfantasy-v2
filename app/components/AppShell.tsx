@@ -166,7 +166,7 @@ export default function AppShell({
       </aside>
 
       {/* Center workspace — grows when side rails are collapsed */}
-      <div
+      <main
         className={cn(
           balancedDesktopLayout
             ? 'flex min-h-0 min-w-0 w-full flex-col overflow-hidden'
@@ -176,7 +176,7 @@ export default function AppShell({
         style={centerBg}
       >
         {children}
-      </div>
+      </main>
 
       {/* Right: My Leagues — full strip or slim expand control */}
       <aside

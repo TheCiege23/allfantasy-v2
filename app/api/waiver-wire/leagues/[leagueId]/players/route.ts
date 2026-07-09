@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { getRosterPlayerIds } from "@/lib/waiver-wire/roster-utils"
 import { getPlayerPoolForLeague } from "@/lib/sport-teams/SportPlayerPoolResolver"
+import { normalizePoolRowToUnified } from "@/lib/player-data/normalizeProviderPlayer"
+import { serializeUnifiedPlayerForApi } from "@/lib/player-data/serializeUnifiedPlayerForApi"
 
 export async function GET(req: NextRequest, { params }: { params: { leagueId: string } }) {
   const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
@@ -58,16 +60,51 @@ export async function GET(req: NextRequest, { params }: { params: { leagueId: st
       teamId,
     })
 
-    const available = pool.filter(
-      (p: any) => p.external_source_id == null || !rosteredIds.has(p.external_source_id)
+    const available = pool.filter((p: any) => {
+      const playerId = p.player_id == null ? null : String(p.player_id)
+      const externalSourceId = p.external_source_id == null ? null : String(p.external_source_id)
+      return !(
+        (playerId && rosteredIds.has(playerId)) ||
+        (externalSourceId && rosteredIds.has(externalSourceId))
+      )
+    })
+
+    const availablePlayerIds = available
+      .map((p: any) => (p.player_id == null ? null : String(p.player_id)))
+      .filter((id: string | null): id is string => Boolean(id))
+    const sportsPlayerRows =
+      availablePlayerIds.length > 0
+        ? await (prisma as any).sportsPlayerRecord
+            .findMany({
+              where: {
+                id: { in: availablePlayerIds },
+                sport: String(league.sport).toUpperCase(),
+              },
+              select: {
+                id: true,
+                stats: true,
+                projections: true,
+                dataSource: true,
+                headshotSource: true,
+                adp: true,
+              },
+            })
+            .catch(() => [])
+        : []
+    const sportsPlayerById = new Map<string, any>(
+      sportsPlayerRows.map((row: any) => [String(row.id), row]),
     )
 
-    const players = available.map((p: any) => ({
-      id: p.player_id,
-      name: p.full_name,
-      position: p.position,
-      team: p.team_abbreviation,
-    }))
+    const players = available.map((p: any) =>
+      serializeUnifiedPlayerForApi(
+        normalizePoolRowToUnified(p, league.sport, {
+          augment: {
+            sportsPlayerRecord:
+              p.player_id == null ? undefined : sportsPlayerById.get(String(p.player_id)),
+          },
+        }),
+      ),
+    )
 
     return NextResponse.json({ players, rosteredCount: rosteredIds.size })
   } catch (error) {

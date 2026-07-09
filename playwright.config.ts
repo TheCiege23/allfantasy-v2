@@ -91,8 +91,8 @@ export default defineConfig({
   webServer: {
     command:
       process.env.PLAYWRIGHT_DEV_COMMAND ??
-      `npx next dev -p ${PLAYWRIGHT_PORT} --hostname 127.0.0.1`,
-    port: PLAYWRIGHT_PORT,
+      `node scripts/playwright-dev-server.cjs --port ${PLAYWRIGHT_PORT}`,
+    url: `${PLAYWRIGHT_BASE_URL}/api/auth/csrf`,
     reuseExistingServer: true,
     timeout: 120_000,
     env: {

@@ -10,6 +10,7 @@ import { prisma } from '@/lib/prisma'
 import type { SportType, PoolPlayerRecord } from './types'
 import { leagueSportToSportType } from '@/lib/multi-sport/SportConfigResolver'
 import { getTeamIdByAbbreviationMap } from './SportTeamMetadataRegistry'
+import { formatNflTeamDefenseName } from '@/lib/redraft/teamDefenseIdentity'
 
 const SPORT_STR: Record<LeagueSport, string> = {
   NFL: 'NFL',
@@ -83,11 +84,15 @@ function isHttpImage(url: string | null | undefined): boolean {
 
 function sourceRank(source: string | null | undefined): number {
   const s = String(source ?? '').trim().toLowerCase()
-  if (s === 'thesportsdb') return 5
-  if (s === 'sleeper') return 4
-  if (s === 'api_sports' || s === 'api-sports') return 3
-  if (s === 'backfill') return 2
-  if (s === 'rolling_insights') return 1
+  // CFBD is the authoritative current-season source for NCAAF rosters, so a
+  // fresh CFBD row should win dedup over a stale rolling_insights duplicate.
+  if (s === 'cfbd') return 7
+  if (s === 'thesportsdb') return 6
+  if (s === 'clearsports') return 5
+  if (s === 'api_sports' || s === 'api-sports') return 4
+  if (s === 'rolling_insights') return 3
+  if (s === 'sleeper') return 2
+  if (s === 'backfill') return 1
   return 0
 }
 
@@ -145,7 +150,9 @@ export async function getPlayerPoolForSport(
 
   const requestedTake = options?.limit ?? 2000
   let take = requestedTake
-  const countFn = (prisma.sportsPlayer as { count?: (args: { where: typeof where }) => Promise<number> }).count
+  const countFn = (prisma.sportsPlayer as unknown as {
+    count?: (args: { where: typeof where }) => Promise<number>
+  }).count
   if (typeof countFn === 'function') {
     const totalMatching = await countFn.call(prisma.sportsPlayer, { where })
     take = Math.min(requestedTake, Math.max(totalMatching, 0))
@@ -212,7 +219,7 @@ export async function getPlayerPoolForSport(
         league_variant: null,
         team_id: teamId ?? null,
         team: abbr,
-        full_name: `${abbr} Defense`,
+        full_name: formatNflTeamDefenseName(abbr),
         position: 'DEF',
         status: null,
         injury_status: null,

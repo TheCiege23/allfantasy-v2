@@ -1814,6 +1814,11 @@ model TradeOfferEvent {
   leagueFormat          String?        @db.VarChar(32)
   scoringType           String?        @db.VarChar(16)
   leagueTradeId         String?
+  /// Real idempotency key for live-captured offers (AfLeagueTrade.id), distinct
+  /// from `leagueTradeId` (which points at the legacy LeagueTrade table) and from
+  /// `inputHash` (a content hash unsafe to reuse here — see
+  /// docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md §1.3).
+  afLeagueTradeId       String?        @unique
   modelVersion          String?        @db.VarChar(32)
 
   @@index([leagueId, createdAt])
@@ -1831,6 +1836,9 @@ model TradeOutcomeEvent {
   week              Int?
   offerEventId      String?      @unique @db.VarChar(64)
   leagueTradeId     String?
+  /// Real idempotency key for live-captured outcomes (AfLeagueTrade.id) — see
+  /// docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md §1.3/§4.
+  afLeagueTradeId   String?      @unique
   outcome           TradeOutcome
   timeToDecisionMin Int?
   outcomeMetaJson   Json?
@@ -5502,6 +5510,7 @@ model League {
   afLeagueTrades                        AfLeagueTrade[]
   afRosterLineupAssignments             AfRosterLineupAssignment[]
   afRosterMoveHistory                   AfRosterMoveHistory[]
+  redraftRosterMoveHistory              RedraftRosterMoveHistory[]
   afLineupLockStates                    AfLineupLockState[]
   waiverRuns                            WaiverRun[]
   waiverResults                         WaiverResult[]
@@ -12823,6 +12832,7 @@ model RedraftRoster {
   playoffWinningMatchups   RedraftPlayoffMatchup[]    @relation("RedraftPlayoffWinnerRoster")
   playoffSeeds             RedraftPlayoffSeed[]
   players                  RedraftRosterPlayer[]
+  rosterMoveHistory        RedraftRosterMoveHistory[]
   season                   RedraftSeason              @relation(fields: [seasonId], references: [id], onDelete: Cascade)
   tradeAssetsFrom          RedraftTradeAsset[]        @relation("RedraftTradeAssetFrom")
   tradeAssetsTo            RedraftTradeAsset[]        @relation("RedraftTradeAssetTo")
@@ -12857,6 +12867,35 @@ model RedraftRosterPlayer {
   @@index([rosterId])
   @@index([playerId])
   @@map("redraft_roster_players")
+}
+
+/// Phase 2H — lineup-save history for redraft rosters, giving Phase 6 Decision
+/// OS DNA a real `week` value for lineup_saved events (see
+/// docs/DECISION_OS_MANAGER_DNA_PHASE2G_VOLUME_AND_LINEUP_HISTORY_SCOPE.md §2).
+/// Mirrors AfRosterMoveHistory's shape/hash-dedup convention exactly; no
+/// RedraftSeason relation (season is a plain Int here too, matching
+/// AfRosterMoveHistory, to avoid a field-name collision with the `season`
+/// scalar column).
+model RedraftRosterMoveHistory {
+  id          String        @id @default(cuid())
+  leagueId    String
+  rosterId    String
+  seasonId    String
+  season      Int
+  week        Int
+  actorUserId String?       @db.VarChar(128)
+  source      String        @db.VarChar(32)
+  moveSummary String?       @db.VarChar(512)
+  beforeHash  String?       @db.VarChar(64)
+  afterHash   String?       @db.VarChar(64)
+  metadata    Json?
+  createdAt   DateTime      @default(now())
+  league      League        @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+  roster      RedraftRoster @relation(fields: [rosterId], references: [id], onDelete: Cascade)
+
+  @@index([leagueId, rosterId, createdAt])
+  @@index([leagueId, seasonId, week])
+  @@map("redraft_roster_move_history")
 }
 
 model RedraftMatchup {
@@ -14303,6 +14342,10 @@ enum TradeOfferMode {
   TRADE_HUB
   TRADE_IDEAS
   PROPOSAL_GENERATOR
+  /// Real in-app trade proposals (AfLeagueTrade), distinct from the
+  /// hypothetical-evaluation-tool modes above — see
+  /// docs/TRADE_LEARNING_CAPTURE_ARCHITECTURE_ADR.md.
+  LIVE_PROPOSAL
 }
 
 enum TradeOutcome {
@@ -16047,4 +16090,168 @@ model WaiverWatchlist {
   @@unique([leagueId, userId, playerId])
   @@index([leagueId, userId])
   @@map("waiver_watchlists")
+}
+
+/// Decision OS Replay Framework (per docs/SLEEPER_TRADE_REPLAY_ARCHITECTURE_ADR.md).
+/// Generic, provider-agnostic, decision-type-agnostic import of a real
+/// external decision (first implementation: Sleeper trades) for offline
+/// backtesting/validation. Structurally separate from TradeOfferEvent/
+/// TradeOutcomeEvent — never referenced by computeShadowB0()/
+/// promoteShadowB0()/runWeeklyRecalibration(), never written by
+/// logTradeOfferEvent()/logTradeOutcomeEvent() or captureLiveTradeOffer()/
+/// captureLiveTradeOutcome(). Replay is validation only, never live
+/// calibration input.
+model ReplayImport {
+  id                    String    @id @default(uuid())
+  provider              String    // e.g. "sleeper" — future: "espn", "yahoo", "allfantasy"
+  decisionType          String    // e.g. "trade" — future: "waiver", "draft", "lineup", "commissioner_action", "roster_move"
+  providerLeagueId      String
+  providerTransactionId String
+  season                Int
+  providerWeek          Int?      // provider's own round/week bucket — not guaranteed to equal the real calendar week (see the ADR's caveat)
+  proposedAt            DateTime
+  resolvedAt            DateTime?
+  providerStatus        String    // raw provider status verbatim (e.g. Sleeper's complete|pending|failed) — never coerced into our own TradeOutcome enum
+  participantsInvolved  Json      // provider-native participant identifiers (e.g. Sleeper roster_ids)
+  managerUserIds        Json      // resolved provider user IDs per participant
+  managerDisplayNames   Json      // denormalized display names — never an identity source of truth
+  payload               Json      // decision-type-specific normalized data (e.g. trade: assetsGiven/assetsReceived)
+  rawProviderPayload    Json      // the full, unmodified provider payload, kept for reprocessing without re-fetching
+  contextSnapshot       Json      // league/context settings (scoring, roster slots, format) frozen at ingestion time
+  isDynasty             Boolean?
+  isSuperFlex           Boolean?
+  ingestSourceUserId    String    // which connected provider account discovered this row
+  ingestedAt            DateTime  @default(now())
+
+  backtestResults       ReplayBacktestResult[]
+
+  @@unique([provider, decisionType, providerLeagueId, providerTransactionId])
+  @@index([decisionType, season])
+  @@index([provider, providerLeagueId])
+  @@map("replay_imports")
+}
+
+/// One row per (ReplayImport x model/engine/config version) triple — a new
+/// version never overwrites a prior backtest result, so a fixed replay
+/// corpus can be re-evaluated across model versions for offline comparison.
+model ReplayBacktestResult {
+  id                          String   @id @default(uuid())
+  replayId                    String
+  decisionType                String   // denormalized from the parent row for query/filter convenience without a join
+  modelVersion                String   // stable, human-readable identifier for the scoring approach (e.g. "trade-engine-deterministic-v1")
+  engineVersionHash           String   // git commit SHA of the engine code that produced this result
+  deterministicConfigVersion  String   // version/hash of the specific weights/thresholds/calibratedB0 value used
+  backtestedOutput            Json     // decision-type-specific structured output (e.g. trade: acceptProb/verdict/driverSet)
+  realOutcome                 Json?    // settled only when the underlying ReplayImport.providerStatus reflects a resolved decision
+  replayComputedAt            DateTime @default(now())
+
+  replay ReplayImport @relation(fields: [replayId], references: [id], onDelete: Cascade)
+
+  @@unique([replayId, modelVersion, engineVersionHash, deterministicConfigVersion])
+  @@index([decisionType])
+  @@map("replay_backtest_results")
+}
+/// Decision OS Phase A — provider-neutral imported/external-league activity.
+/// Deliberately NOT coupled to AppUser/League/Roster (external managers have no AF account).
+/// Idempotency key = externalSourceKey (the normalizer's deterministic natural key).
+model DecisionOsImportedActivity {
+  id                       String   @id @default(uuid())
+  externalSourceKey        String   @unique
+  provider                 String
+  providerLeagueId         String
+  afLeagueId               String?
+  activityType             String
+  providerEventId          String?
+  occurredAt               DateTime
+  externalManagerId        String?
+  stableExternalManagerKey String?
+  appUserId                String?
+  rosterId                 String?
+  payload                  Json?
+  normalized               Json
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@index([afLeagueId, activityType])
+  @@index([providerLeagueId, activityType])
+  @@index([occurredAt])
+  @@map("decision_os_imported_activity")
+}
+
+/// Decision OS Phase A Increment 5 — provider-neutral behavioral snapshot trend history.
+/// Deliberately NOT coupled to AppUser/League/Roster (external managers have no AF account).
+/// managerId uses a stable non-null sentinel ("__league__") for league-scope rows because a
+/// UNIQUE index on a nullable column does not enforce uniqueness against NULL in Postgres.
+model DecisionOsBehavioralSnapshot {
+  id           String   @id @default(uuid())
+  leagueId     String
+  managerId    String   @default("__league__")
+  scope        String
+  cadence      String
+  periodKey    String
+  capturedAt   DateTime
+  lookbackDays Int?
+  eventCount   Int
+  completeness Int
+  facts        Json
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([leagueId, managerId, periodKey])
+  @@index([leagueId, scope, periodKey])
+  @@index([leagueId, managerId, capturedAt])
+  @@map("decision_os_behavioral_snapshot")
+}
+
+/// Fantasy OS Suite — Phase OS-A1. Decision OS's provider-agnostic BELIEF about whether real money
+/// is involved in a league, and how confident that belief is. Deliberately separate from
+/// `LeagueFinance` (AF-native Stripe/PayPal treasury processing for leagues that opt into AllFantasy's
+/// own paid-league feature) — this model answers "what do we know," not "how do we collect/hold
+/// money." A league can have real money riding on it via LeagueSafe, FanCred, Yahoo, ESPN, or a
+/// handshake deal with zero rows in `LeagueFinance` ever created.
+/// Deliberately NOT FK-related to `League` (plain `leagueId` string), matching
+/// `DecisionOsImportedActivity`/`DecisionOsBehavioralSnapshot`'s existing provider-agnostic,
+/// storage-decoupled convention — this context must be settable for any league id AllFantasy knows
+/// about, imported or native, without requiring a specific relational shape.
+model DecisionOsLeagueContext {
+  id                  String                              @id @default(uuid())
+  leagueId            String                              @unique
+  financialStatus     DecisionOsLeagueFinancialStatus      @default(UNKNOWN)
+  buyInAmount         Float?
+  buyInCurrency       String?                              @db.VarChar(8)
+  escrowProvider      DecisionOsLeagueEscrowProvider        @default(UNKNOWN)
+  financialConfidence DecisionOsLeagueFinancialConfidence   @default(UNKNOWN)
+  financialNotes      String?                              @db.VarChar(512)
+  isUserConfirmed     Boolean                              @default(false)
+  lastVerifiedAt      DateTime?
+  createdAt           DateTime                             @default(now())
+  updatedAt           DateTime                             @updatedAt
+
+  @@map("decision_os_league_context")
+}
+
+enum DecisionOsLeagueFinancialStatus {
+  UNKNOWN
+  FREE
+  PAID
+  VERIFIED_PAID
+}
+
+/// Adapter hooks only (Phase OS-A1) — no real integration built for any of these yet.
+enum DecisionOsLeagueEscrowProvider {
+  LEAGUESAFE
+  FANCRED
+  YAHOO
+  ESPN
+  MANUAL
+  OTHER
+  UNKNOWN
+}
+
+enum DecisionOsLeagueFinancialConfidence {
+  UNKNOWN
+  USER_CONFIRMED
+  PROVIDER_CONFIRMED
+  ESCROW_VERIFIED
+  INFERRED
 }
