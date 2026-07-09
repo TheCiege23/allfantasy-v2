@@ -14,6 +14,13 @@ Replacements would need to provide, an integration architecture sketch, a propos
 pilot plan, a licensing-tier sketch, and the concrete engineering gaps before a live pilot. Makes no
 ROI/retention-lift claims anywhere.
 
+**Phase C has begun (Commissioner OS External Licensing, successor to Phase B):** Increment 1 —
+[`THE_REPLACEMENTS_PROVIDER_ADAPTER_PLAN.md`](THE_REPLACEMENTS_PROVIDER_ADAPTER_PLAN.md) — the
+technical adapter plan (minimum data contract, identity/league/manager/roster/transaction/waiver/
+trade/draft mapping, sync/live-update strategy, auth/tenant requirements, a pilot validation
+checklist, and concrete questions for the next call with The Replacements). Documentation only — no
+adapter code, no `IMPORT_PROVIDERS` change, no code touched at all this increment.
+
 ---
 
 ## 1. Executive summary

@@ -11,6 +11,12 @@ retention-lift, or revenue numbers are claimed anywhere in this document — non
 [`COMMISSIONER_OS_SURFACE_ALIGNMENT.md`](COMMISSIONER_OS_SURFACE_ALIGNMENT.md) (Phase B Increments
 1–6, which built the surfaces this package demos).
 
+**Phase C update (2026-07-08):** the technical follow-up to §7/§8/§9 of this package —
+what The Replacements' adapter would actually need to do, the minimum data contract, and concrete
+questions for the next call — is now written up in
+[`THE_REPLACEMENTS_PROVIDER_ADAPTER_PLAN.md`](THE_REPLACEMENTS_PROVIDER_ADAPTER_PLAN.md). Still a
+plan only — no adapter code exists yet.
+
 ---
 
 ## 1. Executive summary
