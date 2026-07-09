@@ -19,6 +19,12 @@ type NotificationCenterProps = {
   leagueNameById: Map<string, string>
 }
 
+function formatTimestamp(timestamp: string): string | null {
+  const date = new Date(timestamp)
+  if (Number.isNaN(date.getTime())) return null
+  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+}
+
 export default function NotificationCenter({ notifications, leagueNameById }: NotificationCenterProps) {
   const [readIds, setReadIds] = useState<Set<string>>(new Set())
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set())
@@ -59,6 +65,7 @@ export default function NotificationCenter({ notifications, leagueNameById }: No
           <ul className="space-y-2" data-testid="notification-center-list">
             {visible.map((notification) => {
               const isRead = readIds.has(notification.id)
+              const formattedTimestamp = formatTimestamp(notification.createdAt)
               return (
                 <li
                   key={notification.id}
@@ -83,6 +90,9 @@ export default function NotificationCenter({ notifications, leagueNameById }: No
                       <p className="mt-1 text-xs font-medium leading-5 text-primary">
                         {notification.recommendedAction}
                       </p>
+                    ) : null}
+                    {formattedTimestamp ? (
+                      <p className="mt-1 text-[11px] uppercase tracking-[0.1em] text-muted">{formattedTimestamp}</p>
                     ) : null}
                   </div>
                   <div className="flex shrink-0 items-center gap-1">

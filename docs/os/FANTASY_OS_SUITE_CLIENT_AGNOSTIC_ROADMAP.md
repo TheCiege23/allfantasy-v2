@@ -815,6 +815,29 @@ verification** against a real developer account with 2 real leagues (not fixture
 confirmed via direct DOM inspection, League Focus navigation confirmed with no regression, zero new
 console errors. Full detail: `OS_B6_DEMO_EXCELLENCE.md`.
 
+### OS-B7 — Demo Truthfulness & Executive Experience Pass (2026-07-09)
+
+A truthfulness audit, not a feature pass: no new backend systems, providers, AI models, notification
+types, or Decision OS intelligence. Fixed the fabrication OS-B6 flagged but deliberately left alone —
+`CommissionerShowcasePanel.tsx`'s `buildAiSummary` returned a hardcoded fake "League Health: 84/100"
+with 5 invented items (`"3 inactive managers need a nudge"`, etc.) whenever a commissioner had zero real
+health snapshots, and `buildRecommendations` returned a fabricated flat "Draft is 92% ready" for any
+zero-league account. Both now degrade honestly (`available: false` / "not yet available" messaging)
+instead of inventing numbers; the same audit also caught and fixed two subtler fake-default fallbacks
+(`average(...) || 84`, `average(...) || 72`) inside the "real data" branch that could still silently
+substitute fabricated values when a snapshot set existed but carried no valid scores. Added a timestamp
+to `NotificationCenter` for visual consistency with `CommissionerAttentionQueue`'s existing convention.
+Audited Attention Queue's recommendation/explanation logic, Today's Brief's copy, every empty state, and
+badge/panel casing — found all already compliant, no changes needed. Deliberately left untouched: the
+legacy "League Operations Summary" redundancy (same finding OS-B6 flagged, still a bigger page-structure
+change than this phase's scope) and PR #185's duplicate-`data-testid` fix (merged on `main`, not yet
+synced to this branch). 6 new/updated tests (first-ever render coverage for `CommissionerShowcasePanel`),
+2981/2981 total — zero regressions. No new typecheck errors in the changed files. **Live browser
+verification** confirmed the honest zero-data fallback state (this sandbox's session was signed out,
+which exercises exactly the code path this phase fixed) at both desktop and mobile viewports — the
+authenticated, populated-account path was not re-verified live this phase (no stored credentials in this
+session), covered by unit tests with real fixture data instead. Full detail: `OS_B7_DEMO_TRUTHFULNESS.md`.
+
 ---
 
 ## 26. Boundaries honored
@@ -835,6 +858,10 @@ console errors. Full detail: `OS_B6_DEMO_EXCELLENCE.md`.
   presentation/copy/layout pass; every underlying Decision OS composition/resolver is byte-for-byte
   unchanged in behavior (only 2 explanation strings' RENDERED TEXT changed, never their derivation
   logic).
+- No new intelligence, provider integrations, notification sending, or schema changes in OS-B7 either —
+  a truthfulness/copy pass on one pre-existing widget's fallback logic plus one timestamp addition;
+  every Decision OS composition/resolver (`attentionSignals.ts`, `dailyBrief.ts`, `notifications.ts`,
+  `deliveryResolver.ts`) is untouched.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

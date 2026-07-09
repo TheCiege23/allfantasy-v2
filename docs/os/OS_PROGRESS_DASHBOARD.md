@@ -21,7 +21,8 @@ per model, confirmed; Platform OS found not yet migrated),
 gap), [`DELIVERY_ADAPTER_LAYER.md`](DELIVERY_ADAPTER_LAYER.md) (Phase OS-B5 — the reusable,
 provider-agnostic delivery contract completing the intelligence-to-delivery pipeline), and
 [`OS_B6_DEMO_EXCELLENCE.md`](OS_B6_DEMO_EXCELLENCE.md) (Phase OS-B6 — presentation/polish pass, no new
-intelligence).
+intelligence), and [`OS_B7_DEMO_TRUTHFULNESS.md`](OS_B7_DEMO_TRUTHFULNESS.md) (Phase OS-B7 — fabricated
+content removed, no new intelligence).
 This doc answers one question fast: **where does each OS and the Sleeper proof stand right now?**
 Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 
@@ -63,6 +64,7 @@ itself.
 | **OS-B4.5 — Platform OS Attention Signal Alignment** | Migrated `platformOs.ts`'s bespoke `interventionQueue` onto the shared `DecisionOsAttentionSignal` model; consolidated `resolveLeagueFinancialContextSafely`/`ATTENTION_QUEUE_CAP` (previously duplicated 2-3×) into shared exports; found + fixed a test-mocking bug across 3 files + a real defense-in-depth gap; 4 new tests | **Code complete, 2935/2935 passing, typecheck byte-identical to OS-B4.** See `OS_B4_5_PLATFORM_OS_ALIGNMENT.md` |
 | **OS-B5 — Multi-Channel Delivery Adapter Foundation** | New provider-agnostic `DeliveryAdapter` contract (`lib/decision-os/delivery/`) + 4 adapters (real in-app, honest email/push/mobile stubs) + pure `resolveDeliveryPlan` routing resolver; wired into Commissioner Hub with zero extra fetch; 28 new tests | **Code complete, 2965/2965 passing, typecheck byte-identical to OS-B4.5.** See `DELIVERY_ADAPTER_LAYER.md` |
 | **OS-B6 — Demo Excellence Pass** | Naming collision resolved (`CommissionerShowcasePanel` badge renamed); removed 2 duplicated sections (Recent Changes card, 2 redundant League Health Ranking panels); removed raw technical language from 3 user-facing strings; added real counts to 2 panel titles; stronger Today's Brief visual weight; 10 new tests; live browser-verified against a real account | **Code complete, typecheck byte-identical to OS-B5. No new intelligence, no schema changes.** See `OS_B6_DEMO_EXCELLENCE.md` |
+| **OS-B7 — Demo Truthfulness & Executive Experience Pass** | Removed `CommissionerShowcasePanel`'s 2 confirmed fabrication points (fake AI summary, fake flat draft-readiness %) plus a subtler fake-default pair (`\|\| 84`, `\|\| 72`), replacing all with honest degradation; added a timestamp to Notification Center for consistency with Attention Queue; audited Attention Queue/Today's Brief/empty states/badge casing and found them already compliant; 6 new/updated tests; live-verified the honest zero-data fallback state (desktop + mobile) | **Code complete, no new typecheck errors. No new intelligence, no schema changes.** See `OS_B7_DEMO_TRUTHFULNESS.md` |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
 
@@ -132,7 +134,8 @@ Zero engineering blockers found; zero code changes were required.
 | — | **OS-B architecture audit** (pre-OS-B5, no code) | Confirmed single canonical path per model; found Platform OS not yet migrated onto the Attention Signal model | `6b83736e2` |
 | OS-B4.5 | **Platform OS Attention Signal Alignment** | `platformOs.ts` migrated onto `DecisionOsAttentionSignal`; shared-helper consolidation (`resolveLeagueFinancialContextSafely`, `ATTENTION_QUEUE_CAP`); 4 new tests, 2935/2935, 158/158 baseline typecheck unchanged | `d370a18ca` |
 | OS-B5 | **Multi-Channel Delivery Adapter Foundation** | `DeliveryAdapter` contract + 4 adapters (real in-app, honest email/push/mobile stubs) + `resolveDeliveryPlan`; Commissioner Hub wired end-to-end; 28 new tests, 2965/2965, 158/158 baseline typecheck unchanged | `43504dd4b` |
-| OS-B6 | **Demo Excellence Pass** | Naming collision fix, 2 duplicated sections removed, jargon removed from 3 strings, count labels, Today's Brief weight; 10 new tests, live-verified, 158/158 baseline typecheck unchanged | *(this commit)* |
+| OS-B6 | **Demo Excellence Pass** | Naming collision fix, 2 duplicated sections removed, jargon removed from 3 strings, count labels, Today's Brief weight; 10 new tests, live-verified, 158/158 baseline typecheck unchanged | `04c2cff34` |
+| OS-B7 | **Demo Truthfulness & Executive Experience Pass** | `CommissionerShowcasePanel` fabrication fixed (fake AI summary, fake flat draft-readiness %, 2 subtler fake-default fallbacks); Notification Center timestamp added for consistency; Attention Queue/Today's Brief/empty states audited and found compliant; 6 new/updated tests, 2981/2981, live-verified (honest zero-data fallback state) | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 
@@ -168,15 +171,14 @@ Zero engineering blockers found; zero code changes were required.
   with an explicit `stub_adapter_no_real_delivery` reason. This is the explicit, correct scope boundary
   for this phase (see `DELIVERY_ADAPTER_LAYER.md` §7), not an oversight — real sending is deliberately
   deferred past the backend-architecture arc this phase closes out.
-- **Real finding, deliberately not fixed in OS-B6**: `CommissionerShowcasePanel.tsx` (a separate,
-  Phase-D-era widget) returns hardcoded, fabricated "AI summary" strings when a commissioner has no real
-  health snapshots yet — a genuine violation of the "no fake data" discipline this whole workstream
-  otherwise holds to. Out of OS-B6's narrow naming-collision scope; flagged as a separate task rather
-  than rewritten under time pressure. See `OS_B6_DEMO_EXCELLENCE.md` §5.
-- **Real finding, deliberately not fixed in OS-B6**: the legacy "League Operations Summary" stat row
+- **Resolved (OS-B7):** `CommissionerShowcasePanel.tsx`'s fabricated "AI summary" content (flagged in
+  OS-B6, not fixed there) is fixed — `buildAiSummary`/`buildRecommendations` now degrade to honest
+  "not yet available" messaging instead of inventing scores, items, or percentages. See
+  `OS_B7_DEMO_TRUTHFULNESS.md` §1.
+- **Real finding, still not fixed as of OS-B7**: the legacy "League Operations Summary" stat row
   (rendered just below the Multi-League Overview) genuinely overlaps with the new Overview's own stat
-  chips. Not named in OS-B6's explicit review scope; a candidate for a future, more surgical page-
-  structure phase.
+  chips. Not named in OS-B6's or OS-B7's explicit review scope; a candidate for a future, more surgical
+  page-structure phase. See `OS_B7_DEMO_TRUTHFULNESS.md` §7.
 - `draftsApproachingCount` (OS-B1) only counts AF-native leagues — Sleeper-imported leagues have no
   persisted draft date anywhere in this codebase today (confirmed by direct investigation, not
   assumption); see `COMMISSIONER_COMMAND_CENTER.md` §4.

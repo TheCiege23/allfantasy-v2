@@ -81,6 +81,12 @@ describe('NotificationCenter', () => {
     expect(screen.getByTestId('notification-center-empty')).toBeInTheDocument()
   })
 
+  it('shows a formatted timestamp derived from the notification\'s real createdAt', () => {
+    const n = notificationFromSignal(signal({ id: 'a', leagueId: 'league-1', severity: 'high', type: 'low_league_health', timestamp: '2026-03-05T12:00:00Z' }))
+    render(<NotificationCenter notifications={[n]} leagueNameById={LEAGUE_NAMES} />)
+    expect(screen.getByTestId(`notification-center-item-${n.id}`)).toHaveTextContent('Mar 5')
+  })
+
   it('counts only genuinely unread, non-dismissed notifications in the unread badge', () => {
     const a = notificationFromSignal(signal({ id: 'a', leagueId: 'league-1', severity: 'critical', type: 'low_league_health' }))
     const b = notificationFromSignal(signal({ id: 'b', leagueId: 'league-1', severity: 'high', type: 'draft_approaching' }))
