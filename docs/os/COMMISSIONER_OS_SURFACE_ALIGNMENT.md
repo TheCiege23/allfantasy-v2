@@ -1,10 +1,10 @@
 # Commissioner OS Surface Alignment — Phase B
 
 **Audit + incremental, safe alignments. PR #183 (Decision OS Phase A) stays draft, untouched, not
-merged.** No Redraft/Start-Draft/PR-#166 work. No Mission Control/League Analytics UI built. No fake
+merged.** No Redraft/Start-Draft/PR-#166 work. No League Analytics UI built. No fake
 demo data. Primary business target: **The Replacements demo.**
 
-**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–4 landed.**
+**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–5 landed.**
 
 ---
 
@@ -37,10 +37,13 @@ instead of guessing" instruction.
   safe, authorized, on-demand/batch job path — `/api/cron/decision-os-snapshot-capture` — so trend
   history can start accumulating for real. **Not registered in `vercel.json`**, i.e. **not scheduled
   to run automatically yet** — that is a separate, deliberate deployment decision (§4d).
+- ✅ **Increment 5:** the **first minimal Mission Control surface** — `lib/decision-os/missionControl.ts`
+  + `GET /api/decision-os/mission-control?leagueId=` — composed entirely from Increments 3/2's
+  already-federated League Health + trend, with zero new derivation logic (§4e).
 - ⛔ **Still needing their own architecture decision, not a guess:** the Commissioner Intelligence
   Hub's 7 modules (a *third* system), Manager Hub's P2–P4 contracts (a *fourth* system), a real
-  retention-risk *derivation* at the platform level, and building Mission Control / League Analytics
-  (still don't exist).
+  retention-risk *derivation* at the platform level, and building League Analytics (still doesn't
+  exist), and Mission Control's own richer UI (only a JSON route exists so far).
 
 ---
 
@@ -66,7 +69,7 @@ systems that predate Phase A.
 
 | Surface | Current source | Real Decision OS (subsystem A) available? | Gap | Needed implementation | Demo priority |
 | --- | --- | --- | --- | --- | --- |
-| **Mission Control** | ❌ does not exist by this name anywhere | N/A | Not built | New surface (explicitly out of scope this increment) | High (named target) — **defer** |
+| **Mission Control** | ✅ `lib/decision-os/missionControl.ts` + `GET /api/decision-os/mission-control` (Increment 5, §4e) — composes Increment 3's federated League Health + Increment 2's trend | ✅ Yes — federated from real subsystem A data via subsystems' existing alignment | Read API only; no page/card UI yet (deliberately deferred, see §4e) | Done for the read composition + route. Remaining: a UI (only if/when a low-risk existing pattern is chosen — two competing card styles exist, see §4e) | High (named target) — **composition + route done; UI still open** |
 | **League Analytics** | ❌ does not exist by this name anywhere | N/A | Not built | New surface (explicitly out of scope this increment) | High (named target) — **defer** |
 | **League Health** (`app/api/league-health`) | `monitorLeagueHealth` (`lib/league-health/*`) — a pure scoring function; **fed by real Decision OS counts as of Increment 3** via `lib/decision-os/leagueHealthAlignment.ts` (opt-in `source: 'decision_os'`, legacy explicit-body contract unchanged) | ✅ **Yes — federated this increment** | ~~Totally separate system~~ Resolved: **federate, not replace** (§4c) — the scoring engine itself was never touched | Done. Remaining: no live UI caller yet (same as before this increment — the route was already orphaned) | High — ✅ **decision made + implemented (federate)** |
 | **Manager Intelligence** — Commissioner Hub / Dashboard Overview / `LeagueTab` (`dashboard-intelligence.ts`) | Subsystem A (behavioral pipeline) directly | **Yes — was already the real source** | Was missing the Phase A imported-activity merge (external managers invisible) | ✅ **DONE this increment** | **Highest — directly serves the Replacements case** |
@@ -323,6 +326,100 @@ touching production defaults.
   this route periodically) is a deliberate, separate action — not done here, per "no production
   enablement by default."
 
+## 4e. Increment 5 — first minimal Mission Control surface (implemented)
+
+**Goal:** a single, real, composed snapshot a commissioner or client operator can read: league
+health, activity trend, active/inactive counts, trade/waiver/draft/roster activity, retention-risk
+managers, recommended commissioner actions, and snapshot/trend availability — all honest, none
+fabricated.
+
+**Zero new derivation logic — this is composition, not a new intelligence layer.** Every field comes
+from Increments 2/3's already-tested outputs:
+
+```
+resolveMissionControlSnapshot(leagueId):
+  resolveDecisionOsLeagueHealth(leagueId)   // Increment 3 — engine + decisionOs (incl. Increment 2's trend)
+    → reshape into a flat, UI-ready snapshot
+    → relabel engine.urgentAlerts/interventionRecommendations as recommendedActions
+```
+
+**New file: `lib/decision-os/missionControl.ts`** — `resolveMissionControlSnapshot(leagueId, now?)`
+returns `MissionControlSnapshot`: `leagueHealth` (the full federated `DecisionOsLeagueHealthResult`,
+wrapped in an `{available: true, result}` / `{available: false, reason}` envelope), `trend`,
+`managerCounts` (`activeManagers`/`inactiveManagers`), `activity`
+(`tradeCount`/`waiverClaimCount`/`draftPickCount`/`rosterActivityCount`), `managersAtRetentionRisk`,
+`recommendedActions`, and `fieldProvenance`.
+
+**A real architecture-boundary decision was made and is worth recording:** "recommended commissioner
+actions" could have come from three different places. Two were deliberately NOT used:
+- **Phase 5.3's `deriveLeagueBehavioralIntelligence`** (`lib/decision-os/behavioral/league-intelligence.ts`)
+  already produces a customer-facing, deterministic `recommendations: LeagueCommissionerRecommendation[]`
+  field — but its own ADR (`ADR_F5_3_LEAGUE_BEHAVIORAL_INTELLIGENCE.md`) explicitly states it is
+  **"shadow-only — not wired to any production route until a Phase 5.4 cutover ADR is written."**
+  Wiring it into Mission Control would silently open that gate without the cutover ADR it names as
+  its own prerequisite — out of scope for a "safe, minimal" increment.
+- **Phase 6.4's `assembleCommissionerRecommendations`** produces richer output but needs
+  archetype/benchmark inputs (Phase 6.3/6.5) this increment does not assemble; wiring it well would
+  mean composing three more subsystems, not a minimal increment.
+- **What was used instead:** the federated `monitorLeagueHealth` engine (Increment 3) already
+  computes real, now-real-data-driven `urgentAlerts` + `interventionRecommendations` (the engine's
+  own scoring code was never touched — only its *inputs* are real as of Increment 3). This module
+  only relabels those two arrays with a `priority: 'urgent' | 'standard'` tag and de-duplicates any
+  message appearing in both — a reshape, not a new recommendation.
+
+**Honest degradation:**
+- `resolveDecisionOsLeagueHealth` itself never throws (Increment 3's own contract) — but
+  `resolveMissionControlSnapshot` wraps the call in its **own** outer try/catch anyway, a
+  defense-in-depth boundary distinct from that dependency's contract: a future change to it (or any
+  unexpected failure) degrades to an explicit `leagueHealth: { available: false, reason:
+  'league_health_unavailable' }` state — never a crash, never fabricated data — plus the same
+  all-zero `managerCounts`/`activity`/`managersAtRetentionRisk: []`/`recommendedActions: []`/
+  `fieldProvenance: null` used elsewhere in this workstream for a fully-unavailable source.
+  This is a **different** failure mode from "available but all real counts are honestly zero" (a
+  real, quiet league) — the two are never conflated.
+- No activity → real zero counts (not this module's own fabrication; inherited honestly from
+  Increment 3).
+- No captured snapshots → `trend: { available: false, reason: 'no_snapshots' }`; exactly one
+  snapshot → `reason: 'insufficient_history'` (both pass through Increment 2/3 unchanged).
+- No managers at risk → `managersAtRetentionRisk: []` (never invented).
+
+**New route: `app/api/decision-os/mission-control/route.ts`** (`GET`) — mirrors the existing
+`/api/decision-os/manager-intelligence` route's contract exactly: session-gated (401 without a
+session), `leagueId` required (400 without it), otherwise calls the composition and returns it
+verbatim. Chosen over inventing a new auth pattern for the same reason Increment 4 mirrored the
+waivers cron.
+
+**UI deliberately deferred, per instruction ("do not build broad visual polish yet", "prefer
+reusing existing containers if possible").** A structured survey of the two existing Commissioner
+surfaces found they use **two different, non-interchangeable card systems**: the Commissioner Hub
+dashboard uses `decisionOsCardClassName`/`DecisionOsEmptyState`/`DecisionOsInsufficientDataCallout`
+(`components/decision-os/DecisionOsCardPrimitives.tsx`), while the separate Commissioner Intelligence
+Hub (`/league/[id]/intelligence`, subsystem C, 7 modules) uses its own local `Card`/`StateMessage`/
+`useResource` pattern (`components/commissioner-intelligence/CommissionerIntelligenceHub.tsx`).
+Picking one over the other — or building a third — is a real design decision the increment
+instructions didn't ask this pass to make; building the read API first (this increment) means a
+future UI increment can bind to a stable, already-tested contract without that choice blocking it.
+
+### Tests added (Increment 5)
+
+- `__tests__/decision-os/mission-control.test.ts` (8/8): a healthy populated league maps every real
+  field through honestly; a no-activity league produces an honest all-zero snapshot; `no_snapshots`
+  trend availability passes through; `insufficient_history` trend availability passes through;
+  managers at retention risk surface with real reasons unmodified; recommended actions relabel +
+  dedupe the federated engine's `urgentAlerts`/`interventionRecommendations` correctly (urgent
+  first); the dependency failing degrades to an explicit `league_health_unavailable` state (not a
+  throw) with the same honest all-zero shape; a wiring proof that `resolveDecisionOsLeagueHealth` is
+  called with the given league id.
+- `__tests__/decision-os/mission-control-route-contract.test.ts` (3/3): 401 without a session; 400
+  without `leagueId`; a valid request calls the composition with the league id and returns its
+  snapshot verbatim.
+
+**Full suite run:** 11 new (8 composition + 3 route-contract) + the full decision-os regression
+suite (Increments 1–5 + Phase B 1–4) — **2663/2663 total in `__tests__/decision-os`, zero
+regressions.** Full-repo typecheck: run against the same 158-error baseline, zero new errors in any
+file this increment touched. No schema/migration change — this increment is pure composition + a
+thin route over already-shipped models and already-tested functions.
+
 ## 5. Preserved honest degradation (Do #6)
 
 - No imported activity for a league → the merge contributes nothing; existing AF-native/redraft-only
@@ -368,24 +465,39 @@ Most of the matrix's gaps are **not** safe to guess at — each is a real archit
    it via an explicit opt-in route contract. **Remaining note carried forward:** the route still has
    no live UI caller (unchanged from before this increment) — wiring a real surface to call it is a
    separate, future step, not part of this alignment.
-3. **Increment 4 (larger, needs sign-off): Commissioner Intelligence Hub migration.** All 7 modules
+~~3. Increment 4: schedule the Phase A snapshot writer.~~ **✅ DONE (§4d, actually executed as
+   Increment 4)** — real data can now accumulate for the trend this sequence's item 1 wired.
+~~4. Build Mission Control on a now-coherent source set.~~ **✅ DONE (§4e, actually executed as
+   Increment 5, ahead of items 5–7 below)** — the user's own explicit recommendation prioritized
+   Mission Control once trend scheduling (item 3) existed, over auditing subsystems C/D first. This
+   was safe specifically because Mission Control composes ONLY subsystem A (via the already-federated
+   League Health + trend) — it does not touch subsystems B/C/D, so it isn't exposed to their
+   still-open migration/audit questions below.
+5. **Commissioner Intelligence Hub migration (larger, needs sign-off).** All 7 modules
    (Activity/Health/ActionItems/TradeReview/Stories/AuditFeed, +RuleSettings unaffected) trace to
    subsystem C (`IntelligenceQueryService`/`IntelligenceLeagueSnapshot`), a different event taxonomy
    than subsystem A. Migrating this is a real, multi-module undertaking — not a "prefer re-pointing"
    one-liner — and should get its own dedicated audit + explicit go-ahead, not be guessed here.
-4. **Increment 5: Manager Intelligence Hub (P2–P4) audit.** Subsystem D hasn't been examined deeply
-   enough this pass to know its exact gap; needs its own look before touching it.
-5. **Retention risk signal.** This is a **Decision OS feature gap**, not a surface-wiring problem —
+6. **Manager Intelligence Hub (P2–P4) audit.** Subsystem D hasn't been examined deeply enough this
+   pass to know its exact gap; needs its own look before touching it.
+7. **Retention risk signal.** This is a **Decision OS feature gap**, not a surface-wiring problem —
    no subsystem currently derives it. Needs a Phase-A-style derivation increment before any surface
-   can show it.
-6. **Only after 1–4 are resolved:** build Mission Control / League Analytics on top of a now-coherent
-   set of real sources — building them earlier would mean building UI against subsystems that are
-   about to be replaced or reconciled.
+   can show it. (Mission Control currently surfaces `managersAtRetentionRisk` from Increment 3's
+   per-manager derivation — a real signal, but still narrower than a dedicated league-level
+   retention-risk feature would be.)
+8. **Mission Control's own UI.** Only a JSON read API exists so far (§4e) — a page/card UI is a
+   separate, future increment once a card-system choice is made (two incompatible systems currently
+   exist; see §4e).
+9. **League Analytics.** Still doesn't exist by this name anywhere; unlike Mission Control, this was
+   NOT built yet — no increment has scoped what it should contain.
 
 ## 8. Boundaries honored
 - PR #183 untouched, still draft, not merged.
 - No Redraft/Start-Draft/PR-#166/AF-hosted-league work.
-- No Mission Control, League Analytics, or broad UI built.
+- No League Analytics UI built. Mission Control's read composition + API route were built this
+  increment (§4e) — its own richer UI was deliberately deferred (see §4e).
 - No fake/demo data; all new tests assert honest degradation, not fabricated metrics.
-- No production DB touched (this increment is code + tests only — no migration, no Neon proof needed
+- No production DB touched (Increment 5 is code + tests only — no migration, no Neon proof needed
   since no new schema/table was introduced).
+- No production cron enabled (unrelated to this increment — Increment 4's cron route remains
+  unregistered in `vercel.json`, unchanged).
