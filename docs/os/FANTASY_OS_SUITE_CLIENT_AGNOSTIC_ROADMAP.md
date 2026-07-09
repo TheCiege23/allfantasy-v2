@@ -363,6 +363,15 @@ running them through the already-built `ingestSleeperImportedActivity` emitter �
 exist, the connecting orchestration (with real per-league identity mapping) does not, and closing it
 is deliberately out of scope for a verification-harness increment.
 
+**Phase D Increment 7 update (2026-07-08):** that named gap is closed at the code level. New
+`scripts/decision-os-ingest-sleeper-activity-nonprod.ts` fetches an already-imported league's real
+Sleeper transactions/rosters/draft picks and runs them through the existing, unchanged
+`ingestSleeperImportedActivity` pipeline, building a real manager identity mapping from the
+persisted `UserProfile.sleeperUserId` reverse-lookup (a real AF-account link when one exists, an
+honest external-only `stable_key` when none does — never fabricated). Full procedure updated in
+`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md` §3b. Not yet executed against a live Sleeper league in this
+sandbox (no live network access here) — that real execution is the concrete remaining step.
+
 ---
 
 ## 16. What Each OS Must Show
