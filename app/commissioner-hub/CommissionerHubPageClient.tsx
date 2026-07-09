@@ -33,6 +33,7 @@ import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecomm
 import MissionControlCard from '@/components/decision-os/MissionControlCard'
 import LeagueAnalyticsCard from '@/components/decision-os/LeagueAnalyticsCard'
 import LeagueContextCard from '@/components/decision-os/LeagueContextCard'
+import CommissionerCommandCenterSection from '@/components/decision-os/CommissionerCommandCenterSection'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
@@ -750,9 +751,15 @@ export default function CommissionerHubPageClient({
   const managedHealthSnapshots = commissionerLeagues
     .map((league) => healthByLeagueId.get(league.id))
     .filter((snapshot): snapshot is CommissionerLeagueHealthSnapshot => Boolean(snapshot))
-  // Representative league for the commissioner's own manager-tier intelligence — the same
-  // "first commissioner league" anchor buildMissionQueue already uses above, not a new heuristic.
-  const representativeLeagueId = commissionerLeagues[0]?.id ?? null
+  // Phase OS-B1: the Multi-League Overview (`CommissionerCommandCenterSection`) is now the default
+  // landing view — no league is auto-selected. `representativeLeagueId` (the anchor every League
+  // Focus fetch below already keys off) now comes from explicit user selection, not an automatic
+  // "first commissioner league" pick. Selecting a league from the overview's switcher, or from the
+  // "Leagues I Manage" grid further down the page, sets this and reveals League Focus; clearing it
+  // returns to the overview. This is a pure rename of the SOURCE of `representativeLeagueId` — every
+  // existing fetch/render below that already depends on it is unchanged.
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string | null>(null)
+  const representativeLeagueId = selectedLeagueId
   const [managerIntelligence, setManagerIntelligence] = useState<ManagerIntelligencePayload | null>(null)
   useEffect(() => {
     if (!representativeLeagueId) {
@@ -937,6 +944,14 @@ export default function CommissionerHubPageClient({
           </div>
         </section>
 
+        {/* ── Multi-League Overview (Phase OS-B1) — the default landing view; selecting a league
+             below reveals League Focus further down the page, unchanged from before this phase. ── */}
+        <CommissionerCommandCenterSection
+          commissionerLeagues={commissionerLeagues}
+          demoMode={showDemoMode}
+          onSelectLeague={setSelectedLeagueId}
+        />
+
         {/* ── League Operations Summary ── */}
         {totalManaged > 0 && (
           <section>
@@ -992,16 +1007,34 @@ export default function CommissionerHubPageClient({
 
         <LeaguePulseCard pulse={leaguePulse} variant="commissioner" />
 
-        <section className="grid gap-4 xl:grid-cols-2" aria-label="Commissioner guidance">
-          <ManagerDnaCard profile={managerDna} variant="commissioner" compact />
-          <DecisionRecommendationsCard model={recommendations} variant="commissioner" compact />
-        </section>
+        {/* ── League Focus (Phase OS-B1: now gated behind an explicit league selection instead of
+             an automatic "first commissioner league" default — every card/fetch below is byte-for-
+             byte unchanged from before this phase, only the trigger for showing them changed). ── */}
+        {representativeLeagueId && (
+          <section aria-label="League Focus">
+            <button
+              type="button"
+              onClick={() => setSelectedLeagueId(null)}
+              data-testid="league-focus-back-to-overview"
+              className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-subtle bg-surface-muted px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-secondary transition hover:text-primary"
+            >
+              ← All leagues
+            </button>
 
-        <MissionControlCard snapshot={missionControl} variant="commissioner" compact />
+            <section className="grid gap-4 xl:grid-cols-2" aria-label="Commissioner guidance">
+              <ManagerDnaCard profile={managerDna} variant="commissioner" compact />
+              <DecisionRecommendationsCard model={recommendations} variant="commissioner" compact />
+            </section>
 
-        <LeagueAnalyticsCard snapshot={leagueAnalytics} variant="commissioner" />
+            <div className="mt-4 space-y-4">
+              <MissionControlCard snapshot={missionControl} variant="commissioner" compact />
 
-        <LeagueContextCard leagueId={representativeLeagueId} canManage variant="commissioner" />
+              <LeagueAnalyticsCard snapshot={leagueAnalytics} variant="commissioner" />
+
+              <LeagueContextCard leagueId={representativeLeagueId} canManage variant="commissioner" />
+            </div>
+          </section>
+        )}
 
         <LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />
 

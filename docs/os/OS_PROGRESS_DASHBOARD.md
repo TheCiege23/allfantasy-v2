@@ -1,16 +1,19 @@
 # Fantasy OS Suite — Progress Dashboard
 
-**Phase D Increments 1-14, validated live in Phase E, now extending into Phase OS-A (OS Alignment).**
-A single, scannable status view across the whole OS suite — a companion to
+**Phase D Increments 1-14, validated live in Phase E, now extending into Phase OS-A (League Context)
+and Phase OS-B (Commissioner Multi-League Command Center).** A single, scannable status view across
+the whole OS suite — a companion to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md) (the
 prose narrative), [`SLEEPER_OS_SUITE_PROOF_CHECKLIST.md`](SLEEPER_OS_SUITE_PROOF_CHECKLIST.md) /
 [`SLEEPER_PROOF_EXECUTION_PACKET.md`](SLEEPER_PROOF_EXECUTION_PACKET.md) (the procedure),
 [`PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md`](PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md) (the real, live
-execution — **all engineering blockers closed; recommendation: READY FOR CUSTOMER DEMO**), and
-[`LEAGUE_CONTEXT_FOUNDATION.md`](LEAGUE_CONTEXT_FOUNDATION.md) (Phase OS-A1 — the product-level shift
-toward Commissioner OS as an operating system, not an AI dashboard).
+execution — **all engineering blockers closed; recommendation: READY FOR CUSTOMER DEMO**),
+[`LEAGUE_CONTEXT_FOUNDATION.md`](LEAGUE_CONTEXT_FOUNDATION.md) (Phase OS-A — provider-agnostic
+financial belief, live-verified), and
+[`COMMISSIONER_COMMAND_CENTER.md`](COMMISSIONER_COMMAND_CENTER.md) (Phase OS-B1 — the default
+multi-league landing experience).
 This doc answers one question fast: **where does each OS and the Sleeper proof stand right now?**
-Update it whenever a Phase D/E/OS-A increment lands.
+Update it whenever a Phase D/E/OS-A/OS-B increment lands.
 
 ---
 
@@ -19,7 +22,7 @@ Update it whenever a Phase D/E/OS-A increment lands.
 | OS | Answers | Status | Completed | Remaining | % |
 | --- | --- | --- | --- | --- | --- |
 | **Decision OS** | What is happening across the platform, and why? | **Live-proven.** Real engine every other OS reads. | Behavioral pipeline, ingestion, snapshot capture — all real, tested, now confirmed against live Sleeper data (Phase E). | Richer Phase 5.3/5.4 signals remain deliberately shadow-gated (a decided "no," not a gap). | 95% |
-| **Commissioner OS** | What should this commissioner do? | **Live-proven** (`/commissioner-hub`). | Mission Control + League Analytics, real Sleeper data confirmed end-to-end in Phase E (real health score, status, narrative). | Nothing blocking. | 100% |
+| **Commissioner OS** | What should this commissioner do? | **Live-proven** (`/commissioner-hub`). | Mission Control + League Analytics, real Sleeper data confirmed end-to-end in Phase E (real health score, status, narrative). **Now defaults to a real multi-league "Multi-League Overview" (Phase OS-B1)** — League Focus (single-league cards) is reached by explicit selection, not shown automatically. | OS-B2/B3/B4 (deeper attention-queue signals, notifications, daily brief) remain future work, not blockers. | 100% |
 | **User OS / Manager OS** | What should this manager do to compete better? | **Live-proven**, both commissioner and member roles (`/league/[leagueId]`). | Real per-manager tier/score/activity/retention-risk confirmed live in Phase E for a real, active manager. | Nothing blocking; demo setup needs both a roster claim AND a `UserProfile.sleeperUserId` link (Phase E finding). | 100% |
 | **Platform OS** | What should the platform operator do? | **Live-proven** via the real admin panel (`/admin`). | Authorized route + admin UI, real cross-league aggregate + intervention queue confirmed live in Phase E. | Multi-league demo (2+ leagues) would show a richer healthy/at-risk split — cosmetic, not blocking. | 100% |
 | **DFS OS** | (deferred) | Does not exist. Pending legal/compliance review. | — | Entire vertical — explicitly out of scope pending legal review. | 0% |
@@ -28,19 +31,22 @@ Update it whenever a Phase D/E/OS-A increment lands.
 **Overall completion — all five OS products including DFS OS as a future vertical: ~78%** (DFS OS's 0%
 pulls this down; it was never scoped as "in progress," it's a distinct, deliberately-parked vertical).
 
-## 1b. Fantasy OS Operating-System Alignment (Phase OS-A)
+## 1b. Fantasy OS Operating-System Alignment (Phase OS-A / OS-B)
 
 A new, separate workstream from Phase D/E: updating Commissioner/User/Platform OS so they read and
 behave like an operating system (multi-league command center, AI as background infrastructure, global
 Decision OS intelligence) rather than a single-league AI dashboard. Seven primary product decisions
 guide this workstream (see `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md` §24 for the full list);
-`theciege24`/the Phase E league remain proof data only, never a product dependency.
+`theciege24`/the Phase E league remain proof data only, never a product dependency. **OS-A** = League
+Context (provider-agnostic financial belief). **OS-B** = the Commissioner multi-league command center
+itself.
 
 | Phase | Delivered | Status |
 | --- | --- | --- |
 | **OS-A1 — League Context Foundation** | `DecisionOsLeagueContext` model (schema + migration, not applied to any DB) + `lib/decision-os/leagueFinancialContext.ts` (pure helpers) + 14 tests | Foundation only, superseded by OS-A2's wiring |
 | **OS-A2 — League Context Wiring** | Resolver + authorization + route (`GET`/`POST /api/decision-os/league-context`) + `LeagueContextCard` wired into Commissioner Hub + 30 tests | Code complete, superseded by OS-A3's live verification |
 | **OS-A3 — Live DB Verification** | Migration applied to the real Phase E project (`cool-lab-87438174`); full GET/POST/GET/POST-reset round-trip + live 403/200 authorization split verified against the real "Parbur" league | **Verified live — zero bugs found, zero code changes.** See `LEAGUE_CONTEXT_FOUNDATION.md` §8 |
+| **OS-B1 — Commissioner Multi-League Command Center** | New composition (`commissionerCommandCenter.ts`), session-scoped route, 5 reusable UI modules, wired as Commissioner Hub's new default view (League Focus now reached by explicit selection) + 44 tests | **Verified live — zero regressions.** See `COMMISSIONER_COMMAND_CENTER.md` §6 |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
 
@@ -102,7 +108,8 @@ Zero engineering blockers found; zero code changes were required.
 | E | **Live Fantasy OS proof — real Sleeper data, real infra** | `PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md`; zero code changes; verdict READY FOR CUSTOMER DEMO | `715b9209f` |
 | OS-A1 | **League Context Foundation** | `DecisionOsLeagueContext` (schema+migration, unapplied), `leagueFinancialContext.ts`, 14 tests | `67c4b2faa` |
 | OS-A2 | **League Context Wiring** | Resolver, authorization, route, `LeagueContextCard` on Commissioner Hub, 30 tests | `c9c58b421` |
-| OS-A3 | **League Context Live DB Verification** | Migration applied to real Phase E DB; full live round-trip + live authorization check; zero bugs, zero code changes | *(this commit)* |
+| OS-A3 | **League Context Live DB Verification** | Migration applied to real Phase E DB; full live round-trip + live authorization check; zero bugs, zero code changes | `e372a1868` |
+| OS-B1 | **Commissioner Multi-League Command Center** | New composition + route + 5 reusable UI modules + Commissioner Hub default-view wiring; 44 tests; live-verified | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 
@@ -111,6 +118,17 @@ Zero engineering blockers found; zero code changes were required.
   authorization) is verified against real, persisted rows. Still open: full authenticated *visual*
   confirmation of `LeagueContextCard`'s own rendered buttons/inputs — blocked by the same
   JS-execution-on-localhost sandbox restriction Phase E documented, not by anything in the card itself.
+- The Multi-League Overview's attention queue (OS-B1) only surfaces signals `recommendedActions`
+  already produces — several signals the OS-B charter itself named (rule-configuration review, League
+  Context updates, returning-manager risk) don't exist as real Decision OS signals anywhere yet; that's
+  OS-B2's job, not something OS-B1 fabricated a placeholder for.
+- `draftsApproachingCount` (OS-B1) only counts AF-native leagues — Sleeper-imported leagues have no
+  persisted draft date anywhere in this codebase today (confirmed by direct investigation, not
+  assumption); see `COMMISSIONER_COMMAND_CENTER.md` §4.
+- Full authenticated visual confirmation of a *populated* (non-empty) Multi-League Overview — the real
+  test account available in the Phase E non-prod DB commissions zero leagues by the page's own
+  established definition (a real, honest finding, not a bug — see `COMMISSIONER_COMMAND_CENTER.md`
+  §3); the empty-state path was verified live, the populated-with-real-rankings path was not.
 - A real, time-separated second snapshot capture (to show an actual trend line) — only one capture
   was taken in Phase E; a second needs genuine elapsed time, not fabrication.
 - A persistent, customer-reachable demo environment (Phase E used a throwaway local dev server against

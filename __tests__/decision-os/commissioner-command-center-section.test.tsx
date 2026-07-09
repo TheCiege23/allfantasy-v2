@@ -1,0 +1,127 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import { fireEvent, render, screen, waitFor } from "@testing-library/react"
+import React from "react"
+
+import CommissionerCommandCenterSection from "@/components/decision-os/CommissionerCommandCenterSection"
+
+const fetchMock = vi.fn()
+
+function okResponse(body: unknown) {
+  return { ok: true, status: 200, json: async () => body }
+}
+
+const LEAGUES = [
+  { id: "league-1", name: "Dynasty Warriors" },
+  { id: "league-2", name: "Redraft Rebels" },
+]
+
+const SNAPSHOT = {
+  generatedAt: "2026-07-09T00:00:00.000Z",
+  totalLeagues: 2,
+  healthyLeagueCount: 1,
+  atRiskLeagueCount: 1,
+  unavailableLeagueCount: 0,
+  totalActiveManagers: 20,
+  totalInactiveManagers: 2,
+  totalRetentionRiskManagers: 1,
+  leagueSummaries: [
+    {
+      leagueId: "league-1",
+      available: true,
+      overallStatus: "healthy",
+      leagueHealthScore: 82,
+      activeManagers: 10,
+      inactiveManagers: 0,
+      retentionRiskCount: 0,
+      urgentActionCount: 0,
+      tradeCount: 5,
+      waiverClaimCount: 10,
+      draftPickCount: 0,
+      rosterActivityCount: 3,
+    },
+    {
+      leagueId: "league-2",
+      available: true,
+      overallStatus: "at_risk",
+      leagueHealthScore: 41,
+      activeManagers: 10,
+      inactiveManagers: 2,
+      retentionRiskCount: 1,
+      urgentActionCount: 1,
+      tradeCount: 1,
+      waiverClaimCount: 2,
+      draftPickCount: 0,
+      rosterActivityCount: 1,
+    },
+  ],
+  attentionQueue: [{ leagueId: "league-2", priority: "urgent", message: "3 managers at risk of leaving" }],
+  recentChanges: [],
+  warnings: [],
+  draftsApproachingCount: 1,
+}
+
+describe("CommissionerCommandCenterSection", () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+    vi.stubGlobal("fetch", fetchMock)
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
+  it("shows an honest empty state and never fetches when there are no commissioner leagues", () => {
+    render(<CommissionerCommandCenterSection commissionerLeagues={[]} onSelectLeague={vi.fn()} />)
+    expect(screen.getByText(/Your multi-league overview will appear here/)).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("shows the empty state and never fetches in demo mode, even with leagues present", () => {
+    render(<CommissionerCommandCenterSection commissionerLeagues={LEAGUES} demoMode onSelectLeague={vi.fn()} />)
+    expect(screen.getByText(/Your multi-league overview will appear here/)).toBeInTheDocument()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it("fetches the command center snapshot and renders every module with real data", async () => {
+    fetchMock.mockResolvedValueOnce(okResponse(SNAPSHOT))
+    render(<CommissionerCommandCenterSection commissionerLeagues={LEAGUES} onSelectLeague={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(fetchMock).toHaveBeenCalledWith(
+        "/api/decision-os/commissioner-command-center",
+        expect.objectContaining({ credentials: "same-origin" }),
+      )
+    })
+
+    await waitFor(() => {
+      expect(screen.getByTestId("command-center-overview")).toBeInTheDocument()
+    })
+    expect(screen.getByTestId("league-health-ranking")).toBeInTheDocument()
+    expect(screen.getByTestId("attention-queue-urgent-item")).toHaveTextContent("Redraft Rebels")
+    expect(screen.getByTestId("attention-queue-urgent-item")).toHaveTextContent("3 managers at risk of leaving")
+    expect(screen.getByTestId("recent-changes-empty")).toBeInTheDocument()
+    expect(screen.getByTestId("league-switcher-list")).toBeInTheDocument()
+  })
+
+  it("league switching: clicking a league in the switcher calls onSelectLeague with its real id", async () => {
+    fetchMock.mockResolvedValueOnce(okResponse(SNAPSHOT))
+    const onSelectLeague = vi.fn()
+    render(<CommissionerCommandCenterSection commissionerLeagues={LEAGUES} onSelectLeague={onSelectLeague} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("league-switcher-item-league-2")).toBeInTheDocument()
+    })
+    fireEvent.click(screen.getByTestId("league-switcher-item-league-2"))
+    expect(onSelectLeague).toHaveBeenCalledWith("league-2")
+    expect(onSelectLeague).toHaveBeenCalledTimes(1)
+  })
+
+  it("shows a real error message, not a silent failure, when the fetch fails", async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 500, json: async () => ({}) })
+    render(<CommissionerCommandCenterSection commissionerLeagues={LEAGUES} onSelectLeague={vi.fn()} />)
+
+    await waitFor(() => {
+      expect(screen.getByTestId("commissioner-command-center-error")).toBeInTheDocument()
+    })
+  })
+})

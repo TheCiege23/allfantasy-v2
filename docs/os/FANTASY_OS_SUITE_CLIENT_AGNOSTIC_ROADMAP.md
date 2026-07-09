@@ -627,11 +627,64 @@ total, zero regressions, zero new typecheck errors. **Still not exercised agains
 the OS-A1 migration remains unapplied anywhere; see `LEAGUE_CONTEXT_FOUNDATION.md` §8 for OS-A3
 candidates.
 
+### OS-A3 — League Context Live DB Verification (2026-07-09)
+
+The OS-A1 migration applied to the real, isolated Phase E non-prod project (`cool-lab-87438174`) —
+the exact same database the Sleeper live proof used. Full round-trip verified against the real
+"Parbur" league through the real route with a real, properly-signed session: `GET` before any row →
+real `UNKNOWN`; `POST confirm_paid` → real `PAID`/`USER_CONFIRMED`, independently confirmed via direct
+SQL that the row genuinely persisted; `GET` again → the same real row read back; `POST reset` → real,
+SQL-confirmed full reset. Authorization verified live (not just mocked) — a real member account got a
+genuine `403` on write, `200` on read. Zero bugs found, zero code changes made. Full detail:
+`LEAGUE_CONTEXT_FOUNDATION.md` §8.
+
+## 25. Phase OS-B — Commissioner Multi-League Command Center
+
+The first increment of OS-A product decisions #2/#3 (§24 above): Commissioner Hub's default view is
+no longer a single, automatically-picked league.
+
+### OS-B1 — Commissioner Multi-League Command Center Foundation (2026-07-09)
+
+New Decision OS composition `lib/decision-os/commissionerCommandCenter.ts` — a sibling to
+`platformOs.ts`, not a wrapper (both call the same `resolveMissionControlSnapshot` per league, but
+this one keeps per-league detail for ranking instead of discarding it after summing, avoiding a
+redundant second fetch). New session-scoped route `GET /api/decision-os/commissioner-command-center`
+— never accepts a client-supplied league list, always resolving the caller's own commissioner leagues
+server-side via `getDashboardLeagueListForUser` (the exact same source of truth already driving every
+other section of Commissioner Hub — deliberately not `getLeagueRole`, whose commissioner definition
+genuinely diverges for Sleeper-imported leagues; live verification confirmed this mattered in
+practice, not just in theory — see `COMMISSIONER_COMMAND_CENTER.md` §3). Five new reusable UI
+modules — Overview stats, League Health Ranking, Attention Queue (explicitly designed for OS-B3's
+future Notification Engine to read from directly), Recent Changes, League Switcher — composed into a
+new "Multi-League Overview" section, now Commissioner Hub's default view. Selecting a league reveals
+the existing League Focus experience (Mission Control, League Analytics, League Context, Manager DNA)
+unchanged — a minimal-diff wiring change (`representativeLeagueId`'s *source* changed from an
+automatic default to explicit selection state; every existing fetch/render that already depended on
+it is untouched).
+
+**A real naming collision was found and resolved before any UI was written**: `CommissionerShowcasePanel`
+already owns the on-page label "Commissioner Command Center" for a separate, pre-existing, mostly-
+static foundation-readiness widget. This phase's new section is titled "Multi-League Overview"
+instead — both surfaces remain on the page, neither touched or merged into the other. Full detail:
+`COMMISSIONER_COMMAND_CENTER.md` §1.
+
+44 new tests, 2819/2819 in `__tests__/decision-os` (2802 baseline + 17) plus all 14 pre-existing
+`commissioner-hub-*-wiring` tests unchanged — zero regressions. 158/158 baseline typecheck errors
+unchanged (one real type mismatch found and fixed during this phase — `trend.direction`'s real third
+value is `'flat'`, not `'stable'`). Live-verified against the real Phase E database: the real route
+correctly returned an honest empty snapshot for a real account that — by the page's own established
+"commissioner" definition — genuinely commissions zero leagues today (a real, validating finding, not
+a bug); the browser correctly rendered that account's honest empty state with zero new console errors.
+
 ---
 
 ## 26. Boundaries honored
 
-- No code changes to this document's own original content — §23/§24 are additive.
+- No code changes to this document's own original content — §23/§24/§25 are additive.
+- No Notification Engine built (OS-B3) — the Attention Queue module is designed to be reusable by one
+  later, but nothing sends a notification today.
+- No Manager OS or Platform OS changes in OS-B1.
+- No backend schema changes in OS-B1 — `LeagueSettings.draftDateUtc` is a real, pre-existing column.
 - The Replacements documents were not deleted, only recontextualized via pointer updates.
 - No adapter code written for any client. `IMPORT_PROVIDERS` not modified.
 - No DFS OS work — explicitly deferred pending legal/compliance review.

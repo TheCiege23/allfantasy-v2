@@ -31,6 +31,16 @@ treasury system) — see
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md) §24.
 Nothing in this document's own Mission Control/League Analytics work changes as a result.
 
+**Phase OS-B1 note (2026-07-09):** Commissioner Hub's default view is no longer a single,
+automatically-picked league — a new "Multi-League Overview" (distinct from this document's own
+Mission Control/League Analytics work AND from `CommissionerShowcasePanel`'s pre-existing "Commissioner
+Command Center" widget, a real naming collision found and resolved during this increment) now shows
+what needs attention across every league a commissioner runs, before drilling into any one of them via
+explicit selection. Mission Control/League Analytics/League Context themselves are completely
+unchanged — they now render only after a league is selected ("League Focus"), instead of always
+defaulting to the first commissioner league. See
+[`COMMISSIONER_COMMAND_CENTER.md`](COMMISSIONER_COMMAND_CENTER.md) for full detail.
+
 **Increment 7 note:** The Replacements Commissioner OS demo package now exists —
 [`THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md`](THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md).
 Documentation only (no code changes, no tests to run) — a demo walkthrough script, current
