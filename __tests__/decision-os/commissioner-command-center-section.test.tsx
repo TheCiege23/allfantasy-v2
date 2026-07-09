@@ -110,8 +110,10 @@ describe("CommissionerCommandCenterSection", () => {
       expect(screen.getByTestId("command-center-overview")).toBeInTheDocument()
     })
     expect(screen.getByTestId("league-health-ranking")).toBeInTheDocument()
-    expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("Redraft Rebels")
-    expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("3 managers at risk of leaving")
+    expect(screen.getByTestId("attention-queue-item-league_requires_review:league-2:0")).toHaveTextContent("Redraft Rebels")
+    expect(screen.getByTestId("attention-queue-item-league_requires_review:league-2:0")).toHaveTextContent(
+      "3 managers at risk of leaving",
+    )
     expect(screen.getByTestId("recent-changes-empty")).toBeInTheDocument()
     expect(screen.getByTestId("league-switcher-list")).toBeInTheDocument()
 
