@@ -2,11 +2,23 @@
 
 **Audit + incremental, safe alignments. PR #183 (Decision OS Phase A) stays draft, untouched, not
 merged.** No Redraft/Start-Draft/PR-#166 work. No fake demo data. Primary business target:
-**The Replacements demo.**
+**Commissioner OS as one product in the broader client-agnostic Fantasy OS Suite** (The
+Replacements is the first prospective conversation, not the product's boundary — see the Phase D
+note below).
 
 **Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–8 landed** (7 was
 docs-only Phase C kickoff; 8 is "Demo Breadth Increment 4" — a Phase B-style code increment done
 under the Phase C umbrella, see §4g).
+
+**Phase D reframing note (2026-07-08):** the work in this document (Commissioner OS: imported
+activity, trend, League Health federation, snapshot scheduling, Mission Control, League Analytics)
+is now understood as **one OS product within a broader, client-agnostic Fantasy OS Suite**
+(Decision OS as the core brain; Commissioner OS, User OS/Manager OS, Platform OS, and a future DFS
+OS as presentation layers on top of it). See
+[`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md) for the
+full reframing, what each OS must answer, and the roadmap to a genuinely client-agnostic, multi-role
+(commissioner + manager-only) Sleeper proof path. Nothing already built or documented in this file
+changes as a result — this is a positioning update, not a rearchitecture.
 
 **Increment 7 note:** The Replacements Commissioner OS demo package now exists —
 [`THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md`](THE_REPLACEMENTS_COMMISSIONER_OS_DEMO_PACKAGE.md).

@@ -12,6 +12,13 @@ into one checklist — not a new document to read on the call, but the one to re
 [`THE_REPLACEMENTS_CALL_SCRIPT.md`](THE_REPLACEMENTS_CALL_SCRIPT.md),
 [`COMMISSIONER_OS_SURFACE_ALIGNMENT.md`](COMMISSIONER_OS_SURFACE_ALIGNMENT.md).
 
+**Phase D reframing note (2026-07-08):** this checklist is **first-client collateral for one
+prospective conversation, not the top-level product roadmap.** The product itself is a
+client-agnostic Fantasy OS Suite — see
+[`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md). Use
+this checklist as-is if and when a Replacements call happens; treat it as the template a future
+client's equivalent checklist would follow, not as the definition of what's being built.
+
 ---
 
 ## 1. Executive Summary

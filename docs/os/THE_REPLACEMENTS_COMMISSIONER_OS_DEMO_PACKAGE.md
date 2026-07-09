@@ -5,6 +5,15 @@ live pilot.** Everything described as "real" in this document is real and tested
 (branch `g15-event-foundation`); everything described as "future" is explicitly not built. No ROI,
 retention-lift, or revenue numbers are claimed anywhere in this document — none have been measured.
 
+**Phase D reframing note (2026-07-08):** this document is **first-client collateral for one
+prospective conversation, not the top-level product definition.** The actual product is a
+client-agnostic Fantasy OS Suite (Decision OS, Commissioner OS, User OS, Platform OS, future DFS
+OS) — see
+[`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md). This
+document remains accurate and useful as-is if and when a Replacements conversation happens; it is
+now understood as one instance of that broader suite's client-facing template, not the product's
+ceiling.
+
 **Date:** 2026-07-08 · **Author context:** Commissioner OS Surface Alignment, Phase B Increment 7.
 **Depends on:** [`DECISION_OS_PHASE_A_IMPLEMENTATION.md`](DECISION_OS_PHASE_A_IMPLEMENTATION.md)
 (the ingestion/behavioral pipeline) and
