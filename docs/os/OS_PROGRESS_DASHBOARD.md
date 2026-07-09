@@ -39,7 +39,8 @@ guide this workstream (see `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md` §24 fo
 | Phase | Delivered | Status |
 | --- | --- | --- |
 | **OS-A1 — League Context Foundation** | `DecisionOsLeagueContext` model (schema + migration, not applied to any DB) + `lib/decision-os/leagueFinancialContext.ts` (pure helpers) + 14 tests | Foundation only, superseded by OS-A2's wiring |
-| **OS-A2 — League Context Wiring** | Resolver + authorization + route (`GET`/`POST /api/decision-os/league-context`) + `LeagueContextCard` wired into Commissioner Hub + 30 tests | **Code complete, not yet exercised against a real DB** — the OS-A1 migration is still unapplied anywhere (see `LEAGUE_CONTEXT_FOUNDATION.md` §8) |
+| **OS-A2 — League Context Wiring** | Resolver + authorization + route (`GET`/`POST /api/decision-os/league-context`) + `LeagueContextCard` wired into Commissioner Hub + 30 tests | Code complete, superseded by OS-A3's live verification |
+| **OS-A3 — Live DB Verification** | Migration applied to the real Phase E project (`cool-lab-87438174`); full GET/POST/GET/POST-reset round-trip + live 403/200 authorization split verified against the real "Parbur" league | **Verified live — zero bugs found, zero code changes.** See `LEAGUE_CONTEXT_FOUNDATION.md` §8 |
 
 ## 2. Richer, still-shadow-gated intelligence (decided, not cut over)
 
@@ -100,14 +101,16 @@ Zero engineering blockers found; zero code changes were required.
 | 14 | Proof packet documentation cleanup | Checklist §3c/§8 rewrite, packet Step 4/6.4, no code | `db3bb5186` |
 | E | **Live Fantasy OS proof — real Sleeper data, real infra** | `PHASE_E_LIVE_PROOF_EXECUTION_REPORT.md`; zero code changes; verdict READY FOR CUSTOMER DEMO | `715b9209f` |
 | OS-A1 | **League Context Foundation** | `DecisionOsLeagueContext` (schema+migration, unapplied), `leagueFinancialContext.ts`, 14 tests | `67c4b2faa` |
-| OS-A2 | **League Context Wiring** | Resolver, authorization, route, `LeagueContextCard` on Commissioner Hub, 30 tests | *(this commit)* |
+| OS-A2 | **League Context Wiring** | Resolver, authorization, route, `LeagueContextCard` on Commissioner Hub, 30 tests | `c9c58b421` |
+| OS-A3 | **League Context Live DB Verification** | Migration applied to real Phase E DB; full live round-trip + live authorization check; zero bugs, zero code changes | *(this commit)* |
 
 ## 6. Open, honestly-unresolved items
 
-- The `DecisionOsLeagueContext` migration (OS-A1) is still unapplied to any database — the OS-A2
-  resolver/route/card are all code-complete and unit-tested, but have never been exercised against a
-  real, persisted row. Applying it to a real non-prod database and confirming the Commissioner Hub
-  card round-trips a real confirm/reset is the natural next verification step.
+- **Resolved (OS-A3):** the `DecisionOsLeagueContext` migration is now applied to the real Phase E
+  non-prod project (`cool-lab-87438174`), and the full resolver/route round-trip (including live
+  authorization) is verified against real, persisted rows. Still open: full authenticated *visual*
+  confirmation of `LeagueContextCard`'s own rendered buttons/inputs — blocked by the same
+  JS-execution-on-localhost sandbox restriction Phase E documented, not by anything in the card itself.
 - A real, time-separated second snapshot capture (to show an actual trend line) — only one capture
   was taken in Phase E; a second needs genuine elapsed time, not fabrication.
 - A persistent, customer-reachable demo environment (Phase E used a throwaway local dev server against

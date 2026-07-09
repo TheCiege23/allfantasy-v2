@@ -1,11 +1,12 @@
 # Fantasy OS Suite — League Context Foundation
 
-**Phase OS-A1.** First increment of the "Fantasy OS Operating-System Alignment" workstream — the
-product-level shift toward Commissioner OS behaving like an operating system (multi-league command
-center, AI as background infrastructure, Decision OS as global/app-wide intelligence) rather than an
-AI dashboard bolted onto one league. This phase adds the provider-agnostic **League Context**
-foundation: what Decision OS knows about a league's financial state, and how confident that knowledge
-is — nothing more.
+**Phase OS-A1 (foundation) → OS-A2 (wiring) → OS-A3 (live DB verification, done).** Part of the
+"Fantasy OS Operating-System Alignment" workstream — the product-level shift toward Commissioner OS
+behaving like an operating system (multi-league command center, AI as background infrastructure,
+Decision OS as global/app-wide intelligence) rather than an AI dashboard bolted onto one league. This
+doc covers the provider-agnostic **League Context** slice: what Decision OS knows about a league's
+financial state, how confident that knowledge is, and — as of OS-A3 — real, live proof that the whole
+persistence path actually works end-to-end.
 
 **Date:** 2026-07-09 · **Branch:** `g15-event-foundation`.
 
@@ -164,11 +165,12 @@ route re-verifies this independently regardless. The card's own copy states expl
 itself, that this is a belief Decision OS records, not a payment or collection system — pointing
 readers to "League Finance" (the existing AF-native treasury feature) for that.
 
-**19 new/extended tests** (6 more pure-function tests for `resetLeagueFinancialContext` and the new
+**30 new/extended tests** (6 more pure-function tests for `resetLeagueFinancialContext` and the new
 `escrowProvider` label field; 6 resolver tests incl. store-unavailable degradation; 8 authorization
 tests covering commissioner/co-commissioner/member/viewer/no-relationship/site-admin; 10 route-contract
 tests covering the exact scenarios this phase's own instructions listed). 2802/2802 total in
-`__tests__/decision-os`, zero regressions.
+`__tests__/decision-os`, zero regressions. *(Corrected from an earlier miscount of 19 in this doc —
+the real breakdown is 6+6+8+10=30, matching the roadmap doc and commit message.)*
 
 ## 7. Boundaries honored (Phase OS-A2)
 
@@ -186,12 +188,47 @@ tests covering the exact scenarios this phase's own instructions listed). 2802/2
 - No DFS OS work.
 - PR #183 untouched, still draft, not merged.
 
-## 8. Recommended next phase
+## 8. OS-A3 — Live DB Verification (2026-07-09, done)
 
-**OS-A3 candidates**: (a) apply the OS-A1 migration to a real non-prod database (e.g. the Phase E
-`cool-lab-87438174` project) and verify the new route/card against real, persisted rows — the
-resolver/route/UI are all written and unit-tested, but none have been exercised against an actual
-database yet; (b) begin OS-A product decision #2/#3 (the multi-league command-center default view and
-the league-switch mode) — a materially larger scope than this narrow foundation-and-wiring slice; (c)
-the first real escrow integration (LeagueSafe most likely, given its existing enum priority), calling
-the already-built `applyEscrowVerification` adapter hook for real.
+The candidate (a) from the original §8 is now done. The OS-A1 migration was applied to the real,
+isolated, throwaway Phase E project (`cool-lab-87438174`, host `ep-noisy-flower...` — the same
+database Phase E's live Sleeper proof used, never the shared dev database or production) — 623 tables
+before, 624 after, `decision_os_league_context` confirmed present with all 12 designed columns.
+
+**Full round-trip verified against the real "Parbur" league** (`3c8c6699-cfb8-46d0-8834-c883108a7c9c`,
+the same real, Phase-E-imported Sleeper league), through the real route, with a real, properly-signed
+session cookie (same technique as Phase E — a valid NextAuth JWT minted with the app's own
+`NEXTAUTH_SECRET`, not an auth bypass):
+
+1. `GET` before any row existed → real `UNKNOWN` default, exactly as designed. ✅
+2. `POST confirm_paid` (buy-in 50 USD, LeagueSafe label, a note) as the real commissioner account →
+   `200`, real `PAID`/`USER_CONFIRMED` response — **and independently confirmed via a direct SQL read
+   that the row was genuinely persisted**, not just echoed back. ✅
+3. `GET` again → the same real, persisted `PAID`/`USER_CONFIRMED` context read back correctly. ✅
+4. `POST reset` → `200`, full reset to `UNKNOWN` — **confirmed via SQL that every field was cleared
+   (not just `financialStatus`)**, matching `resetLeagueFinancialContext`'s own "full reset, not
+   partial" design. ✅
+5. **Authorization verified live, not just mocked**: the real Phase E member account (which claimed a
+   real roster in this same league but is not its commissioner) got a real `403` on `confirm_paid` and
+   a real `200` on `GET` — the exact read/write split the design calls for, now proven against real
+   `getLeagueRole` Prisma queries, not test doubles. ✅
+6. **Commissioner Hub loaded with zero errors** with `LeagueContextCard` in its bundle (confirmed via a
+   real browser navigation + console-message check — only a pre-existing, unrelated Facebook SDK
+   HTTPS warning appeared, nothing from this phase's code). Full authenticated visual confirmation of
+   the card's own rendered buttons/inputs was not achievable — the same sandbox limitation Phase E
+   documented (JS execution is blocked on `localhost` by the browser extension's own safety
+   restriction, so a session cookie can't be injected into a real browser tab) — but the data path the
+   card exclusively depends on (steps 1-5 above) is fully, independently verified.
+
+**Zero bugs found. Zero code changes made this phase** — every check passed exactly as designed on
+the first attempt.
+
+## 9. Recommended next phase
+
+**OS-A4 candidates**: (a) begin OS-A product decision #2/#3 (the multi-league command-center default
+view and the league-switch mode) — a materially larger scope than this narrow foundation/wiring/
+verification arc; (b) the first real escrow integration (LeagueSafe most likely, given its existing
+enum priority), calling the already-built, now live-verified `applyEscrowVerification` adapter hook
+for real; (c) product decision #7 (notifications as an OS output surface) could now reasonably
+reference League Context as one of its first real signal sources, since the belief layer is proven
+end-to-end.
