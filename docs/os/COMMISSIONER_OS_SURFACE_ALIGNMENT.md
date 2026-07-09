@@ -1,10 +1,10 @@
-# Commissioner OS Surface Alignment — Phase B, Increment 1
+# Commissioner OS Surface Alignment — Phase B
 
-**Audit + one safe alignment. PR #183 (Decision OS Phase A) stays draft, untouched, not merged.**
-No Redraft/Start-Draft/PR-#166 work. No Mission Control/League Analytics UI built. No fake demo
-data. Primary business target: **The Replacements demo.**
+**Audit + incremental, safe alignments. PR #183 (Decision OS Phase A) stays draft, untouched, not
+merged.** No Redraft/Start-Draft/PR-#166 work. No Mission Control/League Analytics UI built. No fake
+demo data. Primary business target: **The Replacements demo.**
 
-**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`.
+**Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Status: Increments 1–3 landed.**
 
 ---
 
@@ -12,24 +12,31 @@ data. Primary business target: **The Replacements demo.**
 
 **Finding: Commissioner OS is not one system today — it is at least four separate, non-interoperating
 "intelligence" subsystems**, each with its own storage and its own surfaces. Decision OS Phase A
-(Increments 1–5: imported activity, behavioral events, snapshots/trends) is **real and tested**, but
-almost nothing in the current UI reads it yet — most surfaces read one of three *other*, older
-systems instead.
+(Increments 1–5: imported activity, behavioral events, snapshots/trends) is **real and tested**, and
+each Phase B increment has connected one more real surface to it — but most of the matrix still reads
+one of three *other*, older systems.
 
-**This increment implements exactly one safe, high-leverage alignment** (per the "implement only the
-first safe alignment" instruction) and otherwise **stops at the audit**, per the "if too many
-surfaces are misaligned, produce the sequence instead of guessing" instruction — because that is
-what the evidence supports.
+**Each increment implements exactly one safe, high-leverage alignment** (per the "implement only the
+first safe alignment" instruction) and otherwise **stops at the audit** for anything requiring its
+own architecture decision — per the "if too many surfaces are misaligned, produce the sequence
+instead of guessing" instruction.
 
-- ✅ **Aligned this increment:** `lib/decision-os/dashboard-intelligence.ts` — the composition that
-  **already powers live UI** (Commissioner Hub, Dashboard Overview, `LeagueTab`) — now merges Decision
-  OS Phase A's imported/external-league activity into the same behavioral-facts pipeline it already
-  used. This is additive, low-risk, and immediately improves Manager Activity, Trade/Waiver/Roster/
-  Draft activity, and Recommendations for **every manager, including ones with no AllFantasy
-  account** — the literal Replacements-demo requirement.
-- ⛔ **Not done this increment (need their own architecture decision, not a guess):** League Health,
-  the Commissioner Intelligence Hub's 7 modules (all trace to a *third* system), Manager Hub's P2–P4
-  contracts (a *fourth* system), and building Mission Control / League Analytics (don't exist).
+- ✅ **Increment 1:** `lib/decision-os/dashboard-intelligence.ts` — the composition that **already
+  powers live UI** (Commissioner Hub, Dashboard Overview, `LeagueTab`) — now merges Decision OS Phase
+  A's imported/external-league activity into the same behavioral-facts pipeline it already used.
+  Improves Manager Activity, Trade/Waiver/Roster/Draft activity, and Recommendations for **every
+  manager, including ones with no AllFantasy account.**
+- ✅ **Increment 2:** wired Phase A's already-built snapshot/trend module (Increment 5) into the
+  same surface — an additive `leagueTrend` field showing real activity-volume direction/delta over
+  time, honestly `unavailable` until real history accumulates.
+- ✅ **Increment 3:** **League Health federated with Decision OS** (`lib/decision-os/leagueHealthAlignment.ts`)
+  — the existing, untouched `monitorLeagueHealth` scoring engine now runs on real trade/waiver/
+  manager/trend counts via an explicit opt-in route contract; the legacy explicit-metrics contract
+  is fully preserved.
+- ⛔ **Still needing their own architecture decision, not a guess:** the Commissioner Intelligence
+  Hub's 7 modules (a *third* system), Manager Hub's P2–P4 contracts (a *fourth* system), a real
+  retention-risk *derivation* at the platform level, and building Mission Control / League Analytics
+  (still don't exist).
 
 ---
 
@@ -57,7 +64,7 @@ systems that predate Phase A.
 | --- | --- | --- | --- | --- | --- |
 | **Mission Control** | ❌ does not exist by this name anywhere | N/A | Not built | New surface (explicitly out of scope this increment) | High (named target) — **defer** |
 | **League Analytics** | ❌ does not exist by this name anywhere | N/A | Not built | New surface (explicitly out of scope this increment) | High (named target) — **defer** |
-| **League Health** (`app/api/league-health`) | `monitorLeagueHealth` (`lib/league-health.ts`) — independent | No | Totally separate system; Phase A's finding stands | Decide: replace with subsystem-A-derived health, or federate the two (open question from Phase A, still open) | High — **needs an architecture decision, not a blind swap** |
+| **League Health** (`app/api/league-health`) | `monitorLeagueHealth` (`lib/league-health/*`) — a pure scoring function; **fed by real Decision OS counts as of Increment 3** via `lib/decision-os/leagueHealthAlignment.ts` (opt-in `source: 'decision_os'`, legacy explicit-body contract unchanged) | ✅ **Yes — federated this increment** | ~~Totally separate system~~ Resolved: **federate, not replace** (§4c) — the scoring engine itself was never touched | Done. Remaining: no live UI caller yet (same as before this increment — the route was already orphaned) | High — ✅ **decision made + implemented (federate)** |
 | **Manager Intelligence** — Commissioner Hub / Dashboard Overview / `LeagueTab` (`dashboard-intelligence.ts`) | Subsystem A (behavioral pipeline) directly | **Yes — was already the real source** | Was missing the Phase A imported-activity merge (external managers invisible) | ✅ **DONE this increment** | **Highest — directly serves the Replacements case** |
 | **Recommendations** (`DecisionRecommendationsCard`, dashboard) | Subsystem B (Phase 6), derived from subsystem A via `dashboard-intelligence.ts` | Yes, indirectly | Inherits the same gap as above | ✅ **Fixed as a side effect of the same change** (same composition function) | High |
 | **Manager Intelligence Hub** (`/manager-hub`, Team Health / Weekly Outlook / Transaction Readiness) | Subsystem D (own contracts) | No — separate system | Doesn't read subsystem A at all | Needs its own audit of what P2–P4 actually read before any alignment (out of scope to guess this increment) | Medium |
@@ -151,6 +158,73 @@ errors (unchanged from Increment 1), **zero in any file this increment touched.*
 no migration, no Neon proof needed (pure read-composition wiring; the model + migration already
 shipped in Phase A Increment 5).
 
+## 4c. Increment 3 — League Health: FEDERATE, not replace (implemented)
+
+**Audit finding that decided the question:** `monitorLeagueHealth`
+(`lib/league-health/league-health-engine.ts`) is a **pure, already-deterministic scoring function
+over an explicit input struct** — it performs zero data access of its own; the route
+(`/api/league-health`) requires the caller to supply every metric by hand. Two more facts settled
+"replace vs federate":
+- **No live UI caller exists.** The "League Health Check" card on the AI Tools page
+  (`app/ai/tools/AIToolsPageClient.tsx`) links to a **Chimmy chat prompt**, not this route.
+- **No existing tests.** There was no tested live behavior at risk.
+
+Given a working, self-contained scoring algorithm with no live consumers to break, **replacing it
+would be pure risk with no offsetting safety benefit — federating it is strictly lower-risk** and
+was chosen. `monitorLeagueHealth`'s scoring code is **untouched, byte-for-byte** (proven by a test
+asserting the same explicit input still classifies as `'excellent'`).
+
+**`lib/decision-os/leagueHealthAlignment.ts`** — `resolveDecisionOsLeagueHealth(leagueId)`:
+- Reuses `loadLeagueEvents` (Increment 1, includes imported/external activity) →
+  `assembleLeagueBehavioralFacts` for real league-wide counts: `activityEventCount`, `tradeCount`
+  (`totalTradeCount`), `waiverClaimCount` (`totalWaiverClaimCount`), `draftPickCount`,
+  `commissionerActionCount` (`totalCommissionerActionCount`), `activeManagerCount`.
+- Computes **per-manager** `assembleManagerBehavioralFacts` → `deriveManagerBehavioralIntelligence`
+  (the same computation `resolveManagerIntelligencePayload` already does) for two demo-named
+  signals with no other source: **`inactiveManagerCount`** (real `isInactive` count) and
+  **`managersAtRetentionRisk`** (managers at `'high'`/`'critical'` `retentionRisk`, with their real
+  `retentionRiskReasons`) — the "inactivity risk" and "commissioner action opportunities" the demo
+  asks for. Also sums `lineupEngagement.eventCount` across managers into `rosterActivityCount` — a
+  real "roster activity" signal `LeagueBehavioralFacts` doesn't track at league scope on its own.
+- Reuses `resolveLeagueActivityTrend` (Increment 2) directly for `decisionOs.trend`.
+- Maps only the fields it has a real source for into `LeagueHealthInput`
+  (`activeManagers`/`inactiveManagers`/`totalTradesThisSeason`/`totalWaiverClaims`/
+  `commissionerActionsThisSeason`) and calls the **unchanged** `monitorLeagueHealth` — every other
+  field (league settings like `numTeams`/`waiverType`, or signals with no source yet like
+  `chatMessageCount`/`disputeCount`) keeps the engine's own schema default.
+- **`fieldProvenance`** explicitly labels every `LeagueHealthInput` field `'decision_os'` or
+  `'schema_default'` — so a caller (or the demo) can never mistake a schema-default zero for a
+  measured zero. This is the literal mechanism behind "never fake a health score."
+- **Never throws.** A read failure degrades to the same honest all-zero `decisionOs` context (and
+  the engine still returns its normal schema-default-driven result — an honest "no data yet"
+  baseline, not an error page).
+
+**`app/api/league-health/route.ts`** — additive, dual-contract: the **legacy explicit-metrics body
+is completely unchanged** (same schema validation, same `monitorLeagueHealth` call, tested to still
+classify identically); a new, **explicit opt-in** `{ leagueId, source: 'decision_os', overrides? }`
+body routes to `resolveDecisionOsLeagueHealth` instead. No implicit/guessed dispatch — the
+discriminator is explicit, matching this workstream's established contract style (e.g. Increment
+1–4's `activityType` discriminants).
+
+### Tests added (Increment 3)
+
+- `__tests__/decision-os/league-health-alignment.test.ts` (9/9): real trade/waiver/manager counts
+  reach the engine and are exposed under `decisionOs`; retention-risk managers surfaced with real
+  reasons; `fieldProvenance` correctly splits decision_os vs schema_default; trend available at 2+
+  snapshots with correct fields; `insufficient_history` at 1 snapshot; `no_snapshots` at 0; an empty
+  league resolves to an honest zero context (not a crash); a read failure degrades the same honest
+  way; the untouched engine still classifies a manually-supplied high-activity input as `'excellent'`
+  (proof the scoring algorithm was never modified).
+- `__tests__/decision-os/league-health-route-contract.test.ts` (5/5): 401 without a session; the
+  legacy body still returns the plain engine result and **never** calls the new composition; an
+  invalid legacy body still 400s; the new `source: 'decision_os'` body calls
+  `resolveDecisionOsLeagueHealth` with the league id (+ `overrides`, when supplied).
+
+**Full suite run:** 123/123 (14 new + the full decision-os regression suite, Increments 1–5 +
+Phase B 1–2, 109 unchanged). **Zero regressions.** Full-repo typecheck: 158 baseline errors
+(unchanged), **zero in any file this increment touched.** No schema change, no migration, no Neon
+proof needed (pure composition + route wiring over models Phase A already shipped).
+
 ## 5. Preserved honest degradation (Do #6)
 
 - No imported activity for a league → the merge contributes nothing; existing AF-native/redraft-only
@@ -191,9 +265,11 @@ Most of the matrix's gaps are **not** safe to guess at — each is a real archit
    composition already returns. **Note carried forward:** no scheduler yet writes snapshot rows in any
    real environment, so this will report `no_snapshots` until Increment 5's writer is scheduled — that
    remains open (see Phase A's own remaining-work list).
-2. **Increment 3 (architecture decision required): League Health.** Decide replace-vs-federate
-   `monitorLeagueHealth` with subsystem-A-derived facts. This is the same open question Phase A
-   already surfaced — still unresolved, needs an explicit answer before code.
+2. ~~Increment 3 (architecture decision required): League Health.~~ **✅ DONE (§4c) — federated,
+   not replaced.** The scoring engine was never touched; real Decision OS counts + trend now feed
+   it via an explicit opt-in route contract. **Remaining note carried forward:** the route still has
+   no live UI caller (unchanged from before this increment) — wiring a real surface to call it is a
+   separate, future step, not part of this alignment.
 3. **Increment 4 (larger, needs sign-off): Commissioner Intelligence Hub migration.** All 7 modules
    (Activity/Health/ActionItems/TradeReview/Stories/AuditFeed, +RuleSettings unaffected) trace to
    subsystem C (`IntelligenceQueryService`/`IntelligenceLeagueSnapshot`), a different event taxonomy

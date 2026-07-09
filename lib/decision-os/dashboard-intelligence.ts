@@ -74,11 +74,11 @@ import type {
 } from '@/lib/decision-os/phase6/dna/types'
 import type { RecommendationSet } from '@/lib/decision-os/phase6/recommendations/types'
 
-function lookbackDays(): number {
+export function lookbackDays(): number {
   return Math.max(1, parseInt(process.env.INTELLIGENCE_LOOKBACK_DAYS ?? '90', 10) || 90)
 }
 
-function sinceDate(days: number): Date {
+export function sinceDate(days: number): Date {
   const d = new Date()
   d.setDate(d.getDate() - days)
   return d
@@ -103,7 +103,7 @@ function sinceDate(days: number): Date {
  * with no AllFantasy account. Purely additive; degrades to `[]` honestly if no imported
  * activity exists for this league (never fabricated).
  */
-async function loadLeagueEvents(leagueId: string, since: Date): Promise<BehavioralEvent[]> {
+export async function loadLeagueEvents(leagueId: string, since: Date): Promise<BehavioralEvent[]> {
   const [
     waiverRows,
     tradeRows,
