@@ -23,9 +23,11 @@ import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
 import { buildLeagueHomePulse } from '@/lib/decision-os/league-pulse'
 import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
 import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
+import UserOsCard from '@/components/decision-os/UserOsCard'
 import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
 import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
 import type { ManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
+import type { UserOsSnapshot } from '@/lib/decision-os/userOs'
 
 export type LeagueTabProps = {
   league: UserLeague
@@ -634,6 +636,24 @@ export function LeagueTab({
     () => buildDecisionRecommendationsViewModel({ source: managerIntelligence?.recommendations ?? null }),
     [managerIntelligence],
   )
+  const [userOs, setUserOs] = useState<UserOsSnapshot | null>(null)
+  useEffect(() => {
+    let cancelled = false
+    void fetch(`/api/decision-os/user-os?leagueId=${encodeURIComponent(league.id)}`, {
+      credentials: 'same-origin',
+      cache: 'no-store',
+    })
+      .then((res) => (res.ok ? (res.json() as Promise<UserOsSnapshot>) : null))
+      .then((data) => {
+        if (!cancelled) setUserOs(data)
+      })
+      .catch(() => {
+        if (!cancelled) setUserOs(null)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [league.id])
 
   return (
     <div className="space-y-4 p-5">
@@ -696,6 +716,7 @@ export function LeagueTab({
         <ManagerDnaCard profile={managerDna} variant="league" compact />
         <DecisionRecommendationsCard model={recommendations} variant="league" compact />
       </section>
+      <UserOsCard snapshot={userOs} variant="league" />
       <LeagueScoringPreviews leagueId={league.id} season={previewSeason} week={previewWeek} />
       {showSpecialtyAutomationStrip(league) ? (
         <SpecialtyLeagueAutomationSection

@@ -1,7 +1,9 @@
 # User OS / Manager OS — Sleeper Proof Audit
 
-**Status: audit + plan. No code implemented, except where explicitly noted as a candidate for a
-tiny, obvious wiring change (none was found safe enough to do in this increment — see §11).**
+**Status: audit + plan + implemented minimum surface.** Increment 2 was audit-only. **Increment 5
+(§14) resolved the one open verification question this audit left unanswered, then built and
+shipped the minimum User OS surface** — a real composition module, a route, a card wired into the
+one page already confirmed reachable by any league role, and 18 tests.
 
 **Date:** 2026-07-08 · **Branch:** `g15-event-foundation`. **Phase D Increment 2** (successor to
 [`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`](FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md)'s
@@ -247,11 +249,17 @@ to plan, not implement, and one open verification item (§5/§11) should be reso
 
 ## 11. Risks / Honest Gaps
 
-- **The single biggest unverified fact:** whether an imported Sleeper league, viewed by a
-  non-commissioner AF user, actually routes through `LeagueTab.tsx` (or an equivalent) the same way
-  an AF-native league does. This audit did not trace that routing/access-control path exhaustively
-  and treats it as open — **not a "tiny, obvious, low-risk wiring change,"** so nothing was
-  implemented this increment per instruction.
+- ~~The single biggest unverified fact: whether an imported Sleeper league, viewed by a
+  non-commissioner AF user, actually routes through `LeagueTab.tsx` the same way an AF-native
+  league does.~~ **✅ RESOLVED in Increment 5 (§14) — confirmed YES**, by reading
+  `app/league/[leagueId]/page.tsx` and `lib/league/permissions.ts` directly: access is granted to
+  `isOwner` (`league.userId === userId`) **OR** any user with a claimed `LeagueTeam`/`Roster` row in
+  that league, for ANY `League` record regardless of `platform` (including `platform: 'sleeper'`);
+  `getLeagueRole` returns a genuine `'member'` role (not `'commissioner'`) for a claimed team that
+  isn't flagged `isCommissioner`/`isCoCommissioner`. `LeagueTab.tsx` renders unconditionally once
+  that access check passes. The only remaining prerequisite is that a second AF account has an
+  actual claim on a roster in someone else's imported league — existing team-claim functionality,
+  not something Decision OS needed to build.
 - **No lineup-decision-quality signal exists for any provider** — proposing one is a real, separate
   Decision OS feature-gap increment (parallel to the still-open "retention risk signal" gap
   Commissioner OS Surface Alignment already flagged), not something this audit resolves.
@@ -287,13 +295,93 @@ Concrete, checkable goals for actually proving this (not yet executed):
 
 ---
 
-## 13. Boundaries honored (this increment)
+## 14. Increment 5 — minimum User OS surface (implemented)
 
-- No code implemented — audit + plan only, per explicit instruction (no "tiny, obvious, low-risk"
-  wiring change was found safe enough to also ship this increment).
+**The open question is resolved (§11), and the minimum surface is built** — the same "compose over
+already-real data" discipline Mission Control, League Analytics, and Platform OS all used.
+
+**New `lib/decision-os/userOs.ts`** — `resolveUserOsSnapshot(leagueId, managerId, now?)` composes:
+- `assembleManagerBehavioralFacts` → `deriveManagerBehavioralIntelligence` (Phase 5.2) directly, for
+  **team health** (`participationTier`, `overallEngagementScore`, `retentionRisk` +
+  `retentionRiskReasons`, `isInactive`, `daysSinceLastActivity`) and an **activity summary**
+  (trade/waiver/lineup/draft event counts). This is the SAME function Mission Control's
+  `managersAtRetentionRisk` list already calls (via `leagueHealthAlignment.ts`) — this module shows
+  more of its already-tested output to the manager themselves, not a new derivation. (Phase 5.2's own
+  module docstring says "shadow-only, not surfaced in production routes" — that describes the
+  module's original build-time scope; Commissioner OS Surface Alignment already cut a subset of this
+  exact function's output into live production, so this is an extension of an already-open door, not
+  a new gate crossing the way Phase 5.3/5.4 remain closed.)
+- `resolveManagerIntelligencePayload` (Increments 1/2, already provider-agnostic, already
+  role-agnostic) for Manager DNA, manager-tier Recommendations, and League Trend — reused unchanged.
+
+**Known, accepted tradeoff:** `loadLeagueEvents` runs twice per call (once directly, once inside
+`resolveManagerIntelligencePayload`) — both read-only and idempotent, a minor efficiency cost, not a
+correctness issue. Left as-is rather than modifying `resolveManagerIntelligencePayload`'s existing,
+live contract as a side effect of this increment.
+
+**Honest degradation:** a manager with zero events gets a real, honest zero-activity baseline
+(`participationTier: 'inactive'`, `overallEngagementScore: 0`) — never fabricated. League trend
+passes through Increment 2/3's unchanged `no_snapshots`/`insufficient_history` contract. A total
+dependency failure degrades to an explicit `{ available: false, reason: 'user_os_unavailable' }`
+state (defense-in-depth, matching every other Decision OS composition), never a crash.
+
+**New route `app/api/decision-os/user-os/route.ts`** (`GET`) — mirrors
+`/api/decision-os/manager-intelligence`'s contract exactly: session-gated, `leagueId` required,
+**always resolves the session user's own id** — never a URL param, so a request can never ask for
+another manager's data. This sidesteps the authorization question that stopped Platform OS from
+getting a route (Platform OS accepts an arbitrary caller-supplied league list; User OS is scoped to
+exactly one league + the caller's own session identity, the same shape Mission Control/League
+Analytics already use safely in production).
+
+**New card `components/decision-os/UserOsCard.tsx`** — reuses the same `DecisionOsCardPrimitives` as
+every sibling card, zero new visual system. Deliberately does **not** render Manager DNA or
+Recommendations — those are already shown by the sibling `ManagerDnaCard`/
+`DecisionRecommendationsCard` on the same page; this card renders only what's genuinely new: team
+health status, a 4-stat activity summary, the league trend panel, and retention risk.
+
+**Wired into `app/league/[leagueId]/tabs/LeagueTab.tsx`** — the exact page confirmed reachable by
+any league role (§11) — via one additive `useState`/`useEffect` pair (identical shape to the
+existing `managerIntelligence` fetch already on that page) + one new render line, directly after the
+existing `ManagerDnaCard`/`DecisionRecommendationsCard` section. Confirmed via `git diff` to touch
+nothing else on the page.
+
+### Tests added (Increment 5)
+
+- `__tests__/decision-os/user-os.test.ts` (5/5): a manager with real trade/waiver/roster activity
+  gets an honest, populated snapshot; a plain league member (not the "primary" active manager)
+  resolves their own real profile correctly, proving role-agnosticism directly; a manager with zero
+  activity gets an honest zero-activity baseline; `no_snapshots` trend passes through honestly; a
+  dependency failure degrades to the explicit unavailable state.
+- `__tests__/decision-os/user-os-route-contract.test.ts` (3/3): 401 without a session; 400 without
+  `leagueId`; the route calls the composition with the **session user's own id**, never a
+  client-supplied `managerId` query param (tested explicitly).
+- `__tests__/decision-os/user-os-card.test.tsx` (7/7): a populated manager renders participation
+  tier, activity counts, an available trend, and retention risk; honest `no_snapshots`/
+  `insufficient_history` trend states render; real retention-risk reasons render, or an honest "no
+  risk factors" message when none exist; an honest zero-activity state renders for an inactive
+  manager; an explicit unavailable state renders instead of fake values; the `null`-snapshot loading
+  shell renders honestly.
+- `__tests__/league-tab-user-os-wiring.test.ts` (3/3) — the same source-scan convention as the
+  Commissioner Hub wiring tests, proving the import/fetch/render calls are actually wired into
+  `LeagueTab.tsx`, not just built in isolation.
+
+**Full suite run:** 18 new (5 composition + 3 route-contract + 7 card + 3 wiring) + the full
+decision-os regression suite + the two pre-existing tests that reference this exact `LeagueTab.tsx`
+file (`demo-flow-entry-points.test.ts`, `commissioner-intelligence/nav-entry.test.ts`) —
+**2708/2708 total in `__tests__/decision-os`, zero regressions.** Full-repo typecheck: 158 baseline
+errors (unchanged), zero new errors in any touched file. No schema/migration change — pure
+composition + a thin route + a card over already-live Decision OS outputs.
+
+---
+
+## 15. Boundaries honored (this increment)
+
+- Increment 2: no code implemented — audit + plan only. Increment 5: code implemented is scoped
+  exactly to the recommended minimum surface (§9/§14) — no lineup-decision-quality derivation, no
+  Manager Hub (subsystem D) changes, no new visual system.
 - No DFS OS work.
 - No adapter code, no `IMPORT_PROVIDERS` change.
-- No fake/demo data anywhere in this document.
+- No fake/demo data anywhere in this document or the codebase.
 - No production DB touched; no production cron enabled.
 - PR #183 untouched, still draft, not merged.
 - No Redraft/Start-Draft/PR-#166/AF-hosted-league work touched.

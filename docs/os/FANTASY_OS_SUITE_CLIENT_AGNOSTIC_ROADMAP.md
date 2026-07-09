@@ -339,6 +339,18 @@ building anything: whether an imported Sleeper league, viewed by a non-commissio
 routes through a page that already makes this fetch — unverified, and why no code was written this
 increment.
 
+**Phase D Increment 5 update (2026-07-08):** that open question is resolved (confirmed YES, by
+reading `app/league/[leagueId]/page.tsx` + `lib/league/permissions.ts` directly — any user with a
+claimed team/roster reaches `LeagueTab.tsx` regardless of platform), and the minimum User OS surface
+is now built: `lib/decision-os/userOs.ts` (composes Phase 5.2's already-live
+`deriveManagerBehavioralIntelligence` + the already-provider-agnostic
+`resolveManagerIntelligencePayload`), a session-scoped `/api/decision-os/user-os` route, and a
+`UserOsCard` wired into `LeagueTab.tsx` right next to the existing Manager DNA/Recommendations
+cards. 18 new tests, zero regressions. See
+`USER_OS_MANAGER_OS_SLEEPER_PROOF_AUDIT.md` §14 for full detail. **All three OS roles now have a
+real, visible (or composition-level, for Platform OS) proof: Commissioner OS, User OS, and Platform
+OS.**
+
 ---
 
 ## 16. What Each OS Must Show
