@@ -18,6 +18,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Compass } from 'lucide-react'
 import type { CommissionerCommandCenterSnapshot } from '@/lib/decision-os/commissionerCommandCenter'
+import { composeDailyBrief } from '@/lib/decision-os/dailyBrief'
 import {
   DecisionOsBadge,
   DecisionOsEmptyState,
@@ -28,6 +29,7 @@ import CommissionerLeagueHealthRanking from './CommissionerLeagueHealthRanking'
 import CommissionerAttentionQueue from './CommissionerAttentionQueue'
 import CommissionerRecentChanges from './CommissionerRecentChanges'
 import CommissionerLeagueSwitcher from './CommissionerLeagueSwitcher'
+import TodaysBriefCard from './TodaysBriefCard'
 
 type CommissionerCommandCenterResponse = CommissionerCommandCenterSnapshot & { draftsApproachingCount: number }
 
@@ -78,6 +80,21 @@ export default function CommissionerCommandCenterSection({
     [commissionerLeagues],
   )
 
+  // Composed directly from data this section already fetched for its OTHER cards — deliberately NOT a
+  // separate self-fetch. See `docs/os/DAILY_BRIEF.md` §4 for why (avoids a second Mission Control fetch
+  // per league on the same page load, the same discipline `commissionerCommandCenter.ts` itself follows).
+  const brief = useMemo(
+    () =>
+      composeDailyBrief({
+        leaguesMonitored: commissionerLeagues.length,
+        healthyLeagueCount: snapshot?.healthyLeagueCount ?? 0,
+        draftsApproachingCount: snapshot?.draftsApproachingCount ?? 0,
+        signals: snapshot?.attentionQueue ?? [],
+        leagueTrends: snapshot?.recentChanges ?? [],
+      }),
+    [snapshot, commissionerLeagues.length],
+  )
+
   if (demoMode || !hasLeagues) {
     return (
       <section data-testid="commissioner-command-center-section" className={decisionOsCardClassName}>
@@ -124,6 +141,8 @@ export default function CommissionerCommandCenterSection({
           leaguesNeedingAttentionCount={snapshot?.atRiskLeagueCount ?? 0}
           draftsApproachingCount={snapshot?.draftsApproachingCount ?? 0}
         />
+
+        <TodaysBriefCard brief={brief} leagueNameById={leagueNameById} />
 
         <CommissionerLeagueHealthRanking summaries={snapshot?.leagueSummaries ?? []} leagueNameById={leagueNameById} />
 

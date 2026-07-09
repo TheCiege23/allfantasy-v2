@@ -114,6 +114,23 @@ describe("CommissionerCommandCenterSection", () => {
     expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("3 managers at risk of leaving")
     expect(screen.getByTestId("recent-changes-empty")).toBeInTheDocument()
     expect(screen.getByTestId("league-switcher-list")).toBeInTheDocument()
+
+    // Phase OS-B3: Today's Brief is composed from the SAME fetched snapshot — zero additional request.
+    expect(screen.getByTestId("todays-brief-card")).toBeInTheDocument()
+    expect(screen.getByTestId("todays-brief-summary")).toHaveTextContent(
+      "1 league needs your attention today. 1 draft approaching.",
+    )
+    expect(screen.getByTestId("todays-brief-priority-items")).toHaveTextContent("Redraft Rebels")
+  })
+
+  it("Phase OS-B3: Today's Brief renders an honest healthy state before the snapshot has loaded, with no extra fetch", () => {
+    fetchMock.mockReturnValueOnce(new Promise(() => {})) // never resolves — asserting the pre-fetch render only
+    render(<CommissionerCommandCenterSection commissionerLeagues={LEAGUES} onSelectLeague={vi.fn()} />)
+
+    expect(screen.getByTestId("todays-brief-card")).toBeInTheDocument()
+    expect(screen.getByTestId("todays-brief-summary")).toHaveTextContent("Every league looks healthy today.")
+    // Only the one command-center fetch — Today's Brief never issues its own request.
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it("league switching: clicking a league in the switcher calls onSelectLeague with its real id", async () => {

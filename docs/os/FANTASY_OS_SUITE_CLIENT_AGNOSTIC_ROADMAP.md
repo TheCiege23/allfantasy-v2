@@ -694,18 +694,41 @@ event-count delta; building either would be a fabrication. 39 new tests, `__test
 2819 → 2858/2858, combined with unchanged wiring tests 2868/2868 — zero regressions. 158/158 baseline
 typecheck unchanged. Full detail: `ATTENTION_QUEUE.md`.
 
+### OS-B3 — Daily Brief Composition Engine (2026-07-09)
+
+Reorders the recommended sequence after OS-B2: build the composition layer that decides WHAT gets
+delivered BEFORE building a Notification Engine with read/dismiss state, keeping that future engine
+thin (`Decision OS → Brief/Notification Composition → Delivery Channels`, not
+`Decision OS → Notification Engine (business logic) → Everything else`). New pure module
+`lib/decision-os/dailyBrief.ts` — `composeDailyBrief` reshapes an already-produced Attention Signal
+list + per-league trends + 3 already-aggregated counts into a `DailyBrief` (overview, top-5 priority
+items, league highlights, positive highlights, deduplicated recommended actions, a deterministic
+summary sentence) — never recomputes a health score, ranking, or signal. New standalone resolver
+`lib/decision-os/dailyBriefResolver.ts` (`resolveDailyBrief`) for future consumers without a resident
+snapshot (email digest, OS-B4 Notification Engine, mobile, Platform OS). The Commissioner Hub's own
+"Today's Brief" card does NOT call that resolver — `CommissionerCommandCenterSection.tsx` composes the
+brief directly from data it already fetched for its sibling cards, zero additional request (the same
+no-double-fetch discipline OS-B2 established). Positive Highlights deliberately narrower than this
+phase's own suggested examples — only real `high_league_health` signals; "completed drafts" and a
+generic "strong engagement" threshold were both rejected as inventing new intelligence nothing else in
+the suite already computes. 30 new tests, `__tests__/decision-os` 2868 → 2898/2898 — zero regressions.
+158/158 baseline typecheck unchanged (error set byte-identical to the OS-B2 baseline). Full detail:
+`DAILY_BRIEF.md`.
+
 ---
 
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
-- No Notification Engine built (OS-B3) — the Attention Queue module is designed to be reusable by one
-  later, but nothing sends a notification today.
-- No Manager OS or Platform OS changes in OS-B1 or OS-B2.
-- No backend schema changes in OS-B1 or OS-B2 — `LeagueSettings.draftDateUtc` and
+- No Notification Engine built (OS-B4) — the Attention Queue and Daily Brief modules are designed to be
+  reusable by one later, but nothing sends a notification today.
+- No Manager OS or Platform OS changes in OS-B1, OS-B2, or OS-B3.
+- No backend schema changes in OS-B1, OS-B2, or OS-B3 — `LeagueSettings.draftDateUtc` and
   `DecisionOsLeagueContext` are both real, pre-existing sources; OS-B2 added zero new columns/tables.
 - No AI-generated or fabricated signals in OS-B2 — every signal type traces to an existing, already-real
   data source; two originally-suggested types were deliberately left unbuilt for lacking real data.
+- No email delivery, push notifications, notification persistence/read-dismiss state, background jobs,
+  or scheduling built in OS-B3 — `dailyBriefResolver.ts` is a pure request/response function, not a job.
 - The Replacements documents were not deleted, only recontextualized via pointer updates.
 - No adapter code written for any client. `IMPORT_PROVIDERS` not modified.
 - No DFS OS work — explicitly deferred pending legal/compliance review.
