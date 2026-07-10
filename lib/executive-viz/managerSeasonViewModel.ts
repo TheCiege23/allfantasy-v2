@@ -177,17 +177,28 @@ export function buildChampionshipTrajectory(
 
 // ─── Supporting: Weekly Decision Timeline ──────────────────────────────────────
 
+/** Phase V3.1 (integration de-duplication): waiver and draft-preparation recommendations have their own
+ * dedicated executive workspaces (Waiver OS's Waiver Impact Sequence, Draft OS's Draft Decision Ladder),
+ * so this personal timeline no longer lists them — otherwise the same recommendation would appear in two
+ * executive surfaces. It keeps the manager's own lineup, trade, and engagement decisions, which have no
+ * other home in the Manager Hub. */
+const TIMELINE_EXCLUDED_CATEGORIES = new Set<RecommendationCategory>(['waiver_opportunity', 'draft_preparation'])
+
 export function buildWeeklyDecisionTimeline(
   snapshot: ManagerCommandCenterSnapshot | null | undefined,
 ): ExecutiveSupportingChart<ManagerDecisionItem> {
-  if (!snapshot || snapshot.recommendations.length === 0) {
-    return { headline: 'No decisions are waiting on you right now.', items: [], available: snapshot ? true : false }
+  if (!snapshot) {
+    return { headline: 'No decisions are waiting on you right now.', items: [], available: false }
   }
-  const items = [...snapshot.recommendations]
+  const scoped = snapshot.recommendations.filter((r) => !TIMELINE_EXCLUDED_CATEGORIES.has(r.recommendation.category))
+  if (scoped.length === 0) {
+    return { headline: 'No lineup, trade, or engagement decisions are waiting on you right now.', items: [], available: true }
+  }
+  const items = [...scoped]
     .sort((a, b) => PRIORITY_RANK[b.recommendation.priority] - PRIORITY_RANK[a.recommendation.priority])
     .slice(0, 8)
     .map(toDecisionItem)
-  const critical = snapshot.recommendations.filter((r) => r.recommendation.priority === 'critical').length
+  const critical = scoped.filter((r) => r.recommendation.priority === 'critical').length
   const headline =
     critical > 0
       ? `Start with ${critical} critical ${critical === 1 ? 'decision' : 'decisions'}, then work down the list.`
@@ -257,36 +268,7 @@ export function buildTeamRiskSummary(
   return { headline, items, available: true }
 }
 
-// ─── Supporting: Decision Focus (where your attention should go) ────────────────
-
-const MANAGER_FOCUS_CATEGORIES: { category: RecommendationCategory; label: string }[] = [
-  { category: 'lineup_discipline', label: 'Lineups' },
-  { category: 'waiver_opportunity', label: 'Waivers' },
-  { category: 'trade_coaching', label: 'Trades' },
-  { category: 'engagement_boost', label: 'Engagement' },
-]
-
-export function buildDecisionFocus(
-  snapshot: ManagerCommandCenterSnapshot | null | undefined,
-): ExecutiveSupportingChart<ExecutiveBarDatum> {
-  if (!snapshot || snapshot.recommendations.length === 0) {
-    return { headline: 'Decision focus appears once you have active recommendations.', items: [], available: snapshot ? true : false }
-  }
-  const counts = new Map<RecommendationCategory, number>()
-  for (const entry of snapshot.recommendations) {
-    counts.set(entry.recommendation.category, (counts.get(entry.recommendation.category) ?? 0) + 1)
-  }
-  const items: ExecutiveBarDatum[] = MANAGER_FOCUS_CATEGORIES.map(({ category, label }): ExecutiveBarDatum => {
-    const value = counts.get(category) ?? 0
-    const status: ExecutiveHealthStatus = value === 0 ? 'excellent' : value >= 3 ? 'at_risk' : 'watch'
-    return { key: category, label, value, status, valueLabel: `${value}` }
-  }).filter((item) => item.value > 0)
-
-  if (items.length === 0) {
-    return { headline: 'No lineup, waiver, or trade focus areas right now.', items: [], available: true }
-  }
-  items.sort((a, b) => b.value - a.value)
-  const top = items[0]
-  const headline = `${top.label} need the most attention (${top.value} open).`
-  return { headline, items, available: true }
-}
+// Phase V3.1 (integration de-duplication): `buildDecisionFocus` (a by-category recommendation
+// distribution) was removed — that responsibility now lives in Platform OS's "where the work is"
+// (`platformFocusBars`), the executive summary rendered at the top of the Manager Hub. Keeping a second
+// by-category distribution inside Manager OS duplicated it.

@@ -1509,6 +1509,24 @@ Trade, Waiver, Draft, and Platform OS. The roadmap transitions from building new
 production-readiness: executive polish, consistency, accessibility, theming/white-label readiness, and
 launch validation.
 
+### V3.1 — Executive Integration & End-to-End Validation (2026-07-10) — first production-readiness phase
+
+Not a workspace build: an integration audit validating that the seven workspaces behave as ONE Executive
+Operating System, plus the targeted refinements that audit surfaced. Two real information-architecture
+duplications were fixed — the Manager Weekly Decision Timeline now excludes waiver + draft recommendations
+(they have dedicated Waiver OS / Draft OS homes), and the Manager Decision Focus card was removed (its
+by-category view is now Platform OS's "where the work is") — so every recommendation category has exactly
+one executive home. Terminology was standardized ("N urgent" across all flagship urgency chips), a Trade
+deferred marker was added for parity, and a durable `executive-integration-consistency` test now enforces
+the cross-workspace invariants (shared-engine reuse / no raw chart libraries, one urgency term, all four
+`*_DEFERRED` markers + the `has*History/Series/PickData/TemporalData === false` truthfulness flags, one home
+per recommendation, no provider strings on-surface). Full audit + white-label + production-readiness
+checklists: `FANTASY_OS_EXECUTIVE_INTEGRATION_AUDIT.md`. Verified live (Manager Hub cross-workspace
+walkthrough, screenshot captured). Presentation-only; no backend / Decision OS / new-workspace / provider /
+Legacy-B2C changes. Remaining deferred visualizations depend on FUTURE Decision OS capabilities (a Waiver
+FAAB route, a customer-facing draft-runtime route, platform historical snapshots, the flag-gated trade
+market contract), not on this presentation layer.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1690,6 +1708,14 @@ launch validation.
   `ManagerCommandCenterSection.tsx` (renders the Platform OS workspace at the top of the Manager Hub, above
   the workspaces it summarizes — no Decision OS logic/route/contract touched). With this, all seven planned
   Executive Analytics Workspaces are complete.
+- V3.1 was an integration/validation phase, presentation-only: no backend changes, no Decision OS changes,
+  no new Operating Systems, no provider-specific UI, no Legacy/B2C, no fabricated analytics. Its only
+  behavior changes are two documented information-architecture de-duplications (scoping the Manager Weekly
+  Decision Timeline to exclude waiver/draft, and removing the duplicate Decision Focus card) and a
+  terminology standardization ("N urgent"), all within `components/executive-viz/` + `lib/executive-viz/` +
+  the one integration file `components/decision-os/ManagerCommandCenterSection.tsx`. It also added a
+  durable cross-workspace consistency test and the `FANTASY_OS_EXECUTIVE_INTEGRATION_AUDIT.md` audit +
+  white-label + production-readiness checklists.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

@@ -214,3 +214,11 @@ export function tradeQuadrantBars(model: TradeOpportunityMatrixViewModel): Execu
     }))
     .filter((b) => b.value > 0)
 }
+
+/** Exposed so a test can assert Trade OS's position-supply / player-value analytics are deliberately
+ * deferred rather than fabricated — parity with the Waiver/Draft/Platform deferred markers. */
+export const TRADE_POSITION_ANALYTICS_DEFERRED = {
+  deferred: true,
+  reason:
+    'Position surplus/need and player-value opportunity scoring exist only in the AI trade engine over raw roster/player data (out of scope, player-centric), and the dedicated CommissionerTradeReviewV1 market contract is feature-flag-gated (COMMISSIONER_TRADE_REVIEW_ENABLED, default off); surfacing either would require backend expansion or fabrication.',
+} as const

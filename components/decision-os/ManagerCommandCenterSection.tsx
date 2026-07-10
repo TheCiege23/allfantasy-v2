@@ -38,7 +38,6 @@ import ChampionshipTrajectory from '@/components/executive-viz/ChampionshipTraje
 import {
   WeeklyDecisionTimelineCard,
   TeamRiskSummaryCard,
-  DecisionFocusCard,
 } from '@/components/executive-viz/ManagerSupportingViz'
 import WaiverImpactSequence from '@/components/executive-viz/WaiverImpactSequence'
 import {
@@ -230,10 +229,12 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
         {snapshot ? (
           <div data-testid="manager-executive-workspace" className="space-y-4" aria-label="Manager season workspace">
             <ChampionshipTrajectory snapshot={snapshot} />
+            {/* Phase V3.1 (integration de-duplication): the Decision Focus card was removed — its
+                by-category distribution is now owned by Platform OS's "where the work is" (rendered at
+                the top of this hub), so keeping it here duplicated the same executive summary. */}
             <div className="grid gap-4 md:grid-cols-2">
               <WeeklyDecisionTimelineCard snapshot={snapshot} />
               <TeamRiskSummaryCard snapshot={snapshot} />
-              <DecisionFocusCard snapshot={snapshot} />
             </div>
           </div>
         ) : null}

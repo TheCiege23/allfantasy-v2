@@ -17,13 +17,11 @@ import {
   buildChampionshipTrajectory,
   buildWeeklyDecisionTimeline,
   buildTeamRiskSummary,
-  buildDecisionFocus,
 } from '@/lib/executive-viz/managerSeasonViewModel'
 import ChampionshipTrajectory from '@/components/executive-viz/ChampionshipTrajectory'
 import {
   WeeklyDecisionTimelineCard,
   TeamRiskSummaryCard,
-  DecisionFocusCard,
 } from '@/components/executive-viz/ManagerSupportingViz'
 
 function readSource(...segments: string[]): string {
@@ -132,22 +130,37 @@ describe('buildChampionshipTrajectory (Phase V2.2)', () => {
   })
 })
 
-describe('buildWeeklyDecisionTimeline (Phase V2.2)', () => {
+describe('buildWeeklyDecisionTimeline (Phase V2.2; scoped in V3.1)', () => {
   it('orders decisions by priority and leads with critical guidance', () => {
     const model = buildWeeklyDecisionTimeline(makeManagerSnapshot())
     expect(model.items[0].priorityLabel).toBe('Critical')
-    expect(model.items).toHaveLength(4)
+    // Phase V3.1: waiver (r2) is now excluded — it belongs to the Waiver OS workspace — so 3 remain.
+    expect(model.items).toHaveLength(3)
+    expect(model.items.map((i) => i.key)).not.toContain('r2')
     expect(model.headline).toContain('critical')
+  })
+
+  it('Phase V3.1: excludes waiver and draft recommendations (owned by Waiver OS / Draft OS)', () => {
+    const model = buildWeeklyDecisionTimeline(
+      makeManagerSnapshot({
+        recommendations: [
+          makeRec('a', 'waiver_opportunity', 'critical', 'wv'),
+          makeRec('a', 'draft_preparation', 'high', 'dr'),
+        ],
+      }),
+    )
+    expect(model.items).toHaveLength(0)
+    expect(model.headline).toContain('No lineup, trade, or engagement')
   })
 
   it('is empty (not fabricated) when there are no recommendations', () => {
     const model = buildWeeklyDecisionTimeline(makeManagerSnapshot({ recommendations: [] }))
     expect(model.items).toHaveLength(0)
-    expect(model.headline).toContain('No decisions')
+    expect(model.available).toBe(true)
   })
 })
 
-describe('buildTeamRiskSummary + buildDecisionFocus (Phase V2.2)', () => {
+describe('buildTeamRiskSummary (Phase V2.2)', () => {
   it('ranks risk factors worst-first from real counts', () => {
     const model = buildTeamRiskSummary(makeManagerSnapshot())
     expect(model.available).toBe(true)
@@ -160,13 +173,6 @@ describe('buildTeamRiskSummary + buildDecisionFocus (Phase V2.2)', () => {
     const model = buildTeamRiskSummary(makeManagerSnapshot({ totalLeagues: 0 }))
     expect(model.available).toBe(false)
   })
-
-  it('groups decision focus by real category counts, biggest first', () => {
-    const model = buildDecisionFocus(makeManagerSnapshot())
-    // lineup_discipline appears twice -> should be first
-    expect(model.items[0].key).toBe('lineup_discipline')
-    expect(model.headline).toContain('Lineups')
-  })
 })
 
 describe('Manager OS visualization components — states + provider abstraction (Phase V2.2)', () => {
@@ -176,7 +182,6 @@ describe('Manager OS visualization components — states + provider abstraction 
       <ChampionshipTrajectory key="1" snapshot={s} />,
       <WeeklyDecisionTimelineCard key="2" snapshot={s} />,
       <TeamRiskSummaryCard key="3" snapshot={s} />,
-      <DecisionFocusCard key="4" snapshot={s} />,
     ]
     for (const card of cards) {
       const { container, unmount } = render(card)
@@ -212,9 +217,11 @@ describe('Manager OS workspace hierarchy (Phase V2.2)', () => {
     const source = readSource('components', 'decision-os', 'ManagerCommandCenterSection.tsx')
     expect(source).toContain('manager-executive-workspace')
     expect(source).toContain('ChampionshipTrajectory')
-    for (const card of ['WeeklyDecisionTimelineCard', 'TeamRiskSummaryCard', 'DecisionFocusCard']) {
+    for (const card of ['WeeklyDecisionTimelineCard', 'TeamRiskSummaryCard']) {
       expect(source).toContain(card)
     }
+    // Phase V3.1: DecisionFocusCard was removed (its by-category view is now Platform OS's job).
+    expect(source).not.toContain('DecisionFocusCard')
   })
 
   it('the flagship reuses the shared ExecutiveProgressRing rather than a one-off chart', () => {

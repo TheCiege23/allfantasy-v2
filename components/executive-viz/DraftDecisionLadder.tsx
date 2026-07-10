@@ -65,7 +65,7 @@ export function DraftDecisionLadder({
             )}
           >
             <AlertTriangle className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            {model.urgentCount} high priority
+            {model.urgentCount} urgent
           </span>
         ) : undefined
       }

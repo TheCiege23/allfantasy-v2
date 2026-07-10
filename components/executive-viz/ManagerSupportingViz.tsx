@@ -3,25 +3,27 @@
 /**
  * Fantasy OS Suite — Phase V2.2: User (Manager) OS supporting executive visualizations.
  *
- * Three supporting graphs that reinforce the Championship Trajectory flagship, each answering one
- * management decision, all built from the same existing `ManagerCommandCenterSnapshot` — no new fetch,
- * no new intelligence, no player-level records, no provider identifiers.
+ * Supporting graphs that reinforce the Championship Trajectory flagship, each answering one management
+ * decision, all built from the same existing `ManagerCommandCenterSnapshot` — no new fetch, no new
+ * intelligence, no player-level records, no provider identifiers.
  *
- *   - WeeklyDecisionTimelineCard → "What should I do first?"
+ *   - WeeklyDecisionTimelineCard → "What should I do first?" (lineup / trade / engagement decisions;
+ *       Phase V3.1 scoped it to exclude waiver + draft, which are owned by Waiver OS / Draft OS)
  *   - TeamRiskSummaryCard        → "Where could my season go wrong?"
- *   - DecisionFocusCard          → "Which areas need my attention?"
+ *
+ * Phase V3.1 removed the former by-category "Decision Focus" card — that responsibility now lives in
+ * Platform OS's "where the work is" (the executive summary at the top of the Manager Hub).
  *
  * "Playoff Outlook" (probability) and roster "Position Strength" are intentionally NOT built — the
- * manager Decision OS contract carries no such data, and inventing it is forbidden this phase. See
+ * manager Decision OS contract carries no such data, and inventing it is forbidden. See
  * EXECUTIVE_VISUALIZATION_ENGINE.md §Phase V2.2 (deferred work).
  */
 import { useMemo } from 'react'
-import { ListOrdered, ShieldAlert, Compass } from 'lucide-react'
+import { ListOrdered, ShieldAlert } from 'lucide-react'
 import type { ManagerCommandCenterSnapshot } from '@/lib/decision-os/managerCommandCenter'
 import {
   buildWeeklyDecisionTimeline,
   buildTeamRiskSummary,
-  buildDecisionFocus,
 } from '@/lib/executive-viz/managerSeasonViewModel'
 import { ExecutiveHorizontalBars, ExecutiveDecisionSequence } from './ExecutiveCharts'
 import {
@@ -35,7 +37,7 @@ export function WeeklyDecisionTimelineCard({ snapshot }: { snapshot: ManagerComm
   return (
     <ExecutiveVisualizationShell
       title="Weekly Decision Timeline"
-      description="What to do first, in priority order."
+      description="Your lineup, trade, and engagement decisions — what to do first."
       icon={ListOrdered}
       accessibleSummary={model.headline}
     >
@@ -78,33 +80,6 @@ export function TeamRiskSummaryCard({ snapshot }: { snapshot: ManagerCommandCent
     >
       {!model.available ? (
         <ExecutiveUnavailableState description="Team risk appears once a league is connected and synced." />
-      ) : (
-        <>
-          <p className="mb-3 text-[12px] font-semibold text-secondary">{model.headline}</p>
-          <ExecutiveHorizontalBars items={model.items} />
-        </>
-      )}
-    </ExecutiveVisualizationShell>
-  )
-}
-
-export function DecisionFocusCard({ snapshot }: { snapshot: ManagerCommandCenterSnapshot | null }) {
-  const model = useMemo(() => buildDecisionFocus(snapshot), [snapshot])
-  return (
-    <ExecutiveVisualizationShell
-      title="Decision Focus"
-      description="Which areas need your attention."
-      icon={Compass}
-      accessibleSummary={model.headline}
-    >
-      {!model.available ? (
-        <ExecutiveUnavailableState description="Decision focus appears once you have active recommendations." />
-      ) : model.items.length === 0 ? (
-        <ExecutiveEmptyState
-          icon={Compass}
-          title="No focus areas right now"
-          description="No lineup, waiver, or trade recommendations are open across your teams."
-        />
       ) : (
         <>
           <p className="mb-3 text-[12px] font-semibold text-secondary">{model.headline}</p>
