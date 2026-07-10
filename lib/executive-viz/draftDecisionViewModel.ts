@@ -29,27 +29,9 @@
 import type { ManagerCommandCenterSnapshot } from '@/lib/decision-os/managerCommandCenter'
 import type { Recommendation, RecommendationPriority, RecommendationCategory } from '@/lib/decision-os/phase6/recommendations/types'
 import type { ExecutiveHealthStatus, ExecutiveBarDatum, ExecutiveSupportingChart } from './commissionerLeagueHealthViewModel'
+import { PRIORITY_RANK, statusFromPriority, titleCase } from './recommendationPresentation'
 
 const DRAFT_CATEGORIES = new Set<RecommendationCategory>(['draft_preparation'])
-
-const PRIORITY_RANK: Record<RecommendationPriority, number> = { critical: 4, high: 3, medium: 2, low: 1 }
-
-function statusFromPriority(priority: RecommendationPriority): ExecutiveHealthStatus {
-  switch (priority) {
-    case 'critical':
-      return 'critical'
-    case 'high':
-      return 'at_risk'
-    case 'medium':
-      return 'watch'
-    default:
-      return 'healthy'
-  }
-}
-
-function titleCase(value: string): string {
-  return value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (m) => m.toUpperCase())
-}
 
 function draftRecommendations(snapshot: ManagerCommandCenterSnapshot | null | undefined): Recommendation[] {
   if (!snapshot) return []

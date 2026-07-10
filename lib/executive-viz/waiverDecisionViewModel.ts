@@ -28,28 +28,9 @@
 import type { ManagerCommandCenterSnapshot } from '@/lib/decision-os/managerCommandCenter'
 import type { Recommendation, RecommendationPriority, RecommendationConfidence, RecommendationCategory } from '@/lib/decision-os/phase6/recommendations/types'
 import type { ExecutiveHealthStatus, ExecutiveBarDatum, ExecutiveSupportingChart } from './commissionerLeagueHealthViewModel'
+import { PRIORITY_RANK, statusFromPriority, titleCase } from './recommendationPresentation'
 
 const WAIVER_CATEGORIES = new Set<RecommendationCategory>(['waiver_opportunity', 'waiver_activation'])
-
-const PRIORITY_RANK: Record<RecommendationPriority, number> = { critical: 4, high: 3, medium: 2, low: 1 }
-
-/** Priority is the engine's OWN materiality/urgency ordinal — never a score this layer invents. */
-function statusFromPriority(priority: RecommendationPriority): ExecutiveHealthStatus {
-  switch (priority) {
-    case 'critical':
-      return 'critical'
-    case 'high':
-      return 'at_risk'
-    case 'medium':
-      return 'watch'
-    default:
-      return 'healthy'
-  }
-}
-
-function titleCase(value: string): string {
-  return value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (m) => m.toUpperCase())
-}
 
 function waiverRecommendations(snapshot: ManagerCommandCenterSnapshot | null | undefined): Recommendation[] {
   if (!snapshot) return []

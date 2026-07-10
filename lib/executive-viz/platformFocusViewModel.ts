@@ -26,36 +26,7 @@ import type { ManagerCommandCenterSnapshot } from '@/lib/decision-os/managerComm
 import type { RecommendationCategory, RecommendationPriority } from '@/lib/decision-os/phase6/recommendations/types'
 import type { AttentionSignalSeverity } from '@/lib/decision-os/attentionSignals'
 import type { ExecutiveHealthStatus, ExecutiveBarDatum, ExecutiveSupportingChart } from './commissionerLeagueHealthViewModel'
-
-const PRIORITY_RANK: Record<RecommendationPriority, number> = { critical: 4, high: 3, medium: 2, low: 1 }
-
-function statusFromPriority(priority: RecommendationPriority): ExecutiveHealthStatus {
-  switch (priority) {
-    case 'critical':
-      return 'critical'
-    case 'high':
-      return 'at_risk'
-    case 'medium':
-      return 'watch'
-    default:
-      return 'healthy'
-  }
-}
-
-function statusFromSeverity(severity: AttentionSignalSeverity): ExecutiveHealthStatus {
-  switch (severity) {
-    case 'critical':
-      return 'critical'
-    case 'high':
-      return 'at_risk'
-    case 'medium':
-      return 'watch'
-    case 'low':
-      return 'healthy'
-    default:
-      return 'excellent'
-  }
-}
+import { PRIORITY_RANK, statusFromPriority, statusFromSeverity } from './recommendationPresentation'
 
 const SEVERITY_RANK: Record<ExecutiveHealthStatus, number> = {
   critical: 5,

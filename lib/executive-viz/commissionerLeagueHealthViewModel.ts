@@ -13,6 +13,9 @@
  * the snapshot is a current-moment reading, so the view model is too.
  */
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
+// Phase V4.0: `statusFromScore` is re-exported here for backward compatibility, but its single source of
+// truth now lives in `recommendationPresentation.ts` alongside the other status mappings.
+import { statusFromScore } from './recommendationPresentation'
 
 /** 5 real health tiers (from the canonical `OverallStatus` domain) plus an explicit `unavailable` for
  * dimensions whose backing data genuinely isn't present, rather than silently drawing them as "good". */
@@ -80,15 +83,6 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
 }
 
-/** Shared score→status thresholds for the 0–100 sub-scores. Kept in one place so every score-backed
- * dimension reads consistently; count/ratio dimensions compute their own status from their real figure. */
-function statusFromScore(score: number): ExecutiveHealthStatus {
-  if (score >= 80) return 'excellent'
-  if (score >= 65) return 'healthy'
-  if (score >= 50) return 'watch'
-  if (score >= 35) return 'at_risk'
-  return 'critical'
-}
 
 function normalizeOverallStatus(status: string): ExecutiveHealthStatus {
   switch (status) {

@@ -17,23 +17,9 @@
 import type { LeagueAnalyticsSnapshot } from '@/lib/decision-os/leagueAnalytics'
 import type { Recommendation, RecommendationPriority, RecommendationCategory } from '@/lib/decision-os/phase6/recommendations/types'
 import type { ExecutiveHealthStatus, ExecutiveBarDatum, ExecutiveSupportingChart } from './commissionerLeagueHealthViewModel'
+import { PRIORITY_RANK, statusFromPriority, titleCase } from './recommendationPresentation'
 
 const TRADE_CATEGORIES = new Set<RecommendationCategory>(['trade_coaching', 'trade_activation'])
-
-const PRIORITY_RANK: Record<RecommendationPriority, number> = { critical: 4, high: 3, medium: 2, low: 1 }
-
-function statusFromPriority(priority: RecommendationPriority): ExecutiveHealthStatus {
-  switch (priority) {
-    case 'critical':
-      return 'critical'
-    case 'high':
-      return 'at_risk'
-    case 'medium':
-      return 'watch'
-    default:
-      return 'healthy'
-  }
-}
 
 function tradeRecommendations(recommendations: Recommendation[] | null | undefined): Recommendation[] {
   if (!recommendations) return []
@@ -84,10 +70,6 @@ function quadrantFor(priority: RecommendationPriority, confidence: Recommendatio
   if (highValue && !highConfidence) return 'investigate'
   if (!highValue && highConfidence) return 'easy_win'
   return 'monitor'
-}
-
-function titleCase(value: string): string {
-  return value.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim().replace(/\b\w/g, (m) => m.toUpperCase())
 }
 
 export function buildTradeOpportunityMatrix(

@@ -18,49 +18,10 @@ import type { ManagerCommandCenterSnapshot } from '@/lib/decision-os/managerComm
 import type { AttentionSignalSeverity } from '@/lib/decision-os/attentionSignals'
 import type { RecommendationPriority, RecommendationCategory } from '@/lib/decision-os/phase6/recommendations/types'
 import type { ExecutiveHealthStatus, ExecutiveBarDatum, ExecutiveSupportingChart } from './commissionerLeagueHealthViewModel'
+import { PRIORITY_RANK, statusFromPriority, statusFromSeverity, titleCase } from './recommendationPresentation'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
-}
-
-/** Attention-signal severity → executive status (presentation mapping, no re-derivation). */
-function statusFromSeverity(severity: AttentionSignalSeverity): ExecutiveHealthStatus {
-  switch (severity) {
-    case 'critical':
-      return 'critical'
-    case 'high':
-      return 'at_risk'
-    case 'medium':
-      return 'watch'
-    case 'low':
-      return 'healthy'
-    default:
-      return 'excellent'
-  }
-}
-
-/** Recommendation priority → executive status. */
-function statusFromPriority(priority: RecommendationPriority): ExecutiveHealthStatus {
-  switch (priority) {
-    case 'critical':
-      return 'critical'
-    case 'high':
-      return 'at_risk'
-    case 'medium':
-      return 'watch'
-    default:
-      return 'healthy'
-  }
-}
-
-const PRIORITY_RANK: Record<RecommendationPriority, number> = { critical: 4, high: 3, medium: 2, low: 1 }
-
-function titleCase(value: string): string {
-  return value
-    .replace(/[_-]+/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-    .replace(/\b\w/g, (m) => m.toUpperCase())
 }
 
 // ─── Flagship: Championship Trajectory ─────────────────────────────────────────

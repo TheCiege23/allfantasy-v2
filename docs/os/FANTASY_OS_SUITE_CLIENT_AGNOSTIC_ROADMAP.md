@@ -1544,6 +1544,24 @@ white-label licensing;** the only executive-layer gaps are visualizations deferr
 OS routes (FAAB, draft-runtime, platform history, the flag-gated trade market contract), each of which can
 light up with zero presentation rework.
 
+### V4.0 — Architecture & Launch Readiness Review (2026-07-10) — engineering design review
+
+An evidence-based engineering design review of the completed executive layer (not feature work), producing
+`FANTASY_OS_ARCHITECTURE_REVIEW.md`. The load-bearing result: the visualization layer is cleanly separated
+from Decision OS, verified by codebase grep — zero provider imports in the layer, zero reverse dependency
+(nothing in Decision OS or the providers imports the visualization layer), every Decision OS import is
+`import type` (no runtime coupling), and there is no fetch/prisma/resolver/engine call in the layer. Every
+visualization is traceable `contract → view model → visualization`, and every deferred capability has an
+additive extension point (a new builder + card + one render line — no redesign). One demonstrated
+duplication was found and fixed: `PRIORITY_RANK`/`statusFromPriority`/`titleCase`/`statusFromScore`/
+`statusFromSeverity` were byte-identical across up to five view models, so they were extracted into
+`lib/executive-viz/recommendationPresentation.ts` — a single source of truth for how every workspace maps
+priority/severity/score to the shared executive status vocabulary, enforced by a new test that forbids any
+view model from re-declaring them. Behavior-preserving (all 122 executive-viz tests green before and
+after). **Verdict: Fantasy OS (Licensing/B2B) is architecturally ready for enterprise pilots and
+white-label licensing** — internally consistent, one-directional, provider-agnostic, and extensible for
+future Decision OS capabilities without redesigning any dashboard.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1740,6 +1758,12 @@ light up with zero presentation rework.
   `components/decision-os/ManagerCommandCenterSection.tsx` and `app/commissioner-hub/CommissionerHubPageClient.tsx`.
   Performance was audited with no changes made (optimize only with evidence; none found). Deliverable:
   `FANTASY_OS_PRODUCTION_READINESS_CERTIFICATION.md`.
+- V4.0 was an architecture review, presentation-only: no backend changes, no Decision OS changes, no new
+  Operating Systems, no provider-specific UI, no Legacy/B2C. Its only code change is one evidence-driven
+  refactor — extracting the byte-identical status/priority/label helpers duplicated across up to five view
+  models into `lib/executive-viz/recommendationPresentation.ts` (a single source of truth), with the six
+  view models re-importing them and a new test forbidding re-declaration. Behavior-preserving. Deliverable:
+  `FANTASY_OS_ARCHITECTURE_REVIEW.md`.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

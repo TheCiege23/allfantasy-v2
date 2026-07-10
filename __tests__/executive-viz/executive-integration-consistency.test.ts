@@ -12,6 +12,13 @@ import { WAIVER_RESOURCE_STRATEGY_DEFERRED } from '@/lib/executive-viz/waiverDec
 import { DRAFT_VALUE_ANALYTICS_DEFERRED } from '@/lib/executive-viz/draftDecisionViewModel'
 import { PLATFORM_TREND_ANALYTICS_DEFERRED } from '@/lib/executive-viz/platformFocusViewModel'
 import { TRADE_POSITION_ANALYTICS_DEFERRED } from '@/lib/executive-viz/tradeMarketViewModel'
+import {
+  PRIORITY_RANK,
+  statusFromPriority,
+  statusFromSeverity,
+  statusFromScore,
+  titleCase,
+} from '@/lib/executive-viz/recommendationPresentation'
 
 function read(...segments: string[]): string {
   return fs.readFileSync(path.join(process.cwd(), 'components', 'executive-viz', ...segments), 'utf8')
@@ -118,6 +125,28 @@ describe('Step 7 — provider abstraction: no provider terminology in rendered s
         .map((l) => l.replace(/\/\/.*/, ''))
         .join('\n')
       expect(codeOnly, f).not.toMatch(/\b(Sleeper|ESPN|Yahoo|Fantrax|Fleaflicker|MFL)\b/)
+    }
+  })
+})
+
+describe('Step 1 (V4.0) — recommendation-presentation helpers are shared, not duplicated', () => {
+  it('the shared helpers map priority/severity/score to status consistently, and no view model redefines them', () => {
+    expect(statusFromPriority('critical')).toBe('critical')
+    expect(statusFromPriority('high')).toBe('at_risk')
+    expect(statusFromSeverity('low')).toBe('healthy')
+    expect(statusFromScore(90)).toBe('excellent')
+    expect(statusFromScore(20)).toBe('critical')
+    expect(titleCase('trade_coaching')).toBe('Trade Coaching')
+    expect(PRIORITY_RANK.critical).toBeGreaterThan(PRIORITY_RANK.low)
+
+    // No view model may re-declare the shared helpers (single source of truth).
+    for (const vm of [
+      'commissionerLeagueHealthViewModel.ts', 'managerSeasonViewModel.ts', 'leagueMomentumViewModel.ts',
+      'tradeMarketViewModel.ts', 'waiverDecisionViewModel.ts', 'draftDecisionViewModel.ts', 'platformFocusViewModel.ts',
+    ]) {
+      const src = fs.readFileSync(path.join(process.cwd(), 'lib', 'executive-viz', vm), 'utf8')
+      expect(src, vm).not.toMatch(/function statusFromPriority\(|function statusFromScore\(|function statusFromSeverity\(|function titleCase\(/)
+      expect(src, vm).not.toMatch(/const PRIORITY_RANK\b/)
     }
   })
 })

@@ -16,17 +16,10 @@
 import type { LeagueAnalyticsSnapshot } from '@/lib/decision-os/leagueAnalytics'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import type { ExecutiveHealthStatus, ExecutiveBarDatum, ExecutiveSupportingChart } from './commissionerLeagueHealthViewModel'
+import { statusFromScore } from './recommendationPresentation'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
-}
-
-function statusFromScore(score: number): ExecutiveHealthStatus {
-  if (score >= 80) return 'excellent'
-  if (score >= 65) return 'healthy'
-  if (score >= 50) return 'watch'
-  if (score >= 35) return 'at_risk'
-  return 'critical'
 }
 
 // ─── Flagship: League Momentum ─────────────────────────────────────────────────
