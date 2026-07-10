@@ -33,7 +33,10 @@ import MissionControlCard from '@/components/decision-os/MissionControlCard'
 import LeagueAnalyticsCard from '@/components/decision-os/LeagueAnalyticsCard'
 import LeagueContextCard from '@/components/decision-os/LeagueContextCard'
 import CommissionerCommandCenterSection from '@/components/decision-os/CommissionerCommandCenterSection'
-import { decisionOsToneClasses } from '@/components/decision-os/DecisionOsCardPrimitives'
+import {
+  decisionOsToneClasses,
+  decisionOsHealthStatusToneClasses,
+} from '@/components/decision-os/DecisionOsCardPrimitives'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
@@ -366,18 +369,12 @@ function SectionHeader({ label, hint }: { label: string; hint?: string }) {
   )
 }
 
-const HEALTH_STATUS_CLASSES: Record<string, string> = {
-  excellent: 'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300',
-  healthy: 'border-cyan-500/25 bg-cyan-500/[0.08] text-cyan-300',
-  watch: 'border-amber-500/25 bg-amber-500/[0.08] text-amber-300',
-  at_risk: 'border-orange-500/25 bg-orange-500/[0.08] text-orange-300',
-  critical: 'border-rose-500/30 bg-rose-500/[0.10] text-rose-300',
-}
-
-const ACTION_TONE_CLASSES: Record<CommissionerHealthAction['tone'], string> = {
-  standard: 'border-subtle bg-surface-muted text-secondary hover:bg-surface-hover',
-  warning: 'border-amber-500/25 bg-amber-500/[0.08] text-amber-300 hover:bg-amber-500/[0.13]',
-  danger: 'border-rose-500/25 bg-rose-500/[0.08] text-rose-300 hover:bg-rose-500/[0.13]',
+// Phase V1.2: removed the private `HEALTH_STATUS_CLASSES` and `ACTION_TONE_CLASSES` tables that lived
+// here — consolidated onto the shared `decisionOsHealthStatusToneClasses`/`decisionOsToneClasses`
+// primitives (see `DecisionOsCardPrimitives.tsx`). `ACTION_TONE_CLASSES`'s tone domain
+// (`standard`/`warning`/`danger`) maps 1:1 onto `decisionOsToneClasses`'s `neutral`/`warning`/`danger`.
+function actionToneClasses(tone: CommissionerHealthAction['tone']): string {
+  return `${decisionOsToneClasses(tone === 'standard' ? 'neutral' : tone)} transition hover:brightness-95 motion-reduce:transition-none`
 }
 
 function sumMetric(
@@ -410,12 +407,7 @@ function MetricTile({
   value: string | number
   tone?: 'neutral' | 'good' | 'warn'
 }) {
-  const toneClass =
-    tone === 'good'
-      ? 'border-emerald-500/[0.16] bg-emerald-500/[0.04] text-emerald-300'
-      : tone === 'warn'
-        ? 'border-amber-500/[0.18] bg-amber-500/[0.05] text-amber-300'
-        : 'border-subtle bg-surface-muted text-secondary'
+  const toneClass = decisionOsToneClasses(tone === 'good' ? 'good' : tone === 'warn' ? 'warning' : 'neutral')
   return (
     <div className={`flex min-h-[78px] flex-col justify-between rounded-2xl border p-3 ${toneClass}`}>
       <div className="flex items-center justify-between gap-2">
@@ -429,7 +421,7 @@ function MetricTile({
 
 function CommissionerActionLink({ action }: { action: CommissionerHealthAction }) {
   const className = action.enabled
-    ? ACTION_TONE_CLASSES[action.tone]
+    ? actionToneClasses(action.tone)
     : 'cursor-not-allowed border-subtle bg-surface-muted text-muted'
 
   if (!action.enabled) {
@@ -448,7 +440,7 @@ function CommissionerActionLink({ action }: { action: CommissionerHealthAction }
     <Link
       href={action.href}
       prefetch={disablePrefetchForAuthSensitiveHref(action.href) ? false : undefined}
-      className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${className}`}
+      className={`focus-ring inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-semibold transition ${className}`}
       title={action.requiresConfirmation ? 'Requires commissioner confirmation' : undefined}
     >
       <Settings className="h-3 w-3" aria-hidden />
@@ -525,9 +517,7 @@ function LeagueHealthDashboard({
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
         {visibleSnapshots.map((snapshot) => {
-          const statusClass =
-            HEALTH_STATUS_CLASSES[snapshot.overallStatus] ??
-            'border-subtle bg-surface-muted text-muted'
+          const statusClass = decisionOsHealthStatusToneClasses(snapshot.overallStatus)
           return (
             <article
               key={snapshot.leagueId}
@@ -816,7 +806,7 @@ export default function CommissionerHubPageClient({
               <Link
                 href={primaryHeroHref}
                 prefetch={disablePrefetchForAuthSensitiveHref(primaryHeroHref) ? false : undefined}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-[14px] font-bold text-content-inverse shadow-[0_0_20px_rgba(245,158,11,0.25)] transition hover:from-amber-300 hover:to-amber-400 active:opacity-90"
+                className="focus-ring inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-[14px] font-bold text-content-inverse shadow-[0_0_20px_rgba(245,158,11,0.25)] transition hover:from-amber-300 hover:to-amber-400 active:opacity-90"
               >
                 <Plus className="h-4 w-4" aria-hidden />
                 {primaryHeroLabel}
@@ -824,7 +814,7 @@ export default function CommissionerHubPageClient({
               <Link
                 href={secondaryHeroHref}
                 prefetch={disablePrefetchForAuthSensitiveHref(secondaryHeroHref) ? false : undefined}
-                className="inline-flex items-center gap-2 rounded-xl border border-subtle bg-surface-muted px-5 py-2.5 text-[14px] font-semibold text-primary transition hover:bg-surface-hover"
+                className="focus-ring inline-flex items-center gap-2 rounded-xl border border-subtle bg-surface-muted px-5 py-2.5 text-[14px] font-semibold text-primary transition hover:bg-surface-hover"
               >
                 <ArrowDownToLine className="h-4 w-4" aria-hidden />
                 {secondaryHeroLabel}
@@ -900,7 +890,7 @@ export default function CommissionerHubPageClient({
               <Link
                 href={emptyPrimaryHref}
                 prefetch={disablePrefetchForAuthSensitiveHref(emptyPrimaryHref) ? false : undefined}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-semibold text-amber-300 transition hover:bg-amber-500/20"
+                className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-semibold text-amber-300 transition hover:bg-amber-500/20"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden />
                 {emptyPrimaryLabel}
@@ -908,7 +898,7 @@ export default function CommissionerHubPageClient({
               <Link
                 href={emptySecondaryHref}
                 prefetch={disablePrefetchForAuthSensitiveHref(emptySecondaryHref) ? false : undefined}
-                className="inline-flex items-center gap-1.5 rounded-xl border border-subtle bg-surface-muted px-4 py-2 text-[13px] font-semibold text-secondary transition hover:bg-surface-hover"
+                className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-subtle bg-surface-muted px-4 py-2 text-[13px] font-semibold text-secondary transition hover:bg-surface-hover"
               >
                 <ArrowDownToLine className="h-3.5 w-3.5" aria-hidden />
                 {emptySecondaryLabel}

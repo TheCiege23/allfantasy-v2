@@ -120,7 +120,7 @@ export default function LeaguePulseCard({ pulse, variant = 'dashboard', compact 
             {pulse.nextAction.href ? (
               <Link
                 href={pulse.nextAction.href}
-                className="mt-4 inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-sm font-bold text-content-inverse transition hover:bg-brand-strong"
+                className="focus-ring mt-4 inline-flex min-h-[40px] items-center gap-2 rounded-xl bg-brand-primary px-4 py-2 text-sm font-bold text-content-inverse transition hover:bg-brand-strong"
               >
                 Continue
                 <ArrowRight className="h-4 w-4" aria-hidden />

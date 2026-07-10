@@ -1,10 +1,13 @@
 /**
- * Fantasy OS Suite — Phase V1.1: Visual OS Expansion and Shared Primitive Consolidation.
+ * Fantasy OS Suite — Phase V1.1/V1.2: Visual OS Expansion and Shared Primitive Consolidation.
  *
  * Phase V1.0 established `decisionOsToneClasses`/`decisionOsSeverityToneClasses` but only used them in
- * new code (the Commissioner Hub flagship rebuild). This phase migrated 4 pre-existing components
+ * new code (the Commissioner Hub flagship rebuild). Phase V1.1 migrated 4 pre-existing components
  * (`MissionControlCard`, `LeaguePulseCard`, `DecisionRecommendationsCard`, `CommissionerAttentionQueue`)
- * off their own private tone tables onto the shared primitives. This file proves the migration didn't
+ * off their own private tone tables onto the shared primitives. Phase V1.2 finished the job — migrating
+ * `LeagueHealthDashboard`'s remaining 3 tone systems (`HEALTH_STATUS_CLASSES`, `ACTION_TONE_CLASSES`,
+ * `MetricTile`) and adding `decisionOsHealthStatusToneClasses`, a second genuinely-necessary additive
+ * primitive extension for `OverallStatus`'s real 5-tier domain. This file proves each migration didn't
  * change real-world meaning: every real domain value still maps to the same visual bucket it did before
  * (or, where the pre-migration color was itself a light-mode contrast bug, to the corrected shared-token
  * equivalent — never a random reassignment), unrecognized/unknown values degrade safely instead of
@@ -17,6 +20,7 @@ import { describe, expect, it } from 'vitest'
 import {
   decisionOsToneClasses,
   decisionOsSeverityToneClasses,
+  decisionOsHealthStatusToneClasses,
 } from '@/components/decision-os/DecisionOsCardPrimitives'
 import MissionControlCard from '@/components/decision-os/MissionControlCard'
 import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
@@ -57,6 +61,38 @@ describe('decisionOsSeverityToneClasses — the genuinely-necessary 5-tier exten
     expect(classes.informational).toContain('emerald')
     // All 5 must be distinct — collapsing any two would silently lose a real severity distinction.
     expect(new Set(Object.values(classes)).size).toBe(5)
+  })
+})
+
+describe('decisionOsHealthStatusToneClasses — Phase V1.2, another genuinely-necessary extension', () => {
+  it('preserves the real 5-tier OverallStatus escalation (excellent > healthy > watch > at_risk > critical) with 5 visually distinct colors', () => {
+    const classes = {
+      excellent: decisionOsHealthStatusToneClasses('excellent'),
+      healthy: decisionOsHealthStatusToneClasses('healthy'),
+      watch: decisionOsHealthStatusToneClasses('watch'),
+      at_risk: decisionOsHealthStatusToneClasses('at_risk'),
+      critical: decisionOsHealthStatusToneClasses('critical'),
+    }
+    expect(classes.excellent).toContain('emerald')
+    expect(classes.healthy).toContain('cyan')
+    expect(classes.watch).toContain('amber')
+    expect(classes.at_risk).toContain('orange')
+    expect(classes.critical).toContain('rose')
+    // All 5 must be distinct — LeagueHealthDashboard shows 5 real, currently-distinguishable statuses.
+    expect(new Set(Object.values(classes)).size).toBe(5)
+  })
+
+  it('uses a readable, saturated text shade (-600) rather than the light -300 pastel this defect class has been fixed 3 times already', () => {
+    for (const status of ['excellent', 'healthy', 'watch', 'at_risk', 'critical'] as const) {
+      expect(decisionOsHealthStatusToneClasses(status)).toMatch(/text-\w+-600/)
+      expect(decisionOsHealthStatusToneClasses(status)).not.toMatch(/text-\w+-300/)
+    }
+  })
+
+  it('degrades an unrecognized status to a safe neutral fallback instead of throwing or returning undefined', () => {
+    const result = decisionOsHealthStatusToneClasses('some_future_status')
+    expect(result).toContain('surface-muted')
+    expect(result).not.toContain('undefined')
   })
 })
 

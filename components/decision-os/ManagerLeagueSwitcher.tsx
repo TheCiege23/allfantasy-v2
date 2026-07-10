@@ -31,7 +31,7 @@ export default function ManagerLeagueSwitcher({ leagues }: ManagerLeagueSwitcher
               key={league.id}
               href={`/league/${league.id}`}
               data-testid={`manager-league-switcher-item-${league.id}`}
-              className="flex items-center justify-between gap-2 rounded-lg border border-subtle bg-surface px-3 py-2 text-left text-sm font-semibold text-primary transition hover:border-brand-primary/40 hover:bg-surface-muted"
+              className="focus-ring flex items-center justify-between gap-2 rounded-lg border border-subtle bg-surface px-3 py-2 text-left text-sm font-semibold text-primary transition hover:border-brand-primary/40 hover:bg-surface-muted"
             >
               <span className="truncate">{league.name}</span>
               <ChevronRight className="h-4 w-4 shrink-0 text-muted" aria-hidden />

@@ -672,7 +672,7 @@ export function LeagueTab({
           <Link
             href={`/league/${league.id}/manager-hub`}
             data-testid="nav-manager-intelligence"
-            className="flex items-start justify-between gap-3 rounded-2xl border border-violet-500/25 bg-violet-500/10 px-4 py-3 hover:bg-violet-500/15"
+            className="focus-ring flex items-start justify-between gap-3 rounded-2xl border border-violet-500/25 bg-violet-500/10 px-4 py-3 hover:bg-violet-500/15"
           >
             <span className="min-w-0">
               <span className="flex items-center gap-2 text-[13px] font-semibold text-primary">
@@ -688,7 +688,7 @@ export function LeagueTab({
         <Link
           href={`/league/${league.id}/intelligence`}
           data-testid="nav-commissioner-intelligence"
-          className="flex items-start justify-between gap-3 rounded-2xl border border-status-info/25 bg-status-info/10 px-4 py-3 hover:bg-status-info/15"
+          className="focus-ring flex items-start justify-between gap-3 rounded-2xl border border-status-info/25 bg-status-info/10 px-4 py-3 hover:bg-status-info/15"
         >
           <span className="min-w-0">
             <span className="flex items-center gap-2 text-[13px] font-semibold text-primary">

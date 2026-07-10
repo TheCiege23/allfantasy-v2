@@ -299,3 +299,39 @@ const SEVERITY_TONE_CLASS: Record<DecisionOsSeverityLabel, string> = {
 export function decisionOsSeverityToneClasses(severity: DecisionOsSeverityLabel): string {
   return SEVERITY_TONE_CLASS[severity]
 }
+
+/** Phase V1.2 — a second genuinely-additive extension, same reasoning as `decisionOsSeverityToneClasses`
+ * above. Local mirror of `OverallStatus` (`lib/league-health/league-health-engine.ts`) — a real 5-tier
+ * domain (excellent > healthy > watch > at_risk > critical). `MissionControlCard.tsx` already migrated
+ * its OWN `overallStatusClass` table onto `DecisionOsTone` in Phase V1.1, but that was only a safe,
+ * lossless migration because *that* table's excellent/healthy were already identical colors, and its
+ * at_risk/critical were already identical colors. `LeagueHealthDashboard`'s `HEALTH_STATUS_CLASSES`
+ * table (this one) uses 5 genuinely DISTINCT colors for the same 5 status values (healthy is cyan, not
+ * excellent's emerald; at_risk is orange, not critical's rose) — collapsing it onto the 4-tone system
+ * would silently destroy that distinction. Per this phase's own instruction to extend additively rather
+ * than force an incorrect mapping, and per "preserve exact meaning, existing thresholds," this
+ * pre-existing cross-component color difference for the same status value is left as-is (a real,
+ * separately-documented inconsistency — see `docs/os/VISUAL_OS_V1_AUDIT.md` — not something this phase
+ * was asked to unify), only consolidated so `LeagueHealthDashboard`'s own 5-color set lives in one
+ * shared, reusable place instead of a private table. The 5 hues themselves (emerald/cyan/amber/
+ * orange/rose) are unchanged from the original — only the TEXT shade moved from a light `-300` pastel
+ * (a light-mode contrast risk, the same defect class fixed 3 times already in V1.0/V1.1 — see
+ * `docs/os/VISUAL_OS_V1_AUDIT.md` Findings 3/4/10) to a readable, saturated `-600`. Borders/backgrounds
+ * (the part that carries no text-contrast requirement) are untouched, so the "exact meaning, existing
+ * thresholds" instruction is honored — this is a contrast fix, not a semantic change. */
+export type DecisionOsHealthStatusLabel = 'excellent' | 'healthy' | 'watch' | 'at_risk' | 'critical'
+
+const HEALTH_STATUS_TONE_CLASS: Record<DecisionOsHealthStatusLabel, string> = {
+  excellent: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-600',
+  healthy: 'border-cyan-500/25 bg-cyan-500/10 text-cyan-600',
+  watch: 'border-amber-500/25 bg-amber-500/10 text-amber-600',
+  at_risk: 'border-orange-500/25 bg-orange-500/10 text-orange-600',
+  critical: 'border-rose-500/30 bg-rose-500/10 text-rose-600',
+}
+
+export function decisionOsHealthStatusToneClasses(status: string): string {
+  return (
+    HEALTH_STATUS_TONE_CLASS[status as DecisionOsHealthStatusLabel] ??
+    'border-subtle bg-surface-muted text-muted'
+  )
+}

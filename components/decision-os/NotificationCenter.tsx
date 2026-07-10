@@ -101,7 +101,7 @@ export default function NotificationCenter({ notifications, leagueNameById }: No
                         type="button"
                         onClick={() => markRead(notification.id)}
                         data-testid={`notification-center-mark-read-${notification.id}`}
-                        className="rounded-md px-2 py-1 text-[11px] font-semibold text-brand-primary hover:bg-brand-primary/10"
+                        className="focus-ring rounded-md px-2 py-1 text-[11px] font-semibold text-brand-primary hover:bg-brand-primary/10"
                       >
                         Mark read
                       </button>
@@ -111,7 +111,7 @@ export default function NotificationCenter({ notifications, leagueNameById }: No
                       onClick={() => dismiss(notification.id)}
                       data-testid={`notification-center-dismiss-${notification.id}`}
                       aria-label="Dismiss"
-                      className="rounded-md p-1 text-muted hover:bg-surface-muted"
+                      className="focus-ring rounded-md p-1 text-muted hover:bg-surface-muted"
                     >
                       <X className="h-3.5 w-3.5" aria-hidden />
                     </button>

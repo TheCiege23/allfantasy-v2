@@ -1220,6 +1220,56 @@ holds under real data. 27 new tests (`decision-os-tone-migration.test.tsx`), ful
 typecheck run against the CURRENT baseline (158, back to the original established number — the 162 seen
 mid-V1.0 confirmed as transient, unrelated branch drift). Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
 
+### V1.2 — Visual OS Consistency Completion (2026-07-10)
+
+Continues directly from V1.1 (`1d8ef08ac`). Same boundaries: zero Decision OS logic, authorization, or
+backend contract changes.
+
+**League Health tone consolidation (Step 2)**: read `LeagueHealthDashboard`'s 3 remaining private tone
+tables directly. `HEALTH_STATUS_CLASSES` modeled the same real 5-value `OverallStatus` domain
+`MissionControlCard.tsx` already migrated in V1.1 — but with 5 genuinely distinct colors (healthy=cyan ≠
+excellent=emerald; at_risk=orange ≠ critical=rose), unlike `MissionControlCard`'s version of the same
+domain, where those pairs were already identical colors and a lossless 4-tone collapse was possible.
+Collapsing THIS table would have erased a real, currently-visible distinction, so
+`DecisionOsCardPrimitives.tsx` gained a second additive extension, `decisionOsHealthStatusToneClasses` —
+same reasoning as V1.1's `decisionOsSeverityToneClasses`. Found and fixed, in the same pass, the same
+recurring light-pastel contrast pattern (Findings 3/4/10) on this table's text color — a 4th instance,
+fixed the same way (`-300` → `-600`, hue/meaning unchanged). `ACTION_TONE_CLASSES` and `MetricTile`
+mapped cleanly onto the existing `decisionOsToneClasses` with no domain richness lost.
+
+**Focus-ring primitive (Step 3)**: found the codebase already has two competing focus-ring utility
+classes. Investigated both rather than assuming — `.af-focus-ring`/`.af-control:focus-visible` (zero
+current usages) were **completely non-functional in the app's default light theme**: a duplicate, later
+`:root` block in `globals.css` redefines the shared `--focus-ring` variable to an `outline`-shaped value,
+invalid syntax when consumed as `box-shadow` (what both broken classes did), silently computing to
+`none`. Verified live by creating a real focused DOM element and reading its computed `box-shadow`
+(`"none"`). `.focus-ring:focus-visible` (already adopted 20+ times across dashboard/referral/subscription
+components) was unaffected, since it already consumed the variable as `outline`. Formalized the
+already-correct, already-widely-adopted `.focus-ring` as the one shared primitive — zero regression risk
+— rather than asking existing adopters to switch to a freshly-fixed alternative. Fixed the broken classes
+anyway (real bug, zero usages, good hygiene) by switching them to `outline` too. Adopted `.focus-ring`
+across Commissioner Hub (hero CTAs, empty-state CTAs, League Health action links), Manager Hub (hero
+CTA), League Focus (the 2 launcher links), both league switchers (previously had zero focus styling at
+all), `LeaguePulseCard`'s primary recommendation action, and `NotificationCenter`'s alert-row actions.
+
+**Cold-navigation investigation (Step 4) — resolved with real evidence**: root-caused via real dev-server
+logs, not speculation. `/api/i18n/translations` — a static JSON lookup with zero database dependency —
+took 89–90 seconds in this session; `/api/auth/session` took 90 seconds; the same extreme-latency pattern
+appeared across many unrelated routes on many unrelated pages throughout the session. This proves the
+League Focus "Loading league…" hang found in V1.1 reflects genuine, session-wide environmental slowness,
+not any defect in League Focus's own code. `app/league/[leagueId]/loading.tsx` was confirmed to be a
+standard, correctly-implemented Next.js App Router loading boundary, and `page.tsx`'s 6 Prisma queries
+were confirmed already parallelized via `Promise.all` — both already-correct patterns. Per the phase's
+own instruction, zero code changes were made.
+
+**Verification**: live DOM/computed-style inspection confirmed real League Health Dashboard content
+(found via `claude-in-chrome`'s `find` tool against a real, populated account: "78/100 health score,
+45/100 engagement score") and confirmed `.focus-ring` present on real rendered hero CTAs. Screenshot
+capture was itself hampered this phase by the same extreme environmental slowness the Step 4
+investigation documents — both `preview_screenshot` and `claude-in-chrome`'s screenshot action timed out
+intermittently, additional evidence for (not contradicting) the Step 4 finding. 11 new tests across 3
+files. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1282,6 +1332,14 @@ mid-V1.0 confirmed as transient, unrelated branch drift). Full detail: `VISUAL_O
   config and production (`next-start`) analytics behavior are completely unchanged; no Decision OS
   composition, resolver, route, or authorization behavior touched; no new providers, no new intelligence,
   no backend contracts modified, no league behavior changed (League Focus got a className-only fix).
+- V1.2 touched only presentation + one focused CSS bugfix with zero current usages: 3 tone systems
+  migrated, 1 more genuinely-necessary additive primitive extension, 1 pre-existing broken CSS class
+  fixed (`.af-focus-ring`/`.af-control`, unused, so zero behavior change to anything live), `.focus-ring`
+  adopted on real interactive elements across 6 files — no Decision OS composition, resolver, route, or
+  authorization behavior touched; no new providers, no new intelligence, no backend contracts modified;
+  the League Focus cold-navigation investigation made zero code changes, per its own "leave production
+  code unchanged if not reproducible outside the sandbox" instruction, having found real evidence it
+  is exactly that.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

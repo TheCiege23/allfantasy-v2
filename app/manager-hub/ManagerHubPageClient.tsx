@@ -35,7 +35,7 @@ export default function ManagerHubPageClient({ leagues, isAuthenticated }: Manag
           <Link
             href="/login?callbackUrl=/manager-hub"
             prefetch={false}
-            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-[14px] font-bold text-content-inverse shadow-[0_0_20px_rgba(245,158,11,0.25)] transition hover:from-amber-300 hover:to-amber-400 active:opacity-90"
+            className="focus-ring mt-5 inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 to-amber-500 px-5 py-2.5 text-[14px] font-bold text-content-inverse shadow-[0_0_20px_rgba(245,158,11,0.25)] transition hover:from-amber-300 hover:to-amber-400 active:opacity-90"
           >
             Sign In
           </Link>

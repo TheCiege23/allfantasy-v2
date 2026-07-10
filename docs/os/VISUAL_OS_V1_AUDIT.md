@@ -164,3 +164,46 @@ Both of the above "deferred" items were picked up this phase, plus the remaining
   logic touched); the equivalent token-routing pattern was verified live and correct on 3 other pages
   (Commissioner Hub hero, AI Prompt Cards, Migration Center) via `preview_eval` computed-style checks.
 - Full detail in `VISUAL_OS_V1_FOUNDATION.md`'s Phase V1.1 section.
+
+## Update — Phase V1.2
+
+- **League Health tone systems closed**: `LeagueHealthDashboard`'s remaining 3 hand-rolled tone tables
+  (`HEALTH_STATUS_CLASSES`, `ACTION_TONE_CLASSES`, `MetricTile`'s inline tone logic) are now migrated.
+  `HEALTH_STATUS_CLASSES` modeled the SAME real 5-value `OverallStatus` domain
+  (`excellent/healthy/watch/at_risk/critical`) that `MissionControlCard.tsx` already migrated in V1.1 —
+  but with 5 genuinely DISTINCT colors (healthy=cyan vs. excellent=emerald; at_risk=orange vs.
+  critical=rose), unlike `MissionControlCard`'s version where those pairs were already identical colors.
+  Collapsing this one onto the 4-tone system would have silently erased a real, currently-visible
+  distinction, so `DecisionOsCardPrimitives.tsx` gained a second additive extension,
+  `decisionOsHealthStatusToneClasses` — same reasoning as V1.1's `decisionOsSeverityToneClasses`.
+  **New finding, fixed in the same pass**: this table's original text colors (`text-emerald-300` etc.)
+  were the same light-pastel contrast-risk pattern found and fixed 4 times already (Findings 3/4/10) —
+  swapped to `-600` shades, borders/backgrounds unchanged (a contrast fix, not a meaning change).
+  `ACTION_TONE_CLASSES` (`standard/warning/danger`) and `MetricTile` (`neutral/good/warn`) both mapped
+  cleanly onto `decisionOsToneClasses` with no real domain richness lost.
+- **New Finding 11 (real, deferred, not fixed)**: the Commissioner Hub empty-state CTAs use
+  `text-amber-300` — the same recurring light-pastel contrast-risk pattern (Findings 3/4/10 and part of
+  this update). Found incidentally while adding focus-ring support to these same buttons; NOT fixed this
+  phase, since Step 3's scope was focus-ring adoption, not another contrast sweep — flagged for the next
+  phase rather than silently left or silently expanded into.
+- **New Finding 12 (real, verified, fixed)**: `.af-focus-ring:focus-visible` and `.af-control:focus-visible`
+  (`app/globals.css`) were completely non-functional in the app's default light theme — a duplicate,
+  later `:root` block redefines `--focus-ring` to an `outline`-shaped value, which is invalid syntax when
+  consumed as `box-shadow` (what both classes did) and silently computes to `none`. Verified live by
+  creating a real focused element and reading its computed `box-shadow` (`"none"`). Both classes had zero
+  current usages, so this was a latent bug, not a live regression. Fixed by switching both to `outline`,
+  matching the value shape `--focus-ring` is actually defined as today. The already-adopted, unaffected
+  `.focus-ring:focus-visible` class (20+ existing usages across dashboard/referral/subscription
+  components) was left completely untouched and was chosen as this phase's shared focus-ring primitive
+  precisely because it was already correct and already the de facto standard — not `.af-focus-ring`.
+- **Cold-navigation investigation (Finding 10's caveat, now resolved)**: root-caused via real server
+  logs. Confirmed **sandbox/session-specific environmental slowness, not a code defect** — the same
+  session showed 15–90 SECOND response times across many unrelated routes on many different pages
+  (`/api/i18n/translations`, a static JSON lookup, took 89–90 seconds; `/api/auth/session` took 90
+  seconds; `/api/subscription/entitlements` took 80 seconds), proving the slowness has nothing to do
+  with League Focus's own code, data-fetch races, or Suspense boundaries. `app/league/[leagueId]/loading.tsx`
+  is a standard, correctly-implemented Next.js App Router loading boundary — the "Loading league…" text
+  is Next.js's own automatic fallback while the server component's `Promise.all` of 6 parallel Prisma
+  queries resolves, which is itself a good, already-correct pattern. Zero code changes made. Full detail
+  in `VISUAL_OS_V1_FOUNDATION.md`'s Phase V1.2 section.
+- Full detail in `VISUAL_OS_V1_FOUNDATION.md`'s Phase V1.2 section.

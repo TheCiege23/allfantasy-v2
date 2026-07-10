@@ -329,3 +329,175 @@ logs, faster page settle time during any future visual QA) and is kept.
 - Focus-ring consistency across primary CTA buttons — real, deferred (see Step 6).
 - Everything V1.0 already deferred (League Focus full redesign, `CommissionerAttentionQueue` renaming)
   remains deferred; this phase only closed the tone-migration and 3-named-surface items.
+
+---
+
+# Phase V1.2 — Visual OS Consistency Completion
+
+Continues directly from Phase V1.1 (`1d8ef08ac`, doc fixup `bce972a96`). Same boundaries: zero Decision
+OS logic, authorization, or backend contract changes.
+
+## Step 1 — Foundation verified before changing anything
+
+Confirmed branch (`g15-event-foundation`) and the last 5 commits directly via `git log` before touching
+anything. Re-read `DecisionOsCardPrimitives.tsx` in full (not from memory) and `LeagueHealthDashboard`'s
+real current source, per the phase's own Step 1 instruction. Established typecheck baseline: 158 (the
+same number every phase in this workstream has confirmed).
+
+## Step 2 — League Health tone consolidation
+
+Read `HEALTH_STATUS_CLASSES`, `ACTION_TONE_CLASSES`, and `MetricTile`'s inline tone logic directly, then
+compared each real domain to `decisionOsToneClasses`'s 4 non-neutral buckets before writing code:
+
+| Table | Domain | Result |
+| --- | --- | --- |
+| `HEALTH_STATUS_CLASSES` | `OverallStatus` (5-tier: excellent/healthy/watch/at_risk/critical) | **Not a safe 4-tone migration** — this table used 5 genuinely distinct colors (healthy=cyan ≠ excellent=emerald; at_risk=orange ≠ critical=rose), unlike `MissionControlCard`'s own version of the same domain (V1.1), where those pairs were already identical colors. Additively extended the primitives with `decisionOsHealthStatusToneClasses`. |
+| `ACTION_TONE_CLASSES` | `CommissionerHealthActionTone` (standard/warning/danger) | Clean 1:1 match onto `decisionOsToneClasses` (neutral/warning/danger) |
+| `MetricTile` | local (neutral/good/warn) | Clean 1:1 match onto `decisionOsToneClasses` (neutral/good/warning) |
+
+While migrating `HEALTH_STATUS_CLASSES`, found the same recurring light-pastel contrast-risk pattern
+(text-`-300` shades) already fixed 3 times in V1.0/V1.1 — fixed it the same way this time too (`-600`
+shades), keeping the 5 distinct hues (a contrast fix, not a semantic change, consistent with the phase's
+"preserve exact meaning, existing thresholds" instruction — hue = meaning, shade = legibility).
+
+`ACTION_TONE_CLASSES`'s per-tone hover treatment (`hover:bg-amber-500/[0.13]` etc.) was replaced with one
+generic, tone-agnostic `hover:brightness-95` — a small simplification, not a meaning change (still 3
+visually distinct hover states, since the base tone colors differ).
+
+**New tests**: extended `decision-os-tone-migration.test.tsx` with 3 new tests for
+`decisionOsHealthStatusToneClasses` (5-distinct-color proof, readable-shade proof, safe-fallback proof).
+New `commissioner-hub-league-health-tone-consolidation.test.ts` (4 tests, source-scan convention
+matching `commissioner-hub-command-center-wiring.test.ts`, since `CommissionerHubPageClient.tsx` is not
+fully rendered in tests) proves the old private tables are actually gone and the real usage sites call
+the new shared primitives.
+
+## Step 3 — Shared focus-ring primitive
+
+Found the codebase already has not one but **two** competing focus-ring utility classes:
+`.focus-ring:focus-visible` (already adopted 20+ times across dashboard/referral/subscription
+components) and `.af-focus-ring:focus-visible`/`.af-control:focus-visible` (zero current usages).
+Investigated both rather than assuming — found `.af-focus-ring`/`.af-control` were **completely
+non-functional in the app's default light theme**: a later, duplicate `:root` block in `globals.css`
+redefines the shared `--focus-ring` custom property to an `outline`-shaped value
+(`2px solid rgba(34, 211, 238, 0.5)`), which is invalid syntax when consumed as `box-shadow` (what both
+broken classes did) and silently computes to `none`. Verified live by creating a real focused DOM element
+and reading its computed `box-shadow` (`"none"`, confirmed the bug). `.focus-ring` was unaffected because
+it already consumed the variable as `outline`, the shape it's actually defined as.
+
+**Decision**: formalized `.focus-ring` — the already-correct, already-widely-adopted class — as the ONE
+shared focus-ring primitive for Decision OS surfaces, rather than fixing `af-focus-ring` and asking
+components to switch to it. This is both lower-risk (zero chance of regressing the 20+ existing usages)
+and more consistent with "reuse what already works" than introducing a second, freshly-fixed option.
+Also fixed the broken `.af-focus-ring`/`.af-control` classes anyway (real bug, zero usages so zero
+regression risk, good hygiene for any future adopter) by switching both to `outline`, matching the value
+shape `--focus-ring` is actually defined as.
+
+**Adoption** — added `.focus-ring` to every genuinely "primary CTA" / real keyboard-interactive element
+across the named surfaces:
+- Commissioner Hub: hero "Create a League"/"Sign In" and "Import League" buttons; empty-state CTAs;
+  `CommissionerActionLink` (League Health Dashboard's real per-league action links).
+- Manager Hub: hero "Sign In" button.
+- League Focus (`LeagueTab.tsx`): the 2 Decision OS launcher links (already touched for color in V1.1).
+- League switchers: `CommissionerLeagueSwitcher.tsx` and `ManagerLeagueSwitcher.tsx` list items (both
+  previously had ZERO focus-visible styling at all).
+- Primary recommendation action: `LeaguePulseCard.tsx`'s "Continue" next-action button.
+- Alert/action rows: `NotificationCenter.tsx`'s "Mark read" and "Dismiss" buttons.
+
+Deliberately did NOT add focus styling to non-interactive elements (e.g. `CommissionerAttentionQueue`'s
+list items and `MissionControlCard`'s retention-risk list items are static `<li>`s with no href/onClick —
+correctly excluded).
+
+**New Finding 11 (deferred, not fixed)**: found the Commissioner Hub empty-state CTAs use
+`text-amber-300` — yet another instance of the recurring light-pastel contrast pattern — while adding
+focus-ring to the same buttons. Not fixed this phase (Step 3's scope was focus-ring, not another
+contrast sweep); documented rather than silently expanded into or silently ignored.
+
+**New test file**: `focus-ring-adoption.test.tsx` (4 tests) proves `.focus-ring` is actually present on
+the real rendered elements in `CommissionerLeagueSwitcher`, `ManagerLeagueSwitcher`, `NotificationCenter`
+(both buttons), and `LeaguePulseCard`'s Continue button — not just documented as intended.
+
+## Step 4 — League Focus cold-navigation investigation: root-caused
+
+Reproduced the V1.1 finding and root-caused it via real dev-server logs (`preview_logs`), not
+speculation. The evidence is unambiguous:
+
+```
+GET /api/i18n/translations?lang=en          200 in 89667ms
+GET /api/i18n/translations?lang=en          200 in 89657ms
+GET /api/auth/session                       200 in 90426ms
+GET /api/subscription/entitlements...       200 in 80114ms
+GET /api/decision-os/manager-intelligence   200 in 23979ms
+✓ Compiled /api/user/roster-legality-summary in 84.2s
+```
+
+`/api/i18n/translations` — a static JSON lookup with no database dependency — took **89–90 seconds**.
+This alone proves the slowness has nothing to do with League Focus's own code, its data-fetch pattern, or
+any Suspense/loading-boundary logic: a route that does none of those things was exactly as slow. The
+pattern held across multiple, completely unrelated pages (dashboard, homepage, login, League Focus) and
+routes (i18n, auth session, subscription entitlements, Decision OS manager-intelligence) throughout this
+session — a session-wide resource/network condition, not a route-specific or page-specific one.
+
+Checked `app/league/[leagueId]/loading.tsx` directly: it's a standard, correctly-implemented Next.js App
+Router `loading.tsx` special file — the "Loading league…" text is Next.js's own automatic fallback,
+shown while the server component's `Promise.all` of 6 parallel Prisma queries (already parallelized,
+already a good pattern) resolves. This is not a bug in the loading boundary; it is a boundary correctly
+waiting on a genuinely (in this session) slow response.
+
+**Determination: sandbox/session-specific environmental slowness, not a code defect** — not a
+route/data-fetch race, not an authorization/session hydration issue, not a suspense/loading-boundary
+issue. Per the phase's own instruction ("If it is not reproducible outside the sandbox, document the
+evidence and leave production code unchanged"), zero code changes were made to the league page's data
+loading logic. This does not rule out that `/api/subscription/entitlements`'s 80-second response time
+specifically might be worth investigating in a real, non-sandboxed environment someday (an unrelated,
+narrower observation) — but that is a distinct, separate question from "is League Focus's own code
+broken," which this investigation answers: no.
+
+## Step 5 — Visual QA (live, real data, real environment conditions)
+
+Live-verified with real populated data (the same persisted, pre-existing authenticated session from
+V1.1 — no credentials entered) across Commissioner Hub and Manager Hub: real Today's Brief content,
+real Notification Center entries (4 real notifications, Mark read/Dismiss buttons present), real League
+Health Dashboard content (found via `claude-in-chrome`'s `find` tool: "78/100 health score, 45/100
+engagement score" — real data flowing through the newly-migrated `decisionOsHealthStatusToneClasses`).
+Verified `.focus-ring` is present on real rendered hero CTAs (`Sign In`, `Create a League`) via computed
+DOM inspection.
+
+**Screenshot capture was significantly hampered this phase by extreme, real, verified environmental
+slowness** (see Step 4 — the same 15–90 second response times affected screenshot/eval tooling directly,
+not just the app). Both `preview_screenshot` and `claude-in-chrome`'s screenshot action timed out
+intermittently during this phase, consistent with — and additional evidence for — the Step 4 finding.
+Where screenshots timed out, verification fell back to `find`/computed-style/DOM inspection (all of which
+succeeded), consistent with the honest-evidence discipline established in V1.0/V1.1. League Focus's own
+live render could not be confirmed visually this phase for the same reason (confirmed via direct source
+diff and the same token-routing pattern working live elsewhere instead — see V1.1's Step 4 note, still
+accurate).
+
+## Step 6 — Testing and typecheck (compared against the CURRENT baseline)
+
+- Targeted tests for all Step 2/3 changes (9 files): 70/70 passing.
+- New test files: `decisionOsHealthStatusToneClasses` tests (3, added to `decision-os-tone-migration.test.tsx`),
+  `commissioner-hub-league-health-tone-consolidation.test.ts` (4), `focus-ring-adoption.test.tsx` (4).
+- Full `__tests__/decision-os/` + Commissioner Hub wiring + League Health consolidation + Commissioner
+  Intelligence + League Pulse + Decision Recommendations suites (155 test files, 3173 tests): **155/155
+  files, 3173/3173 tests passing — fully clean, zero flaky failures this run** (a pre-existing flake in
+  `commissioner-intelligence/proof-surface.test.tsx`, unrelated to this phase, was observed once during
+  an earlier isolated run of the same day's V1.1 work and did not recur here).
+- Typecheck: **158** — the exact established baseline, confirmed with zero errors referencing any file
+  this phase touched.
+
+## Step 7 — What's still open after V1.2
+
+- Commissioner Hub empty-state CTAs' `text-amber-300` (Finding 11, found this phase, deferred).
+- `/api/subscription/entitlements`'s 80-second response time — worth investigating separately in a
+  real (non-sandboxed) environment; not established as a real production issue by this phase's evidence,
+  since the SAME session showed similarly extreme latency on a route with zero business logic
+  (`/api/i18n/translations`).
+- `CommissionerAttentionQueue`'s severity domain, `MissionControlCard`'s `OverallStatus` domain, and
+  `LeagueHealthDashboard`'s `OverallStatus` domain now each have their own additive primitive
+  (`decisionOsSeverityToneClasses`, the `MissionControlCard`-specific 4-tone collapse, and
+  `decisionOsHealthStatusToneClasses` respectively) — a real, pre-existing, deliberately-preserved
+  inconsistency (the same `healthy` status renders as emerald in one card and cyan in another). Not
+  unified this phase per "preserve exact meaning, existing thresholds"; a future phase could decide
+  whether to unify the 2 different `OverallStatus` treatments deliberately, as an explicit product
+  decision rather than an incidental refactor.
+- Everything V1.0/V1.1 already deferred remains deferred.
