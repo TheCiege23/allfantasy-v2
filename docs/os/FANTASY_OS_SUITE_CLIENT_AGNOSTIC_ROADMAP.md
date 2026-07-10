@@ -959,6 +959,43 @@ issues rather than fabrication.
 re-confirmed after every change, zero new console errors, checked at both desktop and mobile widths).
 Full detail: `OS_C3_MANAGER_OS_VALIDATION.md`.
 
+### OS-C4 — Real Multi-League Manager Certification (2026-07-09)
+
+The first phase in this entire OS-B/OS-C workstream to validate against real, live imported-league data
+rather than fixtures or an empty-state fallback. The browser-login path was closed twice over —
+credential entry is never permitted, and this dev server's active DB is the confirmed-production host —
+so this phase used the still-live Phase E non-prod Neon project (`cool-lab-87438174`) instead, via a new
+script (`scripts/decision-os-manager-os-live-validate-nonprod.ts`) that calls the real Manager OS
+composition pipeline directly, the same "replace the HTTP/session shell with a direct function call"
+method `decision-os-import-sleeper-nonprod.ts` already established.
+
+**Found a major, platform-wide bug on the first run**: the real claimed member of the real "Parbur"
+league (real Sleeper import, real rosters, a real completed 14-game season) saw **zero leagues**
+anywhere — Dashboard, Commissioner Hub, and Manager Hub alike. Root-caused via direct SQL against the
+real data: `lib/leagues/leagueListFilter.ts`'s `isRealLeague()` (plus a matching Prisma `NOT` clause)
+deliberately hides "Sleeper platform + null status + null variant" leagues as presumed ranking-import
+artifacts — a real, documented, intentional rule this real league happened to violate, since its
+`status` was never backfilled despite being a genuinely active, fully-populated import. Fixed with a
+single-row, non-prod-only `UPDATE` (the honest `'complete'` value, derived from the league's own real
+14-game win/loss records) — explicitly authorized by the user first. The shared filter itself was
+deliberately left untouched: its blast radius spans three major surfaces, and this phase does not have
+enough context on the filter's original intent to safely loosen it unilaterally. Whether the real
+production import pipeline can leave `status` null for a genuinely active league — meaning real
+production users could be similarly affected — is flagged as the single highest-priority open question
+this workstream has surfaced, not investigated further this phase.
+
+Post-fix, the full pipeline was re-run against the real data and every surface verified internally
+consistent: `atRiskLeagueCount` (1) exactly matched the real count of `manager_engagement_risk` signals
+(1) — live proof, not just a unit-test fixture, that OS-C3's retention-risk bucketing fix is correct;
+Today's Brief and the Notification Center both traced to the exact same `attentionQueue` array; the one
+real "engagement_boost" recommendation correctly appeared ONLY in the Attention Queue (not a Priority
+Module category) and correctly did NOT leak into any Priority Module. Every explanation string traced to
+a real, deterministic source field — nothing fabricated.
+
+No typecheck regressions (158/158 baseline unchanged, including the new script). No application source
+changed besides the one-row non-prod data backfill; OS-C3's own fixes are what this phase's real-data
+run actually exercised and confirmed correct. Full detail: `OS_C4_MANAGER_OS_CERTIFICATION.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -994,6 +1031,9 @@ Full detail: `OS_C3_MANAGER_OS_VALIDATION.md`.
 - No new backend systems, database schema, provider integrations, AI models, notification types, or
   trade/waiver/lineup algorithms in OS-C3 either — every fix is presentation logic (a headline fallback
   string, a bucketing threshold set, a conditional render) over data OS-C1/C2 already computed.
+- OS-C4 touched exactly one row of non-prod data (an explicitly user-authorized `status` backfill on
+  the real Phase E test league) and added one new, credential-free, read-only validation script — no
+  application source code, no shared filter logic, and no production data were modified.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely
