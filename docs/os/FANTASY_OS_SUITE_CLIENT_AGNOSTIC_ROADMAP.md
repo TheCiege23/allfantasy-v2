@@ -1599,6 +1599,26 @@ guarantees and add backend complexity for no customer value). Six deliverables p
 targeted regression 141/141 green; branded hubs re-smoked (HTTP 200, brand-correct); the four `*_DEFERRED`
 markers cited in the Capability Matrix verified present in `lib/executive-viz/`.
 
+### V7.0 — Enterprise Pilot Execution: kit + readiness (2026-07-10) — honest scope
+
+The prompt asked to *execute* a real enterprise pilot (select partners, run customer demos, capture real
+feedback, produce findings). A real pilot's value comes from real customers and real deployments — those,
+and any resulting pilot logs/findings, **cannot be produced in this environment**, and fabricating them
+would violate the truthfulness discipline the whole program is built on and corrupt the evidence base the
+roadmap depends on. So V7.0 delivers the honest, genuinely-useful subset: (1) it **ran the executable
+Step-2 readiness verification** for real — white-label validator 18/18, both hubs `HTTP 200` + brand-correct
+titles, auth-gate renders (not a 500); and (2) it built **turnkey blank instruments** to be filled during
+actual pilots: `FANTASY_OS_PILOT_EXECUTION_KIT.md` (honesty boundary + a partner-selection *rubric* rather
+than invented named companies + readiness checklist + the verification results),
+`FANTASY_OS_PILOT_OBSERVATION_LOG_TEMPLATE.md`, `FANTASY_OS_PILOT_GAP_ANALYSIS_FRAMEWORK.md`, and
+`FANTASY_OS_PILOT_FINDINGS_REPORT_TEMPLATE.md`. **No invented pilot partners, no fabricated customer
+findings, zero code changed.** The production build must be verified in CI/Vercel (local Windows hits the
+known `readlink EISDIR`). The customer-driven "updated roadmap" is intentionally *not* pre-written — it can
+only be authored from real pilot evidence. **Recommended next: shift from engineering to go-to-market /
+investor communication assets (pitch deck, executive demo video, technical architecture diagrams, ROI
+messaging, B2B site) — the product is feature-complete and the remaining leverage is communicating its
+value, plus running the real pilots this kit enables.**
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
