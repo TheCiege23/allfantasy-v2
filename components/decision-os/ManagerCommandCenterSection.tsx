@@ -212,13 +212,13 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             workspaces that follow (open work per Operating System) — it does not duplicate them. No
             platform history/trend is reachable, so it is a current-state focus view, not a Pulse. */}
         {snapshot ? (
-          <div data-testid="platform-os-workspace" className="space-y-4" aria-label="Platform overview">
+          <section data-testid="platform-os-workspace" className="space-y-4" aria-label="Platform overview">
             <PlatformFocus snapshot={snapshot} draftsApproachingCount={snapshot.draftsApproachingCount} />
             <div className="grid gap-4 md:grid-cols-2">
               <ExecutiveWorkloadCard snapshot={snapshot} />
               <AttentionSummaryCard snapshot={snapshot} />
             </div>
-          </div>
+          </section>
         ) : null}
 
         {/* Phase V2.2 — Manager OS Executive Analytics Workspace. The Championship Trajectory flagship
@@ -227,7 +227,7 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             graphs summarize. Rendered once the snapshot has loaded (the loading badge above covers the
             in-flight state) so the supporting cards don't flash their unavailable states during fetch. */}
         {snapshot ? (
-          <div data-testid="manager-executive-workspace" className="space-y-4" aria-label="Manager season workspace">
+          <section data-testid="manager-executive-workspace" className="space-y-4" aria-label="Manager season workspace">
             <ChampionshipTrajectory snapshot={snapshot} />
             {/* Phase V3.1 (integration de-duplication): the Decision Focus card was removed — its
                 by-category distribution is now owned by Platform OS's "where the work is" (rendered at
@@ -236,7 +236,7 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
               <WeeklyDecisionTimelineCard snapshot={snapshot} />
               <TeamRiskSummaryCard snapshot={snapshot} />
             </div>
-          </div>
+          </section>
         ) : null}
 
         {/* Phase V2.5 — Waiver OS Executive Analytics Workspace. The Waiver Impact Sequence flagship
@@ -246,13 +246,13 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             supersedes the old "Waiver Priorities" module (removed below to avoid duplicating the same
             recommendations across two cards). */}
         {snapshot ? (
-          <div data-testid="waiver-os-workspace" className="space-y-4" aria-label="Waiver decision workspace">
+          <section data-testid="waiver-os-workspace" className="space-y-4" aria-label="Waiver decision workspace">
             <WaiverImpactSequence snapshot={snapshot} />
             <div className="grid gap-4 md:grid-cols-2">
               <WaiverOpportunityImpactCard snapshot={snapshot} />
               <WaiverUrgencyCard snapshot={snapshot} />
             </div>
-          </div>
+          </section>
         ) : null}
 
         {/* Phase V2.6 — Draft OS Executive Analytics Workspace. The Draft Decision Ladder flagship
@@ -261,13 +261,13 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             LADDER, NOT a value curve or pick timeline: no draft value/ADP/tier/pick data is reachable,
             so none is invented. */}
         {snapshot ? (
-          <div data-testid="draft-os-workspace" className="space-y-4" aria-label="Draft decision workspace">
+          <section data-testid="draft-os-workspace" className="space-y-4" aria-label="Draft decision workspace">
             <DraftDecisionLadder snapshot={snapshot} />
             <div className="grid gap-4 md:grid-cols-2">
               <DraftReadinessCard snapshot={snapshot} draftsApproachingCount={snapshot.draftsApproachingCount} />
               <DraftPreparationImpactCard snapshot={snapshot} />
             </div>
-          </div>
+          </section>
         ) : null}
 
         <ManagerCommandCenterOverview

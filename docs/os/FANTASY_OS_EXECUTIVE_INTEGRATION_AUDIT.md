@@ -131,7 +131,9 @@ theming task, not blocked by presentation) · ⏭️ per-tenant token overrides 
 - ✅ Every visualization maps to a real provider-agnostic contract; deferrals are explicit + test-guarded.
 - ✅ Provider abstraction verified (source-scanned + live).
 - ✅ Accessibility: every card ships an `sr-only` accessible summary, `role="meter"` marks, honest
-  empty/unavailable/loading states; motion is non-hiding and honors `motion-reduce`.
+  empty/unavailable/loading states; motion is non-hiding and honors `motion-reduce`. (Phase V3.2 also
+  converted the six workspace containers from `<div aria-label>` to `<section aria-label>` landmarks —
+  see `FANTASY_OS_PRODUCTION_READINESS_CERTIFICATION.md`.)
 - ⏭️ Remaining, presentation-independent work depends on FUTURE Decision OS capabilities, not this layer:
   a Waiver resource route (FAAB), a customer-facing draft-runtime-intelligence route (value/ADP/tiers),
   platform historical snapshots (Pulse), and enabling `COMMISSIONER_TRADE_REVIEW_ENABLED`. Each would let

@@ -1527,6 +1527,23 @@ Legacy-B2C changes. Remaining deferred visualizations depend on FUTURE Decision 
 FAAB route, a customer-facing draft-runtime route, platform historical snapshots, the flag-gated trade
 market contract), not on this presentation layer.
 
+### V3.2 — Production Readiness Certification (2026-07-10) — launch gate
+
+The final pre-launch validation gate. No features, no Decision OS expansion, backend frozen. Certified the
+feature-complete product across accessibility, responsive, performance, white-label, truthfulness, and a
+seven-workspace authenticated walkthrough. One verified accessibility defect was found and fixed — the six
+executive workspace containers used `<div aria-label>`, a label assistive tech does not expose on a
+role-less div, so they were converted to `<section aria-label>` landmark regions (verified live: all seven
+workspaces render as named `SECTION`s). Performance was audited with no changes made (no evidence of a
+problem — pure O(n) memoized builders, no on-surface chart library, one snapshot fetch per hub). White-label:
+the executive layer is fully tokenized and provider-neutral; only page-shell brand copy remains, a future
+config slot rather than an architectural blocker. Deliverable: `FANTASY_OS_PRODUCTION_READINESS_CERTIFICATION.md`
+(Production Readiness Report + White-label / Accessibility / Performance summaries + Known Deferred
+Capabilities). **Verdict: Fantasy OS (Licensing/B2B) is production-ready for enterprise pilots and
+white-label licensing;** the only executive-layer gaps are visualizations deferred pending future Decision
+OS routes (FAAB, draft-runtime, platform history, the flag-gated trade market contract), each of which can
+light up with zero presentation rework.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1716,6 +1733,13 @@ market contract), not on this presentation layer.
   the one integration file `components/decision-os/ManagerCommandCenterSection.tsx`. It also added a
   durable cross-workspace consistency test and the `FANTASY_OS_EXECUTIVE_INTEGRATION_AUDIT.md` audit +
   white-label + production-readiness checklists.
+- V3.2 was a certification/validation phase, presentation-only: no features, no backend changes, no
+  Decision OS changes, no new Operating Systems, no provider-specific UI, no Legacy/B2C. Its only code
+  change is one verified accessibility fix — converting the six executive workspace containers from
+  `<div aria-label>` (unexposed) to `<section aria-label>` landmarks in
+  `components/decision-os/ManagerCommandCenterSection.tsx` and `app/commissioner-hub/CommissionerHubPageClient.tsx`.
+  Performance was audited with no changes made (optimize only with evidence; none found). Deliverable:
+  `FANTASY_OS_PRODUCTION_READINESS_CERTIFICATION.md`.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

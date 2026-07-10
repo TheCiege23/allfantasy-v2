@@ -991,20 +991,20 @@ export default function CommissionerHubPageClient({
                 the League Momentum flagship (dominant) over supporting graphs, all from the existing
                 `leagueAnalytics` snapshot (+ the already-loaded fairnessScore for Competitive Balance).
                 Sits above the commissioner-specific guidance below. */}
-            <div className="mb-5 space-y-4" data-testid="league-os-workspace" aria-label="League overview">
+            <section className="mb-5 space-y-4" data-testid="league-os-workspace" aria-label="League overview">
               <LeagueMomentum snapshot={leagueAnalytics} />
               <div className="grid gap-4 md:grid-cols-2">
                 <TransactionDistributionCard snapshot={leagueAnalytics} />
                 <LeagueEngagementCard snapshot={leagueAnalytics} />
                 <CompetitiveBalanceCard healthSnapshot={healthByLeagueId.get(representativeLeagueId) ?? null} />
               </div>
-            </div>
+            </section>
 
             {/* Phase V2.4 — Trade OS Executive Analytics Workspace. Represents the trade MARKET (not a
                 player calculator): the Trade Opportunity Matrix (dominant) over Market Activity + Trade
                 Pipeline, all from the already-fetched `leagueAnalytics` (trade count/trend) + the
                 trade-category recommendations in `managerIntelligence`. */}
-            <div className="mb-5 space-y-4" data-testid="trade-os-workspace" aria-label="Trade market overview">
+            <section className="mb-5 space-y-4" data-testid="trade-os-workspace" aria-label="Trade market overview">
               <TradeOpportunityMatrix
                 recommendations={managerIntelligence?.recommendations?.recommendations ?? null}
                 analytics={leagueAnalytics}
@@ -1013,7 +1013,7 @@ export default function CommissionerHubPageClient({
                 <MarketActivityCard analytics={leagueAnalytics} />
                 <TradePipelineCard recommendations={managerIntelligence?.recommendations?.recommendations ?? null} />
               </div>
-            </div>
+            </section>
 
             <section className="grid gap-4 xl:grid-cols-2" aria-label="Commissioner guidance">
               <ManagerDnaCard profile={managerDna} variant="commissioner" compact />
