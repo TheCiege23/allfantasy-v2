@@ -1580,6 +1580,25 @@ brand-neutral prop supplied by the hub, so the viz layer stays pure (test-enforc
 executive-viz file imports the brand config" invariant). **No database, routes, or backend tenancy** were
 added; typecheck baseline preserved (158, zero errors in touched files); the V4.0 boundary held.
 
+### V6.0 — Enterprise Pilot Preparation (2026-07-10) — first go-to-market packaging phase
+
+The shift from "the software is built" to "the software is ready to be evaluated." A pilot-packaging phase:
+documentation + a verified-only validation pass, **no features, no backend, no Decision OS changes, zero
+code changed**. Two parts needed fresh codebase investigation: the **journey audit** (the 7-stage prospect
+journey mapped to real routes — no blocker found that warranted a code change) and the **demo-data
+strategy**. The strategy decision, grounded in the code: the Commissioner Hub already has a built-in
+"presentation-safe preview" (`showDemoMode`) for a no-login branding demo, but the seven flagship
+Executive Analytics Workspaces are driven by live snapshots that intentionally show honest "not available"
+states (never fabricated sample data) without a connected account — so a populated seven-OS walkthrough
+uses the **existing Phase E real demo account** (Neon `cool-lab-87438174`, already customer-demo ready).
+Building synthetic per-workspace demo data was rejected (would violate the certified truthfulness
+guarantees and add backend complexity for no customer value). Six deliverables produced:
+`FANTASY_OS_ENTERPRISE_PILOT_GUIDE.md`, `FANTASY_OS_ENTERPRISE_ONBOARDING_GUIDE.md`,
+`FANTASY_OS_SECURITY_DATA_BOUNDARY_SUMMARY.md`, `FANTASY_OS_EXECUTIVE_DEMONSTRATION_SCRIPT.md`,
+`FANTASY_OS_PILOT_SUCCESS_CRITERIA.md`, `FANTASY_OS_KNOWN_CAPABILITY_BOUNDARY_MATRIX.md`. Validation:
+targeted regression 141/141 green; branded hubs re-smoked (HTTP 200, brand-correct); the four `*_DEFERRED`
+markers cited in the Capability Matrix verified present in `lib/executive-viz/`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
