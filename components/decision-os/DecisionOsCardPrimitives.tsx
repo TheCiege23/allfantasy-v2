@@ -218,3 +218,64 @@ export function DecisionOsEmptyState({
     </div>
   )
 }
+
+/** Phase V1.0 — Visual OS shared tone system. A single source of truth for "this value is good /
+ * needs attention / bad / informational / neutral," replacing the 6+ independent hand-rolled color
+ * tables found across `MissionControlCard`, `LeaguePulseCard`, `DecisionRecommendationsCard`,
+ * `CommissionerAttentionQueue`, and the legacy Commissioner Hub page (see
+ * `docs/os/VISUAL_OS_V1_AUDIT.md` Finding 2). All colors route through the app's semantic status
+ * tokens (`--status-success`/`--status-warning`/`--status-danger`/`--status-info`), never a hardcoded
+ * Tailwind palette color, so every tone automatically respects the active theme. */
+export type DecisionOsTone = 'good' | 'warning' | 'danger' | 'info' | 'neutral'
+
+const TONE_CLASSES: Record<DecisionOsTone, string> = {
+  good: 'border-status-success/25 bg-status-success/10 text-status-success',
+  warning: 'border-status-warning/25 bg-status-warning/10 text-status-warning',
+  danger: 'border-status-danger/25 bg-status-danger/10 text-status-danger',
+  info: 'border-status-info/25 bg-status-info/10 text-status-info',
+  neutral: 'border-subtle bg-surface-muted text-secondary',
+}
+
+export function decisionOsToneClasses(tone: DecisionOsTone): string {
+  return TONE_CLASSES[tone]
+}
+
+/** Deduplicated from the byte-for-byte identical private `StatChip` found in both
+ * `CommissionerCommandCenterOverview.tsx` and `ManagerCommandCenterOverview.tsx`. Tone naming
+ * (`'risk'`, not `'warning'`) preserved verbatim from the original; the warning-tone border opacity
+ * now uses the shared `TONE_CLASSES` value (25%) rather than each file's own locally-picked 30%. */
+export function DecisionOsStatChip({
+  icon: Icon,
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  icon: LucideIcon
+  label: string
+  value: number
+  tone?: 'risk' | 'neutral'
+}) {
+  const toneClass = tone === 'risk' && value > 0 ? TONE_CLASSES.warning : 'border-subtle bg-surface-muted text-primary'
+  return (
+    <div className={cn('min-w-0 rounded-xl border px-4 py-3', toneClass)}>
+      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">
+        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        {label}
+      </div>
+      <p className="mt-1 text-2xl font-black">{value}</p>
+    </div>
+  )
+}
+
+/** A section-level "still loading" skeleton, distinct from `DecisionOsEmptyState` (a real, resolved
+ * "there is genuinely nothing here" state) and from silently rendering zero-value fallbacks — see
+ * `docs/os/VISUAL_OS_V1_AUDIT.md` Finding 8. `rows` controls how many placeholder lines to render. */
+export function DecisionOsLoadingSkeleton({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="animate-pulse space-y-2" role="status" aria-label="Loading">
+      {Array.from({ length: rows }).map((_, index) => (
+        <div key={index} className="h-14 rounded-xl border border-subtle bg-surface-muted" />
+      ))}
+    </div>
+  )
+}

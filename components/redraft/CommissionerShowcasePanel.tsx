@@ -9,12 +9,16 @@ import {
   LayoutDashboard,
   ShieldCheck,
   Sparkles,
-  Telescope,
   Users,
   Waves,
 } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
+import {
+  DecisionOsBadge,
+  decisionOsCardClassName,
+  decisionOsToneClasses,
+} from '@/components/decision-os/DecisionOsCardPrimitives'
 
 type FoundationMetric = {
   players: number
@@ -58,16 +62,16 @@ const FALLBACK_FOUNDATION: FoundationMetric = {
   seasonStats: 5186,
 }
 
-const CARD_TONE_CLASSES: Record<ShowcaseCard['tone'], string> = {
-  good: 'border-emerald-500/25 bg-emerald-500/[0.08]',
-  info: 'border-cyan-500/25 bg-cyan-500/[0.08]',
-  warn: 'border-amber-500/25 bg-amber-500/[0.08]',
+// Phase V1.0: was a locally-hardcoded, dark-theme-only palette (`text-white`/`bg-*-500` on a
+// hand-rolled dark-navy gradient) that read as illegible in the app's default light theme — verified
+// live (docs/os/VISUAL_OS_V1_AUDIT.md Finding 3). Routed through the shared tone system instead, so
+// this panel now respects the active theme like every other Decision OS card.
+function cardToneClasses(tone: ShowcaseCard['tone']): string {
+  return decisionOsToneClasses(tone === 'warn' ? 'warning' : tone)
 }
 
-const RECOMMENDATION_TONE_CLASSES: Record<ShowcaseRecommendation['tone'], string> = {
-  good: 'border-emerald-500/20 bg-emerald-500/[0.07] text-emerald-100',
-  info: 'border-violet-500/20 bg-violet-500/[0.07] text-violet-100',
-  warn: 'border-amber-500/20 bg-amber-500/[0.08] text-amber-100',
+function recommendationToneClasses(tone: ShowcaseRecommendation['tone']): string {
+  return decisionOsToneClasses(tone === 'warn' ? 'warning' : tone)
 }
 
 function countCommissionerLeagues(leagues: UserLeague[]): UserLeague[] {
@@ -93,10 +97,6 @@ function numberOrNull(value: unknown): number | null {
 function average(values: number[]): number {
   if (values.length === 0) return 0
   return values.reduce((sum, value) => sum + value, 0) / values.length
-}
-
-function pluralize(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count} ${count === 1 ? singular : plural}`
 }
 
 function resolveWaiverMode(leagues: UserLeague[]): { label: string; preview: boolean } {
@@ -379,7 +379,6 @@ export default function CommissionerShowcasePanel({
     healthSnapshots,
     waiverMode,
   })
-  const shadowDecision = healthSnapshots.find((snapshot) => snapshot.decisionOsShadow?.card)?.decisionOsShadow ?? null
 
   const cards: ShowcaseCard[] = [
     {
@@ -469,196 +468,147 @@ export default function CommissionerShowcasePanel({
   ]
 
   return (
-    <section className="rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.08] via-[#08101f] to-cyan-500/[0.04] p-5 sm:p-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full border border-violet-500/25 bg-violet-500/[0.10] px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-violet-200/85">
-            <LayoutDashboard className="h-3.5 w-3.5" aria-hidden />
-            Platform Readiness Snapshot
-          </div>
-          <h2 className="mt-3 text-[22px] font-black tracking-tight text-white sm:text-[26px]">
-            League readiness, AI context, and foundation proof in one place.
-          </h2>
-          <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-white/55">
-            Show commissioners what is ready, what still needs attention, and why the league feels supported instead
-            of manually babysat.
-          </p>
-          {demoMode ? (
-            <p className="mt-3 inline-flex max-w-3xl items-center gap-2 rounded-full border border-white/10 bg-white/[0.05] px-3 py-1.5 text-[11px] text-white/65">
-              <Sparkles className="h-3.5 w-3.5 text-violet-200/80" aria-hidden />
-              Preview mode stays populated with safe commissioner defaults until signed-in league data is available.
+    <section className={decisionOsCardClassName}>
+      <div className="p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <DecisionOsBadge icon={LayoutDashboard}>Platform Readiness Snapshot</DecisionOsBadge>
+            <h2 className="mt-3 text-[22px] font-black tracking-tight text-primary sm:text-[26px]">
+              League readiness, AI context, and foundation proof in one place.
+            </h2>
+            <p className="mt-2 max-w-3xl text-[13px] leading-relaxed text-secondary">
+              Show commissioners what is ready, what still needs attention, and why the league feels supported instead
+              of manually babysat.
             </p>
-          ) : null}
-        </div>
-
-        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.08] px-3 py-2 text-right">
-          <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200/75">Data Foundation</p>
-          <p className="mt-1 text-[18px] font-black text-white">{foundation.players.toLocaleString()}</p>
-          <p className="text-[11px] text-cyan-100/70">NFL players loaded</p>
-        </div>
-      </div>
-
-      <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <article
-            key={card.key}
-            className={`rounded-2xl border p-4 ${CARD_TONE_CLASSES[card.tone]}`}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">{card.label}</p>
-              {card.preview ? (
-                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/55">
-                  Preview
-                </span>
-              ) : (
-                <CheckCircle2 className="h-3.5 w-3.5 text-white/55" aria-hidden />
-              )}
-            </div>
-            <p className="mt-3 text-[24px] font-black leading-none text-white">{card.value}</p>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/60">{card.detail}</p>
-          </article>
-        ))}
-      </div>
-
-      <div className="mt-5 grid gap-4 xl:grid-cols-[1.4fr,0.9fr]">
-        <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-violet-300/75" aria-hidden />
-            <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-200/80">
-              AI Commissioner Suggestions
-            </p>
-          </div>
-          <div className="mt-3 grid gap-3">
-            {recommendations.map((recommendation) => (
-              <article
-                key={recommendation.key}
-                className={`rounded-2xl border px-3.5 py-3 ${RECOMMENDATION_TONE_CLASSES[recommendation.tone]}`}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-[13px] font-bold">{recommendation.title}</p>
-                  {recommendation.preview ? (
-                    <span className="rounded-full border border-white/10 bg-white/[0.08] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/75">
-                      Preview Insight
-                    </span>
-                  ) : null}
-                </div>
-                <p className="mt-1.5 text-[12px] leading-relaxed text-white/78">{recommendation.body}</p>
-              </article>
-            ))}
-          </div>
-        </div>
-
-        <div className="grid gap-4">
-          <div className="rounded-2xl border border-violet-500/20 bg-violet-500/[0.08] p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-violet-200/80">
-                  Commissioner AI Summary
-                </p>
-                <p className="mt-1 text-[22px] font-black text-white">
-                  {aiSummary.available ? `League Health: ${aiSummary.score}/100` : 'League health not yet available'}
-                </p>
-              </div>
-              {aiSummary.available ? (
-                <Sparkles className="h-4 w-4 text-violet-200/75" aria-hidden />
-              ) : (
-                <span className="rounded-full border border-white/10 bg-white/[0.06] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/60">
-                  Not available
-                </span>
-              )}
-            </div>
-            {aiSummary.available ? (
-              <ul className="mt-3 space-y-2 text-[12px] leading-relaxed text-white/78">
-                {aiSummary.items.map((item) => (
-                  <li key={item} className="rounded-xl border border-white/8 bg-black/10 px-3 py-2">
-                    {item}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <div className="mt-3 rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.08] px-3.5 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
-                {aiSummary.available ? 'Recommendation' : 'Next step'}
+            {demoMode ? (
+              <p className="mt-3 inline-flex max-w-3xl items-center gap-2 rounded-full border border-subtle bg-surface-muted px-3 py-1.5 text-[11px] text-secondary">
+                <Sparkles className="h-3.5 w-3.5 text-brand-primary" aria-hidden />
+                Preview mode stays populated with safe commissioner defaults until signed-in league data is available.
               </p>
-              <p className="mt-1 text-[12px] leading-relaxed text-cyan-50/85">{aiSummary.recommendation}</p>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-status-info/25 bg-status-info/10 px-3 py-2 text-right">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-status-info">Data Foundation</p>
+            <p className="mt-1 text-[18px] font-black text-primary">{foundation.players.toLocaleString()}</p>
+            <p className="text-[11px] text-secondary">NFL players loaded</p>
+          </div>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {cards.map((card) => (
+            <article
+              key={card.key}
+              className={`rounded-2xl border p-4 ${cardToneClasses(card.tone)}`}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-muted">{card.label}</p>
+                {card.preview ? (
+                  <span className="rounded-full border border-subtle bg-surface-muted px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted">
+                    Preview
+                  </span>
+                ) : (
+                  <CheckCircle2 className="h-3.5 w-3.5 text-muted" aria-hidden />
+                )}
+              </div>
+              <p className="mt-3 text-[24px] font-black leading-none text-primary">{card.value}</p>
+              <p className="mt-2 text-[11px] leading-relaxed text-secondary">{card.detail}</p>
+            </article>
+          ))}
+        </div>
+
+        <div className="mt-5 grid gap-4 xl:grid-cols-[1.4fr,0.9fr]">
+          <div className="rounded-2xl border border-subtle bg-surface-muted p-4">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-brand-primary" aria-hidden />
+              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-secondary">
+                AI Commissioner Suggestions
+              </p>
+            </div>
+            <div className="mt-3 grid gap-3">
+              {recommendations.map((recommendation) => (
+                <article
+                  key={recommendation.key}
+                  className={`rounded-2xl border px-3.5 py-3 ${recommendationToneClasses(recommendation.tone)}`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[13px] font-bold text-primary">{recommendation.title}</p>
+                    {recommendation.preview ? (
+                      <span className="rounded-full border border-subtle bg-surface-muted px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted">
+                        Preview Insight
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="mt-1.5 text-[12px] leading-relaxed text-secondary">{recommendation.body}</p>
+                </article>
+              ))}
             </div>
           </div>
 
-          {shadowDecision ? (
-            <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.08] p-4">
+          <div className="grid gap-4">
+            <div className="rounded-2xl border border-subtle bg-surface-muted p-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
-                    League Health Preview
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-secondary">
+                    Commissioner AI Summary
                   </p>
-                  <p className="mt-1 text-[18px] font-black text-white">
-                    {shadowDecision.card.healthScore != null
-                      ? `League Health: ${shadowDecision.card.healthScore}/100`
-                      : 'Commissioner recommendation ready'}
+                  <p className="mt-1 text-[22px] font-black text-primary">
+                    {aiSummary.available ? `League Health: ${aiSummary.score}/100` : 'League health not yet available'}
                   </p>
                 </div>
-                <div className="text-right">
-                  <span className="inline-flex items-center gap-1 rounded-full border border-white/10 bg-white/[0.05] px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/60">
-                    <Telescope className="h-3 w-3" aria-hidden />
-                    Shadow Only
+                {aiSummary.available ? (
+                  <Sparkles className="h-4 w-4 text-brand-primary" aria-hidden />
+                ) : (
+                  <span className="rounded-full border border-subtle bg-surface-muted px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-muted">
+                    Not available
                   </span>
-                  <p className="mt-2 text-[10px] text-white/45">
-                    {shadowDecision.parityPassed == null
-                      ? 'Parity pending'
-                      : shadowDecision.parityPassed
-                        ? 'Parity matched legacy'
-                        : 'Parity diff detected'}
-                  </p>
-                </div>
+                )}
               </div>
-              <p className="mt-3 text-[13px] font-semibold text-white/90">{shadowDecision.card.title}</p>
-              <p className="mt-1 text-[12px] leading-relaxed text-white/70">{shadowDecision.card.subtitle}</p>
-              <p className="mt-2 text-[12px] leading-relaxed text-cyan-50/85">{shadowDecision.card.detail}</p>
-              {shadowDecision.card.topRisks.length > 0 ? (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {shadowDecision.card.topRisks.map((risk) => (
-                    <span
-                      key={risk.label}
-                      className="rounded-full border border-white/10 bg-black/15 px-2.5 py-1 text-[10px] font-semibold text-white/70"
-                    >
-                      {risk.label} {risk.score}
-                    </span>
+              {aiSummary.available ? (
+                <ul className="mt-3 space-y-2 text-[12px] leading-relaxed text-secondary">
+                  {aiSummary.items.map((item) => (
+                    <li key={item} className="rounded-xl border border-subtle bg-surface px-3 py-2">
+                      {item}
+                    </li>
                   ))}
-                </div>
+                </ul>
               ) : null}
-              <p className="mt-3 text-[11px] leading-relaxed text-white/45">
-                Read-only recommendation for scoped Sleeper proofing. No actions execute from this card.
-              </p>
+              <div className="mt-3 rounded-2xl border border-status-info/25 bg-status-info/10 px-3.5 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-status-info">
+                  {aiSummary.available ? 'Recommendation' : 'Next step'}
+                </p>
+                <p className="mt-1 text-[12px] leading-relaxed text-secondary">{aiSummary.recommendation}</p>
+              </div>
             </div>
-          ) : null}
 
-          <div className="rounded-2xl border border-white/10 bg-black/15 p-4">
-            <div className="flex items-center gap-2">
-              <Database className="h-4 w-4 text-cyan-300/75" aria-hidden />
-              <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/80">
-                Data Foundation Proof
+            <div className="rounded-2xl border border-subtle bg-surface-muted p-4">
+              <div className="flex items-center gap-2">
+                <Database className="h-4 w-4 text-status-info" aria-hidden />
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-secondary">
+                  Data Foundation Proof
+                </p>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <ProofStat icon={Users} label="Players" value={foundation.players.toLocaleString()} />
+                <ProofStat icon={ShieldCheck} label="Headshots" value={foundation.headshots.toLocaleString()} />
+                <ProofStat icon={Activity} label="ADP Rows" value={foundation.adp.toLocaleString()} />
+                <ProofStat icon={Waves} label="Injuries" value={foundation.injuries.toLocaleString()} />
+                <ProofStat icon={Bot} label="Season Stats" value={foundation.seasonStats.toLocaleString()} />
+                <ProofStat
+                  icon={CalendarClock}
+                  label="Coverage"
+                  value={`${foundation.headshotCoveragePct.toFixed(1)}%`}
+                />
+              </div>
+              <p className="mt-3 text-[11px] leading-relaxed text-secondary">
+                Powered by {foundation.players.toLocaleString()} NFL players, {foundation.headshots.toLocaleString()}{' '}
+                headshots, {foundation.adp.toLocaleString()} ADP records, and live injury context.
+              </p>
+              <p className="mt-2 text-[11px] leading-relaxed text-muted">
+                These proof numbers use live commissioner-hub coverage when available and fall back to the current NFL dry-run
+                baseline for demo safety.
               </p>
             </div>
-            <div className="mt-3 grid grid-cols-2 gap-3">
-              <ProofStat icon={Users} label="Players" value={foundation.players.toLocaleString()} />
-              <ProofStat icon={ShieldCheck} label="Headshots" value={foundation.headshots.toLocaleString()} />
-              <ProofStat icon={Activity} label="ADP Rows" value={foundation.adp.toLocaleString()} />
-              <ProofStat icon={Waves} label="Injuries" value={foundation.injuries.toLocaleString()} />
-              <ProofStat icon={Bot} label="Season Stats" value={foundation.seasonStats.toLocaleString()} />
-              <ProofStat
-                icon={CalendarClock}
-                label="Coverage"
-                value={`${foundation.headshotCoveragePct.toFixed(1)}%`}
-              />
-            </div>
-            <p className="mt-3 text-[11px] leading-relaxed text-white/55">
-              Powered by {foundation.players.toLocaleString()} NFL players, {foundation.headshots.toLocaleString()}{' '}
-              headshots, {foundation.adp.toLocaleString()} ADP records, and live injury context.
-            </p>
-            <p className="mt-2 text-[11px] leading-relaxed text-white/42">
-              These proof numbers use live commissioner-hub coverage when available and fall back to the current NFL dry-run
-              baseline for demo safety.
-            </p>
           </div>
         </div>
       </div>
@@ -676,12 +626,12 @@ function ProofStat({
   value: string
 }) {
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+    <div className="rounded-2xl border border-subtle bg-surface p-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-white/35">{label}</p>
-        <Icon className="h-3.5 w-3.5 text-cyan-300/60" aria-hidden />
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">{label}</p>
+        <Icon className="h-3.5 w-3.5 text-status-info" aria-hidden />
       </div>
-      <p className="mt-2 text-[18px] font-black text-white">{value}</p>
+      <p className="mt-2 text-[18px] font-black text-primary">{value}</p>
     </div>
   )
 }

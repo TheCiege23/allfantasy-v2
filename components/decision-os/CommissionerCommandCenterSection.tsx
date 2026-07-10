@@ -139,6 +139,12 @@ export default function CommissionerCommandCenterSection({
     )
   }
 
+  // Phase V1.0: a small, additive loading affordance — the sub-cards below (Today's Brief, Attention
+  // Queue, etc.) each already have their own deliberate, tested "honest default" while the fetch is in
+  // flight (see docs/os/VISUAL_OS_V1_AUDIT.md Finding 8), so this does NOT replace their content with a
+  // skeleton; it only signals that the first real fetch hasn't resolved yet.
+  const isLoading = !snapshot && !error
+
   return (
     <section
       data-testid="commissioner-command-center-section"
@@ -148,6 +154,15 @@ export default function CommissionerCommandCenterSection({
       <div className="border-b border-subtle bg-surface-muted/60 px-5 py-4">
         <div className="flex flex-wrap items-center gap-2">
           <DecisionOsBadge icon={Compass}>Multi-League Overview</DecisionOsBadge>
+          {isLoading ? (
+            <span
+              data-testid="commissioner-command-center-loading"
+              className="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted"
+            >
+              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-brand-primary" aria-hidden />
+              Loading your overview…
+            </span>
+          ) : null}
         </div>
         <h2 className="mt-3 text-xl font-black tracking-tight text-primary">What needs your attention today?</h2>
         <p className="mt-1 text-xs leading-5 text-secondary">

@@ -10,6 +10,7 @@
  * counted across every league this user belongs to rather than just the ones they commission).
  */
 import { AlertTriangle, CalendarClock, ShieldCheck, Trophy } from 'lucide-react'
+import { DecisionOsStatChip } from './DecisionOsCardPrimitives'
 
 type ManagerCommandCenterOverviewProps = {
   totalLeagues: number
@@ -18,31 +19,10 @@ type ManagerCommandCenterOverviewProps = {
   draftsApproachingCount: number
 }
 
-function StatChip({
-  icon: Icon,
-  label,
-  value,
-  tone,
-}: {
-  icon: typeof Trophy
-  label: string
-  value: number
-  tone?: 'risk' | 'neutral'
-}) {
-  const toneClass =
-    tone === 'risk' && value > 0
-      ? 'border-status-warning/30 bg-status-warning/10 text-status-warning'
-      : 'border-subtle bg-surface-muted text-primary'
-  return (
-    <div className={`min-w-0 rounded-xl border px-4 py-3 ${toneClass}`}>
-      <div className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] opacity-70">
-        <Icon className="h-3.5 w-3.5 shrink-0" aria-hidden />
-        {label}
-      </div>
-      <p className="mt-1 text-2xl font-black">{value}</p>
-    </div>
-  )
-}
+// Phase V1.0: the local StatChip here was byte-for-byte identical to CommissionerCommandCenterOverview's
+// own copy — deduplicated into `DecisionOsStatChip` (`DecisionOsCardPrimitives.tsx`). Only visible diff: the
+// warning-tone border opacity now matches the shared tone system (25% instead of a locally-picked 30%).
+const StatChip = DecisionOsStatChip
 
 export default function ManagerCommandCenterOverview({
   totalLeagues,

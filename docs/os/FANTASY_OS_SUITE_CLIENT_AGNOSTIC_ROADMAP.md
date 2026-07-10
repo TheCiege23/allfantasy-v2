@@ -1112,6 +1112,55 @@ New `BACKEND_FREEZE_CHECKLIST.md` documents every audited route, the authorizati
 deliberately-deferred provider status-mapping gap (ESPN/Yahoo/Fantrax/MFL/Fleaflicker, from OS-C6 Part
 1) — and states the final determination: **the Fantasy OS backend is ready to freeze.**
 
+### V1.0 — Visual OS Foundation and Experience Audit (2026-07-10)
+
+The first customer-facing-experience phase since OS-C6.1's backend freeze — audit-first, one flagship
+surface, zero Decision OS logic touched, per the phase's own explicit instructions.
+
+**Audit** (`VISUAL_OS_V1_AUDIT.md`, 9 findings): the Decision OS card family already has a working shared
+primitive system (`DecisionOsCardPrimitives.tsx`) that most components use consistently, but the
+Commissioner Hub page itself predates it and never migrated on — a hero, several stat-row systems, an AI
+prompt grid, and `CommissionerShowcasePanel.tsx` each reinvent their own bespoke Tailwind palette instead
+of the app's semantic tokens. Two of the findings are real, live-verified bugs, not style preferences:
+`CommissionerShowcasePanel.tsx` hardcoded a dark-navy gradient with `text-white*` classes, which the
+app's own existing light-mode accessibility guard (`html[data-mode="light"] .mode-readable
+[class*="text-white"] { color: var(--text) !important; }`) force-flips to near-black — producing
+near-black-on-near-black text in the app's default light theme; and the hero's "Presentation-safe
+preview" callout used a light-cyan palette tuned for a dark background, computing to
+`rgba(165, 243, 252, 0.75)` against a light card. Both verified via `preview_inspect`'s computed CSS, not
+visual impression.
+
+**Flagship surface**: Commissioner Hub — Manager Hub was already clean (built fresh in OS-C1, zero legacy
+content), so Commissioner Hub had by far the higher-value inconsistency to resolve.
+
+**Shared primitives added** to `DecisionOsCardPrimitives.tsx`: `decisionOsToneClasses` (one
+good/warning/danger/info/neutral tone table, replacing 2 of the 6 duplicated hand-rolled color tables the
+audit found — the other 4, in already-tested sibling components, deliberately deferred rather than
+bundled into this phase); `DecisionOsStatChip` (deduplicates a byte-for-byte-identical private component
+found independently in both `CommissionerCommandCenterOverview.tsx` and `ManagerCommandCenterOverview.tsx`);
+`DecisionOsLoadingSkeleton` (available for future use).
+
+**Fixed**: both live-verified contrast bugs; removed the "League Operations Summary" stat row (fully
+duplicated the Multi-League Overview's own stat chips, flagged-but-unfixed debt since OS-B6/OS-B7);
+removed the "Leagues I Manage" grid (a 3rd, visually distinct rendering of the same league list already
+shown twice elsewhere on the page); removed `CommissionerShowcasePanel.tsx`'s "Shadow Only"/"Parity
+matched legacy" block (pure internal engineering QA language with no customer meaning — the underlying
+data field and its own dedicated data-layer test are untouched, only this component's rendering of it);
+added a small, additive loading indicator to both Multi-League Overview headers without disturbing
+`TodaysBriefCard`'s own deliberate, already-tested "honest healthy default while loading" behavior from
+OS-B3.
+
+**Explicitly not touched**: `buildRecommendations`/`buildAiSummary` in `CommissionerShowcasePanel.tsx` —
+every string and number they produce is byte-for-byte the same function, only the JSX/className around
+them changed; the OS-B7 truthfulness guarantees are fully preserved. No Decision OS composition,
+resolver, route, or authorization behavior was modified.
+
+Live-verified on the running dev server via `preview_inspect` (computed CSS for both contrast fixes),
+`preview_eval` (zero horizontal overflow and zero undersized touch targets at 768px/375px), and
+`preview_snapshot` (rendered content/empty states) — `preview_screenshot` itself timed out repeatedly in
+this session due to this app's dev-mode ad-tracking network volume, unrelated to any code change; noted
+explicitly rather than claimed as tested. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1163,6 +1212,11 @@ deliberately-deferred provider status-mapping gap (ESPN/Yahoo/Fantrax/MFL/Fleafl
   and documentation — no new Decision OS features, no global authorization redesign, no new providers, no
   Notification Engine changes, no new intelligence layers, no Visual OS work, and no UI behavior changed
   beyond returning a real 401/403 instead of silently exposing another league's data.
+- V1.0 touched only presentation: 3 new shared UI primitives, 1 flagship page + 1 panel migrated onto the
+  existing semantic token system, 2 redundant sections removed, 1 internal-jargon block removed — no
+  Decision OS composition, resolver, route, or authorization behavior changed; `CommissionerShowcasePanel`'s
+  `buildRecommendations`/`buildAiSummary` functions (and the OS-B7 truthfulness guarantees they carry) are
+  byte-for-byte unchanged; no new providers, no new intelligence, no backend contracts modified.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

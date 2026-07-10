@@ -15,7 +15,6 @@ import {
   Trophy,
   ArrowRight,
   Users,
-  Calendar,
   AlertCircle,
   Zap,
   MessageSquare,
@@ -106,18 +105,6 @@ const COPY = {
 }
 
 // ─── Types ──────────────────────────────────────────────────────────────────
-type SetupStatus = {
-  label: string
-  dotClass: string
-  badgeClass: string
-}
-
-type NextAction = {
-  label: string
-  href: string
-  variant: 'amber' | 'cyan' | 'emerald' | 'muted'
-}
-
 type QueueCard = {
   key: string
   icon: React.ComponentType<{ className?: string }>
@@ -131,15 +118,10 @@ type QueueCard = {
 }
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
-const ACTION_VARIANT_CLASSES: Record<NextAction['variant'], string> = {
-  amber:
-    'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20',
-  cyan: 'border-cyan-500/25 bg-cyan-500/[0.08] text-cyan-300 hover:bg-cyan-500/15',
-  emerald:
-    'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300 hover:bg-emerald-500/15',
-  muted:
-    'border-subtle bg-surface-muted text-muted hover:bg-surface-hover',
-}
+// Phase V1.0: removed the color table (and the `resolveSetupStatus`/`resolveNextAction` functions that
+// used it) that only backed the "Leagues I Manage" grid, deleted this phase for being a 3rd, visually
+// distinct rendering of the same league list already shown by the League Switcher and League Health
+// Dashboard — see docs/os/VISUAL_OS_V1_AUDIT.md Finding 5.
 
 function buildLoginHref(path: string): string {
   return `/login?callbackUrl=${encodeURIComponent(path)}`
@@ -156,61 +138,6 @@ function disablePrefetchForAuthSensitiveHref(href: string): boolean {
   } catch {
     return false
   }
-}
-
-function resolveSetupStatus(league: UserLeague): SetupStatus {
-  const state = (league.lifecycleState ?? league.status ?? '').toLowerCase()
-  if (state === 'setup' || state === '')
-    return {
-      label: 'Needs Setup',
-      dotClass: 'bg-amber-400',
-      badgeClass: 'border-amber-500/30 bg-amber-500/10 text-amber-300',
-    }
-  if (state === 'pre_draft')
-    return {
-      label: 'Pre-Draft',
-      dotClass: 'bg-cyan-400',
-      badgeClass: 'border-cyan-500/25 bg-cyan-500/[0.08] text-cyan-300',
-    }
-  if (state === 'drafting')
-    return {
-      label: 'Drafting',
-      dotClass: 'bg-violet-400 animate-pulse',
-      badgeClass: 'border-violet-500/30 bg-violet-500/10 text-violet-300',
-    }
-  if (state === 'in_season' || state === 'playoffs')
-    return {
-      label: state === 'playoffs' ? 'Playoffs' : 'In Season',
-      dotClass: 'bg-emerald-400',
-      badgeClass:
-        'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300',
-    }
-  if (state === 'completed' || state === 'offseason')
-    return {
-      label: 'Offseason',
-      dotClass: 'bg-surface-hover',
-      badgeClass: 'border-subtle bg-surface-muted text-muted',
-    }
-  return {
-    label: 'Active',
-    dotClass: 'bg-emerald-400',
-    badgeClass: 'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300',
-  }
-}
-
-function resolveNextAction(league: UserLeague): NextAction {
-  const state = (league.lifecycleState ?? league.status ?? '').toLowerCase()
-  if (state === 'setup' || state === '')
-    return { label: 'Complete Setup', href: `/league/${league.id}`, variant: 'amber' }
-  if (state === 'pre_draft' && !league.draftDate)
-    return { label: 'Set Draft Date', href: `/league/${league.id}`, variant: 'amber' }
-  if (state === 'pre_draft')
-    return { label: 'View Draft Room', href: `/war-room`, variant: 'cyan' }
-  if (state === 'drafting')
-    return { label: 'Enter Draft', href: `/war-room`, variant: 'emerald' }
-  if (state === 'in_season' || state === 'playoffs')
-    return { label: 'Manage League', href: `/league/${league.id}`, variant: 'emerald' }
-  return { label: 'View League', href: `/league/${league.id}`, variant: 'muted' }
 }
 
 function buildMissionQueue(commLeagues: UserLeague[]): QueueCard[] {
@@ -430,36 +357,6 @@ function SectionHeader({ label, hint }: { label: string; hint?: string }) {
     <div className="mb-4 flex flex-wrap items-baseline gap-2">
       <p className="text-[11px] font-bold uppercase tracking-widest text-muted">{label}</p>
       {hint && <p className="text-[11px] text-muted">{hint}</p>}
-    </div>
-  )
-}
-
-function StatCard({
-  value,
-  label,
-  accentClass,
-  borderClass,
-  alert,
-}: {
-  value: number
-  label: string
-  accentClass: string
-  borderClass: string
-  alert?: boolean
-}) {
-  return (
-    <div
-      className={`flex flex-col gap-1 rounded-2xl border p-4 ${borderClass}`}
-    >
-      <div className="flex items-center gap-1.5">
-        <span className={`text-[28px] font-black leading-none ${accentClass}`}>
-          {value}
-        </span>
-        {alert && value > 0 && (
-          <AlertCircle className="h-4 w-4 text-amber-400" aria-hidden />
-        )}
-      </div>
-      <p className="text-[11px] text-muted">{label}</p>
     </div>
   )
 }
@@ -856,23 +753,6 @@ export default function CommissionerHubPageClient({
     ? 'Create or import a league to replace the preview state with your real commissioner data.'
     : 'You can tour the commissioner workflow now, then sign in when you are ready to load leagues and personalize the hub.'
 
-  const totalManaged = commissionerLeagues.length
-  const needsSetupCount = commissionerLeagues.filter(
-    (l) =>
-      (l.lifecycleState ?? l.status ?? '').toLowerCase() === 'setup' ||
-      (l.lifecycleState ?? l.status ?? '') === '',
-  ).length
-  const missingDraftDateCount = commissionerLeagues.filter(
-    (l) =>
-      (l.lifecycleState ?? l.status ?? '').toLowerCase() === 'pre_draft' &&
-      !l.draftDate,
-  ).length
-  const activeCount = commissionerLeagues.filter((l) =>
-    ['in_season', 'playoffs', 'drafting'].includes(
-      (l.lifecycleState ?? l.status ?? '').toLowerCase(),
-    ),
-  ).length
-
   return (
     <div className="min-h-screen bg-app text-primary">
       <div className="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:px-6 sm:py-12">
@@ -912,11 +792,15 @@ export default function CommissionerHubPageClient({
               {COPY.hero.sub2}
             </p>
             {showDemoMode && (
-              <div className="mt-5 max-w-2xl rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.08] px-4 py-3">
-                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-cyan-200/75">
+              // Phase V1.0: was `text-cyan-200/75`/`text-cyan-50/80` — a light-cyan palette tuned for a
+              // dark background. Verified live in light mode (the app default): near-unreadable against
+              // this card's light background. Swapped to theme-aware semantic tokens (see
+              // docs/os/VISUAL_OS_V1_AUDIT.md Finding 4).
+              <div className="mt-5 max-w-2xl rounded-2xl border border-status-info/25 bg-status-info/10 px-4 py-3">
+                <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-status-info">
                   Presentation-safe preview
                 </p>
-                <p className="mt-1 text-[12px] leading-relaxed text-cyan-50/80">
+                <p className="mt-1 text-[12px] leading-relaxed text-secondary">
                   The hub now falls back to stable commissioner preview data when leagues, draft state, waiver state,
                   roster data, or NFL foundation reads are still empty.
                 </p>
@@ -952,52 +836,10 @@ export default function CommissionerHubPageClient({
           onSelectLeague={setSelectedLeagueId}
         />
 
-        {/* ── League Operations Summary ── */}
-        {totalManaged > 0 && (
-          <section>
-            <SectionHeader label={COPY.ops.sectionLabel} />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <StatCard
-                value={totalManaged}
-                label={COPY.ops.totalManaged}
-                accentClass="text-amber-300"
-                borderClass="border-amber-500/[0.14] bg-amber-500/[0.04]"
-              />
-              <StatCard
-                value={needsSetupCount}
-                label={COPY.ops.needsSetup}
-                accentClass={needsSetupCount > 0 ? 'text-amber-400' : 'text-muted'}
-                borderClass={
-                  needsSetupCount > 0
-                    ? 'border-amber-500/20 bg-amber-500/[0.05]'
-                    : 'border-subtle bg-surface-muted'
-                }
-                alert={needsSetupCount > 0}
-              />
-              <StatCard
-                value={missingDraftDateCount}
-                label={COPY.ops.missingDraft}
-                accentClass={missingDraftDateCount > 0 ? 'text-amber-400' : 'text-muted'}
-                borderClass={
-                  missingDraftDateCount > 0
-                    ? 'border-amber-500/20 bg-amber-500/[0.05]'
-                    : 'border-subtle bg-surface-muted'
-                }
-                alert={missingDraftDateCount > 0}
-              />
-              <StatCard
-                value={activeCount}
-                label={COPY.ops.active}
-                accentClass={activeCount > 0 ? 'text-emerald-400' : 'text-muted'}
-                borderClass={
-                  activeCount > 0
-                    ? 'border-emerald-500/[0.14] bg-emerald-500/[0.03]'
-                    : 'border-subtle bg-surface-muted'
-                }
-              />
-            </div>
-          </section>
-        )}
+        {/* Phase V1.0: the "League Operations Summary" stat row (Leagues Managed / Needs Setup /
+             Missing Draft Date / Active Now) was removed — it fully duplicated
+             CommissionerCommandCenterOverview's own stat chips directly above, a redundancy flagged
+             but left unfixed since OS-B6/OS-B7. See docs/os/VISUAL_OS_V1_AUDIT.md Finding 6. */}
 
         <CommissionerShowcasePanel
           leagues={leagues}
@@ -1038,99 +880,10 @@ export default function CommissionerHubPageClient({
 
         <LeagueHealthDashboard snapshots={managedHealthSnapshots} demoMode={showDemoMode} />
 
-        {/* ── League Setup Health ── */}
-        {commissionerLeagues.length > 0 && (
-          <section>
-            <div className="mb-4 flex items-center gap-2">
-              <Crown className="h-4 w-4 text-amber-400" aria-hidden />
-              <p className="text-[11px] font-bold uppercase tracking-widest text-amber-400/80">
-                Leagues I Manage
-                <span className="ml-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-1.5 py-0.5 text-[9px] font-bold text-amber-300/80">
-                  {commissionerLeagues.length}
-                </span>
-              </p>
-              <Link
-                href="/create-league"
-                prefetch={false}
-                className="ml-auto flex items-center gap-1 text-[11px] font-semibold text-amber-400/60 transition hover:text-amber-300"
-              >
-                <Plus className="h-3 w-3" aria-hidden />
-                New league
-              </Link>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {commissionerLeagues.map((league) => {
-                const status = resolveSetupStatus(league)
-                const nextAction = resolveNextAction(league)
-                return (
-                  <div
-                    key={league.id}
-                    className="flex flex-col gap-3 rounded-2xl border border-amber-500/[0.12] bg-amber-500/[0.04] p-4"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-[14px] font-bold text-primary">
-                          {league.name}
-                        </p>
-                        <p className="mt-0.5 text-[11px] text-muted">
-                          {league.sport}
-                          {league.teamCount ? ` / ${league.teamCount}-team` : ''}
-                          {league.scoring ? ` / ${league.scoring}` : ''}
-                        </p>
-                      </div>
-                      <span
-                        className={`inline-flex shrink-0 items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${status.badgeClass}`}
-                      >
-                        <span className={`h-1.5 w-1.5 rounded-full ${status.dotClass}`} aria-hidden />
-                        {status.label}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 text-[11px] text-muted">
-                      <span className="flex items-center gap-1">
-                        <Users className="h-3 w-3" aria-hidden />
-                        {league.teamCount ?? '-'} {COPY.health.membersLabel}
-                      </span>
-                      <span className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3" aria-hidden />
-                        {league.draftDate
-                          ? new Date(league.draftDate).toLocaleDateString(undefined, {
-                              month: 'short',
-                              day: 'numeric',
-                            })
-                          : COPY.health.noDraftDate}
-                      </span>
-                      {league.season && (
-                        <span className="flex items-center gap-1">
-                          <Activity className="h-3 w-3" aria-hidden />
-                          {league.season}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                      <Link
-                        href={nextAction.href}
-                        prefetch={disablePrefetchForAuthSensitiveHref(nextAction.href) ? false : undefined}
-                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-[12px] font-semibold transition ${ACTION_VARIANT_CLASSES[nextAction.variant]}`}
-                      >
-                        {nextAction.label}
-                        <ArrowRight className="h-3 w-3" aria-hidden />
-                      </Link>
-                      <Link
-                        href={`/league/${league.id}`}
-                        className="ml-auto text-[11px] text-muted transition hover:text-secondary"
-                      >
-                        {COPY.health.viewLeague}
-                        <ChevronRight className="inline h-3 w-3" aria-hidden />
-                      </Link>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          </section>
-        )}
+        {/* Phase V1.0: the "Leagues I Manage" grid (its own 3rd, visually distinct rendering of the
+             same league list already shown by the League Switcher inside the Multi-League Overview and
+             by League Health Dashboard below) was removed — see docs/os/VISUAL_OS_V1_AUDIT.md Finding 5.
+             `resolveSetupStatus`/`resolveNextAction` (its only callers) were removed with it. */}
 
         {/* ── Empty state ── */}
         {leagues.length === 0 && (
