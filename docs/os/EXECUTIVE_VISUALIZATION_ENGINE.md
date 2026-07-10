@@ -388,3 +388,101 @@ shared components).
 - `components/decision-os/ManagerCommandCenterSection.tsx` *(workspace integration at top of section)*
 - `__tests__/executive-viz/manager-executive-workspace.test.tsx` *(new, 15 tests)*
 - docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
+
+---
+
+# Phase V2.3 — League OS Executive Analytics Workspace
+
+The third completed Executive Analytics Workspace. Unlike Commissioner OS (the operator's view) or
+Manager OS (a manager's own season), League OS speaks about **the league itself** — the ecosystem, never
+an individual manager, commissioner, or player. Its signature visualization is **League Momentum**.
+B2B/licensing scope only; presentation-only; Decision OS, backend, and provider abstraction frozen; no
+Legacy/B2C.
+
+## Step 1 — Data audit
+
+League OS is built from `LeagueAnalyticsSnapshot` (`lib/decision-os/leagueAnalytics.ts`) — the
+purpose-built, id-only "what is happening in this league over time" composition already fetched by the
+hub (`/api/decision-os/league-analytics`), plus the already-loaded `fairnessScore` from the league's
+`CommissionerLeagueHealthSnapshot` for Competitive Balance only.
+
+| Field | Nature | Used by |
+| --- | --- | --- |
+| `trend` (`LeagueActivityTrendSummary`: `direction`, `eventCountDelta`, `periodsTracked`, `latestEventCount`) | **legitimately historical** when available; else `no_snapshots`/`insufficient_history` | League Momentum |
+| `activity` (`tradeCount`, `waiverClaimCount`, `draftPickCount`, `rosterActivityCount`) | current snapshot | Momentum, Transaction Distribution |
+| `managerCounts` (`activeManagers`, `inactiveManagers`) + `retentionRiskCount` | current snapshot | Engagement Summary |
+| `fairnessScore` (from health snapshot) | current snapshot / ordinal | Competitive Balance |
+
+Because `LeagueActivityTrendSummary` carries real multi-period history, League Momentum uses **real
+momentum** when it exists and degrades to an honest current-state snapshot otherwise — never a fabricated
+trend.
+
+## Step 2 — Flagship: League Momentum
+
+`components/executive-viz/LeagueMomentum.tsx` answers "How is the competitive landscape changing?":
+- With history: a momentum hero (▲/▼/— + the real `eventCountDelta`) and status
+  (Accelerating / Steady / Cooling), toned by direction (rising activity = positive engagement).
+- Without history: an honest current-state snapshot (total recorded activity + active managers,
+  labelled "Current snapshot", "momentum needs more history to trend") — no invented trend.
+The momentum hero is composed inline (no one-off shared primitive).
+
+## Step 3 — Supporting visualizations (one league question each)
+
+`components/executive-viz/LeagueSupportingViz.tsx`, from the same snapshot:
+
+| Graph | Question | Data | Form |
+| --- | --- | --- | --- |
+| **Transaction Distribution** | Where is league activity occurring? | `activity` (4 types) | volume-ranked `ExecutiveHorizontalBars` (uniform "active" tone — volume, not severity) |
+| **Engagement Summary** | Which parts are active or quiet? | `managerCounts` + `retentionRiskCount` | active/inactive/at-risk bars; honest empty state when no managers tracked |
+| **Competitive Balance** | Is this league balanced? | `fairnessScore` | `ExecutiveProgressRing` gauge + plain-language balance label |
+
+## Step 4 — Engine
+
+No new primitives — reused `ExecutiveHorizontalBars` + `ExecutiveProgressRing`; the momentum hero is
+inline. (ExecutiveMomentumIndicator / ExecutiveActivityTimeline were considered and declined: single
+foreseeable consumer, and a real time-series would need per-period history the snapshot exposes only as a
+single delta.)
+
+## Steps 5–7 — Hierarchy, information focus, provider abstraction
+
+The workspace renders at the top of the hub's **League Focus** section (which already fetches
+`leagueAnalytics`): the full-width, dominant-styled League Momentum flagship over a `md:grid-cols-2`
+grid of the three supporting graphs, above the existing commissioner-specific guidance. Every graph
+speaks about the league, not any manager/player. Verified live: zero provider names, API terms, payload
+fields, or player-level records reach the surface.
+
+## Steps 8–9 — Browser verification
+
+Live-verified against the real authenticated "12-Team NFL Redraft League" (via computed DOM): League
+Momentum "180 recent moves across the league; momentum needs more history to trend" (honest current-state
+snapshot — this league's `trend` is `no_snapshots`, so no fabricated trend is drawn), Transaction
+Distribution "draft picks lead league activity (180 of 180 moves)" with a visible bar, Engagement Summary
+showing its honest empty state ("No manager activity has been recorded in this league yet" — an edge-case
+fix made during live testing, replacing a "0 of 0" bar reading), and Competitive Balance's ring "This
+league is well balanced (90/100 fairness)". The `leagueAnalytics` fetch is slow (~2.6s), so the workspace
+correctly shows loading/unavailable states until it resolves. Screenshot capture was intermittently blank
+under the hidden-tab renderer freeze, so no League OS screenshot is claimed — findings rest on computed
+DOM inspection.
+
+## Step 10 — Tests
+
+`__tests__/executive-viz/league-executive-workspace.test.tsx` (14): momentum (real-history vs honest
+current-state vs unavailable, cooling tone), transaction ranking + empty, engagement summary + the
+no-managers empty case, competitive-balance labels, component render states, provider abstraction, and
+workspace hierarchy.
+
+## Boundaries / deferred
+
+No backend changes, no Decision OS changes, no fabricated league history/momentum, no provider-specific
+UI, no player-centric dashboard, no Legacy/B2C. Deferred: a real per-period activity timeline (the
+snapshot exposes only a single delta, not the full series) and a richer competitive-balance view (a
+single fairness gauge is used to stay distinct from Commissioner OS's Health Breakdown).
+
+## Files changed (V2.3)
+
+- `lib/executive-viz/leagueMomentumViewModel.ts` *(new — flagship + 3 builders)*
+- `components/executive-viz/LeagueMomentum.tsx` *(new — flagship)*
+- `components/executive-viz/LeagueSupportingViz.tsx` *(new — 3 supporting cards)*
+- `app/commissioner-hub/CommissionerHubPageClient.tsx` *(League OS workspace in League Focus)*
+- `__tests__/executive-viz/league-executive-workspace.test.tsx` *(new, 14 tests)*
+- docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`

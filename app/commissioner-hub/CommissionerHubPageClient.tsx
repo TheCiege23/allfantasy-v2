@@ -48,6 +48,12 @@ import {
   CommissionerWorkloadCard,
   LeagueReadinessCard,
 } from '@/components/executive-viz/SupportingExecutiveViz'
+import LeagueMomentum from '@/components/executive-viz/LeagueMomentum'
+import {
+  TransactionDistributionCard,
+  LeagueEngagementCard,
+  CompetitiveBalanceCard,
+} from '@/components/executive-viz/LeagueSupportingViz'
 import {
   buildCommissionerLeagueHealthViewModel,
   selectFlagshipSnapshot,
@@ -975,6 +981,19 @@ export default function CommissionerHubPageClient({
             >
               ← All leagues
             </button>
+
+            {/* Phase V2.3 — League OS Executive Analytics Workspace. Speaks about the league itself:
+                the League Momentum flagship (dominant) over supporting graphs, all from the existing
+                `leagueAnalytics` snapshot (+ the already-loaded fairnessScore for Competitive Balance).
+                Sits above the commissioner-specific guidance below. */}
+            <div className="mb-5 space-y-4" data-testid="league-os-workspace" aria-label="League overview">
+              <LeagueMomentum snapshot={leagueAnalytics} />
+              <div className="grid gap-4 md:grid-cols-2">
+                <TransactionDistributionCard snapshot={leagueAnalytics} />
+                <LeagueEngagementCard snapshot={leagueAnalytics} />
+                <CompetitiveBalanceCard healthSnapshot={healthByLeagueId.get(representativeLeagueId) ?? null} />
+              </div>
+            </div>
 
             <section className="grid gap-4 xl:grid-cols-2" aria-label="Commissioner guidance">
               <ManagerDnaCard profile={managerDna} variant="commissioner" compact />

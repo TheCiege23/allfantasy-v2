@@ -1390,6 +1390,30 @@ detailed drill-down the graphs summarize.
 risk bars, numbered decision steps, and zero provider/API/player identifiers. A real screenshot was
 captured successfully this phase. 15 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.2.
 
+### V2.3 — League OS Executive Analytics Workspace (2026-07-10)
+
+The third completed Executive Analytics Workspace, and the first that speaks about **the league itself**
+— the ecosystem, never an individual manager, commissioner, or player. Its signature visualization,
+**League Momentum**, answers "How is the competitive landscape changing?" Built from
+`LeagueAnalyticsSnapshot` (the purpose-built league composition already fetched by the hub) plus the
+already-loaded `fairnessScore` for Competitive Balance only. Because that snapshot's
+`LeagueActivityTrendSummary` carries legitimate multi-period history, League Momentum shows a real trend
+(direction + event-count delta over tracked periods) when it exists and degrades to an honest
+current-state snapshot otherwise — never a fabricated trend. Three supporting graphs each answer one
+league question: Transaction Distribution (where activity occurs), Engagement Summary (active vs quiet
+managers), Competitive Balance (a fairness gauge). No new engine primitives (reused ExecutiveHorizontalBars
++ ExecutiveProgressRing). Integrated as the dominant, full-width hero atop the hub's League Focus section.
+
+**Verification**: live-tested against the real authenticated "12-Team NFL Redraft League" — League
+Momentum "180 recent moves across the league; momentum needs more history to trend" (an honest
+current-state snapshot, since this league's trend is `no_snapshots`), Transaction Distribution "draft
+picks lead league activity (180 of 180 moves)" with a visible bar, Engagement Summary's honest empty
+state (a live-found edge-case fix replacing a "0 of 0" reading), and Competitive Balance's ring "well
+balanced (90/100 fairness)" — with zero provider/API/player identifiers. The `leagueAnalytics` fetch is
+slow (~2.6s), so the workspace correctly shows loading/unavailable states until it resolves. The
+hidden-tab screenshot capture was intermittently blank, so no League OS screenshot is claimed — findings
+rest on computed DOM inspection. 14 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.3.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1504,6 +1528,17 @@ captured successfully this phase. 15 new tests. Full detail: `EXECUTIVE_VISUALIZ
   reused). The only non-`executive-viz`/non-doc change is `ManagerCommandCenterSection.tsx` (renders the
   workspace from its already-fetched snapshot at the top of the section; existing content retained below
   as drill-down — no Decision OS logic/route/contract touched).
+- V2.3 brought the engine to League OS: one flagship + three supporting graphs, entirely within the
+  B2B/licensing product and entirely presentation-only. All are built from the existing
+  `LeagueAnalyticsSnapshot` (+ the already-loaded `fairnessScore` for Competitive Balance) via new pure
+  builders in `leagueMomentumViewModel.ts` — no new fetch, contract, or intelligence. League Momentum
+  uses the snapshot's real multi-period activity history when present and an honest current-state snapshot
+  otherwise — no fabricated league momentum/trend. The workspace speaks about the league ecosystem, never
+  an individual manager/player; no raw provider payloads, player-level records, or internal IDs on the
+  surface (verified live). No Legacy/B2C features; no new engine primitives (existing
+  ExecutiveProgressRing + ExecutiveHorizontalBars reused). The only non-`executive-viz`/non-doc change is
+  `CommissionerHubPageClient.tsx` (renders the League OS workspace as the League Focus hero from the
+  already-fetched `leagueAnalytics` — no Decision OS logic/route/contract touched).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely
