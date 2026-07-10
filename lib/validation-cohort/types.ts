@@ -68,6 +68,76 @@ export type NormalizedLeagueFacts = {
   inactiveManagers: number
 }
 
+// ── Historical portfolio discovery (Phase V7.2) ───────────────────────────────
+
+/** A single league discovered for an account in a season. Provider-neutral, anonymized refs only. */
+export type DiscoveredLeague = {
+  /** Anonymized opaque reference (never a raw league id/name). */
+  leagueReference: string
+  season: string
+  sport: string
+  /** Anonymized reference to this league's prior-season instance (for chains), or null. */
+  previousLeagueRef: string | null
+  /** The account's role in this league; `unknown` when not cheaply resolvable at discovery time. */
+  role: 'commissioner' | 'member' | 'unknown'
+}
+
+/** One root account's discovered historical portfolio. */
+export type AccountPortfolio = {
+  /** Anonymized account reference (never a raw user id/username). */
+  accountReference: string
+  status: 'resolved' | 'unresolved' | 'failed'
+  seasonsDiscovered: string[]
+  leagues: DiscoveredLeague[]
+}
+
+/** A league's continuity across seasons, linked via previous-league relationships. */
+export type LeagueChain = {
+  chainId: string
+  seasons: { season: string; leagueReference: string }[]
+}
+
+/** Provider-neutral portfolio manifest across the whole cohort (engineering artifact). */
+export type PortfolioManifest = {
+  generatedAt: string
+  accounts: AccountPortfolio[]
+  /** Leagues discovered under more than one account (shared-league boundary). */
+  sharedLeagues: { leagueReference: string; accountReferences: string[] }[]
+  chains: LeagueChain[]
+  totals: {
+    accounts: number
+    resolved: number
+    uniqueLeagues: number
+    seasons: string[]
+    chains: number
+  }
+}
+
+/** Evidence categories an import can gather (used by the coverage matrix). */
+export type EvidenceCategory =
+  | 'metadata'
+  | 'rosters'
+  | 'standings'
+  | 'matchups'
+  | 'trades'
+  | 'waivers'
+  | 'free_agents'
+  | 'faab'
+  | 'drafts'
+  | 'draft_picks'
+  | 'previous_league'
+
+/** Which evidence categories are actually present per league/season. Only observed truth — never assumed. */
+export type HistoricalCoverageMatrix = {
+  generatedAt: string
+  rows: {
+    leagueReference: string
+    season: string
+    coverage: Partial<Record<EvidenceCategory, boolean>>
+  }[]
+  categoryTotals: Record<string, number>
+}
+
 // ── League archetype classification (Step 4) ──────────────────────────────────
 
 /** One archetype dimension, always with the deterministic evidence that produced it. */

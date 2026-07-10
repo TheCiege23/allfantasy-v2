@@ -1660,6 +1660,22 @@ Verification: tests 12 new (168 targeted, 0 failures); typecheck 158 baseline; `
 live-cohort visual archetype verification (Part D 16) — both need the real multi-account cohort and reliable
 browser rendering; the hubs already hold the V3.2 a11y/responsive certification so polish is incremental.
 
+### V7.2 — Historical ingestion pipeline: reusable infra, cohort still absent (2026-07-10)
+
+Executed against the prompt's explicit fallback: the username cohort was STILL not supplied (confirmed
+absent in repo, env, and context), so per instruction the phase built ONLY the reusable historical-ingestion
+infrastructure and stopped — no usernames or validation results were fabricated. It extends
+`lib/validation-cohort/` with the historical dimension V7.1 lacked: bounded multi-season enumeration + role
+resolution (`portfolioDiscovery.ts`), and pure builders for season-continuity chains via `previous_league_id`,
+shared-league detection, and a coverage matrix that records only observed evidence (`portfolioManifest.ts`),
+plus a CLI `--discover` mode writing a Portfolio Manifest + Historical Coverage Matrix. It reuses the V7.1
+resolver, bounded-concurrency pool, and anonymization (no parallel importer), stays inside the approved
+shared-league boundary (never crawls other members' unrelated leagues), and keeps everything anonymized
+(`acct_`/`lg_` refs). Live-verified against the public `theciege24` account: 329 real leagues across three
+seasons with 101 season-continuity chains correctly assembled. Tests 5 new (fixture/DI); typecheck 158
+baseline. The actual Decision OS cohort validation (Parts 4–6) — real manifest, differentiated seven-OS
+outputs, provider-evidence coverage — remains the recurring blocker: it needs the supplied usernames.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.

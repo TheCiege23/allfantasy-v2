@@ -21,6 +21,7 @@ import path from 'node:path'
 import os from 'node:os'
 import { normalizeCohort } from '../lib/validation-cohort/normalizeCohort'
 import { runCohort } from '../lib/validation-cohort/runCohort'
+import { runDiscovery } from '../lib/validation-cohort/portfolioDiscovery'
 import { makeDefaultFetch } from '../lib/validation-cohort/sleeperCohortClient'
 import { renderHumanSummary } from '../lib/validation-cohort/reportBuilder'
 import type { CohortAggregateReport } from '../lib/validation-cohort/types'
@@ -77,6 +78,35 @@ function loadResumeSet(): Set<string> {
   console.log(
     `[validate-cohort] candidates=${accounts.length} resolvable=${accounts.filter((a) => a.status === 'pending').length} ambiguous=${accounts.filter((a) => a.status === 'ambiguous').length} dryRun=${dryRun}`,
   )
+
+  fs.mkdirSync(outDir, { recursive: true })
+  const stamp0 = new Date().toISOString().replace(/[:.]/g, '-')
+
+  // ── Discover mode (Phase V7.2): multi-season historical portfolio manifest + coverage matrix. ──
+  if (hasFlag('discover')) {
+    const seasons = (arg('seasons') ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+    if (seasons.length === 0) {
+      console.error('--discover requires an explicit bounded --seasons list, e.g. --seasons=2024,2023,2022')
+      process.exit(1)
+    }
+    const { accounts: acc, manifest, coverage } = await runDiscovery(accounts, fetchJson, {
+      seasons,
+      sport,
+      concurrency,
+      resolveRoles: !hasFlag('noRoles'),
+    })
+    const mPath = path.join(outDir, `portfolio-manifest-${stamp0}.json`)
+    const cPath = path.join(outDir, `historical-coverage-matrix-${stamp0}.json`)
+    fs.writeFileSync(mPath, JSON.stringify({ accounts: acc, manifest }, null, 2))
+    fs.writeFileSync(cPath, JSON.stringify(coverage, null, 2))
+    console.log(
+      `[discover] resolved=${manifest.totals.resolved}/${manifest.totals.accounts} uniqueLeagues=${manifest.totals.uniqueLeagues} seasons=[${manifest.totals.seasons.join(',')}] chains=${manifest.totals.chains} sharedLeagues=${manifest.sharedLeagues.length}`,
+    )
+    console.log(`[discover] wrote ${mPath}`)
+    console.log(`[discover] wrote ${cPath}`)
+    console.log('DISCOVER_OK')
+    return
+  }
 
   const { report } = await runCohort(accounts, fetchJson, {
     season,
