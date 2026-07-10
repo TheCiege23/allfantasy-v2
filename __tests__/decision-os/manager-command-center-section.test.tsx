@@ -112,13 +112,17 @@ describe('ManagerCommandCenterSection', () => {
     // Reused NotificationCenter, composed with zero additional request.
     expect(screen.getByTestId('notification-center')).toBeInTheDocument()
 
-    // Phase OS-C2: Lineup Priorities renders the real recommendation; Trade/Waiver show their
-    // honest empty states since the fixture has no recommendations in those categories.
+    // Phase OS-C2: Lineup Priorities renders the real recommendation; Trade shows its honest empty
+    // state since the fixture has no recommendation in that category.
     expect(screen.getByTestId('manager-priority-lineup_discipline-item-rec-lineup-1')).toHaveTextContent(
       'Start your bench RB over your injured starter.',
     )
     expect(screen.getByTestId('manager-priority-trade_coaching-empty')).toBeInTheDocument()
-    expect(screen.getByTestId('manager-priority-waiver_opportunity-empty')).toBeInTheDocument()
+
+    // Phase V2.5: the "Waiver Priorities" module was removed — those exact recommendations are now the
+    // dominant Waiver Impact Sequence in the Waiver OS workspace, so rendering both would duplicate them.
+    expect(screen.queryByTestId('manager-priority-waiver_opportunity-empty')).not.toBeInTheDocument()
+    expect(screen.getByTestId('waiver-os-workspace')).toBeInTheDocument()
 
     // New Manager League Switcher, real navigation hrefs.
     expect(screen.getByTestId('manager-league-switcher-list')).toBeInTheDocument()

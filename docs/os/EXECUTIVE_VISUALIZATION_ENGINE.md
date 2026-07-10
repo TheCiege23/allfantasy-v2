@@ -585,3 +585,103 @@ enrichment (pending/review-window/vote counts), available when `COMMISSIONER_TRA
 - `app/commissioner-hub/CommissionerHubPageClient.tsx` *(Trade OS workspace in League Focus)*
 - `__tests__/executive-viz/trade-executive-workspace.test.tsx` *(new, 12 tests)*
 - docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
+
+---
+
+# Phase V2.5 — Waiver OS Executive Analytics Workspace
+
+The fifth completed Executive Analytics Workspace. Waiver OS represents the manager's waiver decision
+priorities — where waivers could materially improve the team, what to act on first, and how much urgency
+exists — as a decision system, not a free-agent screen. Its signature visualization is the **Waiver
+Impact Sequence**. B2B/licensing scope only; presentation-only; Decision OS, backend, and provider
+abstraction frozen; no Legacy/B2C.
+
+## Step 1 — Data audit (and the honesty rule it triggered)
+
+| Field | Nature | Verdict |
+| --- | --- | --- |
+| `waiver_opportunity` / `waiver_activation` recommendations: `priority`, `confidence`, `expectedImpact`, `recommendedActions`, `evidence`, `completeness` | current snapshot / ordinal, already in `ManagerCommandCenterSnapshot` | **used** |
+| `attentionQueue` severity | current snapshot / ordinal | available (urgency context) |
+| FAAB budget/remaining, `faabPressure`, `waiverPriority`, claim limits | real contract (`WaiverResourceIntel`, `lib/decision-os/waiver/world.ts`) but **no route exposes it** | **Resource Strategy deferred** — surfacing it = backend expansion; any number shown would be fabricated |
+| `nextProcessAtIso` processing deadline (`WaiverSubmissionState`) | real but **unexposed** | **no deadlines shown, no expiration invented** |
+| waiver-impact history, pickup success, competition, positional demand, league pickup trends, available-player lists | **do not exist** as provider-agnostic contracts | not built |
+
+**MANDATORY HONESTY RULE applied:** no legitimate temporal waiver data is reachable, so the flagship is
+an ordered **Waiver Impact Sequence** (action order by existing recommendation priority), **NOT** a
+time-series timeline. Recommendation ordering is never labeled as historical movement — the surface even
+states "Ordered by priority, not by date". A test asserts `hasTemporalData === false` and that no
+opportunity carries a deadline/expiration field.
+
+## Step 2 — Flagship: Waiver Impact Sequence
+
+`components/executive-viz/WaiverImpactSequence.tsx`. Numbered, priority-ordered waiver opportunities; each
+step leads with the decision (opportunity → expected impact → why it matters → required action), with a
+priority chip and confidence meta, plus an "N urgent" header chip. Honest empty ("Nothing worth claiming
+right now") and unavailable states. Player names appear only inside a recommendation's own action text.
+
+## Step 3 — Supporting visualizations
+
+`components/executive-viz/WaiverSupportingViz.tsx`, from the same recommendations:
+
+| Graph | Question | Data | Form |
+| --- | --- | --- | --- |
+| **Opportunity Impact** | Which opportunities make the largest difference? | waiver recs bucketed by the engine's OWN priority tiers (no invented score) | `ExecutiveHorizontalBars` |
+| **Waiver Urgency** | Which decisions cannot wait? | share of waiver recs the engine rated critical/high | `ExecutiveProgressRing` |
+
+**Resource Strategy** (FAAB / bid / budget) is deferred (unexposed contract); **Waiver Decision Queue** is
+the flagship itself (the ordered sequence), so it is not duplicated as a separate card.
+
+## Step 5 — Engine: a new SHARED primitive (justified by three real consumers)
+
+`ExecutiveDecisionSequence` was extracted into `ExecutiveCharts.tsx` this phase — the numbered
+priority-list pattern now has **three real consumers**: Manager OS's Weekly Decision Timeline, Trade OS's
+Trade Pipeline, and this Waiver flagship. Both prior consumers were migrated onto it (net code removed).
+It expresses order + priority only, never chronology, and renders fully static (no animation gate).
+
+## Steps 6–8 — Hierarchy, information audit, provider abstraction
+
+Rendered in the Manager Hub below the Championship Trajectory workspace: the full-width, dominant Waiver
+Impact Sequence over a `md:grid-cols-2` grid of Opportunity Impact + Waiver Urgency. **Step 7
+de-duplication:** the old "Waiver Priorities" `ManagerPriorityModule` was removed and `waiver_opportunity`
+dropped from that module's category set — those exact recommendations are now the dominant flagship, so
+keeping the module would render them twice (the existing section test was updated to assert the module is
+gone and the workspace is present). Provider-abstraction scan of the customer-facing files is clean: no
+Sleeper/ESPN/Yahoo/provider language, ownership fields, payloads, or internal IDs.
+
+## Steps 9–10 — Accessibility, motion, browser verification
+
+Accessible summary (`sr-only`) per card, `role="meter"` marks, honest empty/unavailable states, and
+non-hiding motion (sequence numbering, bar widths, ring offsets all render at value on first paint;
+`motion-reduce` honored). **Live-verified against the real authenticated Manager Hub, which has a real
+waiver opportunity** — so the flagship rendered POPULATED: "1 waiver opportunity to weigh, in priority
+order — none are urgent", the numbered step showing the real recommendation's impact + action, the
+"Ordered by priority, not by date" note, Opportunity Impact's green Low-priority bar, and the Waiver
+Urgency ring "0/1 · not urgent". The old Waiver Priorities module is confirmed gone, and no
+provider/player/ownership terms appear. Two live-found grammar bugs were fixed (singular urgency +
+"opportunity leads"). **A screenshot was captured successfully** this phase (renderer was responsive).
+
+## Step 11 — Tests
+
+`__tests__/executive-viz/waiver-executive-workspace.test.tsx` (17): builders (ordering, urgency %, impact
+priority buckets, singular/plural grammar), the mandatory no-temporal-data / ordered-sequence assertions,
+Resource Strategy deferred (+ a source scan that no FAAB field is referenced), component render states,
+accessible ring meter, provider/player abstraction, hierarchy + de-duplication, and the three-consumer
+reuse of `ExecutiveDecisionSequence`. Plus the updated `manager-command-center-section.test.tsx`.
+
+## Boundaries / deferred
+
+No backend changes, no Decision OS changes, no fabricated waiver history, no invented deadlines/opportunity
+windows, no made-up FAAB, no player-centric dashboard, no raw provider payloads, no Legacy/B2C. Deferred:
+Resource Strategy (FAAB/bid — real but unexposed contract; would require backend expansion) and any
+temporal/competition/positional-demand visualization (no reachable contract).
+
+## Files changed (V2.5)
+
+- `lib/executive-viz/waiverDecisionViewModel.ts` *(new — flagship + 2 builders + deferred marker)*
+- `components/executive-viz/WaiverImpactSequence.tsx` *(new — flagship)*
+- `components/executive-viz/WaiverSupportingViz.tsx` *(new — 2 supporting cards)*
+- `components/executive-viz/ExecutiveCharts.tsx` *(new shared `ExecutiveDecisionSequence` primitive)*
+- `components/executive-viz/ManagerSupportingViz.tsx`, `TradeSupportingViz.tsx` *(migrated onto the primitive)*
+- `components/decision-os/ManagerCommandCenterSection.tsx` *(Waiver OS workspace + removed duplicate Waiver Priorities module)*
+- `__tests__/executive-viz/waiver-executive-workspace.test.tsx` *(new, 17 tests)*, `__tests__/decision-os/manager-command-center-section.test.tsx` *(updated for de-duplication)*
+- docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`

@@ -1,19 +1,24 @@
 /**
  * Fantasy OS Suite — Phase V2.1: Executive Visualization Engine chart primitives.
  *
- * Reusable data-mark primitives shared by the Commissioner OS supporting visualizations. Added here
- * (rather than inline in one card) because each is used by more than one visualization:
- *   - `ExecutiveHorizontalBars` — Manager Attention, League Health Breakdown, Commissioner Workload.
- *   - `ExecutiveProgressRing` — League Readiness (three rings).
+ * Reusable data-mark primitives shared across the Executive Analytics Workspaces. Each lives here (rather
+ * than inline in one card) only because it has at least two real consumers:
+ *   - `ExecutiveHorizontalBars` — Manager Attention, League Health Breakdown, Commissioner Workload,
+ *     Team Risk, Decision Focus, Transaction Distribution, Engagement Summary, Waiver Opportunity Impact.
+ *   - `ExecutiveProgressRing` — League Readiness, Championship Trajectory, Competitive Balance, Waiver Urgency.
+ *   - `ExecutiveDecisionSequence` (V2.5) — Manager OS Weekly Decision Timeline, Trade OS Trade Pipeline,
+ *     Waiver OS Waiver Impact Sequence. Expresses ORDER + PRIORITY only, never calendar chronology.
  *
  * Same discipline as V2.0: colors come from `executiveVizTokens.ts` (Visual OS `status-*` semantics, no
  * raw hue/hex); bar/ring fill is rendered DIRECTLY at its correct value (never gated behind an animation
  * or effect, which freeze in hidden/background tabs), so the data is always visible; motion is limited to
  * non-hiding CSS transitions that honor `motion-reduce:*`.
  */
+import Link from 'next/link'
+import { ArrowRight } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ExecutiveHealthStatus } from '@/lib/executive-viz/commissionerLeagueHealthViewModel'
-import { EXECUTIVE_STATUS_BAR, EXECUTIVE_STATUS_LABEL } from './executiveVizTokens'
+import { EXECUTIVE_STATUS_BAR, EXECUTIVE_STATUS_LABEL, EXECUTIVE_STATUS_SURFACE } from './executiveVizTokens'
 
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value))
@@ -153,5 +158,80 @@ export function ExecutiveProgressRing({
       </div>
       <span className="text-center text-[11px] font-semibold text-secondary">{label}</span>
     </div>
+  )
+}
+
+export type ExecutiveSequenceItem = {
+  key: string
+  label: string
+  detail: string
+  /** Priority / urgency chip text. */
+  badgeLabel: string
+  status: ExecutiveHealthStatus
+  /** Optional secondary line (e.g. "High confidence"). */
+  meta?: string
+  actionHref?: string
+  actionLabel?: string
+}
+
+/**
+ * An ordered, numbered decision sequence — "what to do first", in the existing recommendation order.
+ *
+ * Extracted in Phase V2.5 once a THIRD real consumer appeared (Manager OS's Weekly Decision Timeline,
+ * Trade OS's Trade Pipeline, and Waiver OS's Waiver Impact Sequence), clearing the engine's "at least two
+ * real consumers" bar. It expresses ORDER and PRIORITY only — it never implies calendar chronology, so it
+ * is safe for domains with no legitimate temporal data.
+ *
+ * Fully static: numbering, chips, and text render at their correct values on first paint, so nothing is
+ * hidden behind an animation gate (hidden/background tabs freeze animations).
+ */
+export function ExecutiveDecisionSequence({
+  items,
+  testIdPrefix = 'sequence-step',
+}: {
+  items: ExecutiveSequenceItem[]
+  testIdPrefix?: string
+}) {
+  return (
+    <ol className="space-y-2">
+      {items.map((item, index) => (
+        <li
+          key={item.key}
+          data-testid={`${testIdPrefix}-${item.key}`}
+          data-status={item.status}
+          className="flex items-start gap-3 rounded-xl border border-subtle bg-surface px-3 py-2.5 transition duration-200 hover:border-brand-primary/25 motion-reduce:transition-none"
+        >
+          <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-brand-primary/25 bg-brand-primary/10 text-[12px] font-black text-brand-primary">
+            {index + 1}
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center justify-between gap-2">
+              <span className="truncate text-[13px] font-bold text-primary">{item.label}</span>
+              <span
+                className={cn(
+                  'shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase',
+                  EXECUTIVE_STATUS_SURFACE[item.status],
+                )}
+              >
+                {item.badgeLabel}
+              </span>
+            </div>
+            <p className="mt-0.5 text-[11px] leading-snug text-secondary">{item.detail}</p>
+            <div className="mt-1 flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+              {item.meta ? <span className="text-[10px] font-semibold text-muted">{item.meta}</span> : <span />}
+              {item.actionHref && item.actionLabel ? (
+                <Link
+                  href={item.actionHref}
+                  className="focus-ring inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold text-brand-primary transition hover:bg-brand-primary/10"
+                >
+                  {item.actionLabel}
+                  <ArrowRight className="h-3 w-3" aria-hidden />
+                </Link>
+              ) : null}
+            </div>
+          </div>
+        </li>
+      ))}
+    </ol>
   )
 }

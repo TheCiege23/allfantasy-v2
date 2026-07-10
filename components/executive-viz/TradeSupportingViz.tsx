@@ -22,6 +22,7 @@ import {
   buildTradeMarketActivity,
   buildTradePipeline,
 } from '@/lib/executive-viz/tradeMarketViewModel'
+import { ExecutiveDecisionSequence } from './ExecutiveCharts'
 import { EXECUTIVE_STATUS_SURFACE } from './executiveVizTokens'
 import {
   ExecutiveEmptyState,
@@ -86,28 +87,17 @@ export function TradePipelineCard({ recommendations }: { recommendations: Recomm
       ) : (
         <>
           <p className="mb-3 text-[12px] font-semibold text-secondary">{model.headline}</p>
-          <ol className="space-y-2">
-            {model.items.map((item, index) => (
-              <li
-                key={item.key}
-                data-testid={`trade-step-${item.key}`}
-                className="flex items-start gap-3 rounded-xl border border-subtle bg-surface px-3 py-2.5"
-              >
-                <span className="mt-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full border border-brand-primary/25 bg-brand-primary/10 text-[12px] font-black text-brand-primary">
-                  {index + 1}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[13px] font-bold text-primary">{item.label}</span>
-                    <span className={cn('shrink-0 rounded-md border px-1.5 py-0.5 text-[10px] font-bold uppercase', EXECUTIVE_STATUS_SURFACE[item.status])}>
-                      {item.priorityLabel}
-                    </span>
-                  </div>
-                  <p className="mt-0.5 text-[11px] leading-snug text-secondary">{item.detail}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
+          {/* Phase V2.5: migrated onto the shared `ExecutiveDecisionSequence` primitive (3 consumers). */}
+          <ExecutiveDecisionSequence
+            items={model.items.map((item) => ({
+              key: item.key,
+              label: item.label,
+              detail: item.detail,
+              badgeLabel: item.priorityLabel,
+              status: item.status,
+            }))}
+            testIdPrefix="trade-step"
+          />
         </>
       )}
     </ExecutiveVisualizationShell>

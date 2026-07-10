@@ -23,7 +23,7 @@
  * systems.
  */
 import { useEffect, useMemo, useState } from 'react'
-import { CheckCircle2, Compass, ListChecks, Repeat, ShoppingCart } from 'lucide-react'
+import { CheckCircle2, Compass, ListChecks, Repeat } from 'lucide-react'
 import type { ManagerCommandCenterSnapshot } from '@/lib/decision-os/managerCommandCenter'
 import { composeDailyBrief } from '@/lib/decision-os/dailyBrief'
 import { composeNotificationFeed } from '@/lib/decision-os/notifications'
@@ -40,6 +40,11 @@ import {
   TeamRiskSummaryCard,
   DecisionFocusCard,
 } from '@/components/executive-viz/ManagerSupportingViz'
+import WaiverImpactSequence from '@/components/executive-viz/WaiverImpactSequence'
+import {
+  WaiverOpportunityImpactCard,
+  WaiverUrgencyCard,
+} from '@/components/executive-viz/WaiverSupportingViz'
 import CommissionerAttentionQueue from './CommissionerAttentionQueue'
 import ManagerPriorityModule from './ManagerPriorityModule'
 import ManagerLeagueSwitcher from './ManagerLeagueSwitcher'
@@ -123,12 +128,16 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
     }
   }, [notifications])
 
-  // Phase OS-C3: found during live validation — 3 separate empty Priority Module boxes stacked
-  // together (the common case: not every manager has an active recommendation in every category every
-  // week) read as clutter, the same "near-permanently-empty standalone card" anti-pattern OS-B6 already
-  // removed for Commissioner OS's Recent Changes card. Collapses to ONE honest combined empty state
-  // only when ALL THREE categories are empty; any real content still renders each module individually.
-  const priorityCategories = new Set(['lineup_discipline', 'trade_coaching', 'waiver_opportunity'])
+  // Phase OS-C3: found during live validation — separate empty Priority Module boxes stacked together
+  // (the common case: not every manager has an active recommendation in every category every week) read
+  // as clutter, the same "near-permanently-empty standalone card" anti-pattern OS-B6 already removed for
+  // Commissioner OS's Recent Changes card. Collapses to ONE honest combined empty state only when ALL
+  // categories are empty; any real content still renders each module individually.
+  //
+  // Phase V2.5: `waiver_opportunity` was removed from this set and its "Waiver Priorities" module
+  // deleted — the Waiver OS workspace above now renders those exact recommendations as the dominant
+  // Waiver Impact Sequence, so keeping the module too would show the same recommendations twice.
+  const priorityCategories = new Set(['lineup_discipline', 'trade_coaching'])
   const hasAnyPriorities = (snapshot?.recommendations ?? []).some((entry) =>
     priorityCategories.has(entry.recommendation.category),
   )
@@ -204,6 +213,22 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
           </div>
         ) : null}
 
+        {/* Phase V2.5 — Waiver OS Executive Analytics Workspace. The Waiver Impact Sequence flagship
+            (dominant) over Opportunity Impact + Waiver Urgency, all from the same already-fetched
+            snapshot's waiver-category recommendations. It is an ordered priority sequence, NOT a
+            timeline: no waiver deadlines/processing windows are reachable, so none are invented. This
+            supersedes the old "Waiver Priorities" module (removed below to avoid duplicating the same
+            recommendations across two cards). */}
+        {snapshot ? (
+          <div data-testid="waiver-os-workspace" className="space-y-4" aria-label="Waiver decision workspace">
+            <WaiverImpactSequence snapshot={snapshot} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <WaiverOpportunityImpactCard snapshot={snapshot} />
+              <WaiverUrgencyCard snapshot={snapshot} />
+            </div>
+          </div>
+        ) : null}
+
         <ManagerCommandCenterOverview
           totalLeagues={leagues.length}
           trackedLeagueCount={snapshot ? snapshot.totalLeagues - snapshot.unavailableLeagueCount : 0}
@@ -218,8 +243,9 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
         {/* Phase OS-C2: Priority Modules — real Phase 6.4 manager-tier recommendations, grouped by
             their own real category. Same source data as the Attention Queue above (see
             docs/os/OS_C2_PRIORITIES_ARCHITECTURE_AUDIT.md for why this is intentional, not
-            duplication). Phase OS-C3: collapsed to one combined empty state when all 3 are empty —
-            see the `hasAnyPriorities` comment above. */}
+            duplication). Phase OS-C3: collapsed to one combined empty state when all are empty —
+            see the `hasAnyPriorities` comment above. Phase V2.5 removed the Waiver module (now the
+            dominant Waiver Impact Sequence above). */}
         {hasAnyPriorities ? (
           <>
             <ManagerPriorityModule
@@ -238,14 +264,6 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
               leagueNameById={leagueNameById}
               emptyMessage="No trade priorities right now."
             />
-            <ManagerPriorityModule
-              title="Waiver Priorities"
-              icon={ShoppingCart}
-              category="waiver_opportunity"
-              entries={snapshot?.recommendations ?? []}
-              leagueNameById={leagueNameById}
-              emptyMessage="No waiver priorities right now."
-            />
           </>
         ) : (
           <div
@@ -253,7 +271,7 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             data-testid="manager-priorities-empty"
           >
             <CheckCircle2 className="h-4 w-4 shrink-0 text-status-success" aria-hidden />
-            No lineup, trade, or waiver priorities right now.
+            No lineup or trade priorities right now.
           </div>
         )}
 

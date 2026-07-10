@@ -1438,6 +1438,29 @@ pipeline ordering are verified by unit tests with real-field fixtures. The hidde
 was blank, so no Trade OS screenshot is claimed. 12 new tests. Full detail:
 `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.4.
 
+### V2.5 — Waiver OS Executive Analytics Workspace (2026-07-10)
+
+The fifth completed Executive Analytics Workspace — a waiver decision system, not a connected provider's
+free-agent screen. Its signature visualization, the **Waiver Impact Sequence**, answers "which waiver
+actions could improve my team, and what should I do first?" The Step 1 audit found that no legitimate
+temporal waiver data (deadlines, processing windows, pickup history) is reachable from any customer-facing
+route — so, per the phase's mandatory honesty rule, the flagship is an **ordered priority sequence, not a
+timeline** (it even states "Ordered by priority, not by date"), and a test asserts it carries no temporal
+data. It is built from the waiver-category Phase 6.4 recommendations already in
+`ManagerCommandCenterSnapshot`. FAAB/bid **Resource Strategy is deferred** — the `WaiverResourceIntel`
+contract is real but exposed by no route, so surfacing it would be backend expansion and any number would
+be fabricated. Two supporting graphs (Opportunity Impact — priority buckets, no invented scores; Waiver
+Urgency — the share that cannot wait) reinforce it. The phase extracted the shared `ExecutiveDecisionSequence`
+primitive once a third real consumer appeared (Manager timeline, Trade pipeline, Waiver flagship), migrated
+the other two onto it, and removed the now-duplicate "Waiver Priorities" module.
+
+**Verification**: live-tested against the real authenticated Manager Hub, which has a real waiver
+opportunity — so the flagship rendered POPULATED ("1 waiver opportunity to weigh, in priority order",
+numbered step with the real impact + action, the ordered-not-dated note), with a green Opportunity Impact
+bar, the Waiver Urgency ring, the duplicate module confirmed gone, and zero provider/player/ownership
+terms. Two live-found grammar bugs were fixed. A screenshot was captured successfully this phase. 17 new
+tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.5.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1575,6 +1598,20 @@ was blank, so no Trade OS screenshot is claimed. 12 new tests. Full detail:
   live); no Legacy/B2C features; no new engine primitives (the quadrant grid is composed inline). The only
   non-`executive-viz`/non-doc change is `CommissionerHubPageClient.tsx` (renders the Trade OS workspace in
   League Focus from already-fetched data — no Decision OS logic/route/contract touched).
+- V2.5 brought the engine to Waiver OS: one flagship + two supporting graphs, entirely within the
+  B2B/licensing product and entirely presentation-only. All are built from the waiver-category Phase 6.4
+  recommendations already carried by `ManagerCommandCenterSnapshot` via new pure builders in
+  `waiverDecisionViewModel.ts` — no new fetch, contract, or intelligence. Because no reachable temporal
+  waiver contract exists, the flagship is an ordered priority sequence, not a fabricated timeline (asserted
+  by test); no waiver deadlines/opportunity-expiration are invented. FAAB/bid Resource Strategy is deferred
+  (the `WaiverResourceIntel` contract is real but exposed by no route — surfacing it would be backend
+  expansion, and any number would be fabricated). No made-up FAAB; no raw provider/waiver payloads,
+  player-level records, ownership fields, or internal IDs on the surface (verified live + source-scanned);
+  no player-centric dashboard; no Legacy/B2C. This phase DID extract one new shared engine primitive,
+  `ExecutiveDecisionSequence` — justified by three real consumers (Manager timeline, Trade pipeline, Waiver
+  flagship), with the first two migrated onto it (net code removed). The non-`executive-viz`/non-doc change
+  is `ManagerCommandCenterSection.tsx` (renders the Waiver OS workspace from its already-fetched snapshot
+  and removes the now-duplicate Waiver Priorities module — no Decision OS logic/route/contract touched).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely
