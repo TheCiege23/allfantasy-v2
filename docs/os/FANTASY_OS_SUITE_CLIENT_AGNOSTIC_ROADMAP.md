@@ -1366,6 +1366,30 @@ provider/API/player identifiers across the workspace. The QA tab's hidden-render
 screenshot frame, so no workspace screenshot is claimed — all findings rest on computed DOM/style
 inspection. 15 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.1.
 
+### V2.2 — User (Manager) OS Executive Analytics Workspace (2026-07-10)
+
+Brought the Executive Visualization Engine to User (Manager) OS: the Manager Hub is now an executive
+decision workspace anchored by a recognizable flagship, **Championship Trajectory** — the User-OS
+counterpart to Commissioner OS's League Health Map. The decisive Step 1 audit finding: the manager
+Decision OS contract (`ManagerCommandCenterSnapshot`) carries no playoff-probability, standings, or roster
+positional-strength data — those exist only in the separate AI simulation subsystem, out of scope for a
+presentation phase. So, per Step 2's own "build an executive snapshot rather than inventing a timeline"
+instruction, Championship Trajectory is an honest decision snapshot (teams on track + open decision
+urgency + real activity direction, never a fabricated playoff-odds line), and "Playoff Outlook"
+(probability) and "Position Strength" (roster) are deferred rather than invented. Three supporting graphs
+each answer one management decision — Weekly Decision Timeline (what to do first, from the existing
+recommendation ordering), Team Risk Summary (where the season could go wrong), Decision Focus (which areas
+need attention) — all from the same snapshot. No new engine primitives were needed (reused
+ExecutiveProgressRing + ExecutiveHorizontalBars). The workspace sits atop `ManagerCommandCenterSection`
+using its already-fetched snapshot; the existing overview/brief/priority modules remain below as the
+detailed drill-down the graphs summarize.
+
+**Verification**: live-tested against the real authenticated Manager Hub — flagship visually dominant
+(282px vs 185px supporting), all cards with correct real-data summaries (e.g. "0 of 1 team on track;
+1 decision needs you this week" with a red 0%-filled ring, honestly reflecting an at-risk team), ranked
+risk bars, numbered decision steps, and zero provider/API/player identifiers. A real screenshot was
+captured successfully this phase. 15 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.2.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1468,6 +1492,18 @@ inspection. 15 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Pha
   providers; no B2C/Legacy features. The only non-`executive-viz`/non-doc change is
   `CommissionerHubPageClient.tsx` (workspace composition + gating the pre-existing cross-league aggregate
   strip to multi-league to remove duplicate KPIs — no card rewrite).
+- V2.2 brought the engine to Manager OS: one flagship + three supporting graphs, entirely within the
+  B2B/licensing product and entirely presentation-only. All are built from the existing
+  `ManagerCommandCenterSnapshot` via new pure builders in `managerSeasonViewModel.ts` — no new fetch,
+  contract, or intelligence. The Step 1 audit found no playoff-probability/standings/positional data, so
+  none was fabricated: the flagship is an honest decision snapshot and Playoff Outlook/Position Strength
+  are deferred. No history/fake trend/projection (the only directional signal shown is the real
+  `leagueTrends` activity direction, explicitly labeled as activity); no raw provider payloads,
+  player-level records, or internal IDs on the surface (verified live, "managerid" scan empty); no
+  Legacy/B2C features; no new engine primitives (existing ExecutiveProgressRing + ExecutiveHorizontalBars
+  reused). The only non-`executive-viz`/non-doc change is `ManagerCommandCenterSection.tsx` (renders the
+  workspace from its already-fetched snapshot at the top of the section; existing content retained below
+  as drill-down — no Decision OS logic/route/contract touched).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

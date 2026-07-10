@@ -34,6 +34,12 @@ import {
   decisionOsCardClassName,
 } from './DecisionOsCardPrimitives'
 import ManagerCommandCenterOverview from './ManagerCommandCenterOverview'
+import ChampionshipTrajectory from '@/components/executive-viz/ChampionshipTrajectory'
+import {
+  WeeklyDecisionTimelineCard,
+  TeamRiskSummaryCard,
+  DecisionFocusCard,
+} from '@/components/executive-viz/ManagerSupportingViz'
 import CommissionerAttentionQueue from './CommissionerAttentionQueue'
 import ManagerPriorityModule from './ManagerPriorityModule'
 import ManagerLeagueSwitcher from './ManagerLeagueSwitcher'
@@ -179,6 +185,22 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700"
           >
             {error}
+          </div>
+        ) : null}
+
+        {/* Phase V2.2 — Manager OS Executive Analytics Workspace. The Championship Trajectory flagship
+            (dominant) plus supporting graphs give the 10-second read of the manager's season; the
+            existing overview + priority modules below remain the detailed, per-league drill-down the
+            graphs summarize. Rendered once the snapshot has loaded (the loading badge above covers the
+            in-flight state) so the supporting cards don't flash their unavailable states during fetch. */}
+        {snapshot ? (
+          <div data-testid="manager-executive-workspace" className="space-y-4" aria-label="Manager season workspace">
+            <ChampionshipTrajectory snapshot={snapshot} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <WeeklyDecisionTimelineCard snapshot={snapshot} />
+              <TeamRiskSummaryCard snapshot={snapshot} />
+              <DecisionFocusCard snapshot={snapshot} />
+            </div>
           </div>
         ) : null}
 

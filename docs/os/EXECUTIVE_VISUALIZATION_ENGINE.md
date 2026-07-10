@@ -277,3 +277,114 @@ Sankey/treemap/radar/etc. and User/League/Trade/Waiver/Draft/Platform OS flagshi
 - `app/commissioner-hub/CommissionerHubPageClient.tsx` *(workspace composition + hierarchy gate)*
 - `__tests__/executive-viz/executive-analytics-workspace.test.tsx` *(new, 15 tests)*
 - docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
+
+---
+
+# Phase V2.2 — User (Manager) OS Executive Analytics Workspace
+
+Brings the Executive Visualization Engine to User (Manager) OS: the Manager Hub becomes an executive
+decision workspace centered on the manager's season, with a recognizable flagship (Championship
+Trajectory) — the User-OS counterpart to Commissioner OS's League Health Map. B2B/licensing scope only;
+no Legacy/B2C career/identity/social/trophy/XP/gamification; Decision OS, backend, and provider
+abstraction frozen.
+
+## Step 1 — Data audit (the decisive finding)
+
+The manager-facing Decision OS contract is `ManagerCommandCenterSnapshot`
+(`lib/decision-os/managerCommandCenter.ts`) — the id-only, cross-league composition the Manager Hub
+already fetches (`/api/decision-os/manager-command-center`). Real, provider-agnostic fields:
+
+| Field | Nature | Used by |
+| --- | --- | --- |
+| `totalLeagues` / `healthyLeagueCount` / `atRiskLeagueCount` / `unavailableLeagueCount` | current snapshot | Trajectory, Team Risk |
+| `leagueSummaries[]` (`participationTier`, `engagementScore`, `retentionRisk`, `isInactive`) | current snapshot / categorical | Team Risk |
+| `attentionQueue[]` (`severity`) | current snapshot / ordinal | Team Risk |
+| `recommendations[]` (Phase 6.4: `category`, `priority`, `expectedImpact`, `recommendedActions`) | current snapshot / ordinal | Trajectory, Timeline, Decision Focus |
+| `leagueTrends[]` (`direction`: increasing/decreasing/flat) | **legitimately directional** (activity) | Trajectory (activity direction only) |
+
+**What does NOT exist** (and was therefore NOT built): playoff probability, standings/record, win
+projection, and roster positional strength. Those live only in the separate AI simulation subsystem —
+out of scope this phase ("no backend expansion", "no fake projections"). So per Step 2's own guidance
+("if not [legitimate history], build an executive snapshot rather than inventing a timeline"),
+Championship Trajectory is an executive **decision snapshot**, and Playoff Outlook / Position Strength
+are **deferred, not fabricated**.
+
+## Step 2 — Flagship: Championship Trajectory
+
+`components/executive-viz/ChampionshipTrajectory.tsx` answers "Where is my season heading?" as a current
+snapshot: a hero **ExecutiveProgressRing** ("teams on track", `healthyLeagueCount`/`trackedTeams`), a
+trajectory status (On track / Mixed / Needs attention, derived from real at-risk counts), an urgent-
+decision count (critical+high recommendations), an optional real **activity** direction (from
+`leagueTrends`, explicitly labeled as activity — never a fabricated season-outcome line), and a
+"what's driving this" list of the top real recommendations. Honest unavailable state when no tracked team
+exists. Reuses `ExecutiveProgressRing` — no one-off primitive.
+
+## Step 3 — Supporting visualizations (one decision each)
+
+`components/executive-viz/ManagerSupportingViz.tsx`, all from the same snapshot via pure builders in
+`lib/executive-viz/managerSeasonViewModel.ts`:
+
+| Graph | Question | Data | Form |
+| --- | --- | --- | --- |
+| **Weekly Decision Timeline** | What should I do first? | `recommendations` in existing Phase 6.4 priority order | numbered priority steps |
+| **Team Risk Summary** | Where could my season go wrong? | at-risk teams + critical/high `attentionQueue` + inactive teams | ranked `ExecutiveHorizontalBars` |
+| **Decision Focus** | Which areas need my attention? | `recommendations` grouped by category (lineup/waiver/trade/engagement) | `ExecutiveHorizontalBars` |
+
+**Playoff Outlook** and **Position Strength** are intentionally not built (no contract; documented as
+deferred), not rendered as permanently-empty cards.
+
+## Step 4 — Engine expansion
+
+None needed. The existing `ExecutiveProgressRing` + `ExecutiveHorizontalBars` (from V2.1) cover every
+graph, and the numbered timeline is composed inline — honoring "do not build one-off chart components"
+and "a primitive must have ≥2 consumers." (A shared `ExecutiveTimeline`/`ExecutiveRadar` was considered
+and declined: single foreseeable consumer today.)
+
+## Steps 5–6 — Hierarchy
+
+The workspace renders at the top of `ManagerCommandCenterSection` from its already-fetched snapshot: the
+Championship Trajectory flagship (dominant shell) over a `md:grid-cols-2` grid of the three supporting
+graphs. The existing multi-league overview, Today's Brief, attention queue, priority modules, and league
+switcher remain **below** as the detailed per-league drill-down the graphs summarize (hero-summary +
+detail, not duplication). Live-measured dominance: flagship 282px tall vs supporting 185px.
+
+## Step 7 — Provider abstraction
+
+Verified live (banned-term scan empty across the whole workspace, incl. "managerid"/"payload"/provider
+names): zero provider names, payload terminology, API identifiers, or player-level records reach the
+surface.
+
+## Steps 8–9 — Accessibility, motion, browser verification
+
+Every graph exposes an accessible summary (`sr-only`), `role="meter"` marks with aria values, honest
+empty/unavailable states, and non-hiding motion (bar widths/ring offsets rendered directly at value;
+`motion-reduce` honored). **Live-verified against the real authenticated Manager Hub (single real team):**
+Championship Trajectory "0 of 1 team on track; 1 decision needs you this week" with a red 0%-filled ring
+(honest — this team is at risk), Weekly Decision Timeline's numbered steps (Engagement Boost HIGH → Waiver
+Opportunity LOW), Team Risk Summary's ranked red/amber bars, Decision Focus "Waivers need the most
+attention (1 open)". A **screenshot was captured successfully** this phase (the hidden-tab renderer was
+responsive) showing the hero-dominant workspace with real data.
+
+## Step 10 — Tests
+
+`__tests__/executive-viz/manager-executive-workspace.test.tsx` (15): the four builders (trajectory
+status/urgency/ranking + unavailable, timeline ordering + empty, risk ranking + unavailable, focus
+category counts), component render states (populated / unavailable / numbered steps), accessible
+summaries, provider abstraction, and workspace hierarchy.
+
+## Boundaries / deferred
+
+Decision OS remains infrastructure; no backend logic changed; no provider logic changed; no Legacy/B2C
+features; no fabricated trends or projections. Deferred: real Playoff Outlook (probability) and roster
+Position Strength (both need the AI-sim subsystem / roster data = backend expansion), and a deeper
+consolidation of the priority modules the graphs now summarize (left intact to avoid destabilizing tested
+shared components).
+
+## Files changed (V2.2)
+
+- `lib/executive-viz/managerSeasonViewModel.ts` *(new — flagship + 3 builders)*
+- `components/executive-viz/ChampionshipTrajectory.tsx` *(new — flagship)*
+- `components/executive-viz/ManagerSupportingViz.tsx` *(new — 3 supporting cards)*
+- `components/decision-os/ManagerCommandCenterSection.tsx` *(workspace integration at top of section)*
+- `__tests__/executive-viz/manager-executive-workspace.test.tsx` *(new, 15 tests)*
+- docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
