@@ -10,6 +10,10 @@
 import Link from 'next/link'
 import { LayoutGrid } from 'lucide-react'
 import ManagerCommandCenterSection from '@/components/decision-os/ManagerCommandCenterSection'
+import { resolveTenantBrand, tenantThemeStyle, isFeatureVisible } from '@/lib/white-label'
+
+// The active licensee brand (Phase V5.0 white-label). Env-selected, resolved once per deployment.
+const BRAND = resolveTenantBrand()
 
 type ManagerHubPageClientProps = {
   leagues: { id: string; name: string }[]
@@ -18,11 +22,11 @@ type ManagerHubPageClientProps = {
 
 export default function ManagerHubPageClient({ leagues, isAuthenticated }: ManagerHubPageClientProps) {
   return (
-    <main className="mx-auto max-w-4xl px-4 py-8 sm:py-10">
+    <main className="mx-auto max-w-4xl px-4 py-8 sm:py-10" style={tenantThemeStyle(BRAND)}>
       <div className="card-premium overflow-hidden p-5 sm:p-6">
         <div className="inline-flex items-center gap-1.5 rounded-full border border-brand-primary/25 bg-brand-primary/10 px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-brand-primary">
           <LayoutGrid className="h-3.5 w-3.5 shrink-0" aria-hidden />
-          <span>Manager Hub</span>
+          <span>{BRAND.copy.managerHubLabel}</span>
         </div>
         <h1 className="mt-3 text-[26px] font-black leading-tight tracking-tight text-primary sm:text-[32px]">
           What should you do to compete better this week?
@@ -43,7 +47,11 @@ export default function ManagerHubPageClient({ leagues, isAuthenticated }: Manag
       </div>
 
       <div className="mt-5">
-        <ManagerCommandCenterSection leagues={leagues} />
+        <ManagerCommandCenterSection
+          leagues={leagues}
+          platformScopeLabel={BRAND.copy.platformScopeLabel}
+          showPlatformFocus={isFeatureVisible(BRAND, 'platformFocus')}
+        />
       </div>
     </main>
   )

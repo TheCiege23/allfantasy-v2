@@ -2,10 +2,13 @@ import type { Metadata } from 'next'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
+import { resolveTenantBrand } from '@/lib/white-label'
 import ManagerHubPageClient from './ManagerHubPageClient'
 
+const BRAND = resolveTenantBrand()
+
 export const metadata: Metadata = {
-  title: 'Manager Hub | AllFantasy',
+  title: `${BRAND.copy.managerHubLabel} | ${BRAND.copy.productName}`,
   description:
     'What needs your attention today, across every team you play in — before you drill into any one league.',
 }

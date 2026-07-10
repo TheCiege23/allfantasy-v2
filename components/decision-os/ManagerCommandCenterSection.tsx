@@ -64,9 +64,17 @@ type ManagerCommandCenterResponse = ManagerCommandCenterSnapshot & { draftsAppro
 
 type ManagerCommandCenterSectionProps = {
   leagues: { id: string; name: string }[]
+  /** White-label (Phase V5.0): brand-neutral scope phrase for the Platform Focus summary. */
+  platformScopeLabel?: string
+  /** White-label (Phase V5.0): whether the tenant exposes the Platform Focus executive summary. */
+  showPlatformFocus?: boolean
 }
 
-export default function ManagerCommandCenterSection({ leagues }: ManagerCommandCenterSectionProps) {
+export default function ManagerCommandCenterSection({
+  leagues,
+  platformScopeLabel,
+  showPlatformFocus = true,
+}: ManagerCommandCenterSectionProps) {
   const [snapshot, setSnapshot] = useState<ManagerCommandCenterResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -211,9 +219,9 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             requires my attention across my entire footprint?" and SUMMARIZES the Manager/Waiver/Draft
             workspaces that follow (open work per Operating System) — it does not duplicate them. No
             platform history/trend is reachable, so it is a current-state focus view, not a Pulse. */}
-        {snapshot ? (
+        {snapshot && showPlatformFocus ? (
           <section data-testid="platform-os-workspace" className="space-y-4" aria-label="Platform overview">
-            <PlatformFocus snapshot={snapshot} draftsApproachingCount={snapshot.draftsApproachingCount} />
+            <PlatformFocus snapshot={snapshot} draftsApproachingCount={snapshot.draftsApproachingCount} scopeLabel={platformScopeLabel} />
             <div className="grid gap-4 md:grid-cols-2">
               <ExecutiveWorkloadCard snapshot={snapshot} />
               <AttentionSummaryCard snapshot={snapshot} />

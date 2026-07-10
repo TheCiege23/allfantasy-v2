@@ -51,10 +51,17 @@ export function PlatformFocus({
   snapshot,
   draftsApproachingCount,
   loading = false,
+  scopeLabel = 'across every league you manage',
 }: {
   snapshot: ManagerCommandCenterSnapshot | null
   draftsApproachingCount: number
   loading?: boolean
+  /**
+   * Brand-neutral phrase describing the cross-league scope, e.g. "across every league you manage".
+   * White-label (Phase V5.0): supplied by the hosting hub from the active tenant so this — the one
+   * string that renders inside the executive-viz layer — stays free of any product/provider name.
+   */
+  scopeLabel?: string
 }) {
   const model = useMemo(() => buildPlatformFocus(snapshot, draftsApproachingCount), [snapshot, draftsApproachingCount])
   const bars = useMemo(() => platformFocusBars(model), [model])
@@ -62,7 +69,7 @@ export function PlatformFocus({
   return (
     <ExecutiveVisualizationShell
       title="Platform Focus"
-      description="Where to focus first across your entire Fantasy OS footprint."
+      description={`Where to focus first ${scopeLabel}.`}
       icon={LayoutGrid}
       dominant
       accessibleSummary={model.headline}

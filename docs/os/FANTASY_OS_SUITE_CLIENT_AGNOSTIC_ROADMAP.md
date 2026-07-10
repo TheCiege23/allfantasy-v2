@@ -1562,6 +1562,24 @@ after). **Verdict: Fantasy OS (Licensing/B2B) is architecturally ready for enter
 white-label licensing** — internally consistent, one-directional, provider-agnostic, and extensible for
 future Decision OS capabilities without redesigning any dashboard.
 
+### V5.0 — White-Label Productization, Track A (2026-07-10) — first commercial-conversion phase
+
+The first phase to convert the validated architecture into a licensable product, producing
+`FANTASY_OS_WHITE_LABEL_PRODUCTIZATION.md`. New **frontend-only, licensee-brand-keyed** config layer
+`lib/white-label/` (schema + tenant registry + env-selected resolver + branded-deployment validator)
+covering the eight Track-A concerns: product name, hub labels, brand color/font theme, logo reference,
+per-tenant feature/section visibility, and licensing tier. Deliberately **separate** from the Phase-7.0
+`lib/decision-os/presentation/white-label.ts` (that layer is the SDK/IPM embedded-widget path, keyed by
+data *provider*; this one is keyed by *licensee brand*) — unifying them would break the V4.0 independence
+boundary. The default `allfantasy` tenant is a true identity theme, so wiring the hubs changed nothing
+visible in production (runtime-verified: both hubs still render `… | AllFantasy`); the example `apex`
+licensee proves genuine multi-tenancy (its own name, a `--color-primary`/font re-theme, and a hidden
+Migration Center). Both hubs + page metadata are wired, and the single executive-viz product-name leak
+(`PlatformFocus`'s "…your entire Fantasy OS footprint") was removed — its scope phrase is now a
+brand-neutral prop supplied by the hub, so the viz layer stays pure (test-enforced, alongside a "no
+executive-viz file imports the brand config" invariant). **No database, routes, or backend tenancy** were
+added; typecheck baseline preserved (158, zero errors in touched files); the V4.0 boundary held.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.

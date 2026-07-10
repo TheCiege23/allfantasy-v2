@@ -69,16 +69,21 @@ import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recomme
 import type { ManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
 import type { MissionControlSnapshot } from '@/lib/decision-os/missionControl'
 import type { LeagueAnalyticsSnapshot } from '@/lib/decision-os/leagueAnalytics'
+import { resolveTenantBrand, tenantThemeStyle, isFeatureVisible } from '@/lib/white-label'
+
+// The active licensee brand (Phase V5.0 white-label). Env-selected, resolved once — the tenant is
+// fixed per deployment, so brand strings/theme/feature gates below read from this single source.
+const BRAND = resolveTenantBrand()
 
 // ─── Copy constants (future i18n wiring) ───────────────────────────────────
 const COPY = {
   hero: {
-    badge: 'Commissioner Hub',
+    badge: BRAND.copy.commissionerHubLabel,
     trustBadge: 'No gambling. Pure fantasy.',
     headline1: 'Run better leagues.',
     headline2: 'Build your legacy.',
     sub: 'Built for commissioners. Loved by managers. Every tool you need to create, grow, and manage your fantasy empire - all in one place.',
-    sub2: 'Draft smarter. Keep members engaged. Move entire leagues onto AllFantasy.',
+    sub2: `Draft smarter. Keep members engaged. Move entire leagues onto ${BRAND.copy.productName}.`,
     ctaCreate: 'Create a League',
     ctaImport: 'Import League',
   },
@@ -106,7 +111,7 @@ const COPY = {
   },
   migration: {
     sectionLabel: 'Migration Center',
-    sectionHint: 'Bring your leagues to AllFantasy',
+    sectionHint: `Bring your leagues to ${BRAND.copy.productName}`,
     activeLabel: 'Active',
     legacyLabel: 'Legacy',
     comingSoonLabel: 'Coming Soon',
@@ -118,7 +123,7 @@ const COPY = {
   trust: {
     heading: 'Transparent. Strategy-first. No gambling.',
     body1:
-      'AllFantasy is built for fantasy sports strategy - not sportsbook predictions or gambling. Every recommendation from our AI tools is grounded in public data and fantasy scoring logic.',
+      `${BRAND.copy.productName} is built for fantasy sports strategy - not sportsbook predictions or gambling. Every recommendation from our AI tools is grounded in public data and fantasy scoring logic.`,
     body2:
       'Chimmy gives recommendations, not guarantees. Fantasy sports involve real uncertainty. Use our tools to make smarter decisions, not to replace your own judgment.',
   },
@@ -192,7 +197,7 @@ function buildMissionQueue(commLeagues: UserLeague[]): QueueCard[] {
       key: 'import',
       icon: ArrowDownToLine,
       title: 'Import League',
-      desc: 'Bring your Sleeper, ESPN, Yahoo, or MFL league to AllFantasy in under 2 minutes.',
+      desc: `Bring your Sleeper, ESPN, Yahoo, or MFL league to ${BRAND.copy.productName} in under 2 minutes.`,
       href: '/import',
       priority: 2,
       cardClass:
@@ -878,7 +883,7 @@ export default function CommissionerHubPageClient({
     : 'You can tour the commissioner workflow now, then sign in when you are ready to load leagues and personalize the hub.'
 
   return (
-    <div className="min-h-screen bg-app text-primary">
+    <div className="min-h-screen bg-app text-primary" style={tenantThemeStyle(BRAND)}>
       <div className="mx-auto max-w-5xl space-y-10 px-4 py-8 sm:px-6 sm:py-12">
 
         {/* ── Hero ── */}
@@ -1105,7 +1110,8 @@ export default function CommissionerHubPageClient({
           </div>
         </section>
 
-        {/* ── Commissioner AI Prompt Cards ── */}
+        {/* ── Commissioner AI Prompt Cards (white-label optional section) ── */}
+        {isFeatureVisible(BRAND, 'aiPrompts') && (
         <section>
           <SectionHeader label={COPY.ai.sectionLabel} hint={COPY.ai.sectionHint} />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1147,8 +1153,10 @@ export default function CommissionerHubPageClient({
             })}
           </div>
         </section>
+        )}
 
-        {/* ── Migration Center ── */}
+        {/* ── Migration Center (white-label optional section) ── */}
+        {isFeatureVisible(BRAND, 'migrationCenter') && (
         <section>
           <SectionHeader label={COPY.migration.sectionLabel} hint={COPY.migration.sectionHint} />
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -1201,6 +1209,7 @@ export default function CommissionerHubPageClient({
             })}
           </div>
         </section>
+        )}
 
         {/* ── Leagues I Play In ── */}
         {memberLeagues.length > 0 && (
