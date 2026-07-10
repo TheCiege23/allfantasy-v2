@@ -1640,6 +1640,26 @@ baseline preserved. Remaining: run the user-supplied username cohort for a genui
 validation (the over-firing question can only be answered there); use the DB-backed non-prod runner for
 full seven-OS derivation on a subset.
 
+### V7.3 — Fantasy OS entry experience + honest calibration closure (2026-07-10)
+
+Turned validated intelligence into an easy, trustworthy entry experience — and corrected a false premise.
+The prompt assumed a completed "V7.2" diverse-cohort run with resolution/portfolio/coverage/anomaly
+reports; **V7.2 was never executed** (the username cohort was never supplied), so those reports don't
+exist. The only real cohort evidence is the V7.1 smoke run (10 real leagues, 0 proven defects, 2 expected
+behaviors). Part A therefore made **zero Decision OS changes** (fabricating a fix would fake the evidence),
+and added an anti-over-firing **regression guard** encoding the real observed behavior: a low-trade league
+receives the trade-stimulation recommendation, a high-trade league does not — empirically confirming the
+V7.1 "repeated recommendation" was expected, not over-firing, and that the DB-less reachability boundary
+holds. Part B built the `/fantasy-os` **gateway** (`app/fantasy-os/`): a single customer-facing entry point
+(a gateway, not another dashboard) with a white-label brand header, provider-agnostic portfolio/context
+selection, Platform-OS-by-default routing, commissioner access when eligible, an honest Presentation-Preview
+vs Live-Connected-Demo distinction, and a guided seven-OS rail. Freshness is stated only where honest
+(season/context) — no fabricated "last synced" timestamp. Provider-leak scan clean (rendered + source).
+Verification: tests 12 new (168 targeted, 0 failures); typecheck 158 baseline; `GET /fantasy-os` HTTP 200,
+`AllFantasy — Fantasy OS`. Honestly deferred: deep per-workspace visual polish (Part C 9–14) and full
+live-cohort visual archetype verification (Part D 16) — both need the real multi-account cohort and reliable
+browser rendering; the hubs already hold the V3.2 a11y/responsive certification so polish is incremental.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
