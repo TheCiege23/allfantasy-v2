@@ -486,3 +486,102 @@ single fairness gauge is used to stay distinct from Commissioner OS's Health Bre
 - `app/commissioner-hub/CommissionerHubPageClient.tsx` *(League OS workspace in League Focus)*
 - `__tests__/executive-viz/league-executive-workspace.test.tsx` *(new, 14 tests)*
 - docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
+
+---
+
+# Phase V2.4 — Trade OS Executive Analytics Workspace
+
+The fourth completed Executive Analytics Workspace. Trade OS represents the **market**, not a player
+calculator: it answers where opportunity exists and how active the trade environment is, before any
+player question. Its signature visualization is the **Trade Opportunity Matrix**. B2B/licensing scope
+only; presentation-only; Decision OS, backend, and provider abstraction frozen; no Legacy/B2C.
+
+## Step 1 — Data audit
+
+The reliably-available, provider-agnostic trade data (already loaded by the hub's League Focus, no
+feature flags) is:
+
+| Field | Nature | Used by |
+| --- | --- | --- |
+| `LeagueAnalyticsSnapshot.activity.tradeCount` | current snapshot | Matrix (market temp), Market Activity |
+| `LeagueAnalyticsSnapshot.trend.direction` | directional (activity) | Market Activity |
+| trade-category Phase 6.4 `Recommendation`s (`trade_coaching` / `trade_activation`, with `priority` + `confidence`) from `ManagerIntelligencePayload.recommendations` | current snapshot / ordinal | Matrix, Trade Pipeline |
+
+**What does NOT exist** (and was therefore NOT built): a provider-agnostic contract for position
+surplus/need or player-value opportunity scoring — those live only in the AI trade engine over raw
+roster/player data (out of scope, and player-centric). The dedicated `CommissionerTradeReviewV1` market
+contract exists but its route is **feature-flag-gated** (`COMMISSIONER_TRADE_REVIEW_ENABLED`, default
+off), so it is not used as an always-on source. So the matrix represents OPPORTUNITIES (real trade
+recommendations), never raw player values, and Position Demand is deferred rather than fabricated.
+
+## Step 2 — Flagship: Trade Opportunity Matrix
+
+`components/executive-viz/TradeOpportunityMatrix.tsx` answers "Where are the highest-value
+opportunities?" as a **2×2 value × confidence quadrant** (a CSS grid, not an SVG scatter — accessible,
+robust, degrades with sparse data): each real trade recommendation is placed by its own priority (value)
+and confidence, so high-value + high-confidence lands top-right ("Pursue now"); the other quadrants are
+Investigate / Easy wins / Monitor. A market-temperature chip (quiet / moderate / active, from
+`tradeCount`) sits in the header. Honest empty state ("No trade opportunities surfaced yet; the market is
+quiet") when a league has none — no sample opportunities substituted.
+
+## Step 3 — Supporting visualizations
+
+`components/executive-viz/TradeSupportingViz.tsx`, from the same data:
+
+| Graph | Question | Data | Form |
+| --- | --- | --- | --- |
+| **Market Activity** | How active is the trade market? | `tradeCount` + activity classification + `trend.direction` | metric hero + plain-language read |
+| **Trade Pipeline** | What should I pursue next? | trade recommendations in existing priority order | numbered priority steps |
+
+**Position Demand** (which positions are scarce) is intentionally deferred — no provider-agnostic
+position-supply contract exists.
+
+## Step 4 — Engine
+
+No new shared primitives — the matrix quadrant grid is composed inline in the flagship, and Market
+Activity / Trade Pipeline reuse the shared `ExecutiveVisualizationShell` and existing patterns.
+(ExecutiveMatrix / ExecutiveOpportunityGrid were considered and declined: single foreseeable consumer,
+and an accessible inline CSS quadrant is more robust than an SVG scatter for sparse data.)
+
+## Steps 5–7 — Hierarchy, information focus, provider abstraction
+
+The workspace renders in the hub's League Focus (which already holds `leagueAnalytics` +
+`managerIntelligence`): the full-width, dominant-styled Trade Opportunity Matrix over a `md:grid-cols-2`
+grid of Market Activity + Trade Pipeline. It communicates market intelligence before players; player
+names would appear only inside a recommendation's own detail. Verified live: zero provider names, payload
+terminology, implementation details, or raw trade payloads reach the surface.
+
+## Steps 8–9 — Browser verification
+
+Live-verified against the real authenticated "12-Team NFL Redraft League" (via computed DOM). This league
+has **0 trades and no trade recommendations**, so the honest real-data states render: the matrix shows
+its empty state "No trade opportunities have surfaced yet; the market is quiet", Market Activity shows the
+real "The trade market is quiet — 0 trades so far" with its `0 trades` metric, and Trade Pipeline shows
+its empty state — with zero provider/player identifiers and the flagship visually dominant (267px,
+full-width). The **populated matrix (quadrant placement) and pipeline ordering are verified by unit
+tests** with fixtures (real fields), since no real league with active trades was available. The
+`leagueAnalytics` fetch is slow (~2.6s), so loading/unavailable states show correctly until it resolves.
+Screenshot capture was blank under the hidden-tab renderer freeze, so no Trade OS screenshot is claimed.
+
+## Step 10 — Tests
+
+`__tests__/executive-viz/trade-executive-workspace.test.tsx` (12): quadrant placement (value×confidence,
+non-trades excluded), empty market, market-temperature classification, unavailable analytics, pipeline
+ordering + empty, component render states (populated matrix quadrants / empty / numbered steps), provider
+abstraction, and workspace hierarchy.
+
+## Boundaries / deferred
+
+No backend changes, no Decision OS changes, no fabricated trade/market history, no fake market movement,
+no provider-specific UI, no player-centric dashboard, no Legacy/B2C. Deferred: real Position Demand
+(needs the AI trade engine / roster data), and the flag-gated `CommissionerTradeReviewV1` market-workload
+enrichment (pending/review-window/vote counts), available when `COMMISSIONER_TRADE_REVIEW_ENABLED` is on.
+
+## Files changed (V2.4)
+
+- `lib/executive-viz/tradeMarketViewModel.ts` *(new — flagship + 2 builders + quadrant helper)*
+- `components/executive-viz/TradeOpportunityMatrix.tsx` *(new — flagship)*
+- `components/executive-viz/TradeSupportingViz.tsx` *(new — 2 supporting cards)*
+- `app/commissioner-hub/CommissionerHubPageClient.tsx` *(Trade OS workspace in League Focus)*
+- `__tests__/executive-viz/trade-executive-workspace.test.tsx` *(new, 12 tests)*
+- docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`

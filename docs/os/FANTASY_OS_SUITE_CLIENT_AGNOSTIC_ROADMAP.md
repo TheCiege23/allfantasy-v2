@@ -1414,6 +1414,30 @@ slow (~2.6s), so the workspace correctly shows loading/unavailable states until 
 hidden-tab screenshot capture was intermittently blank, so no League OS screenshot is claimed — findings
 rest on computed DOM inspection. 14 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.3.
 
+### V2.4 — Trade OS Executive Analytics Workspace (2026-07-10)
+
+The fourth completed Executive Analytics Workspace. Trade OS represents the **market**, not a player
+calculator — where opportunity exists and how active the trade environment is, before any player
+question. Its signature visualization, the **Trade Opportunity Matrix**, is a 2×2 value × confidence
+quadrant that places each real trade recommendation by its own priority and confidence (top-right =
+"Pursue now"). The Step 1 audit found no provider-agnostic contract for position surplus/need or
+player-value opportunity scoring (those live only in the AI trade engine over raw roster/player data —
+out of scope and player-centric), and the dedicated `CommissionerTradeReviewV1` market contract is
+feature-flag-gated. So the matrix represents opportunities (real recommendations), never raw player
+values, and Position Demand is deferred rather than invented. It is built from the already-loaded
+`LeagueAnalyticsSnapshot` (trade count + activity trend) and the trade-category Phase 6.4 recommendations
+in `ManagerIntelligencePayload`. Two supporting graphs — Market Activity (trade temperature) and Trade
+Pipeline (what to pursue next, in the existing recommendation order) — reinforce it. No new engine
+primitives (the quadrant grid is composed inline).
+
+**Verification**: live-tested against the real authenticated "12-Team NFL Redraft League", which has 0
+trades and no trade recommendations — so the honest real-data states render (empty matrix "the market is
+quiet", Market Activity "the trade market is quiet — 0 trades so far", empty pipeline), with the flagship
+visually dominant and zero provider/player identifiers. The populated matrix (quadrant placement) and
+pipeline ordering are verified by unit tests with real-field fixtures. The hidden-tab screenshot capture
+was blank, so no Trade OS screenshot is claimed. 12 new tests. Full detail:
+`EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.4.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1539,6 +1563,18 @@ rest on computed DOM inspection. 14 new tests. Full detail: `EXECUTIVE_VISUALIZA
   ExecutiveProgressRing + ExecutiveHorizontalBars reused). The only non-`executive-viz`/non-doc change is
   `CommissionerHubPageClient.tsx` (renders the League OS workspace as the League Focus hero from the
   already-fetched `leagueAnalytics` — no Decision OS logic/route/contract touched).
+- V2.4 brought the engine to Trade OS: one flagship + two supporting graphs, entirely within the
+  B2B/licensing product and entirely presentation-only. All are built from the already-loaded
+  `LeagueAnalyticsSnapshot` (trade count + trend) and the trade-category recommendations in
+  `ManagerIntelligencePayload` via new pure builders in `tradeMarketViewModel.ts` — no new fetch, contract,
+  or intelligence. The Step 1 audit found no provider-agnostic position-supply/player-value contract, so
+  none was fabricated: the Opportunity Matrix places real trade recommendations by their own value ×
+  confidence (never raw player values), and Position Demand is deferred; the dedicated
+  `CommissionerTradeReviewV1` is flag-gated and not used as an always-on source. No fabricated trade/market
+  history; no raw provider/trade payloads, player-level records, or internal IDs on the surface (verified
+  live); no Legacy/B2C features; no new engine primitives (the quadrant grid is composed inline). The only
+  non-`executive-viz`/non-doc change is `CommissionerHubPageClient.tsx` (renders the Trade OS workspace in
+  League Focus from already-fetched data — no Decision OS logic/route/contract touched).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

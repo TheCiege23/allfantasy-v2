@@ -54,6 +54,11 @@ import {
   LeagueEngagementCard,
   CompetitiveBalanceCard,
 } from '@/components/executive-viz/LeagueSupportingViz'
+import TradeOpportunityMatrix from '@/components/executive-viz/TradeOpportunityMatrix'
+import {
+  MarketActivityCard,
+  TradePipelineCard,
+} from '@/components/executive-viz/TradeSupportingViz'
 import {
   buildCommissionerLeagueHealthViewModel,
   selectFlagshipSnapshot,
@@ -992,6 +997,21 @@ export default function CommissionerHubPageClient({
                 <TransactionDistributionCard snapshot={leagueAnalytics} />
                 <LeagueEngagementCard snapshot={leagueAnalytics} />
                 <CompetitiveBalanceCard healthSnapshot={healthByLeagueId.get(representativeLeagueId) ?? null} />
+              </div>
+            </div>
+
+            {/* Phase V2.4 — Trade OS Executive Analytics Workspace. Represents the trade MARKET (not a
+                player calculator): the Trade Opportunity Matrix (dominant) over Market Activity + Trade
+                Pipeline, all from the already-fetched `leagueAnalytics` (trade count/trend) + the
+                trade-category recommendations in `managerIntelligence`. */}
+            <div className="mb-5 space-y-4" data-testid="trade-os-workspace" aria-label="Trade market overview">
+              <TradeOpportunityMatrix
+                recommendations={managerIntelligence?.recommendations?.recommendations ?? null}
+                analytics={leagueAnalytics}
+              />
+              <div className="grid gap-4 md:grid-cols-2">
+                <MarketActivityCard analytics={leagueAnalytics} />
+                <TradePipelineCard recommendations={managerIntelligence?.recommendations?.recommendations ?? null} />
               </div>
             </div>
 
