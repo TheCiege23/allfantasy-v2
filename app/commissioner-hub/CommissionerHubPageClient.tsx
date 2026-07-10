@@ -163,7 +163,7 @@ function buildMissionQueue(commLeagues: UserLeague[]): QueueCard[] {
       priority: needsSetup ? 0 : 1,
       cardClass:
         'border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.10] to-transparent hover:border-cyan-500/45',
-      iconClass: 'border-cyan-500/40 bg-cyan-500/20 text-cyan-300',
+      iconClass: 'border-cyan-500/40 bg-cyan-500/20 text-cyan-600',
       badge: commLeagues.length === 0 ? 'Start Here' : undefined,
     },
     {
@@ -175,7 +175,7 @@ function buildMissionQueue(commLeagues: UserLeague[]): QueueCard[] {
       priority: 2,
       cardClass:
         'border-emerald-500/25 bg-gradient-to-br from-emerald-500/[0.07] to-transparent hover:border-emerald-500/40',
-      iconClass: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300',
+      iconClass: 'border-emerald-500/40 bg-emerald-500/15 text-emerald-600',
     },
     {
       key: 'draft',
@@ -186,7 +186,7 @@ function buildMissionQueue(commLeagues: UserLeague[]): QueueCard[] {
       priority: needsDraft ? 0 : 3,
       cardClass:
         'border-amber-500/25 bg-gradient-to-br from-amber-500/[0.07] to-transparent hover:border-amber-500/40',
-      iconClass: 'border-amber-500/35 bg-amber-500/10 text-amber-300',
+      iconClass: 'border-amber-500/35 bg-amber-500/10 text-amber-600',
       badge: needsDraft ? 'Action Needed' : undefined,
     },
     {
@@ -198,7 +198,7 @@ function buildMissionQueue(commLeagues: UserLeague[]): QueueCard[] {
       priority: 4,
       cardClass:
         'border-violet-500/20 bg-gradient-to-br from-violet-500/[0.06] to-transparent hover:border-violet-500/35',
-      iconClass: 'border-violet-500/35 bg-violet-500/10 text-violet-300',
+      iconClass: 'border-violet-500/35 bg-violet-500/10 text-violet-600',
     },
     {
       key: 'ai',
@@ -209,7 +209,7 @@ function buildMissionQueue(commLeagues: UserLeague[]): QueueCard[] {
       priority: 5,
       cardClass:
         'border-violet-500/25 bg-gradient-to-br from-violet-500/[0.08] to-transparent hover:border-violet-500/40',
-      iconClass: 'border-violet-500/40 bg-violet-500/15 text-violet-300',
+      iconClass: 'border-violet-500/40 bg-violet-500/15 text-violet-600',
       badge: 'AI',
     },
     {
@@ -563,7 +563,7 @@ function LeagueHealthDashboard({
               {snapshot.alerts.length > 0 && (
                 <div className="mt-3 space-y-1.5">
                   {snapshot.alerts.slice(0, 2).map((alert) => (
-                    <p key={alert} className="rounded-lg border border-amber-500/15 bg-amber-500/[0.05] px-2.5 py-1.5 text-[11px] text-amber-200/80">
+                    <p key={alert} className="rounded-lg border border-amber-500/15 bg-amber-500/[0.05] px-2.5 py-1.5 text-[11px] text-amber-700">
                       {alert}
                     </p>
                   ))}
@@ -580,7 +580,7 @@ function LeagueHealthDashboard({
               </div>
 
               <div className="mt-4">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-violet-300/60">AI Commissioner Assistant</p>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-violet-600">AI Commissioner Assistant</p>
                 <div className="mt-2 grid gap-2">
                   {snapshot.assistantQuestions.slice(0, 5).map((question) => (
                     <Link
@@ -589,7 +589,7 @@ function LeagueHealthDashboard({
                       className="group rounded-xl border border-violet-500/[0.12] bg-violet-500/[0.035] px-3 py-2 transition hover:border-violet-500/25 hover:bg-violet-500/[0.06]"
                     >
                       <div className="flex items-start gap-2">
-                        <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300/70" aria-hidden />
+                        <Sparkles className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-600" aria-hidden />
                         <div className="min-w-0">
                           <p className="text-[11px] font-bold text-secondary group-hover:text-primary">{question.label}</p>
                           <p className="mt-0.5 text-[11px] leading-snug text-muted">{question.answer}</p>
@@ -764,11 +764,11 @@ export default function CommissionerHubPageClient({
           />
           <div className="relative z-10">
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-300">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/15 px-2.5 py-1 text-[10px] font-bold uppercase tracking-widest text-amber-700">
                 <Crown className="h-3 w-3" aria-hidden />
                 {COPY.hero.badge}
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-400/80">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold text-emerald-700">
                 <Shield className="h-3 w-3" aria-hidden />
                 {COPY.hero.trustBadge}
               </span>
@@ -890,7 +890,7 @@ export default function CommissionerHubPageClient({
               <Link
                 href={emptyPrimaryHref}
                 prefetch={disablePrefetchForAuthSensitiveHref(emptyPrimaryHref) ? false : undefined}
-                className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-semibold text-amber-300 transition hover:bg-amber-500/20"
+                className="focus-ring inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2 text-[13px] font-semibold text-amber-700 transition hover:bg-amber-500/20"
               >
                 <Plus className="h-3.5 w-3.5" aria-hidden />
                 {emptyPrimaryLabel}

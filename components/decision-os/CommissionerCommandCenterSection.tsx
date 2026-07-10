@@ -174,7 +174,7 @@ export default function CommissionerCommandCenterSection({
         {error ? (
           <div
             data-testid="commissioner-command-center-error"
-            className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300"
+            className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700"
           >
             {error}
           </div>

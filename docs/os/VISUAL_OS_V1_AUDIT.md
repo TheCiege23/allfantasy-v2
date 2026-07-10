@@ -207,3 +207,46 @@ Both of the above "deferred" items were picked up this phase, plus the remaining
   queries resolves, which is itself a good, already-correct pattern. Zero code changes made. Full detail
   in `VISUAL_OS_V1_FOUNDATION.md`'s Phase V1.2 section.
 - Full detail in `VISUAL_OS_V1_FOUNDATION.md`'s Phase V1.2 section.
+
+## Update — Phase V1.3
+
+- **Finding 11 closed**: Commissioner Hub's empty-state CTA (`text-amber-300`), flagged in V1.2 as a
+  deferred finding, is now fixed (`-700`).
+- **Broad contrast sweep across all named surfaces found and fixed 15 additional real instances** of the
+  same recurring light-pastel pattern (Findings 3/4/10/11's defect class): Commissioner Hub's 5 Mission
+  Queue icon chips, 1 snapshot-alert message, the "AI Commissioner Assistant" label + its Sparkles icon,
+  the hero's 2 top badges ("Commissioner Hub", "No gambling. Pure fantasy."); League Focus's "Commish"
+  member badge and `ScoringRow`'s "positive"-tone value color; `LeagueContextCard`'s real error banner
+  and "Confirm Free" button; `TodaysBriefCard`'s positive-highlight badges; both Commissioner/Manager
+  Command Center Section's real fetch-failure error banners (the exact "localized error state" this
+  phase's own Step 4 named). All fixed the same way established since V1.0: keep the hue (meaning
+  unchanged), move the TEXT shade from a light `-300`-ish pastel to a readable `-600`/`-700`/`-800`.
+- **New Finding 13 (real, verified live, more severe than prior instances)**: `LeagueTab.tsx`'s
+  `ScoringRow` highlighted-row label used `text-amber-50/95` — near-white text — sitting on a
+  near-white `bg-[#fef9c3]/12` highlighted background. Effectively invisible. Fixed to `text-amber-800`.
+  Same function's "highlighted" scoring-note text used `text-yellow-100/90` (also near-white) — fixed to
+  `text-amber-700`. Both found via a widened contrast-pattern search (`-100`/`-50` shades, not just
+  `-200`/`-300`) after the initial named-pattern sweep completed.
+- **New Finding 14 (real, verified live, a genuinely different defect mechanism)**:
+  `NotificationCenter.tsx`'s unread-count badge used `text-white` on a **solid** `bg-brand-primary`
+  background (not a light tint like Findings 3/4/10 — a real, opaque, branded blue). The app's own
+  light-mode accessibility guard (`html[data-mode="light"] .mode-readable [class*="text-white"] { color:
+  var(--text) !important; }`, first documented in Finding 3) force-flips ANY `text-white*` class to
+  near-black regardless of what it's sitting on — producing near-black text on a medium-blue background.
+  Verified live via computed style: before the fix, `color: rgba(2, 6, 23, 0.92)` on `background-color:
+  rgb(37, 99, 235)`; after, `color: rgb(255, 255, 255)`. Fixed by swapping to `text-content-inverse` — an
+  existing, already-theme-aware semantic token (`--text-inverse`, white in light mode, near-black in dark
+  mode) already used elsewhere in this exact page family (Commissioner Hub's hero CTA) for precisely this
+  "text on a colored/branded background" case — and, critically, NOT matched by the guard's
+  `[class*="text-white"]` selector, since its class name doesn't contain the substring "text-white".
+- **`OverallStatus` visual-semantics decision — Option A, unified**: traced both `MissionControlCard.tsx`
+  and `LeagueHealthDashboard`'s `overallStatus` values back to the exact same source function,
+  `monitorLeagueHealth()` (confirmed via direct import-chain tracing, not assumption) — the same
+  real-world fact, not two different domains that happen to share vocabulary. Per the phase's own
+  "based on meaning, not implementation convenience" instruction, unified both onto the richer, 5-color
+  `decisionOsHealthStatusToneClasses` (built in V1.2) — retiring `MissionControlCard`'s own lossy 4-tone
+  collapse (`OVERALL_STATUS_TONE`/`overallStatusToneClasses`) rather than asking `LeagueHealthDashboard`
+  to lose information to match it. This is the direction the phase's own instruction required ("Do not
+  collapse five meaningful health states into fewer visibly indistinguishable states merely to reuse an
+  existing helper").
+- Full detail in `VISUAL_OS_V1_FOUNDATION.md`'s Phase V1.3 section.

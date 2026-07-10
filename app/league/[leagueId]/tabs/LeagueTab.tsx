@@ -519,7 +519,7 @@ function LeagueMembersPreview({
                     <div className="flex flex-wrap items-center gap-1.5">
                       <p className="truncate text-[12px] font-semibold text-primary">{team.teamName || 'Team'}</p>
                       {isCommissioner ? (
-                        <span className="rounded border border-amber-400/35 bg-amber-500/12 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-200">
+                        <span className="rounded border border-amber-400/35 bg-amber-500/12 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-amber-700">
                           Commish
                         </span>
                       ) : null}
@@ -540,12 +540,17 @@ function LeagueMembersPreview({
   )
 }
 
+// Phase V1.3: `label`'s highlighted-row text was `text-amber-50/95` — near-white — sitting on a
+// near-white `bg-[#fef9c3]/12` highlighted background, i.e. barely-visible text on a barely-visible
+// tint. `valueClass`'s "positive" tone was `text-cyan-300`, the same recurring light-pastel pattern
+// fixed repeatedly since V1.0. Both swapped to readable, saturated shades; hues and the highlight
+// background are unchanged (a contrast fix, not a meaning change).
 function ScoringRow({ label, value, highlight, valueTone }: ScoringRowProps) {
   const valueClass =
     valueTone === 'positive'
-      ? 'text-cyan-300'
+      ? 'text-cyan-600'
       : valueTone === 'negative'
-        ? 'text-red-400/95'
+        ? 'text-red-600'
         : 'text-secondary'
   return (
     <div
@@ -556,7 +561,7 @@ function ScoringRow({ label, value, highlight, valueTone }: ScoringRowProps) {
       }`}
     >
       <span
-        className={`min-w-0 text-[12px] ${highlight ? 'text-amber-50/95' : 'text-muted'}`}
+        className={`min-w-0 text-[12px] ${highlight ? 'text-amber-800' : 'text-muted'}`}
       >
         {label}
       </span>
@@ -829,7 +834,7 @@ export function LeagueTab({
           ) : scoring.nonStandardCount > 0 ? (
             <>
               Non-standard scoring settings (vs this format's defaults) are{' '}
-              <span className="text-yellow-100/90">highlighted</span>.
+              <span className="text-amber-700">highlighted</span>.
             </>
           ) : (
             <>

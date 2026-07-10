@@ -9,6 +9,7 @@ import {
   DecisionOsPanel,
   DecisionOsUpdatedStamp,
   decisionOsCardClassName,
+  decisionOsHealthStatusToneClasses,
   decisionOsToneClasses,
 } from './DecisionOsCardPrimitives'
 
@@ -16,23 +17,6 @@ type MissionControlCardProps = {
   snapshot: MissionControlSnapshot | null
   variant?: 'dashboard' | 'league' | 'commissioner'
   compact?: boolean
-}
-
-// Phase V1.1: was a private `overallStatusClass` table — migrated onto the shared
-// `decisionOsToneClasses`. The real 5-value `OverallStatus` domain (`lib/league-health/league-health-engine.ts`)
-// maps cleanly onto the 4 shared tones with zero color change: excellent/healthy were already the same
-// emerald as `good`; at_risk/critical were already the same rose as `danger`.
-const OVERALL_STATUS_TONE: Record<string, Parameters<typeof decisionOsToneClasses>[0]> = {
-  excellent: 'good',
-  healthy: 'good',
-  watch: 'warning',
-  at_risk: 'danger',
-  critical: 'danger',
-}
-
-function overallStatusToneClasses(status: string): string {
-  const tone = OVERALL_STATUS_TONE[status]
-  return tone ? decisionOsToneClasses(tone) : decisionOsToneClasses('neutral')
 }
 
 function StatChip({ label, value }: { label: string; value: number }) {
@@ -106,7 +90,7 @@ export default function MissionControlCard({ snapshot, variant = 'commissioner',
           {engine ? (
             <span
               data-testid="mission-control-health-status"
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${overallStatusToneClasses(engine.overallStatus)}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${decisionOsHealthStatusToneClasses(engine.overallStatus)}`}
             >
               {engine.overallStatus}
             </span>
@@ -186,7 +170,7 @@ export default function MissionControlCard({ snapshot, variant = 'commissioner',
                     <span
                       className={`mt-0.5 shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.1em] ${
                         action.priority === 'urgent'
-                          ? 'bg-rose-500/15 text-rose-300'
+                          ? decisionOsToneClasses('danger')
                           : 'bg-surface text-muted'
                       }`}
                     >

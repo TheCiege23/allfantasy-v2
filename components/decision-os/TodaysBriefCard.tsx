@@ -76,7 +76,7 @@ export default function TodaysBriefCard({ brief, leagueNameById }: TodaysBriefCa
             {brief.positiveHighlights.map((highlight) => (
               <span
                 key={highlight.leagueId}
-                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300"
+                className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-700"
               >
                 {leagueName(highlight.leagueId)} — {highlight.title}
               </span>

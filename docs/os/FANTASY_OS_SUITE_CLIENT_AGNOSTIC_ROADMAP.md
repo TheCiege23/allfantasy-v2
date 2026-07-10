@@ -1270,6 +1270,51 @@ investigation documents — both `preview_screenshot` and `claude-in-chrome`'s s
 intermittently, additional evidence for (not contradicting) the Step 4 finding. 11 new tests across 3
 files. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
 
+### V1.3 — Visual OS Contrast and Status-Semantics Sweep (2026-07-10)
+
+Continues directly from V1.2 (`435614d1a`). Same boundaries: zero Decision OS logic, authorization, or
+backend contract changes; no fabricated data or trends.
+
+**Contrast sweep (Step 2)**: grepped the named pattern list across every Commissioner Hub, Manager Hub,
+League Focus, and shared `components/decision-os/` file. Found and fixed 17 real light-pastel foreground
+instances across 8 files — Commissioner Hub's 5 Mission Queue icon chips, a snapshot-alert message, the
+"AI Commissioner Assistant" label and icon, the hero's 2 top badges, and the empty-state CTA (closing
+V1.2's own deferred Finding 11); `MissionControlCard`'s urgent-priority badge; League Focus's "Commish"
+badge and `ScoringRow`'s positive-tone value; `LeagueContextCard`'s real error banner and "Confirm Free"
+button; `TodaysBriefCard`'s positive-highlight badges; and both Commissioner/Manager Command Center
+Sections' real fetch-failure error banners — the exact "localized error state" this phase's own Step 4
+named. Every fix kept the original hue (meaning unchanged) and moved only the text shade to a readable
+`-600`/`-700`/`-800`, consistent with the pattern established since V1.0.
+
+Widened the search past the initially-named `-200`/`-300` list (per the phase's own "comparable
+utilities" and "opacity combinations" instruction) and found 2 more, more severe instances: `ScoringRow`'s
+`text-amber-50/95` — near-invisible on a near-white `bg-[#fef9c3]/12` background — and
+`NotificationCenter`'s unread-count badge, which used `text-white` on a **solid, opaque**
+`bg-brand-primary` (a genuinely different defect mechanism than every prior instance — the app's own
+light-mode accessibility guard force-flips any `text-white*` class to near-black regardless of what it
+sits on, producing near-black text on a real medium-blue background, verified live via computed style
+before/after). Fixed with `text-content-inverse`, an existing theme-aware token already used elsewhere in
+this exact page family for "text on a colored background," and not matched by the guard's selector.
+
+**`OverallStatus` decision (Step 3) — Option A, unified**: V1.2 explicitly deferred this decision to a
+future phase. Traced `MissionControlCard.tsx` and `LeagueHealthDashboard`'s `overallStatus` values back
+through their real import chains and confirmed both resolve to the exact same function call,
+`monitorLeagueHealth()` — the same real-world fact, not two domains that happen to share vocabulary. Per
+the phase's own "based on meaning, not implementation convenience" instruction, unified both onto the
+richer, lossless 5-color `decisionOsHealthStatusToneClasses` (built in V1.2) — retiring
+`MissionControlCard`'s own V1.1-era 4-tone collapse rather than asking `LeagueHealthDashboard` to lose
+information to match it, honoring the phase's explicit "do not collapse five meaningful health states
+into fewer visibly indistinguishable states merely to reuse an existing helper" constraint.
+
+**Verification**: live screenshots with real populated data in both light theme ("Claro" — a real
+"League health is excellent" badge, direct proof of the `OverallStatus` unification, and the Notification
+Center's badge showing a clearly legible white "4" on solid blue, direct proof of the `text-white` fix)
+and dark theme ("Oscuro" — both hero badges clearly legible). Computed-style checks confirmed exact colors
+before/after for the `NotificationCenter` fix in isolation. System load dropped from the 100% CPU
+observed in V1.2 to 59% by this phase's Step 4, improving but not eliminating screenshot-tool
+intermittency; some deeper-scroll sections were verified via source diff instead of screenshot, noted
+honestly. 9 new tests. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1340,6 +1385,17 @@ files. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
   the League Focus cold-navigation investigation made zero code changes, per its own "leave production
   code unchanged if not reproducible outside the sandbox" instruction, having found real evidence it
   is exactly that.
+- V1.3 touched only presentation: 17 contrast fixes across 9 files plus 1 status-semantics decision made
+  explicit on the basis of meaning, not implementation convenience. The `OverallStatus` unification only
+  changed which shared function each surface routes its color through (`MissionControlCard` and
+  `LeagueHealthDashboard` now both call `decisionOsHealthStatusToneClasses`); it never touched the
+  underlying `monitorLeagueHealth()` computation, which both surfaces already called and which remains the
+  single real source of the status value — additive convergence, not a new mapping, and specifically the
+  lossless direction (the 5-state primitive won, so no health state was collapsed). The `NotificationCenter`
+  unread-badge fix (`text-white` → `text-content-inverse`) corrected a real theme-guard defect on a solid
+  branded background, a genuinely distinct mechanism from the light-pastel-on-light-tint class. No Decision
+  OS composition, resolver, route, or authorization behavior touched; no new providers, no new intelligence,
+  no backend contracts modified; no fabricated data or trends introduced.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

@@ -300,25 +300,33 @@ export function decisionOsSeverityToneClasses(severity: DecisionOsSeverityLabel)
   return SEVERITY_TONE_CLASS[severity]
 }
 
-/** Phase V1.2 — a second genuinely-additive extension, same reasoning as `decisionOsSeverityToneClasses`
- * above. Local mirror of `OverallStatus` (`lib/league-health/league-health-engine.ts`) — a real 5-tier
- * domain (excellent > healthy > watch > at_risk > critical). `MissionControlCard.tsx` already migrated
- * its OWN `overallStatusClass` table onto `DecisionOsTone` in Phase V1.1, but that was only a safe,
- * lossless migration because *that* table's excellent/healthy were already identical colors, and its
- * at_risk/critical were already identical colors. `LeagueHealthDashboard`'s `HEALTH_STATUS_CLASSES`
- * table (this one) uses 5 genuinely DISTINCT colors for the same 5 status values (healthy is cyan, not
- * excellent's emerald; at_risk is orange, not critical's rose) — collapsing it onto the 4-tone system
- * would silently destroy that distinction. Per this phase's own instruction to extend additively rather
- * than force an incorrect mapping, and per "preserve exact meaning, existing thresholds," this
- * pre-existing cross-component color difference for the same status value is left as-is (a real,
- * separately-documented inconsistency — see `docs/os/VISUAL_OS_V1_AUDIT.md` — not something this phase
- * was asked to unify), only consolidated so `LeagueHealthDashboard`'s own 5-color set lives in one
- * shared, reusable place instead of a private table. The 5 hues themselves (emerald/cyan/amber/
- * orange/rose) are unchanged from the original — only the TEXT shade moved from a light `-300` pastel
- * (a light-mode contrast risk, the same defect class fixed 3 times already in V1.0/V1.1 — see
- * `docs/os/VISUAL_OS_V1_AUDIT.md` Findings 3/4/10) to a readable, saturated `-600`. Borders/backgrounds
- * (the part that carries no text-contrast requirement) are untouched, so the "exact meaning, existing
- * thresholds" instruction is honored — this is a contrast fix, not a semantic change. */
+/** THE single canonical `OverallStatus` mapper (`lib/league-health/league-health-engine.ts`) — a real
+ * 5-tier domain (excellent > healthy > watch > at_risk > critical) computed by ONE function,
+ * `monitorLeagueHealth()`, and consumed by both `MissionControlCard.tsx` (via
+ * `snapshot.leagueHealth.result.engine.overallStatus`) and `LeagueHealthDashboard`
+ * (`CommissionerLeagueHealthSnapshot.overallStatus`, `lib/commissioner-hub/commissionerHubHealth.ts`) —
+ * confirmed by tracing both call sites back to the same `monitorLeagueHealth()` call. Since it is
+ * genuinely the same real-world fact in both places (not two different domains that happen to share
+ * vocabulary), Phase V1.3 unified both components onto this ONE 5-color mapping, rather than leaving
+ * them visually inconsistent for identical status values.
+ *
+ * History: Phase V1.1 first migrated `MissionControlCard`'s own private table onto the 4-value
+ * `DecisionOsTone` system — a LOSSY collapse (excellent+healthy became one emerald; at_risk+critical
+ * became one rose) that happened to be lossless for THAT table's own original colors, but not a
+ * complete picture of the domain. Phase V1.2 then found `LeagueHealthDashboard`'s own private table
+ * used all 5 colors distinctly and, correctly, did NOT collapse it — instead adding this function.
+ * Phase V1.3 completed the picture: rather than leave `MissionControlCard` on the lossy 4-color version
+ * while `LeagueHealthDashboard` used the full 5-color version for the identical underlying fact, this
+ * phase migrated `MissionControlCard` onto this same 5-color function too. Per this phase's own
+ * instruction ("Do not collapse five meaningful health states into fewer visibly indistinguishable
+ * states merely to reuse an existing helper"), the unification went toward the richer, lossless
+ * representation — never toward `DecisionOsTone`'s coarser 4-bucket system.
+ *
+ * Colors: the 5 hues (emerald/cyan/amber/orange/rose) are the original `HEALTH_STATUS_CLASSES` values
+ * from `LeagueHealthDashboard`, unchanged. Only the TEXT shade was moved from a light `-300` pastel (a
+ * light-mode contrast risk, the same defect class fixed repeatedly in V1.0–V1.2 — see
+ * `docs/os/VISUAL_OS_V1_AUDIT.md`) to a readable, saturated `-600` — a contrast fix, not a semantic
+ * change; borders/backgrounds are untouched. */
 export type DecisionOsHealthStatusLabel = 'excellent' | 'healthy' | 'watch' | 'at_risk' | 'critical'
 
 const HEALTH_STATUS_TONE_CLASS: Record<DecisionOsHealthStatusLabel, string> = {

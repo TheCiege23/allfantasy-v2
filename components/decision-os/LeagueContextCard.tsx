@@ -125,7 +125,7 @@ export default function LeagueContextCard({ leagueId, canManage = false, variant
         {error ? (
           <div
             data-testid="league-context-error"
-            className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300"
+            className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700"
           >
             {error}
           </div>
@@ -158,7 +158,7 @@ export default function LeagueContextCard({ leagueId, canManage = false, variant
                 disabled={submitting}
                 onClick={() => void submit('confirm_free')}
                 data-testid="league-context-confirm-free"
-                className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-300 transition hover:bg-emerald-500/20 disabled:opacity-40"
+                className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2 text-xs font-black uppercase tracking-wide text-emerald-700 transition hover:bg-emerald-500/20 disabled:opacity-40"
               >
                 Confirm Free
               </button>

@@ -501,3 +501,156 @@ accurate).
   whether to unify the 2 different `OverallStatus` treatments deliberately, as an explicit product
   decision rather than an incidental refactor.
 - Everything V1.0/V1.1 already deferred remains deferred.
+
+---
+
+# Phase V1.3 — Visual OS Contrast and Status-Semantics Sweep
+
+Continues directly from Phase V1.2 (`435614d1a`, doc fixup `0a875bc75`). Same boundaries: zero Decision
+OS logic, authorization, or backend contract changes. No new providers, no fabricated data or trends.
+
+## Step 1 — Baseline verified
+
+Confirmed branch (`g15-event-foundation`), clean working tree for the paths this phase touches (the
+usual ~250-file baseline noise elsewhere on this branch was present and left untouched — 2 unrelated
+modified files and 1 unrelated untracked backup file were spotted in `app/league/[leagueId]/` and
+explicitly NOT staged or touched). Ran the 6 most relevant V1.0–V1.2 test files (55 tests) to confirm a
+clean starting point, and a fresh full typecheck (158, the established baseline) before making any edit.
+
+## Step 2 — Contrast audit (source-level, all named surfaces)
+
+Grepped for the named pattern list (`text-{amber,yellow,orange,lime,emerald,sky,violet,cyan,rose,...}-
+{200,300}`) across Commissioner Hub, Manager Hub, League Focus, and every file in
+`components/decision-os/`. Found and fixed **17 real instances** across 8 files — every one was live
+foreground text or a real icon, not a decorative background/border (which the audit explicitly leaves
+alone per the phase's own "distinguish real issues from legitimate decorative pastel usage" instruction):
+
+| File | Fixed |
+| --- | --- |
+| `CommissionerHubPageClient.tsx` | 5 Mission Queue icon chips (`cyan/emerald/amber/violet/violet`), 1 snapshot-alert message, "AI Commissioner Assistant" label + Sparkles icon, hero's 2 top badges, the empty-state CTA (closing V1.2's own Finding 11) |
+| `MissionControlCard.tsx` | the "urgent" priority badge (`bg-rose-500/15 text-rose-300` → `decisionOsToneClasses('danger')`) |
+| `LeagueTab.tsx` | the "Commish" member badge, `ScoringRow`'s positive-tone value color, plus 2 more severe instances found in a widened sweep (see Finding 13 below) |
+| `LeagueContextCard.tsx` | the real error banner (`league-context-error`), the "Confirm Free" button |
+| `TodaysBriefCard.tsx` | positive-highlight badges |
+| `CommissionerCommandCenterSection.tsx` / `ManagerCommandCenterSection.tsx` | the real fetch-failure error banners — the exact "localized error state" this phase's Step 4 named |
+| `NotificationCenter.tsx` | the unread-count badge — a different defect mechanism, see Finding 14 below |
+
+**Widened the search after the first pass** to also check `-50`/`-100` shades and opaque-background
+`text-white` usage (not just `-200`/`-300`), since Step 2's own instruction named "comparable... utilities"
+and "opacity combinations that reduce foreground readability" as in-scope, not just the exact named list.
+This found 2 more real, more severe issues:
+
+- **Finding 13**: `LeagueTab.tsx`'s `ScoringRow` highlighted-row label used `text-amber-50/95` (near-white)
+  on a near-white `bg-[#fef9c3]/12` background — effectively invisible, worse than any prior instance.
+  Fixed to `text-amber-800`. The same function's highlighted-note text used `text-yellow-100/90` — fixed
+  to `text-amber-700`.
+- **Finding 14**: `NotificationCenter.tsx`'s unread-count badge used `text-white` on a **solid, opaque**
+  `bg-brand-primary` — a genuinely different mechanism than Findings 3/4/10/11/13 (which were all light
+  text on light/transparent backgrounds). Here the background is a real, saturated blue; the bug is that
+  the app's own light-mode accessibility guard (`[class*="text-white"]`, first documented in Finding 3)
+  force-flips ANY `text-white*` class to near-black regardless of context, producing near-black text on
+  a medium-blue background. Verified live via computed style before/after:
+  `color: rgba(2, 6, 23, 0.92)` on `background-color: rgb(37, 99, 235)` → `color: rgb(255, 255, 255)`.
+  Fixed with `text-content-inverse` (`--text-inverse`, already theme-aware, already used elsewhere in
+  this exact page family for "text on a colored background") — not matched by the guard's selector,
+  since its class name doesn't literally contain "text-white".
+
+Distinguished real issues from legitimate pastel usage throughout: e.g. the large decorative Crown icon
+on Commissioner Hub's empty state (`text-amber-400/40`) was left untouched — a deliberately faint,
+large-scale decorative element, not foreground text conveying information.
+
+## Step 3 — `OverallStatus` visual semantics: Option A, unified
+
+Read `MissionControlCard.tsx` and `LeagueHealthDashboard`'s `overallStatus` consumption directly and
+traced both back through their real import chains — `MissionControlCard`'s
+`snapshot.leagueHealth.result.engine.overallStatus` and `LeagueHealthDashboard`'s
+`CommissionerLeagueHealthSnapshot.overallStatus` both resolve to the exact same function call,
+`monitorLeagueHealth()` (`lib/league-health/league-health-engine.ts`), confirmed via direct source
+inspection of `lib/decision-os/leagueHealthAlignment.ts` and `lib/commissioner-hub/commissionerHubHealth.ts`.
+This is the same real-world fact in both places, not two domains that happen to share vocabulary — so
+per the phase's own "make an explicit product decision based on meaning, not implementation convenience"
+instruction, **Option A (unified status semantics)** was the correct call, not Option B.
+
+The unification went in the lossless direction: `MissionControlCard.tsx` was migrated OFF its own
+V1.1-era `OVERALL_STATUS_TONE`/`overallStatusToneClasses` (a 4-tone collapse that lost the
+excellent-vs-healthy and at_risk-vs-critical distinctions) and ONTO the full 5-color
+`decisionOsHealthStatusToneClasses` `LeagueHealthDashboard` already used — never the other direction.
+This satisfies the phase's own explicit constraint: "Do not collapse five meaningful health states into
+fewer visibly indistinguishable states merely to reuse an existing helper." The primitive's own doc
+comment in `DecisionOsCardPrimitives.tsx` was rewritten to reflect its new status as THE single canonical
+`OverallStatus` mapper, with the full V1.1→V1.2→V1.3 history preserved so a future reader understands why
+2 migrations happened instead of 1.
+
+## Step 4 — Accessibility verification (live)
+
+Live-verified with real populated data via the same persisted authenticated session used in V1.1/V1.2
+(pre-existing, no credentials entered): captured a real screenshot of Commissioner Hub in **light theme**
+("Claro") showing a real "12-Team NFL Redraft League — League health is excellent" badge — direct,
+real-data proof the `OverallStatus` unification renders correctly — and the Notification Center's
+unread-count badge showing a clearly legible white "4" on its solid blue circle, direct proof of the
+Finding 14 fix. Also captured **dark theme** ("Oscuro") showing the hero's 2 top badges
+("Commissioner Hub", "No gambling. Pure fantasy.") clearly legible against the dark card background,
+confirming the `-700` shade choice works in both themes (not just light, which is where every fix this
+phase was primarily verified via computed styles).
+
+Computed-style verification (via `preview_eval`) confirmed:
+- Hero badges: `rgb(180, 83, 9)` (amber-700) and `rgb(4, 120, 87)` (emerald-700) — both solid, readable,
+  non-transparent colors.
+- `NotificationCenter` badge, isolated before/after: `rgba(2, 6, 23, 0.92)` on blue → `rgb(255, 255, 255)`
+  on the same blue, confirming Finding 14's fix in isolation, not just in context.
+
+**Screenshot capture reliability improved this phase** compared to V1.2 — the machine's CPU load dropped
+from the 100% observed in V1.2 to 59% by the start of this phase's Step 4, and `claude-in-chrome`'s
+screenshot action succeeded on the first, second, and several subsequent attempts (still intermittently
+timed out on a few later attempts, consistent with genuinely-improved-but-not-fully-idle system
+conditions, not a code issue). Not claiming full desktop+tablet+mobile+every-state coverage was
+screenshotted — several deeper-scroll sections (Mission Queue, AI Prompt Cards specifically) could not be
+captured before the tool became unresponsive again; those were instead verified via source diff +
+the same token-routing pattern proven correct on 3+ other elements this phase.
+
+## Step 5 — Regression tests
+
+New file: `visual-os-v13-contrast-and-status-semantics.test.tsx` (9 tests):
+1. Source-scan proving both `MissionControlCard.tsx` and `CommissionerHubPageClient.tsx` call the same
+   `decisionOsHealthStatusToneClasses`, and that the retired `OVERALL_STATUS_TONE`/`overallStatusToneClasses`
+   are actually gone (not just unused).
+2. `decisionOsHealthStatusToneClasses` is deterministic (same input → same output, called independently)
+   — proving "one shared mapping" is enforced, not coincidentally consistent.
+3. All 5 real health states remain visually distinct after unification (the domain wasn't collapsed).
+4. `MissionControlCard`'s urgent-priority badge renders through the shared tone system, not a
+   hardcoded `rose-300`.
+5. Source-scan proving each of the 8 touched files no longer USES (as opposed to documents in an
+   explanatory comment) any of the retired low-contrast classes — the test strips `//` and `{/* */}`
+   comments before asserting, so it can't false-positive on this phase's own explanatory comments (which
+   deliberately quote the retired class names for documentation, matching every prior phase's style).
+6. Focus-ring coverage from V1.2 is not regressed in the 3 files this phase also touched.
+
+## Step 6 — Documentation
+
+This document, `VISUAL_OS_V1_AUDIT.md`, `OS_PROGRESS_DASHBOARD.md`, and
+`FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md` all updated. Explicitly stated in each: no new Decision OS
+logic, no backend contract changes, no provider logic changes, no fabricated data or trends — every
+number and status value this phase touched already existed; only its rendered color changed.
+
+## Step 7 — Final verification and commit
+
+- New test file: 9/9 passing.
+- Broad regression suite: **157 test files passed (157), 3202 tests passed (3202), 0 failures**
+  (up from the 155-file / 3173-test V1.2 baseline — the delta is this phase's own new/expanded coverage;
+  no prior test regressed).
+- Typecheck: **158 errors — unchanged from the Step 1 baseline of 158.** Zero errors in any V1.3-touched
+  file (verified by grepping the typecheck error output for all 9 changed source files + the new test file:
+  none appear).
+- Source scans (part of the new test file) confirm the retired patterns are gone from every touched file.
+
+## What's still open after V1.3
+
+- Any remaining pastel instances outside the explicitly-named surfaces (this phase's own scope was
+  Commissioner Hub, Manager Hub, League Focus, Mission Control, League Health, League Pulse, Notification
+  Center, switchers, launcher links, and shared primitives — not a full-app sweep).
+- `MissionControlCard.tsx`'s "Managers at retention risk" list items and `CommissionerAttentionQueue`'s
+  list items still lack `focus-ring` since they're non-interactive (correctly excluded per V1.2's own
+  "do not add focus styling to non-interactive elements" rule) — not a defect, noted for completeness.
+- `LeagueContextCard.tsx`'s "Confirm Free"/"Confirm Paid"/"Reset" buttons still lack `.focus-ring`
+  (a V1.2-scope item, not touched this phase since Step 2's scope was contrast, not focus-ring).
+- Everything V1.0–V1.2 already deferred remains deferred.
