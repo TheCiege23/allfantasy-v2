@@ -24,7 +24,8 @@ import { runCohort } from '../lib/validation-cohort/runCohort'
 import { runDiscovery } from '../lib/validation-cohort/portfolioDiscovery'
 import { persistPortfolio } from '../lib/validation-cohort/persistence/persistPortfolio'
 import { FileEvidenceStore } from '../lib/validation-cohort/persistence/fileEvidenceStore'
-import { checkEvidenceIntegrity } from '../lib/validation-cohort/persistence/integrityChecker'
+import { checkEvidenceIntegrity, summarizeIntegrityBySeverity } from '../lib/validation-cohort/persistence/integrityChecker'
+import { buildLeagueReadModel, buildPlatformReadModel } from '../lib/validation-cohort/evidence/decisionOsReadModel'
 import { makeDefaultFetch } from '../lib/validation-cohort/sleeperCohortClient'
 import { renderHumanSummary } from '../lib/validation-cohort/reportBuilder'
 import type { CohortAggregateReport } from '../lib/validation-cohort/types'
@@ -128,14 +129,26 @@ function loadResumeSet(): Set<string> {
       concurrency,
       maxLeaguesPerAccount: arg('maxLeaguesPerAccount') ? Number(arg('maxLeaguesPerAccount')) : undefined,
       maxTxWeeks,
+      importEvidence: hasFlag('importEvidence'),
+      evidenceWeeks: arg('evidenceWeeks') ? Number(arg('evidenceWeeks')) : undefined,
     })
-    const integrity = checkEvidenceIntegrity(await store.listLeagues(), await store.listPortfolios())
+    const leagues = await store.listLeagues()
+    const integrity = checkEvidenceIntegrity(leagues, await store.listPortfolios())
+    const severity = summarizeIntegrityBySeverity(integrity)
     const state = await store.readImportState()
+
+    // Decision OS read-compatibility across the seven Operating Systems (Part 7).
+    const perOs: Record<string, boolean> = {}
+    for (const l of leagues) for (const c of buildLeagueReadModel(l)) perOs[c.os] = (perOs[c.os] ?? true) && c.available
+    perOs['platform'] = buildPlatformReadModel(leagues).available
+
     fs.writeFileSync(path.join(storeRoot, `integrity-${stamp0}.json`), JSON.stringify(integrity, null, 2))
+    fs.writeFileSync(path.join(storeRoot, `decision-os-compat-${stamp0}.json`), JSON.stringify(perOs, null, 2))
     console.log(
       `[persist] imported=${result.imported} skippedImmutable=${result.skippedImmutable} partialFailures=${result.partialFailures} durationMs=${state.lastSyncDurationMs}`,
     )
-    console.log(`[persist] store=${storeRoot} importedSeasons=[${state.importedSeasons.join(',')}] integrityFindings=${integrity.length}`)
+    console.log(`[persist] store=${storeRoot} importedSeasons=[${state.importedSeasons.join(',')}] integrityFindings=${integrity.length} severity=${JSON.stringify(severity)}`)
+    console.log(`[persist] decisionOsCompat=${JSON.stringify(perOs)}`)
     console.log('PERSIST_OK')
     return
   }

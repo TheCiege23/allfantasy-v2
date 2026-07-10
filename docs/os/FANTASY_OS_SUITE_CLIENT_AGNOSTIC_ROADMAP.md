@@ -1696,6 +1696,24 @@ Part 6 confirmed the persisted provider-neutral facts feed the existing Decision
 7 new; full targeted 57/57; typecheck 158 baseline. Remaining: populate standings/matchups/drafts/FAAB with
 real fetch+map on a live cohort, add the Prisma store impl, and run the real supplied username cohort.
 
+### V8.2 — Historical evidence expansion & incremental sync (2026-07-10)
+
+Expanded the corpus from league summaries to the full provider-neutral evidence set, extending the V8.1
+pipeline (no duplicate importer). New `lib/validation-cohort/evidence/`: bounded fetch + normalization of
+rosters, standings, weekly matchups, completed transactions (with FAAB from waiver bids), drafts + picks,
+and postseason brackets — each with an honest five-way status (unavailable/not-fetched/partial/empty/data),
+plus pure activity derivation (trade/waiver/free-agent frequency, roster churn, lineup participation,
+completed FAAB spend, inactivity) that infers nothing (no intent/skill/collusion/tanking). The persist
+orchestrator gained `importEvidence`; the store record carries the bundle + derived activity; the integrity
+checker gained severity classification (informational-coverage-gap → provider-limitation) and a
+bundle-level impossible-roster-reference check; a Decision OS read model demonstrates all seven OS consume
+the corpus. Raw provider ids (owner/draft/transaction/player) stay in ingestion only — the persisted bundle
+uses league-local roster slots and counts. The live `theciege24` smoke (3 real leagues) caught and fixed
+two TOOLING bugs — an unsound normalized-shape duplicate-transaction check (replaced with fetch-time dedup
+by `transaction_id`) and an over-broad leak-scan regex (re-scanned: zero real leaks) — and confirmed all
+seven OS compatible with zero corrupt findings. No Decision OS behavior changed. Tests 8 new; full targeted
+188/188; typecheck 158 baseline. Remaining: the real supplied cohort + a Prisma-backed store.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.

@@ -21,7 +21,21 @@ import {
 } from '../sleeperCohortClient'
 import { anonymizeLeagueId, anonymizeAccount } from '../anonymize'
 import { planSync, isCompletedSeason } from './syncPlanner'
+import { fetchLeagueEvidence } from '../evidence/fetchEvidence'
+import { deriveActivityEvidence } from '../evidence/activityEvidence'
+import type { LeagueEvidenceBundle } from '../evidence/contracts'
+import type { EvidenceCategory } from '../types'
 import type { HistoricalEvidenceStore, PersistedLeagueEvidence } from './evidenceStore'
+
+/** Map a bundle's per-category fetch status to the boolean "observed" coverage flags. */
+function evidenceFlagsFromBundle(bundle: LeagueEvidenceBundle): Partial<Record<EvidenceCategory, boolean>> {
+  const flags: Partial<Record<EvidenceCategory, boolean>> = {}
+  for (const [cat, status] of Object.entries(bundle.status)) {
+    // "observed" = actually fetched (data or a genuine empty), NOT unavailable/not-fetched.
+    if (status === 'data' || status === 'empty' || status === 'partial') flags[cat as EvidenceCategory] = true
+  }
+  return flags
+}
 
 export type PersistOptions = {
   seasons: string[]
@@ -30,6 +44,10 @@ export type PersistOptions = {
   concurrency?: number
   maxLeaguesPerAccount?: number
   maxTxWeeks?: number
+  /** V8.2: also fetch + normalize + derive the full evidence bundle (rosters/matchups/transactions/…). */
+  importEvidence?: boolean
+  /** Bounded week cap for the evidence bundle fetch. */
+  evidenceWeeks?: number
 }
 
 export type PersistResult = {
@@ -105,6 +123,15 @@ export async function persistPortfolio(
       try {
         const facts = await fetchLeagueFacts(raw as never, userId, fetchJson, { maxTxWeeks: opts.maxTxWeeks })
         const completed = isCompletedSeason(league.season, opts.currentSeason)
+
+        // V8.2: optionally gather the full normalized evidence bundle + derived activity.
+        let bundle: LeagueEvidenceBundle | undefined
+        let activityDerived: ReturnType<typeof deriveActivityEvidence> | undefined
+        if (opts.importEvidence) {
+          bundle = await fetchLeagueEvidence(raw.league_id, fetchJson, { maxWeeks: opts.evidenceWeeks ?? opts.maxTxWeeks })
+          activityDerived = deriveActivityEvidence(bundle)
+        }
+
         const evidence: PersistedLeagueEvidence = {
           leagueReference: facts.leagueReference,
           season: facts.season,
@@ -112,15 +139,19 @@ export async function persistPortfolio(
           previousLeagueRef: league.previousLeagueRef,
           role: facts.sourceIsCommissioner ? 'commissioner' : 'member',
           facts,
-          // Only categories actually GATHERED are marked — standings/matchups/drafts are not fetched here.
-          evidence: {
-            metadata: true,
-            rosters: true,
-            trades: true,
-            waivers: true,
-            free_agents: true,
-            previous_league: league.previousLeagueRef !== null,
-          },
+          // Coverage flags: from the full bundle when imported, else the summary-level categories.
+          evidence: bundle
+            ? { ...evidenceFlagsFromBundle(bundle), previous_league: league.previousLeagueRef !== null }
+            : {
+                metadata: true,
+                rosters: true,
+                trades: true,
+                waivers: true,
+                free_agents: true,
+                previous_league: league.previousLeagueRef !== null,
+              },
+          bundle,
+          activity: activityDerived,
           seasonImmutable: completed,
           importedAt: new Date().toISOString(),
         }

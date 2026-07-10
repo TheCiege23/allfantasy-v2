@@ -13,8 +13,10 @@
  * everything is anonymized `acct_`/`lg_` references and provider-neutral facts.
  */
 import type { NormalizedLeagueFacts, EvidenceCategory, DiscoveredLeague } from '../types'
+import type { LeagueEvidenceBundle } from '../evidence/contracts'
+import type { ActivityEvidence } from '../evidence/activityEvidence'
 
-export const EVIDENCE_STORE_VERSION = '8.1.0'
+export const EVIDENCE_STORE_VERSION = '8.2.0'
 
 /** One league's persisted evidence. `evidence` marks only categories an import actually OBSERVED. */
 export type PersistedLeagueEvidence = {
@@ -27,6 +29,10 @@ export type PersistedLeagueEvidence = {
   facts?: NormalizedLeagueFacts
   /** Observed evidence categories (metadata/rosters/trades/... ) — never assumed, only what was seen. */
   evidence: Partial<Record<EvidenceCategory, boolean>>
+  /** V8.2: the full normalized evidence bundle (rosters/matchups/transactions/draft/postseason). */
+  bundle?: LeagueEvidenceBundle
+  /** V8.2: pure activity evidence derived from the bundle. */
+  activity?: ActivityEvidence
   /** Completed (non-current) seasons are immutable — imported once, then never rewritten. */
   seasonImmutable: boolean
   importedAt: string
