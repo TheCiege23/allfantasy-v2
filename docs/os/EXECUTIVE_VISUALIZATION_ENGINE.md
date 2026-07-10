@@ -186,3 +186,94 @@ support them without a separate palette.
 - `app/commissioner-hub/CommissionerHubPageClient.tsx` *(flagship integration + 60/30/10)*
 - `__tests__/executive-viz/executive-visualization-engine.test.tsx` *(new, 19 tests)*
 - docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
+
+---
+
+# Phase V2.1 — Commissioner OS Executive Analytics Workspace
+
+Turns Commissioner OS from "a flagship + a page of cards" into an **executive analytics workspace**: the
+League Health Map stays the dominant anchor, and four supporting graphs (each answering exactly one
+commissioner decision) explain the league's operational state around it. Same scope and constraints as
+V2.0 — B2B/licensing only, Decision OS/backend/provider abstraction frozen, no fabricated history, no
+B2C/player-centric dashboards.
+
+## Step 1 — Data audit
+
+All four supporting graphs are built from the **same** provider-agnostic `CommissionerLeagueHealthSnapshot`
+already loaded for the flagship — no new fetch, no new contract, no new intelligence. Every field used is
+a **current-snapshot** value (counts or 0–100 scores); no historical series exists, so nothing draws a
+timeline.
+
+## Step 2 — Supporting visualizations (one question each)
+
+| Graph | Question | Real data | Form |
+| --- | --- | --- | --- |
+| **Manager Attention** | Where do my managers need attention? | `inactiveTeams`, `missedLineups`, `injuredStarters`, `lowConfidenceProjectionStarters`, `activeManagers`/`teamCount` | ranked severity bars (issue categories, not per-manager identities — the contract carries none) |
+| **Health Breakdown** | Which dimensions drive the overall score? | `healthScore`, `engagementScore`, `fairnessScore`, `sustainabilityScore` | weakest-first 0–100 comparison bars |
+| **Today's Workload** | What requires my action today? | `pendingWaiverClaims`, `pendingTrades`, `openAiAlerts`, `commissionerActions` | ranked count bars; positive empty state when all clear |
+| **League Readiness** | Is the league operationally ready? | `lineupSubmissionRate`, `projectionCoveragePct`, `activeManagers`/`teamCount` | three progress rings; data confidence as a label (not a fabricated ring value) |
+
+Builders live in `lib/executive-viz/commissionerLeagueHealthViewModel.ts`
+(`buildManagerAttentionDistribution`, `buildLeagueHealthBreakdown`, `buildCommissionerWorkload`,
+`buildLeagueReadiness`) — pure, provider-agnostic, each returning display data + an accessible headline +
+an honest `available` flag.
+
+## Step 3–4 — Composition + reusable primitives
+
+- **Workspace layout** (`CommissionerOsFlagship`): Row 1 = League Health Map (dominant ~60%) + KPI/action
+  rail (~30/10); Row 2 = the four supporting graphs in a `md:grid-cols-2` grid, rendered in the
+  **non-dominant** shell so they reinforce rather than compete with the map.
+- **New shared chart primitives** (`components/executive-viz/ExecutiveCharts.tsx`), added only because
+  each has two or more consumers: `ExecutiveHorizontalBars` (used by Manager Attention, Health Breakdown,
+  and Workload) and `ExecutiveProgressRing` (three rings in League Readiness). Both render fill **directly
+  at the correct value** (never gated behind an animation/effect that freezes in hidden tabs) and honor
+  `motion-reduce:*`.
+
+## Step 6 — Hierarchy audit
+
+The cross-league 7-metric aggregate strip is now **gated to multi-league commissioners** (`snapshots.length
+> 1`); for a single league it fully duplicated the flagship workspace, so it is suppressed there to keep
+the map dominant and remove the duplicate KPIs — while multi-league commissioners still get their
+cross-league summary. No unrelated card rewrite.
+
+## Step 7 — Provider abstraction
+
+Verified live (banned-term scan returned empty across the whole workspace): no provider names, API
+terminology, normalized payload fields, internal identifiers, or player-level records reach the surface.
+Manager Attention deliberately shows a **distribution of issue categories**, not per-manager identities,
+because the normalized contract does not carry them (and the phase permits severity distribution).
+
+## Step 8 — Browser verification (real authenticated "12-Team NFL Redraft League")
+
+Via computed DOM inspection: all four supporting cards present with correct real-data summaries — Manager
+Attention "All 12 managers are active and set" (honest 0% bars — this league has zero manager issues),
+Health Breakdown "Engagement is the weakest dimension at 45/100" with bars rendering at correct visible
+widths (engagement 45%/197px through sustainability 100%/438px, weakest-first), Today's Workload showing
+the positive empty state ("Nothing requires your action"), League Readiness rendering three rings ("Lineups
+set: 100%"). Zero provider/API/player identifiers found. **Limitation (disclosed):** the automated QA tab
+runs hidden and its renderer freezes for frame capture — a screenshot call returned a blank frame, so no
+flagship-workspace screenshot is claimed; all findings are backed by computed DOM/style inspection, which
+the phase permits as supporting evidence.
+
+## Step 9 — Tests
+
+`__tests__/executive-viz/executive-analytics-workspace.test.tsx` (15 tests): the four builders
+(worst/weakest-first ranking, real value labels, real headlines, all-clear and unavailable paths), the two
+chart primitives (accessible meters + aria values), the four cards (populated / positive-empty /
+unavailable states, accessible summaries, no provider/API/player names), and the dashboard hierarchy
+(workspace renders map + all four graphs; aggregate strip gated to multi-league; `ExecutiveHorizontalBars`
+reused two or more times).
+
+## Deferred (V2.1)
+
+Per-manager attention (needs a per-manager contract this snapshot doesn't carry), and the still-unbuilt
+Sankey/treemap/radar/etc. and User/League/Trade/Waiver/Draft/Platform OS flagships.
+
+## Files changed (V2.1)
+
+- `lib/executive-viz/commissionerLeagueHealthViewModel.ts` *(4 new builders + types)*
+- `components/executive-viz/ExecutiveCharts.tsx` *(new — ExecutiveHorizontalBars, ExecutiveProgressRing)*
+- `components/executive-viz/SupportingExecutiveViz.tsx` *(new — 4 supporting cards)*
+- `app/commissioner-hub/CommissionerHubPageClient.tsx` *(workspace composition + hierarchy gate)*
+- `__tests__/executive-viz/executive-analytics-workspace.test.tsx` *(new, 15 tests)*
+- docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`

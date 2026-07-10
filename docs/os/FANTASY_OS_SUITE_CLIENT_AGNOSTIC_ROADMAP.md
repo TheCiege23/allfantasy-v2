@@ -1346,6 +1346,26 @@ never gated behind an animation. One full-page screenshot captured; the flagship
 timed out under the hidden-tab renderer freeze and is disclosed rather than claimed. 19 new tests. Full
 detail: `EXECUTIVE_VISUALIZATION_ENGINE.md`.
 
+### V2.1 — Commissioner OS Executive Analytics Workspace (2026-07-10)
+
+Turned Commissioner OS from a flagship-plus-cards page into an **executive analytics workspace**: the
+League Health Map stays the dominant anchor and four supporting graphs — Manager Attention, Health
+Breakdown, Today's Workload, League Readiness — each answer exactly one commissioner decision. Every graph
+is built from the same provider-agnostic `CommissionerLeagueHealthSnapshot` already loaded for the flagship
+(four new pure builders), so no new fetch, contract, or intelligence was added, and every value is a
+current-snapshot reading (no timeline). Two reusable chart primitives were added because each has multiple
+consumers (`ExecutiveHorizontalBars` used by three graphs, `ExecutiveProgressRing` used by League
+Readiness's three rings). A hierarchy audit removed the duplicate KPIs: the cross-league 7-metric aggregate
+strip is now gated to multi-league commissioners (for a single league it fully duplicated the workspace).
+
+**Verification**: live-tested against the real, authenticated "12-Team NFL Redraft League" via computed
+DOM inspection — all four cards present with correct real-data summaries (Manager Attention "All 12
+managers active"; Health Breakdown "Engagement is the weakest at 45/100" with bars at correct visible
+widths, weakest-first; Today's Workload's positive empty state; League Readiness's three rings), and zero
+provider/API/player identifiers across the workspace. The QA tab's hidden-renderer freeze returned a blank
+screenshot frame, so no workspace screenshot is claimed — all findings rest on computed DOM/style
+inspection. 15 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.1.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1438,6 +1458,16 @@ detail: `EXECUTIVE_VISUALIZATION_ENGINE.md`.
   non-`executive-viz`/non-doc file changed is `CommissionerHubPageClient.tsx` (flagship integration +
   60/30/10 reorg, no page rewrite) and a reverted-clean `globals.css` (an experimental keyframe was added
   then fully removed once live testing showed animations freeze in the hidden QA tab).
+- V2.1 added four presentation-only supporting graphs plus two reusable chart primitives, entirely within
+  the B2B/licensing product. All four are built from the same existing `CommissionerLeagueHealthSnapshot`
+  via four new pure builders in `commissionerLeagueHealthViewModel.ts` — no new fetch, contract, or
+  intelligence; no history/trend/sample data (all current-snapshot); no raw provider payloads,
+  player-level records, or internal IDs on the surface; Manager Attention shows an issue-category
+  distribution, not per-manager identities the contract doesn't carry. No Decision OS logic/resolver/
+  route/composition/authorization touched; no backend or API contracts changed; no provider logic; no new
+  providers; no B2C/Legacy features. The only non-`executive-viz`/non-doc change is
+  `CommissionerHubPageClient.tsx` (workspace composition + gating the pre-existing cross-league aggregate
+  strip to multi-league to remove duplicate KPIs — no card rewrite).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

@@ -43,6 +43,12 @@ import type {
 } from '@/lib/commissioner-hub/commissionerHubHealth'
 import LeagueHealthMap from '@/components/executive-viz/LeagueHealthMap'
 import {
+  ManagerAttentionCard,
+  LeagueHealthBreakdownCard,
+  CommissionerWorkloadCard,
+  LeagueReadinessCard,
+} from '@/components/executive-viz/SupportingExecutiveViz'
+import {
   buildCommissionerLeagueHealthViewModel,
   selectFlagshipSnapshot,
 } from '@/lib/executive-viz/commissionerLeagueHealthViewModel'
@@ -540,6 +546,15 @@ function CommissionerOsFlagship({ snapshots }: { snapshots: CommissionerLeagueHe
           </div>
         </div>
       </div>
+
+      {/* Phase V2.1 — supporting executive graphs that explain the flagship map's operational state.
+          Lighter weight than the map (non-dominant shells) so the League Health Map stays the anchor. */}
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <ManagerAttentionCard snapshot={flagshipSnapshot} />
+        <LeagueHealthBreakdownCard snapshot={flagshipSnapshot} />
+        <CommissionerWorkloadCard snapshot={flagshipSnapshot} />
+        <LeagueReadinessCard snapshot={flagshipSnapshot} />
+      </div>
     </section>
   )
 }
@@ -583,35 +598,40 @@ function LeagueHealthDashboard({
           </button>
         ) : null}
       </div>
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
-        <MetricTile
-          icon={Users}
-          label="Inactive Teams"
-          value={sumMetric(snapshots, 'inactiveTeams')}
-          tone={sumMetric(snapshots, 'inactiveTeams') > 0 ? 'warn' : 'good'}
-        />
-        <MetricTile
-          icon={AlertCircle}
-          label="Missed Lineups"
-          value={sumMetric(snapshots, 'missedLineups')}
-          tone={sumMetric(snapshots, 'missedLineups') > 0 ? 'warn' : 'good'}
-        />
-        <MetricTile icon={TrendingUp} label="Trade Activity" value={sumMetric(snapshots, 'tradeActivity')} />
-        <MetricTile icon={Zap} label="Waiver Activity" value={sumMetric(snapshots, 'waiverActivity')} />
-        <MetricTile
-          icon={Activity}
-          label="League Engagement"
-          value={`${averageEngagement}/100`}
-          tone={averageEngagement >= 65 ? 'good' : 'warn'}
-        />
-        <MetricTile icon={Shield} label="Commissioner Actions" value={sumMetric(snapshots, 'commissionerActions')} />
-        <MetricTile
-          icon={Target}
-          label="Projection Coverage"
-          value={`${averageProjectionCoverage}%`}
-          tone={averageProjectionCoverage >= 70 ? 'good' : 'warn'}
-        />
-      </div>
+      {/* Phase V2.1 — this cross-league aggregate strip is only shown for multi-league commissioners.
+          For a single league it fully duplicates the flagship workspace above (League Health Map + its
+          KPIs + the supporting graphs), so it's suppressed there to keep the map dominant. */}
+      {snapshots.length > 1 ? (
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-7">
+          <MetricTile
+            icon={Users}
+            label="Inactive Teams"
+            value={sumMetric(snapshots, 'inactiveTeams')}
+            tone={sumMetric(snapshots, 'inactiveTeams') > 0 ? 'warn' : 'good'}
+          />
+          <MetricTile
+            icon={AlertCircle}
+            label="Missed Lineups"
+            value={sumMetric(snapshots, 'missedLineups')}
+            tone={sumMetric(snapshots, 'missedLineups') > 0 ? 'warn' : 'good'}
+          />
+          <MetricTile icon={TrendingUp} label="Trade Activity" value={sumMetric(snapshots, 'tradeActivity')} />
+          <MetricTile icon={Zap} label="Waiver Activity" value={sumMetric(snapshots, 'waiverActivity')} />
+          <MetricTile
+            icon={Activity}
+            label="League Engagement"
+            value={`${averageEngagement}/100`}
+            tone={averageEngagement >= 65 ? 'good' : 'warn'}
+          />
+          <MetricTile icon={Shield} label="Commissioner Actions" value={sumMetric(snapshots, 'commissionerActions')} />
+          <MetricTile
+            icon={Target}
+            label="Projection Coverage"
+            value={`${averageProjectionCoverage}%`}
+            tone={averageProjectionCoverage >= 70 ? 'good' : 'warn'}
+          />
+        </div>
+      ) : null}
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
         {visibleSnapshots.map((snapshot) => {

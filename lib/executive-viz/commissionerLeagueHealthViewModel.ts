@@ -283,3 +283,167 @@ export function selectFlagshipSnapshot(
     return a.healthScore - b.healthScore
   })[0]
 }
+
+// ─── Phase V2.1 — supporting executive visualizations ──────────────────────────
+// Each builder is pure and provider-agnostic, reshaping the SAME normalized snapshot into display data
+// for one supporting graph that answers one commissioner question. No new intelligence, no history, no
+// player-level records, no provider fields.
+
+/** Structurally compatible with the chart layer's `ExecutiveBarItem`. */
+export type ExecutiveBarDatum = {
+  key: string
+  label: string
+  value: number
+  max?: number
+  status: ExecutiveHealthStatus
+  valueLabel?: string
+}
+
+export type ExecutiveRingDatum = {
+  key: string
+  label: string
+  value: number
+  status: ExecutiveHealthStatus
+  valueLabel?: string
+}
+
+export type ExecutiveSupportingChart<T> = {
+  headline: string
+  items: T[]
+  available: boolean
+}
+
+function statusFromCount(count: number, watchAt: number, riskAt: number, criticalAt: number): ExecutiveHealthStatus {
+  if (count <= 0) return 'excellent'
+  if (count >= criticalAt) return 'critical'
+  if (count >= riskAt) return 'at_risk'
+  if (count >= watchAt) return 'watch'
+  return 'healthy'
+}
+
+const SEVERITY_RANK: Record<ExecutiveHealthStatus, number> = STATUS_SEVERITY
+
+/** "Where does manager attention need to go?" — a severity distribution of real manager-issue counts
+ * (not per-manager identities, which this contract does not carry), ranked worst-first. */
+export function buildManagerAttentionDistribution(
+  snapshot: CommissionerLeagueHealthSnapshot | null | undefined,
+): ExecutiveSupportingChart<ExecutiveBarDatum> {
+  if (!snapshot || snapshot.teamCount <= 0) {
+    return { headline: 'Manager activity is not available yet.', items: [], available: false }
+  }
+  const m = snapshot.metrics
+  const scale = snapshot.teamCount
+  const items: ExecutiveBarDatum[] = [
+    {
+      key: 'inactive',
+      label: 'Inactive managers',
+      value: m.inactiveTeams,
+      max: scale,
+      status: statusFromCount(m.inactiveTeams, 1, 2, 3),
+      valueLabel: `${m.inactiveTeams} of ${scale}`,
+    },
+    {
+      key: 'missed_lineups',
+      label: 'Missed lineups',
+      value: m.missedLineups,
+      max: scale,
+      status: statusFromCount(m.missedLineups, 1, 3, 5),
+      valueLabel: `${m.missedLineups} of ${scale}`,
+    },
+    {
+      key: 'injured_starters',
+      label: 'Injured starters',
+      value: m.injuredStarters,
+      max: scale,
+      status: m.injuredStarters > 0 ? 'watch' : 'excellent',
+      valueLabel: `${m.injuredStarters}`,
+    },
+    {
+      key: 'low_confidence',
+      label: 'Low-confidence starters',
+      value: m.lowConfidenceProjectionStarters,
+      max: scale,
+      status: m.lowConfidenceProjectionStarters > 0 ? 'watch' : 'excellent',
+      valueLabel: `${m.lowConfidenceProjectionStarters}`,
+    },
+  ]
+  items.sort((a, b) => SEVERITY_RANK[b.status] - SEVERITY_RANK[a.status] || b.value - a.value)
+  const needAttention = m.inactiveTeams + m.missedLineups
+  const headline =
+    needAttention > 0
+      ? `${m.activeManagers} of ${scale} managers active; ${needAttention} ${needAttention === 1 ? 'issue' : 'issues'} need attention.`
+      : `All ${scale} managers are active and set.`
+  return { headline, items, available: true }
+}
+
+/** "Which health dimensions are dragging the overall score?" — the four real sub-scores, ranked
+ * weakest-first, each on a 0–100 scale. */
+export function buildLeagueHealthBreakdown(
+  snapshot: CommissionerLeagueHealthSnapshot | null | undefined,
+): ExecutiveSupportingChart<ExecutiveBarDatum> {
+  if (!snapshot) return { headline: 'League health breakdown is not available yet.', items: [], available: false }
+  const items: ExecutiveBarDatum[] = [
+    { key: 'overall', label: 'Overall health', value: clamp(snapshot.healthScore, 0, 100) },
+    { key: 'engagement', label: 'Engagement', value: clamp(snapshot.engagementScore, 0, 100) },
+    { key: 'competitive_balance', label: 'Competitive balance', value: clamp(snapshot.fairnessScore, 0, 100) },
+    { key: 'sustainability', label: 'Sustainability', value: clamp(snapshot.sustainabilityScore, 0, 100) },
+  ].map((d) => ({
+    ...d,
+    max: 100,
+    status: statusFromScore(d.value),
+    valueLabel: `${d.value}/100`,
+  }))
+  items.sort((a, b) => a.value - b.value)
+  const weakest = items[0]
+  const headline =
+    weakest && weakest.value < 65
+      ? `${weakest.label} is the weakest dimension at ${weakest.value}/100.`
+      : 'All health dimensions are contributing strongly.'
+  return { headline, items, available: true }
+}
+
+/** "What requires my action today?" — real open-item counts by category, ranked worst-first. */
+export function buildCommissionerWorkload(
+  snapshot: CommissionerLeagueHealthSnapshot | null | undefined,
+): ExecutiveSupportingChart<ExecutiveBarDatum> {
+  if (!snapshot) return { headline: 'Workload is not available yet.', items: [], available: false }
+  const m = snapshot.metrics
+  const items: ExecutiveBarDatum[] = [
+    { key: 'pending_waivers', label: 'Pending waivers', value: m.pendingWaiverClaims, status: statusFromCount(m.pendingWaiverClaims, 1, 4, 8) },
+    { key: 'pending_trades', label: 'Pending trades', value: m.pendingTrades, status: statusFromCount(m.pendingTrades, 1, 3, 5) },
+    { key: 'open_alerts', label: 'Open alerts', value: m.openAiAlerts, status: statusFromCount(m.openAiAlerts, 1, 3, 5) },
+    { key: 'commissioner_actions', label: 'Actions to review', value: m.commissionerActions, status: statusFromCount(m.commissionerActions, 1, 3, 5) },
+  ].map((d) => ({ ...d, valueLabel: String(d.value) }))
+  const total = m.pendingWaiverClaims + m.pendingTrades + m.openAiAlerts + m.commissionerActions
+  items.sort((a, b) => SEVERITY_RANK[b.status] - SEVERITY_RANK[a.status] || b.value - a.value)
+  const headline =
+    total > 0
+      ? `${total} ${total === 1 ? 'item needs' : 'items need'} your action today.`
+      : 'Nothing requires your action right now.'
+  return { headline, items, available: true }
+}
+
+/** "Is the league operationally ready?" — three genuine 0–100 readiness metrics as progress rings. Data
+ * confidence is surfaced as a label, not turned into a fabricated ring value. */
+export function buildLeagueReadiness(
+  snapshot: CommissionerLeagueHealthSnapshot | null | undefined,
+): ExecutiveSupportingChart<ExecutiveRingDatum> & { confidence: 'high' | 'medium' | 'low' | null } {
+  if (!snapshot || snapshot.teamCount <= 0) {
+    return { headline: 'League readiness is not available yet.', items: [], available: false, confidence: null }
+  }
+  const m = snapshot.metrics
+  const lineupPct = Math.round(clamp(m.lineupSubmissionRate, 0, 1) * 100)
+  const coveragePct = Math.round(clamp(m.projectionCoveragePct, 0, 100))
+  const activePct = Math.round(clamp((m.activeManagers / snapshot.teamCount) * 100, 0, 100))
+  const items: ExecutiveRingDatum[] = [
+    { key: 'lineups', label: 'Lineups set', value: lineupPct, status: statusFromScore(lineupPct), valueLabel: `${lineupPct}%` },
+    { key: 'projections', label: 'Projection coverage', value: coveragePct, status: statusFromScore(coveragePct), valueLabel: `${coveragePct}%` },
+    { key: 'managers_active', label: 'Managers active', value: activePct, status: statusFromScore(activePct), valueLabel: `${activePct}%` },
+  ]
+  const lowest = items.reduce((min, r) => (r.value < min.value ? r : min), items[0])
+  const headline =
+    lowest.value < 65
+      ? `${lowest.label} is the weakest readiness area at ${lowest.valueLabel}.`
+      : 'The league is operationally ready.'
+  return { headline, items, available: true, confidence: snapshot.dataConfidence }
+}
