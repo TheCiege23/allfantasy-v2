@@ -1619,6 +1619,27 @@ investor communication assets (pitch deck, executive demo video, technical archi
 messaging, B2B site) — the product is feature-complete and the remaining leverage is communicating its
 value, plus running the real pilots this kit enables.**
 
+### V7.1 — Decision OS Validation Cohort, DB-less (2026-07-10) — real-data engine validation
+
+Internal tooling (`lib/validation-cohort/` + CLI `decision-os:validate-sleeper-cohort`) that uses Sleeper
+as a real-world SOURCE to validate the provider-agnostic Decision OS across a diverse league cohort —
+Sleeper specifics confined to one resolver seam (`mapLeagueToFacts`), everything downstream neutral. Step 1
+audit reused the existing Sleeper fetch/normalize primitives + Decision OS pure cores (no parallel
+importer). The pipeline resolves usernames (no guessing — API is arbiter), maps to neutral facts,
+classifies archetypes (each with cited evidence), runs the DB-less-reachable Decision OS derivations
+(`monitorLeagueHealth` is pure → Commissioner/League health available; Manager/Trade/Waiver/Platform
+honestly marked db-backed-only, not fabricated), and produces deterministic reports + a calibration audit.
+**Live-verified** (the Sleeper API is reachable from this environment, unlike prior phases): a dry-run
+discovered 67 real 2024 leagues for a public repo-default account; a bounded 10-league full run processed
+all with zero errors and real archetype diversity (health 49–91). Two calibration signals were surfaced
+and TRACED (Step 7) — `fairness=100` everywhere (DB-less data gap: dispute/collusion signals aren't in the
+public API) and a low-trade recommendation repeating across 8/10 genuinely low-trade leagues — both judged
+EXPECTED, not defects. Per Step 8 (no tuning without proven cause), **zero Decision OS changes**; one
+tooling fix (serialize cohort-anomaly detail). Tests 15 (156 with exec-viz + white-label); typecheck 158
+baseline preserved. Remaining: run the user-supplied username cohort for a genuinely diverse multi-account
+validation (the over-firing question can only be answered there); use the DB-backed non-prod runner for
+full seven-OS derivation on a subset.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
