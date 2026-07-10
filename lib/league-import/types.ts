@@ -48,6 +48,13 @@ export interface NormalizedLeagueSettings {
   rosterSize: number | null
   scoring: string | null
   isDynasty: boolean
+  /** Phase OS-C5: the provider's own real league status (e.g. Sleeper's `pre_draft`/`drafting`/
+   * `in_season`/`complete`), when the provider's API supplies one. `null`/absent when the provider
+   * genuinely doesn't report a status — never a fabricated default. See
+   * `docs/os/SLEEPER_IMPORT_VISIBILITY_AUDIT.md` for why this field's previous absence (dropped by
+   * every provider mapper despite `League.status` existing in the schema) silently hid real leagues
+   * from `lib/leagues/leagueListFilter.ts`'s "no status" exclusion heuristic. */
+  status?: string | null
   playoff_team_count?: number
   regular_season_length?: number
   schedule_unit?: string
@@ -179,6 +186,8 @@ export interface NormalizedImportResult {
   league_branding?: { avatar_url?: string | null; name?: string }
   previous_seasons?: Array<{ season: string; source_league_id: string }>
   coverage: ImportCoverage
+  /** Fetches that failed after exhausting retries during ingestion — distinct from ImportCoverage's "no data was returned" states. */
+  fetch_warnings?: ImportWarningRecord[]
 }
 
 /** Identity mapping: source id -> AF canonical id or stable key. */

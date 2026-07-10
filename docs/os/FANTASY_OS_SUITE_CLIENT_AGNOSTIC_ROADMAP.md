@@ -996,6 +996,47 @@ No typecheck regressions (158/158 baseline unchanged, including the new script).
 changed besides the one-row non-prod data backfill; OS-C3's own fixes are what this phase's real-data
 run actually exercised and confirmed correct. Full detail: `OS_C4_MANAGER_OS_CERTIFICATION.md`.
 
+### OS-C5 — Sleeper Import Visibility Hardening (2026-07-10)
+
+Resolved the uncertainty OS-C4 explicitly left open: is the hidden-league defect a Phase E seeding
+artifact, or a real production import bug? Traced the complete real import chain by reading the actual
+production code, not guessing — `app/api/leagues/import/commit/route.ts` →
+`runImportedLeagueNormalizationPipeline` → `SleeperAdapter.normalize()` → `SleeperLeagueMapper.map()` →
+`ImportedLeagueCommitService.ts`'s `leaguePayload`. Found the root cause: `SleeperLeagueMapper.ts`
+fetched Sleeper's real `league.status` field (`SleeperLeagueRaw.status`, confirmed present and typed)
+but never mapped it into the normalized shape passed to the database write. `League.status` has no
+`@default` in `prisma/schema.prisma`, so this is not a rare edge case — it's the universal, unconditional
+behavior for every real Sleeper import through the real production route. Whether a specific league then
+becomes INVISIBLE depends on `leagueVariant` also being null, which `resolveImportedLeagueVariant()`
+returns for any ordinary (non-IDP, no explicit variant tag) league — very likely the majority of real
+Sleeper imports.
+
+Fixed at the source in 2 real call sites (`SleeperLeagueMapper.ts`'s mapper, `ImportedLeagueCommitService.ts`'s
+initial-import payload, and `LeagueImportToExistingService.ts`'s existing-league re-sync path) — the
+shared `leagueListFilter.ts` visibility filter was deliberately left untouched, since its own founding
+assumption ("real Sleeper imports always write status") is correct once the importer actually honors it;
+touching the filter itself would have been treating a symptom, not the cause. Verified end-to-end against
+real, live data: reset the real "Parbur" league's status back to null, confirmed Sleeper's real live API
+still returns `"status":"complete"` for it today, then proved the fixed fetch → normalize → persist chain
+correctly writes it — and confirmed the fix via re-running OS-C4's own Manager OS validation script,
+which showed the league visible again with zero manual intervention this time. A real, separate tooling
+quirk was also found and documented (not fixed, out of scope): the nonprod import script's own `--force`
+flag doesn't clear a matching `ImportRun`'s completed-idempotency guard, which silently no-op'd the first
+attempt to re-verify the fix via that script.
+
+Consumer audit found 7 real callers of `getDashboardLeagueListForUser` (Dashboard, Commissioner Hub,
+Manager Hub, both their API routes, plus a previously-unlisted Start/Sit tool route and the legacy
+`/api/league/list` route) — fixing the root cause fixes all 7 simultaneously, with zero per-consumer
+changes needed, for every future import. A production migration strategy (identification query, rollout
+in batches, exact rollback via a `WHERE status IS NULL` guard, verification checklist) was designed but
+deliberately not executed — this phase never touched production, even read-only, without separate
+explicit authorization it did not seek.
+
+3 new tests (`sleeper-league-mapper-status.test.ts`). One pre-existing, confirmed-unrelated test failure
+(`league-create-sleeper-import.test.ts`, a Meta/Facebook analytics event-shape assertion) was verified
+via `git stash` to fail identically without this phase's changes — not caused by this work. Full detail:
+`SLEEPER_IMPORT_VISIBILITY_AUDIT.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1034,6 +1075,10 @@ run actually exercised and confirmed correct. Full detail: `OS_C4_MANAGER_OS_CER
 - OS-C4 touched exactly one row of non-prod data (an explicitly user-authorized `status` backfill on
   the real Phase E test league) and added one new, credential-free, read-only validation script — no
   application source code, no shared filter logic, and no production data were modified.
+- OS-C5 touched only the real Sleeper import mapper and its 2 real commit-service call sites — no new
+  Decision OS intelligence, no schema change, no weakening of `leagueListFilter.ts`'s own visibility
+  logic, and no production database access of any kind (not even read-only) without separate explicit
+  authorization this phase did not seek.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

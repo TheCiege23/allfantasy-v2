@@ -24,6 +24,12 @@ export const SleeperLeagueMapper: IExternalLeagueMapper<SleeperImportPayload> = 
       rosterSize,
       scoring: scoring || null,
       isDynasty,
+      // Phase OS-C5: Sleeper's own real league status (pre_draft/drafting/in_season/complete) —
+      // previously fetched into `SleeperLeagueRaw.status` but silently dropped here, which left
+      // `League.status` null for every real Sleeper import and caused
+      // `lib/leagues/leagueListFilter.ts` to hide real, active leagues. `?? null`, never a fabricated
+      // default — an honest `null` here still means "Sleeper genuinely didn't report a status."
+      status: league.status ?? null,
       playoff_team_count: league.settings?.playoff_teams ?? undefined,
       regular_season_length: 14,
       schedule_unit: 'week',
