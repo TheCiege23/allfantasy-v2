@@ -98,16 +98,32 @@ export default function CommissionerCommandCenterSection({
   )
 
   // Same zero-extra-fetch discipline as `brief` above — composed from data already on the page.
-  const notifications = useMemo(
-    () => composeNotificationFeed({ signals: snapshot?.attentionQueue ?? [], brief }),
-    [snapshot, brief],
-  )
+  // Phase OS-C6: production-readiness audit found this composition had no error handling — a
+  // malformed signal/brief would throw inside this useMemo and crash the whole section (caught only
+  // by the page-level error boundary, with zero record of which signal caused it). Wrapped so a
+  // composition failure degrades this ONE card honestly (empty feed, logged) instead of taking down
+  // the whole Multi-League Overview.
+  const notifications = useMemo(() => {
+    try {
+      return composeNotificationFeed({ signals: snapshot?.attentionQueue ?? [], brief })
+    } catch (err) {
+      console.error('[CommissionerCommandCenterSection] composeNotificationFeed failed:', err)
+      return []
+    }
+  }, [snapshot, brief])
 
   // Phase OS-B5: route the notification feed through the Delivery Adapter Layer rather than handing it
   // to the UI directly — exercises the real architecture end-to-end even though, today, the in-app
   // adapter always accepts everything (so `deliveryPlan.inApp` is currently equivalent in content to
   // `notifications` itself).
-  const deliveryPlan = useMemo(() => resolveDeliveryPlan(notifications), [notifications])
+  const deliveryPlan = useMemo(() => {
+    try {
+      return resolveDeliveryPlan(notifications)
+    } catch (err) {
+      console.error('[CommissionerCommandCenterSection] resolveDeliveryPlan failed:', err)
+      return { generatedAt: new Date().toISOString(), entries: [], inApp: [] }
+    }
+  }, [notifications])
 
   if (demoMode || !hasLeagues) {
     return (

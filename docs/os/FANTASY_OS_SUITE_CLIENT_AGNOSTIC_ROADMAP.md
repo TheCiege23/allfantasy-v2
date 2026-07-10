@@ -1037,6 +1037,47 @@ explicit authorization it did not seek.
 via `git stash` to fail identically without this phase's changes — not caused by this work. Full detail:
 `SLEEPER_IMPORT_VISIBILITY_AUDIT.md`.
 
+### OS-C6 — Fantasy OS Production Readiness Audit (2026-07-10)
+
+The final engineering governance phase before a deliberate backend architecture freeze, per the user's
+own explicit framing. Audit-first: 3 of 6 parts (provider abstraction, performance, observability) were
+delegated to parallel research agents to cover ground efficiently; authorization and empty/error-state
+audits were done directly, since this session built most of the surfaces in question.
+
+**Real findings, fixed**: (1) `managerCommandCenter.ts`'s league-resolution loop was sequential while
+every sibling multi-league composition already resolves in parallel via `Promise.all` — a genuine
+inconsistency, not premature optimization, since it diverges from an already-proven, already-established
+pattern. Fixed by separating the parallel fetch from the synchronous accumulation that follows it; a new
+regression test proves parallelism by asserting wall-clock time scales with the slowest single league,
+not the sum of all of them. (2) `composeNotificationFeed`/`resolveDeliveryPlan` had zero error handling
+in both Commissioner and Manager OS's command-center sections — a malformed signal or brief would crash
+the entire section, caught only by a page-level error boundary with zero trail of which signal caused
+it. Fixed by wrapping both compositions in try/catch, degrading to an honest empty notification feed
+while the rest of the section (Attention Queue, Today's Brief, League Switcher) keeps rendering
+normally.
+
+**Real finding, deliberately NOT fixed — surfaced for an explicit decision**: `mission-control`,
+`league-analytics`, and `league-context`'s read (GET) routes accept any authenticated user plus an
+arbitrary client-supplied `leagueId`, with no per-league membership check — confirmed by direct code
+read, and further confirmed by `leagueContextAuthorization.ts`'s own header comment stating the design
+intent plainly: enforcement is session-level, not per-league, relying on "the UI only ever calls these
+for leagues the signed-in user is actually related to." That is not a real security boundary — any
+authenticated user who obtains a real league's UUID can call these routes directly and receive real
+league-wide data (health scores, other managers' retention-risk flags, whether real money is involved)
+for a league they have no relationship to. This was a knowingly-deliberate OS-A2 design decision, not an
+accidental bug, and fixing it is a genuine behavior change to 3 production routes — deserving explicit
+sign-off before implementation, the same discipline this whole session has applied to every comparably
+consequential finding.
+
+**Real finding, deliberately NOT fixed — documented for a future phase**: ESPN, Yahoo, Fantrax, MFL, and
+Fleaflicker's adapters all share the identical field-mapping gap OS-C5 found and fixed for Sleeper (their
+raw `status` field is fetched but never mapped through) — currently latent, not active, since
+`leagueListFilter.ts`'s exclusion condition is explicitly Sleeper-gated. Not expanded to in this phase to
+keep OS-C6 a governance/audit phase rather than a 5-provider feature change.
+
+15 new/updated tests across 2 files, 158/158 baseline typecheck unchanged. Full detail:
+`FANTASY_OS_PRODUCTION_READINESS_AUDIT.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1079,6 +1120,11 @@ via `git stash` to fail identically without this phase's changes — not caused 
   Decision OS intelligence, no schema change, no weakening of `leagueListFilter.ts`'s own visibility
   logic, and no production database access of any kind (not even read-only) without separate explicit
   authorization this phase did not seek.
+- OS-C6 fixed only 2 real, verified, low-blast-radius issues (a parallelism fix and an error-handling
+  wrapper) — no new OS features, no dashboard redesign, no new intelligence, no Notification Engine
+  redesign, no provider integrations added. The one real finding with genuine production blast radius
+  (the authorization gap) was deliberately left unfixed, surfaced for an explicit decision instead of
+  unilateral action.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

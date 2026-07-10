@@ -135,8 +135,18 @@ export async function resolveManagerCommandCenterSnapshot(
   const recommendationEntries: ManagerCommandCenterRecommendation[] = []
   const leagueTrends: DailyBriefLeagueTrend[] = []
 
-  for (const leagueId of leagueIds) {
-    const snapshot = await resolveManagerLeagueSafely(leagueId, userId, now)
+  // Phase OS-C6: resolve every league's snapshot in parallel, matching the pattern every sibling
+  // multi-league composition already uses (`commissionerCommandCenter.ts`, `platformOs.ts`,
+  // `attentionQueue.ts`) — a real, verified inconsistency found during the production-readiness
+  // audit, not a premature optimization. Fetch is deliberately separated from accumulation: the
+  // accumulation loop below stays synchronous and unchanged, only the I/O is parallelized.
+  const resolvedSnapshots = await Promise.all(
+    leagueIds.map((leagueId) => resolveManagerLeagueSafely(leagueId, userId, now)),
+  )
+
+  for (let i = 0; i < leagueIds.length; i += 1) {
+    const leagueId = leagueIds[i]
+    const snapshot = resolvedSnapshots[i]
 
     if (!snapshot || !snapshot.available) {
       unavailableLeagueCount += 1

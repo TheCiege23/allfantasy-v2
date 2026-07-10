@@ -94,12 +94,28 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
     [snapshot, leagues.length],
   )
 
-  const notifications = useMemo(
-    () => composeNotificationFeed({ signals: snapshot?.attentionQueue ?? [], brief }),
-    [snapshot, brief],
-  )
+  // Phase OS-C6: production-readiness audit found this composition had no error handling — a
+  // malformed signal/brief would throw inside this useMemo and crash the whole section (caught only
+  // by the page-level error boundary, with zero record of which signal caused it). Wrapped so a
+  // composition failure degrades this ONE card honestly (empty feed, logged) instead of taking down
+  // the whole Multi-League Overview.
+  const notifications = useMemo(() => {
+    try {
+      return composeNotificationFeed({ signals: snapshot?.attentionQueue ?? [], brief })
+    } catch (err) {
+      console.error('[ManagerCommandCenterSection] composeNotificationFeed failed:', err)
+      return []
+    }
+  }, [snapshot, brief])
 
-  const deliveryPlan = useMemo(() => resolveDeliveryPlan(notifications), [notifications])
+  const deliveryPlan = useMemo(() => {
+    try {
+      return resolveDeliveryPlan(notifications)
+    } catch (err) {
+      console.error('[ManagerCommandCenterSection] resolveDeliveryPlan failed:', err)
+      return { generatedAt: new Date().toISOString(), entries: [], inApp: [] }
+    }
+  }, [notifications])
 
   // Phase OS-C3: found during live validation — 3 separate empty Priority Module boxes stacked
   // together (the common case: not every manager has an active recommendation in every category every

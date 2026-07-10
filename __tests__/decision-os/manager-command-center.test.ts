@@ -190,4 +190,24 @@ describe('resolveManagerCommandCenterSnapshot', () => {
     const snapshot = await resolveManagerCommandCenterSnapshot('user-1', ['L1', 'L2'], NOW)
     expect(snapshot.recommendations.map((r) => r.leagueId).sort()).toEqual(['L1', 'L2'])
   })
+
+  // Phase OS-C6: production-readiness audit found this resolution loop was sequential (one league
+  // at a time) while every sibling multi-league composition (commissionerCommandCenter.ts,
+  // platformOs.ts, attentionQueue.ts) already resolves in parallel via Promise.all — a real,
+  // verified inconsistency, not a premature optimization. This test proves the fix: resolving N
+  // leagues takes roughly as long as the SLOWEST single league, not the SUM of all of them.
+  it('resolves all leagues in parallel, not sequentially', async () => {
+    const DELAY_MS = 40
+    mockResolve.mockImplementation(
+      (leagueId: string) =>
+        new Promise((resolve) => setTimeout(() => resolve(availableSnapshot({ leagueId })), DELAY_MS)),
+    )
+    const leagueIds = Array.from({ length: 5 }, (_, i) => `L${i}`)
+    const start = Date.now()
+    await resolveManagerCommandCenterSnapshot('user-1', leagueIds, NOW)
+    const elapsed = Date.now() - start
+    // Sequential would take ~5 * DELAY_MS (200ms); parallel takes ~1 * DELAY_MS. Generous upper
+    // bound to avoid CI flakiness while still failing decisively if this regresses to sequential.
+    expect(elapsed).toBeLessThan(DELAY_MS * 3)
+  })
 })
