@@ -1315,6 +1315,37 @@ observed in V1.2 to 59% by this phase's Step 4, improving but not eliminating sc
 intermittency; some deeper-scroll sections were verified via source diff instead of screenshot, noted
 honestly. 9 new tests. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
 
+### V2.0 — Executive Visualization Engine + Commissioner OS League Health Map (2026-07-10)
+
+The first shared **Executive Visualization Engine** — a small reusable foundation (container shell,
+header, legend, freshness stamp, loading/empty/unavailable/error states) plus a design-token layer that
+reuses the Visual OS V1.1–V1.3 `status-*` semantics — and the first Commissioner OS **flagship graph**,
+the **League Health Map**. This phase belongs exclusively to the Fantasy OS B2B/licensing product; no
+B2C/Legacy features were introduced.
+
+The map is designed around the commissioner and the decision, not provider mechanics: it aggregates
+existing league-level intelligence into 8 provider-agnostic health dimensions (overall health, manager
+activity, lineup readiness, competitive balance, engagement, unresolved actions, sustainability, data
+readiness), each a ranked, worst-first status bar answering "what needs your attention right now." A data
+audit came first and found the backing data is a **current snapshot** with no legitimate per-dimension
+history (`healthTrend` is usually unavailable), so the flagship is deliberately a status map, **not a
+time series — and ships no sparkline**. The visual layer consumes a new provider-agnostic
+`CommissionerLeagueHealthViewModel` (reshaping the existing `monitorLeagueHealth()` snapshot; no new
+intelligence, no raw provider payloads, no player-level records, no internal IDs on the surface). The
+Commissioner Hub was reorganized into a 60/30/10 hierarchy (map dominant, three real KPIs, top actions),
+not rewritten.
+
+**Verification**: live-tested against the real, authenticated "12-Team NFL Redraft League" via computed
+DOM/style inspection — 8 ranked accessible meters matching the data, correct bar widths, theme-adaptive
+solid status colors, `.focus-ring` on every action, plain-language legend, and zero provider/API/player
+identifiers on the surface. Two real bugs were caught and fixed by that live testing: (1) the opacity
+shorthand on `status-*` tokens renders transparent in this app's Tailwind config (a pre-existing
+whole-app condition), so bars/dots use solid tokens; and (2) the hidden QA-browser tab freezes
+rAF/framer-motion/CSS-transition reveals, so the bar width is rendered directly at its correct value and
+never gated behind an animation. One full-page screenshot captured; the flagship-specific screenshot
+timed out under the hidden-tab renderer freeze and is disclosed rather than claimed. 19 new tests. Full
+detail: `EXECUTIVE_VISUALIZATION_ENGINE.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1396,6 +1427,17 @@ honestly. 9 new tests. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
   branded background, a genuinely distinct mechanism from the light-pastel-on-light-tint class. No Decision
   OS composition, resolver, route, or authorization behavior touched; no new providers, no new intelligence,
   no backend contracts modified; no fabricated data or trends introduced.
+- V2.0 added a presentation-only Executive Visualization Engine foundation plus one Commissioner OS
+  flagship graph, entirely within the B2B/licensing product. It computed no new intelligence — the new
+  `CommissionerLeagueHealthViewModel` only reshapes the existing `monitorLeagueHealth()` snapshot into
+  provider-agnostic display dimensions and attaches plain-language copy. No Decision OS logic/resolver/
+  route/composition/authorization touched; no backend or API contracts changed; no provider logic changed;
+  no new providers; no raw provider payloads or player-level records reach presentation; no internal IDs
+  rendered to customers; no fake history, trend, or sample data (the map is explicitly a current snapshot
+  and ships no sparkline); no B2C/Legacy career/identity/social/trophy/XP/gamification features. The only
+  non-`executive-viz`/non-doc file changed is `CommissionerHubPageClient.tsx` (flagship integration +
+  60/30/10 reorg, no page rewrite) and a reverted-clean `globals.css` (an experimental keyframe was added
+  then fully removed once live testing showed animations freeze in the hidden QA tab).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

@@ -41,6 +41,11 @@ import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
 } from '@/lib/commissioner-hub/commissionerHubHealth'
+import LeagueHealthMap from '@/components/executive-viz/LeagueHealthMap'
+import {
+  buildCommissionerLeagueHealthViewModel,
+  selectFlagshipSnapshot,
+} from '@/lib/executive-viz/commissionerLeagueHealthViewModel'
 import { buildCommissionerLeaguePulse } from '@/lib/decision-os/league-pulse'
 import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
 import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
@@ -449,6 +454,96 @@ function CommissionerActionLink({ action }: { action: CommissionerHealthAction }
   )
 }
 
+// ─── Phase V2.0 — Commissioner OS flagship (60/30/10) ──────────────────────────
+// The signature League Health Map (~60%) with three supporting KPIs and the top commissioner actions
+// (~30% / ~10%) drawn from the same real snapshot. Provider-agnostic: consumes the health view model,
+// never a raw provider payload or player-level record.
+function FlagshipKpiTile({
+  icon: Icon,
+  label,
+  value,
+  tone = 'neutral',
+}: {
+  icon: React.ComponentType<{ className?: string }>
+  label: string
+  value: string | number
+  tone?: 'neutral' | 'good' | 'warn' | 'danger'
+}) {
+  const toneClass = decisionOsToneClasses(
+    tone === 'good' ? 'good' : tone === 'warn' ? 'warning' : tone === 'danger' ? 'danger' : 'neutral',
+  )
+  return (
+    <div className={`flex min-h-[92px] flex-col justify-between rounded-2xl border p-3.5 ${toneClass}`}>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[10px] font-bold uppercase tracking-wide text-muted">{label}</p>
+        <Icon className="h-4 w-4 text-current opacity-70" aria-hidden />
+      </div>
+      <p className="mt-2 text-[28px] font-black leading-none text-current">{value}</p>
+    </div>
+  )
+}
+
+function CommissionerOsFlagship({ snapshots }: { snapshots: CommissionerLeagueHealthSnapshot[] }) {
+  const flagshipSnapshot = selectFlagshipSnapshot(snapshots)
+  const viewModel = buildCommissionerLeagueHealthViewModel(flagshipSnapshot)
+  if (!viewModel || !flagshipSnapshot) return null
+
+  const needsAttention = viewModel.attention.needsAttentionCount + viewModel.attention.monitorCount
+  const openActions =
+    flagshipSnapshot.metrics.pendingWaiverClaims +
+    flagshipSnapshot.metrics.pendingTrades +
+    flagshipSnapshot.metrics.openAiAlerts +
+    flagshipSnapshot.metrics.commissionerActions
+  const topActions = flagshipSnapshot.actions.filter((action) => action.enabled).slice(0, 4)
+
+  return (
+    <section className="mb-6" data-testid="commissioner-os-flagship" aria-label="Commissioner OS flagship">
+      <div className="grid gap-4 lg:grid-cols-5">
+        {/* ~60% — the dominant signature visualization */}
+        <div className="lg:col-span-3">
+          <LeagueHealthMap viewModel={viewModel} />
+        </div>
+
+        {/* ~30% KPIs + ~10% actions rail */}
+        <div className="flex flex-col gap-3 lg:col-span-2">
+          <div className="grid grid-cols-3 gap-3">
+            <FlagshipKpiTile
+              icon={Activity}
+              label="Health"
+              value={`${viewModel.overallScore}`}
+              tone={viewModel.overallStatus === 'excellent' || viewModel.overallStatus === 'healthy' ? 'good' : viewModel.overallStatus === 'critical' ? 'danger' : 'warn'}
+            />
+            <FlagshipKpiTile
+              icon={AlertCircle}
+              label="Needs attention"
+              value={needsAttention}
+              tone={viewModel.attention.needsAttentionCount > 0 ? 'danger' : needsAttention > 0 ? 'warn' : 'good'}
+            />
+            <FlagshipKpiTile
+              icon={Zap}
+              label="Open actions"
+              value={openActions}
+              tone={openActions > 5 ? 'danger' : openActions > 0 ? 'warn' : 'good'}
+            />
+          </div>
+          <div className="rounded-2xl border border-subtle bg-surface p-3.5">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-muted">Commissioner actions</p>
+            {topActions.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-2">
+                {topActions.map((action) => (
+                  <CommissionerActionLink key={action.key} action={action} />
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-[12px] text-muted">No actions require your attention right now.</p>
+            )}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function LeagueHealthDashboard({
   snapshots,
   demoMode = false,
@@ -466,9 +561,12 @@ function LeagueHealthDashboard({
 
   return (
     <section data-testid="commissioner-health-dashboard">
+      {/* Phase V2.0 — the dominant signature visualization for the most attention-needing league. */}
+      <CommissionerOsFlagship snapshots={snapshots} />
+
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <SectionHeader
-          label="League Health Dashboard"
+          label="All managed leagues"
           hint={
             demoMode
               ? 'Preview-safe commissioner risk, activity, and engagement signals'
