@@ -19,6 +19,7 @@
     "check:staging-env": "tsx scripts/check-staging-env.ts",
     "setup:staging-db": "tsx scripts/setup-staging-db.ts",
     "worker:live-score": "tsx scripts/live-score-worker.ts",
+    "decision-os:validate-sleeper-cohort": "tsx scripts/decision-os-validate-sleeper-cohort.ts",
     "build:staging": "node scripts/railway-clean-next-build.cjs && node --require ./scripts/win-exfat-readlink-shim.cjs node_modules/next/dist/bin/next build",
     "start:staging": "node node_modules/next/dist/bin/next start -p 3017 -H 127.0.0.1",
     "test:e2e:staging": "playwright test e2e/g8-team-defense-browser.spec.ts --project=chromium --reporter=line",
