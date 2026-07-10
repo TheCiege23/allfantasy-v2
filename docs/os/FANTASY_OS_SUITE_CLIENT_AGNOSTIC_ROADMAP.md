@@ -1461,6 +1461,27 @@ bar, the Waiver Urgency ring, the duplicate module confirmed gone, and zero prov
 terms. Two live-found grammar bugs were fixed. A screenshot was captured successfully this phase. 17 new
 tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.5.
 
+### V2.6 — Draft OS Executive Analytics Workspace (2026-07-10)
+
+The sixth completed Executive Analytics Workspace — about managing the draft process, not browsing
+players. The intended signature was a **Draft Value Curve**, but the Step 1 audit found no reachable
+provider-agnostic continuous value/ADP series (draft value, ADP, tiers, best-available, position runs,
+projected availability, and current/upcoming picks exist only inside the live draft-room runtime contract
+`DraftRuntimeIntelligenceResult`, which no customer-facing route exposes). So, per the phase's own
+truthfulness rule, the flagship is instead an ordered **Draft Decision Ladder** — the existing
+`draft_preparation` recommendations in priority order (tests assert it exposes no value series and no pick
+data). It is built from `ManagerCommandCenterSnapshot`'s `draft_preparation` recommendations and its
+`draftsApproachingCount`. Two supporting graphs — Draft Readiness (drafts approaching + open prep, no
+fabricated percentage) and Preparation Impact (priority buckets, no invented value) — reinforce it. No new
+engine primitive: the flagship is `ExecutiveDecisionSequence`'s fourth consumer.
+
+**Verification**: live-tested against the real authenticated Manager Hub, whose draft is complete — so the
+honest real-data states rendered (ladder empty "nothing needs your attention before your next selection",
+Draft Readiness "No drafts are approaching and no preparation is open" with a 0-drafts hero, Preparation
+Impact empty), with zero provider/ADP terms and the flagship visually dominant. The populated ladder and
+readiness combinations are covered by unit tests. A screenshot captured the lower workspace successfully.
+11 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.6.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1612,6 +1633,20 @@ tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.5.
   flagship), with the first two migrated onto it (net code removed). The non-`executive-viz`/non-doc change
   is `ManagerCommandCenterSection.tsx` (renders the Waiver OS workspace from its already-fetched snapshot
   and removes the now-duplicate Waiver Priorities module — no Decision OS logic/route/contract touched).
+- V2.6 brought the engine to Draft OS: one flagship + two supporting graphs, entirely within the
+  B2B/licensing product and entirely presentation-only. All are built from the `draft_preparation`
+  recommendations and `draftsApproachingCount` already carried by `ManagerCommandCenterSnapshot` via new
+  pure builders in `draftDecisionViewModel.ts` — no new fetch, contract, or intelligence. The intended
+  Draft Value Curve was rejected as untruthful: no reachable value/ADP series exists, so the flagship is
+  an ordered Draft Decision Ladder (a test asserts it exposes no value series and no pick data), and draft
+  value/ADP/tiers/best-available/positional-scarcity/pick-pipeline/projected-availability are deferred
+  (they live only in the unexposed live draft-room runtime contract `DraftRuntimeIntelligenceResult`;
+  surfacing them would be backend expansion). No fabricated curves/ADP/positional-runs/probabilities/
+  historical comparisons; no raw provider/draft payloads, player-level records, ADP fields, or internal IDs
+  on the surface (verified live + source-scanned); no player-centric dashboard; no Legacy/B2C. No new engine
+  primitive (the flagship is `ExecutiveDecisionSequence`'s fourth consumer). The non-`executive-viz`/non-doc
+  change is `ManagerCommandCenterSection.tsx` (renders the Draft OS workspace from its already-fetched
+  snapshot — no Decision OS logic/route/contract touched).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

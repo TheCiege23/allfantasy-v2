@@ -45,6 +45,11 @@ import {
   WaiverOpportunityImpactCard,
   WaiverUrgencyCard,
 } from '@/components/executive-viz/WaiverSupportingViz'
+import DraftDecisionLadder from '@/components/executive-viz/DraftDecisionLadder'
+import {
+  DraftReadinessCard,
+  DraftPreparationImpactCard,
+} from '@/components/executive-viz/DraftSupportingViz'
 import CommissionerAttentionQueue from './CommissionerAttentionQueue'
 import ManagerPriorityModule from './ManagerPriorityModule'
 import ManagerLeagueSwitcher from './ManagerLeagueSwitcher'
@@ -225,6 +230,21 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             <div className="grid gap-4 md:grid-cols-2">
               <WaiverOpportunityImpactCard snapshot={snapshot} />
               <WaiverUrgencyCard snapshot={snapshot} />
+            </div>
+          </div>
+        ) : null}
+
+        {/* Phase V2.6 — Draft OS Executive Analytics Workspace. The Draft Decision Ladder flagship
+            (dominant) over Draft Readiness + Preparation Impact, all from the same snapshot's
+            `draft_preparation` recommendations + `draftsApproachingCount`. It is an ordered priority
+            LADDER, NOT a value curve or pick timeline: no draft value/ADP/tier/pick data is reachable,
+            so none is invented. */}
+        {snapshot ? (
+          <div data-testid="draft-os-workspace" className="space-y-4" aria-label="Draft decision workspace">
+            <DraftDecisionLadder snapshot={snapshot} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <DraftReadinessCard snapshot={snapshot} draftsApproachingCount={snapshot.draftsApproachingCount} />
+              <DraftPreparationImpactCard snapshot={snapshot} />
             </div>
           </div>
         ) : null}

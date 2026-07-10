@@ -685,3 +685,100 @@ temporal/competition/positional-demand visualization (no reachable contract).
 - `components/decision-os/ManagerCommandCenterSection.tsx` *(Waiver OS workspace + removed duplicate Waiver Priorities module)*
 - `__tests__/executive-viz/waiver-executive-workspace.test.tsx` *(new, 17 tests)*, `__tests__/decision-os/manager-command-center-section.test.tsx` *(updated for de-duplication)*
 - docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
+
+---
+
+# Phase V2.6 — Draft OS Executive Analytics Workspace
+
+The sixth completed Executive Analytics Workspace. Draft OS answers "How should I understand my draft
+position and upcoming draft decisions?" — it is about managing the draft process, not browsing players.
+Its signature visualization is the **Draft Decision Ladder**. B2B/licensing scope only; presentation-only;
+Decision OS, backend, and provider abstraction frozen; no Legacy/B2C.
+
+## Step 1 — Data audit
+
+| Field | Nature | Verdict |
+| --- | --- | --- |
+| `draft_preparation` recommendations: `priority`, `confidence`, `expectedImpact`, `recommendedActions`, `evidence`, `completeness` | current snapshot / ordinal, already in `ManagerCommandCenterSnapshot` | **used** |
+| `draftsApproachingCount` (from `LeagueSettings.draftDateUtc`) | current snapshot | **used** (Draft Readiness) |
+| draft value / ADP / value-over-expected / tiers / positional scarcity / best-available / position runs / projected availability / current+upcoming picks / draft stage | real, but only inside the live draft-room runtime contract (`DraftRuntimeIntelligenceResult` → `CanonicalDraftRuntimeState`, player-level) which **no route exposes** | **deferred** — surfacing = backend expansion + a live draft session |
+| historical draft picks / recommendation snapshots / draft trends | **do not exist** as provider-agnostic contracts | not built |
+
+## Step 2 — Truthfulness decision: a Ladder, not a Curve
+
+The intended signature was a **Draft Value Curve**, but a curve requires a legitimate continuous value
+series, and none is reachable from any customer-facing contract. Per the phase's own rule, the flagship
+is instead an ordered **Draft Decision Ladder** — the existing `draft_preparation` recommendations in
+priority order. It never draws a value curve, implies pick chronology, or invents projected availability.
+Tests assert `hasValueSeries === false` and `hasPickData === false`, and that no decision object carries a
+value/adp/pick field.
+
+## Step 2 (flagship) — Draft Decision Ladder
+
+`components/executive-viz/DraftDecisionLadder.tsx`: numbered, priority-ordered preparation steps via the
+shared `ExecutiveDecisionSequence` primitive; decision-first (step → expected impact → why → required
+action) with priority chips + confidence meta and an "N high priority" header chip. The surface states
+"Ordered by priority, not by draft value or pick number — no draft board, player values, or pick timing is
+available." Honest empty and unavailable states.
+
+## Step 3 — Supporting visualizations
+
+`components/executive-viz/DraftSupportingViz.tsx`, from the same snapshot:
+
+| Graph | Question | Data | Form |
+| --- | --- | --- | --- |
+| **Draft Readiness** | How prepared am I for my next selection? | `draftsApproachingCount` + open `draft_preparation` count (+ urgency) | metric hero + plain-language status (no fabricated %) |
+| **Preparation Impact** | Which prep step has the greatest impact? | prep recs bucketed by the engine's OWN priority tiers | `ExecutiveHorizontalBars` |
+
+Deferred (no reachable contract): Draft Value Curve, Recommendation-vs-ADP, Positional Coverage/scarcity,
+tiers, Pick Pipeline, projected availability, steal probability, VORP, historical curves. **Decision Queue
+is the flagship itself** (the ladder), so it is not duplicated.
+
+## Step 4 — Engine reuse
+
+No new primitive — the flagship reuses `ExecutiveDecisionSequence` (now its **fourth** consumer: Manager
+timeline, Trade pipeline, Waiver flagship, Draft flagship), Readiness composes a metric hero inline, and
+Preparation Impact reuses `ExecutiveHorizontalBars`.
+
+## Steps 5–8 — Provider abstraction, hierarchy, executive UX
+
+Rendered in the Manager Hub below the Waiver OS workspace: the full-width, dominant Draft Decision Ladder
+over a `md:grid-cols-2` grid of Draft Readiness + Preparation Impact. Every card answers one decision.
+Provider-abstraction source scan of the customer-facing files is clean: no Sleeper/ESPN/Yahoo/provider
+language, ADP data fields, payloads, player-level records, or internal IDs.
+
+## Step 9 — Verification
+
+Targeted regression + full typecheck (see commit). Live-verified against the real authenticated Manager
+Hub — this league's draft is complete, so the honest real-data states render: the Draft Decision Ladder's
+empty state ("No draft preparation is open right now — nothing needs your attention before your next
+selection"), Draft Readiness's real "No drafts are approaching and no preparation is open" with a "0 prep
+steps open" chip and "DRAFTS APPROACHING: 0", and Preparation Impact's empty state — with zero
+provider/ADP terms and the flagship visually dominant. The POPULATED ladder (numbered steps + the
+"not by draft value" note) and readiness combinations are verified by unit tests. A screenshot captured
+the lower Draft OS workspace successfully (real empty/readiness states); the flagship header sat just
+above the captured viewport.
+
+## Step 10 — Tests
+
+`__tests__/executive-viz/draft-executive-workspace.test.tsx` (11): ladder ordering + non-draft exclusion,
+the mandatory no-value-series / no-pick-data assertions, readiness across the real draft/prep combinations,
+impact priority buckets, deferred value/ADP analytics (+ a source scan that no ADP field is read),
+component render states, provider/player abstraction, hierarchy, and the four-consumer reuse of
+`ExecutiveDecisionSequence`.
+
+## Boundaries / deferred
+
+No backend changes, no Decision OS changes, no fabricated draft value/ADP/curves/positional runs/projected
+availability/steal probability/historical comparisons, no player-centric dashboard, no raw provider
+payloads, no Legacy/B2C. Deferred (documented above) until a customer-facing route exposes the live
+draft-room runtime intelligence contract.
+
+## Files changed (V2.6)
+
+- `lib/executive-viz/draftDecisionViewModel.ts` *(new — flagship + 2 builders + deferred marker)*
+- `components/executive-viz/DraftDecisionLadder.tsx` *(new — flagship)*
+- `components/executive-viz/DraftSupportingViz.tsx` *(new — 2 supporting cards)*
+- `components/decision-os/ManagerCommandCenterSection.tsx` *(Draft OS workspace)*
+- `__tests__/executive-viz/draft-executive-workspace.test.tsx` *(new, 11 tests)*
+- docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
