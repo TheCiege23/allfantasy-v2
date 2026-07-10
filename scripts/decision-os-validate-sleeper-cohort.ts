@@ -22,6 +22,9 @@ import os from 'node:os'
 import { normalizeCohort } from '../lib/validation-cohort/normalizeCohort'
 import { runCohort } from '../lib/validation-cohort/runCohort'
 import { runDiscovery } from '../lib/validation-cohort/portfolioDiscovery'
+import { persistPortfolio } from '../lib/validation-cohort/persistence/persistPortfolio'
+import { FileEvidenceStore } from '../lib/validation-cohort/persistence/fileEvidenceStore'
+import { checkEvidenceIntegrity } from '../lib/validation-cohort/persistence/integrityChecker'
 import { makeDefaultFetch } from '../lib/validation-cohort/sleeperCohortClient'
 import { renderHumanSummary } from '../lib/validation-cohort/reportBuilder'
 import type { CohortAggregateReport } from '../lib/validation-cohort/types'
@@ -105,6 +108,35 @@ function loadResumeSet(): Set<string> {
     console.log(`[discover] wrote ${mPath}`)
     console.log(`[discover] wrote ${cPath}`)
     console.log('DISCOVER_OK')
+    return
+  }
+
+  // ── Persist mode (Phase V8.1): discover + persist provider-neutral evidence to the store. ──
+  if (hasFlag('persist')) {
+    const seasons = (arg('seasons') ?? '').split(',').map((s) => s.trim()).filter(Boolean)
+    if (seasons.length === 0) {
+      console.error('--persist requires an explicit bounded --seasons list, e.g. --seasons=2024,2023,2022')
+      process.exit(1)
+    }
+    const currentSeason = arg('currentSeason') ?? [...seasons].sort().at(-1)!
+    const storeRoot = path.resolve(arg('store') ?? path.join(os.tmpdir(), 'decision-os-evidence-store'))
+    const store = new FileEvidenceStore(storeRoot)
+    const result = await persistPortfolio(accounts, fetchJson, store, {
+      seasons,
+      currentSeason,
+      sport,
+      concurrency,
+      maxLeaguesPerAccount: arg('maxLeaguesPerAccount') ? Number(arg('maxLeaguesPerAccount')) : undefined,
+      maxTxWeeks,
+    })
+    const integrity = checkEvidenceIntegrity(await store.listLeagues(), await store.listPortfolios())
+    const state = await store.readImportState()
+    fs.writeFileSync(path.join(storeRoot, `integrity-${stamp0}.json`), JSON.stringify(integrity, null, 2))
+    console.log(
+      `[persist] imported=${result.imported} skippedImmutable=${result.skippedImmutable} partialFailures=${result.partialFailures} durationMs=${state.lastSyncDurationMs}`,
+    )
+    console.log(`[persist] store=${storeRoot} importedSeasons=[${state.importedSeasons.join(',')}] integrityFindings=${integrity.length}`)
+    console.log('PERSIST_OK')
     return
   }
 

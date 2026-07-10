@@ -1676,6 +1676,26 @@ seasons with 101 season-continuity chains correctly assembled. Tests 5 new (fixt
 baseline. The actual Decision OS cohort validation (Parts 4–6) — real manifest, differentiated seven-OS
 outputs, provider-evidence coverage — remains the recurring blocker: it needs the supplied usernames.
 
+### V8.1 — Historical evidence persistence layer (2026-07-10)
+
+Built the production data layer the recent phases depend on: a provider-neutral persistence layer for the
+validation evidence corpus (`lib/validation-cohort/persistence/`) — a `HistoricalEvidenceStore` contract, a
+file-backed implementation (idempotent upsert, atomic temp+rename writes, restartable, immutable-season
+protection), an incremental sync planner (completed seasons immutable/import-once, current season
+refreshed), restartable import-state tracking (last sync, duration, imported seasons/leagues/transactions,
+skipped, retries, partial failures), and engineering integrity checks. It is deliberately SEPARATE from the
+product's operational import (`ImportRun`/`DecisionOsImportedActivity`/`prismaImportedActivityStore`) — an
+analytics corpus, not the operational league import — so nothing is duplicated; a Prisma-backed store is a
+documented drop-in behind the same interface. Reuses the V7.1 resolver/fetch + V7.2 discovery boundary.
+Verified with fixtures + the public `theciege24` smoke path (no live customer data): 5 real leagues
+persisted, 0 partial failures, 0 provider-id leakage in the store. The first live smoke exposed a real bug
+in THIS tooling — the integrity checker conflated "discovered-but-not-yet-imported" with corruption
+(182 findings on a capped store); fixed so the portfolio records only persisted leagues and orphan means
+"a persisted league no portfolio references" (182 → 4 honest coverage-gap findings). No Decision OS change:
+Part 6 confirmed the persisted provider-neutral facts feed the existing Decision OS probe unchanged. Tests
+7 new; full targeted 57/57; typecheck 158 baseline. Remaining: populate standings/matchups/drafts/FAAB with
+real fetch+map on a live cohort, add the Prisma store impl, and run the real supplied username cohort.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
