@@ -59,12 +59,36 @@ history, a referrer header, or simple guessing given enough attempts) can direct
 for a league they have no relationship to.
 
 **Severity**: real, but bounded by UUID opacity (not trivially enumerable) — moderate, not critical. This
-is exactly the class of finding a production-readiness audit exists to surface for an explicit decision,
-not to silently patch or silently ignore. **Not fixed this phase** — adding a real per-league membership
-check to 3 production routes is a genuine behavior change with its own blast radius, and deserves
-explicit sign-off before implementation, the same discipline this whole session has applied to every
-comparably consequential finding (e.g. OS-C4's production-status question). See the final handoff for
-the decision this phase is asking for.
+was exactly the class of finding a production-readiness audit exists to surface for an explicit decision.
+
+**Update — Phase OS-C6.1: fixed.** After this finding was surfaced, explicit sign-off was given to
+implement the fix. A new shared helper, `lib/decision-os/leagueReadAuthorization.ts`
+(`authorizeLeagueRead`), reuses the existing, already-tested `getLeagueRole` (`lib/league/permissions.ts`)
+— the same function every league-settings WRITE route already gates with — wrapped in the same
+`{authorized, status}` result shape every sibling Decision OS authorization module already uses. Applied
+to all 6 real routes found to need it (broader than the original 3 named here — see §Part 2 addendum
+below): `mission-control`, `league-analytics`, `league-context` GET, `manager-intelligence`, `user-os`,
+and `/api/league-health`'s `decision_os` branch. Allows commissioner/co-commissioner/member/viewer
+(any real, granted relationship to the league); denies unauthenticated (401) and unrelated authenticated
+users (403). 21 new tests across 7 files (a dedicated unit test for the helper itself, plus updated/new
+contract tests for all 6 routes) prove: commissioner allowed, member allowed, unrelated authenticated
+user denied with the underlying composition never even called (proving no cross-league data leakage),
+unauthenticated denied. Full detail in `docs/os/BACKEND_FREEZE_CHECKLIST.md`.
+
+## Part 2 addendum — the full 6-route list (OS-C6.1)
+
+The original OS-C6 audit named 3 routes (`mission-control`, `league-analytics`, `league-context`).
+OS-C6.1's own re-audit, done by following the user's own instruction to check "League Health endpoints"
+specifically rather than trusting the earlier `/api/decision-os/*`-only inventory, found a 4th:
+`/api/league-health`'s `decision_os` opt-in branch (`POST`, not under the `/api/decision-os/` path
+prefix, which is why the original OS-C6 pass missed it) called `resolveDecisionOsLeagueHealth` with the
+identical missing-membership-check pattern. Two more were added for defense-in-depth:
+`manager-intelligence` and `user-os` already scope their PRIMARY output to the caller's own
+`managerId`/`userId` (so an unrelated caller was never at risk of seeing another manager's DNA or
+recommendations), but both compute a real, league-wide `leagueTrend` field internally and return it
+regardless of caller identity — a smaller but real leak of the same class, closed for full completion-
+criteria compliance ("no cross-league intelligence data can be retrieved by unrelated authenticated
+users").
 
 ## Part 3 — Empty-State & Error-State Audit
 
@@ -130,15 +154,14 @@ still renders correctly alongside the degraded Notification Center.
 | Provider independence | **Strong for Decision OS; real, latent gap in 4 other provider mappers** | Part 1 — Decision OS confirmed provider-agnostic; ESPN/Yahoo/Fantrax/MFL/Fleaflicker share Sleeper's pre-OS-C5 status-mapping gap, currently non-visible |
 | Deterministic intelligence | **Confirmed throughout this entire workstream** | Every OS-B/OS-C phase's own truthfulness audits (OS-B7, OS-C3) found zero fabricated content; re-confirmed clean this phase for surfaces not previously checked |
 | Truthful UI | **Confirmed** | Part 3 — zero fabrication found across Dashboard/League Context/Platform OS operator panel |
-| Authorization | **Real, open finding — not launch-ready as-is** | Part 2 — 3 read routes have no per-league membership check, a genuine (if UUID-bounded) cross-league data leak; requires an explicit decision before this criterion can be marked green |
+| Authorization | **Resolved (Phase OS-C6.1)** | Part 2 — all 6 real routes found to need it now enforce real per-league membership via `authorizeLeagueRead`; 21 new tests prove commissioner/member allowed, unrelated user denied with zero underlying data access |
 | Import reliability | **Strong, actively hardened this session** | OS-C4/OS-C5 found and fixed a real, universal import defect; Part 5 confirms the surrounding error/warning trail is well-instrumented |
 | Notification reliability | **Strong, one real gap now fixed** | Part 5 — composition error handling was missing, now fixed with regression coverage |
 | Testing coverage | **Strong** | Every phase in this workstream (OS-B1 through OS-C6) has added targeted regression tests for every real fix; full suite green throughout |
 
-**Overall**: the backend is close to freeze-ready, but the authorization finding is a real, open item —
-not a "nice to have," a genuine gap between the documented design intent and what a production launch
-needs. Recommending the freeze be conditional on either fixing that gap or the user making an informed,
-explicit decision to accept it as a known, bounded risk.
+**Overall (updated, Phase OS-C6.1)**: with the authorization gap now closed, every criterion on this
+checklist has real, verified evidence behind it. See `docs/os/BACKEND_FREEZE_CHECKLIST.md` for the final
+freeze determination.
 
 ## Testing
 
@@ -148,8 +171,6 @@ handoff.
 
 ## Remaining technical debt (honest, not exhaustive)
 
-- The authorization gap in `mission-control`/`league-analytics`/`league-context` GET (Part 2) —
-  unresolved, pending an explicit decision.
 - The provider status-mapping gap in ESPN/Yahoo/Fantrax/MFL/Fleaflicker (Part 1) — real but currently
   latent, a good candidate for a focused future phase.
 - Production impact of the OS-C5 Sleeper import defect is still unquantified (carried over from OS-C5,

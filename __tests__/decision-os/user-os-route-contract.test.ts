@@ -9,15 +9,19 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { getServerSessionMock, resolveUserOsSnapshotMock } = vi.hoisted(() => ({
+const { getServerSessionMock, resolveUserOsSnapshotMock, authorizeLeagueReadMock } = vi.hoisted(() => ({
   getServerSessionMock: vi.fn(),
   resolveUserOsSnapshotMock: vi.fn(),
+  authorizeLeagueReadMock: vi.fn(),
 }))
 
 vi.mock('next-auth', () => ({ getServerSession: getServerSessionMock }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/decision-os/userOs', () => ({
   resolveUserOsSnapshot: resolveUserOsSnapshotMock,
+}))
+vi.mock('@/lib/decision-os/leagueReadAuthorization', () => ({
+  authorizeLeagueRead: authorizeLeagueReadMock,
 }))
 
 import { GET } from '@/app/api/decision-os/user-os/route'
@@ -30,6 +34,7 @@ describe('/api/decision-os/user-os route contract', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getServerSessionMock.mockResolvedValue({ user: { id: 'u1' } })
+    authorizeLeagueReadMock.mockResolvedValue({ authorized: true, role: 'member' })
   })
 
   it('requires a session (401)', async () => {
@@ -55,5 +60,29 @@ describe('/api/decision-os/user-os route contract', () => {
     const body = await res.json()
     expect(body).toEqual(fakeSnapshot)
     expect(resolveUserOsSnapshotMock).toHaveBeenCalledWith('L1', 'u1')
+    expect(authorizeLeagueReadMock).toHaveBeenCalledWith('L1', 'u1')
+  })
+
+  // Phase OS-C6.1: real per-league membership authorization coverage — closes the `leagueTrend`
+  // (league-wide data) leak this route previously had for non-members.
+  it('allows a commissioner to read', async () => {
+    authorizeLeagueReadMock.mockResolvedValue({ authorized: true, role: 'commissioner' })
+    resolveUserOsSnapshotMock.mockResolvedValue({ available: true })
+    const res = await GET(req('http://localhost/api/decision-os/user-os?leagueId=L1'))
+    expect(res.status).toBe(200)
+  })
+
+  it('allows a league member to read', async () => {
+    authorizeLeagueReadMock.mockResolvedValue({ authorized: true, role: 'member' })
+    resolveUserOsSnapshotMock.mockResolvedValue({ available: true })
+    const res = await GET(req('http://localhost/api/decision-os/user-os?leagueId=L1'))
+    expect(res.status).toBe(200)
+  })
+
+  it('denies an authenticated user with no relationship to the league (403), never calling the composition — no cross-league data leakage', async () => {
+    authorizeLeagueReadMock.mockResolvedValue({ authorized: false, status: 403 })
+    const res = await GET(req('http://localhost/api/decision-os/user-os?leagueId=L1'))
+    expect(res.status).toBe(403)
+    expect(resolveUserOsSnapshotMock).not.toHaveBeenCalled()
   })
 })

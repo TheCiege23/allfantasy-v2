@@ -8,11 +8,12 @@
  *   - `requireAdmin` (`lib/adminAuth.ts`) — the same internal site-admin gate Platform OS reuses
  *     (Phase D Increment 11), for operator-level correction/support cases.
  *
- * Reads are NOT gated by this module — `app/api/decision-os/mission-control` and every sibling
- * Decision OS read route already allow any authenticated caller to query any `leagueId` (enforcement
- * is session-level, not per-league; the UI only ever calls these for leagues the signed-in user is
- * actually related to). League Context's own read route follows that exact same precedent rather than
- * inventing a stricter read policy for this one surface.
+ * Reads are NOT gated by this module — that's `leagueReadAuthorization.ts`'s job (`authorizeLeagueRead`),
+ * used directly by `app/api/decision-os/league-context/route.ts`'s own `GET` handler. Phase OS-C6.1
+ * closed a real gap this module's own comment used to describe as intentional: every Decision OS read
+ * route, including this one, previously allowed any authenticated caller to query any `leagueId` with
+ * no per-league membership check. See `docs/os/FANTASY_OS_PRODUCTION_READINESS_AUDIT.md` and
+ * `leagueReadAuthorization.ts`'s own header comment for the full history.
  */
 import { getLeagueRole as defaultGetLeagueRole } from '@/lib/league/permissions'
 import { requireAdmin as defaultRequireAdmin } from '@/lib/adminAuth'

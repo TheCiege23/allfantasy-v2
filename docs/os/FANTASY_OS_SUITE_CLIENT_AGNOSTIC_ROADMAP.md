@@ -1078,6 +1078,40 @@ keep OS-C6 a governance/audit phase rather than a 5-provider feature change.
 15 new/updated tests across 2 files, 158/158 baseline typecheck unchanged. Full detail:
 `FANTASY_OS_PRODUCTION_READINESS_AUDIT.md`.
 
+### OS-C6.1 — Backend Freeze Certification: Decision OS Read Authorization Hardening (2026-07-10)
+
+Closed the one real, open item OS-C6 surfaced: continuing straight from that phase's own explicit
+sign-off request, this phase implemented the fix rather than leaving it as a documented risk.
+
+A re-audit (following the user's own instruction to check "League Health endpoints" specifically, rather
+than trusting the earlier `/api/decision-os/*`-only inventory) found the gap was broader than the 3
+originally named: `/api/league-health`'s `decision_os` opt-in branch had the identical pattern, missed
+originally because it doesn't live under the `/api/decision-os/` path prefix. Two more routes
+(`manager-intelligence`, `user-os`) were added for defense-in-depth — both already scope their PRIMARY
+output to the caller's own identity, but both also compute and return a real, league-wide `leagueTrend`
+field regardless of caller relationship, a smaller leak of the same class.
+
+One new shared module, `lib/decision-os/leagueReadAuthorization.ts` (`authorizeLeagueRead`), wraps the
+existing, already-tested `getLeagueRole` (`lib/league/permissions.ts`) — the exact function every
+league-settings WRITE route already gates with — in the same `{authorized, status}` discriminated-union
+shape every sibling Decision OS authorization module (`leagueContextAuthorization.ts`,
+`platformOsAuthorization.ts`) already uses. No second authorization framework, no redesign of the role
+system, no duplicated logic. Applied to all 6 real routes: `mission-control`, `league-analytics`,
+`league-context` GET, `manager-intelligence`, `user-os`, `/api/league-health`'s `decision_os` branch.
+Allows commissioner/co-commissioner/member/viewer (any real, granted relationship); denies unauthenticated
+(401) and unrelated authenticated users (403).
+
+21 new tests across 7 files — a dedicated unit test for the helper itself, plus updated/new contract
+tests for all 6 routes — prove the fix does what it claims: commissioner allowed, member allowed,
+unrelated authenticated user denied **with the underlying composition function never even called** (the
+literal proof of no cross-league data leakage, not just an HTTP status assertion), unauthenticated
+denied. Full regression suite (145/145 test files, 3052/3052 tests) and typecheck (158/158, the
+established baseline) both clean.
+
+New `BACKEND_FREEZE_CHECKLIST.md` documents every audited route, the authorization decision, and the
+deliberately-deferred provider status-mapping gap (ESPN/Yahoo/Fantrax/MFL/Fleaflicker, from OS-C6 Part
+1) — and states the final determination: **the Fantasy OS backend is ready to freeze.**
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1125,6 +1159,10 @@ keep OS-C6 a governance/audit phase rather than a 5-provider feature change.
   redesign, no provider integrations added. The one real finding with genuine production blast radius
   (the authorization gap) was deliberately left unfixed, surfaced for an explicit decision instead of
   unilateral action.
+- OS-C6.1 touched only what its own scope named: one new authorization helper, 6 route files, 21 tests,
+  and documentation — no new Decision OS features, no global authorization redesign, no new providers, no
+  Notification Engine changes, no new intelligence layers, no Visual OS work, and no UI behavior changed
+  beyond returning a real 401/403 instead of silently exposing another league's data.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

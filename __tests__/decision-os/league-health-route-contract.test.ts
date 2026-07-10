@@ -9,15 +9,19 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-const { getServerSessionMock, resolveDecisionOsLeagueHealthMock } = vi.hoisted(() => ({
+const { getServerSessionMock, resolveDecisionOsLeagueHealthMock, authorizeLeagueReadMock } = vi.hoisted(() => ({
   getServerSessionMock: vi.fn(),
   resolveDecisionOsLeagueHealthMock: vi.fn(),
+  authorizeLeagueReadMock: vi.fn(),
 }))
 
 vi.mock('next-auth', () => ({ getServerSession: getServerSessionMock }))
 vi.mock('@/lib/auth', () => ({ authOptions: {} }))
 vi.mock('@/lib/decision-os/leagueHealthAlignment', () => ({
   resolveDecisionOsLeagueHealth: resolveDecisionOsLeagueHealthMock,
+}))
+vi.mock('@/lib/decision-os/leagueReadAuthorization', () => ({
+  authorizeLeagueRead: authorizeLeagueReadMock,
 }))
 
 import { POST } from '@/app/api/league-health/route'
@@ -33,6 +37,7 @@ describe('/api/league-health route contract', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     getServerSessionMock.mockResolvedValue({ user: { id: 'u1' } })
+    authorizeLeagueReadMock.mockResolvedValue({ authorized: true, role: 'commissioner' })
   })
 
   it('requires auth (401) regardless of path', async () => {
@@ -84,5 +89,35 @@ describe('/api/league-health route contract', () => {
     await POST(req({ leagueId: 'L1', source: 'decision_os', overrides: { numTeams: 10 } }))
 
     expect(resolveDecisionOsLeagueHealthMock).toHaveBeenCalledWith('L1', { numTeams: 10 })
+  })
+
+  // Phase OS-C6.1: real per-league membership authorization coverage for the decision_os branch —
+  // this route previously had no per-league check, same gap as `/api/decision-os/mission-control`.
+  it('checks league read authorization for the decision_os branch, using the real leagueId and session user id', async () => {
+    resolveDecisionOsLeagueHealthMock.mockResolvedValue({ engine: {}, decisionOs: {}, fieldProvenance: {} })
+    await POST(req({ leagueId: 'L1', source: 'decision_os' }))
+    expect(authorizeLeagueReadMock).toHaveBeenCalledWith('L1', 'u1')
+  })
+
+  it('denies an authenticated user with no relationship to the league (403) on the decision_os branch — no cross-league data leakage', async () => {
+    authorizeLeagueReadMock.mockResolvedValue({ authorized: false, status: 403 })
+    const res = await POST(req({ leagueId: 'L1', source: 'decision_os' }))
+    expect(res.status).toBe(403)
+    expect(resolveDecisionOsLeagueHealthMock).not.toHaveBeenCalled()
+  })
+
+  it('the legacy explicit-metrics branch is unaffected by the new gate — it never checks league membership since it has no league-scoped read', async () => {
+    authorizeLeagueReadMock.mockResolvedValue({ authorized: false, status: 403 })
+    const res = await POST(
+      req({
+        leagueId: 'L1', sport: 'NFL', leagueType: 'dynasty', numTeams: 12, currentWeek: 5, totalWeeks: 17,
+        activeManagers: 12, inactiveManagers: 0, abandonedTeams: 0, lineupSubmissionRate: 1,
+        totalTradesThisSeason: 5, totalWaiverClaims: 20, avgFaabSpentPct: 40, chatMessageCount: 30,
+        voteCount: 0, disputeCount: 0, commissionerActionsThisSeason: 2, unresolvedDisputes: 0,
+        playoffTeams: 6, waiverType: 'FAAB', tradeReviewProcess: 'commissioner',
+      }),
+    )
+    expect(res.status).toBe(200)
+    expect(authorizeLeagueReadMock).not.toHaveBeenCalled()
   })
 })

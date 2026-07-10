@@ -1,9 +1,15 @@
 /**
  * Fantasy OS Suite — Phase OS-A2: League Context Wiring.
  *
- * GET: read a league's financial context. Session-gated like every sibling Decision OS read route
- * (`/mission-control`, `/league-analytics`, `/user-os`) — no per-league role check, matching that
- * exact existing precedent (see `leagueContextAuthorization.ts`'s own header comment for why).
+ * GET: read a league's financial context. Phase OS-C6.1: now gated by `authorizeLeagueRead` — a real
+ * per-league membership check (commissioner/co-commissioner/member/viewer). This is a deliberate
+ * reversal of this route's own original design: `leagueContextAuthorization.ts`'s header comment
+ * previously documented "reads are NOT gated... enforcement is session-level, not per-league" as an
+ * intentional choice, matching every sibling Decision OS read route's own (also unguarded) precedent
+ * at the time. The production-readiness audit (`docs/os/FANTASY_OS_PRODUCTION_READINESS_AUDIT.md`)
+ * found this was never a real security boundary — this route specifically exposes financial
+ * status/amount/currency/escrow-provider, the most sensitive Decision OS read surface, so it gets the
+ * hardening first alongside `/mission-control` and `/league-analytics`.
  *
  * POST: confirm free/paid, or reset to unknown. Gated by `authorizeLeagueContextMutation` — the
  * league's own commissioner/co-commissioner, or a site admin. Never infers, never touches
@@ -19,6 +25,7 @@ import {
   LeagueContextStoreUnavailableError,
 } from '@/lib/decision-os/leagueContext'
 import { authorizeLeagueContextMutation } from '@/lib/decision-os/leagueContextAuthorization'
+import { authorizeLeagueRead } from '@/lib/decision-os/leagueReadAuthorization'
 import type { LeagueEscrowProvider } from '@/lib/decision-os/leagueFinancialContext'
 
 export const dynamic = 'force-dynamic'
@@ -37,6 +44,14 @@ export async function GET(request: Request) {
   const leagueId = new URL(request.url).searchParams.get('leagueId')?.trim()
   if (!leagueId) {
     return NextResponse.json({ error: 'leagueId is required' }, { status: 400 })
+  }
+
+  const gate = await authorizeLeagueRead(leagueId, userId)
+  if (!gate.authorized) {
+    return NextResponse.json(
+      { error: gate.status === 403 ? 'Forbidden' : 'Unauthorized' },
+      { status: gate.status },
+    )
   }
 
   const context = await resolveLeagueFinancialContext(leagueId)
