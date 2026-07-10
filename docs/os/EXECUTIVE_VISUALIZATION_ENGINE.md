@@ -782,3 +782,100 @@ draft-room runtime intelligence contract.
 - `components/decision-os/ManagerCommandCenterSection.tsx` *(Draft OS workspace)*
 - `__tests__/executive-viz/draft-executive-workspace.test.tsx` *(new, 11 tests)*
 - docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`
+
+---
+
+# Phase V2.7 — Platform OS Executive Analytics Workspace
+
+The **seventh and final** Executive Analytics Workspace — the executive layer ABOVE the individual
+Operating Systems. It answers "What requires my attention across my entire Fantasy OS footprint?" and
+SUMMARIZES the other workspaces (open work per Operating System), rather than duplicating them. Its
+signature visualization is **Platform Focus**. B2B/licensing scope only; presentation-only; Decision OS,
+backend, and provider abstraction frozen; no Legacy/B2C.
+
+## Step 1 — Data audit
+
+The signed-in user's footprint = the cross-league `ManagerCommandCenterSnapshot` (all their leagues, all
+recommendation categories, attention signals, league counts, `draftsApproachingCount`) — already fetched
+by the Manager Hub. The operator-scoped `PlatformOsSnapshot` (admin route, explicit-league-list) is a
+different scope and is not used.
+
+| Field | Nature | Verdict |
+| --- | --- | --- |
+| recommendations by category (lineup/waiver/trade/draft/engagement/participation) + priority | current snapshot / ordinal | **used** (Platform Focus, Executive Workload) |
+| `attentionQueue` severities | current snapshot / ordinal | **used** (Attention Summary) |
+| league counts (total/healthy/at-risk/unavailable), `atRiskLeagueCount`, `draftsApproachingCount` | current snapshot | **used** (footprint KPIs) |
+| platform historical snapshots / momentum / trend series | **do not exist** (only per-league `leagueTrends` direction + `PlatformOsSnapshot.trendCoverage` COUNTS) | **deferred** |
+| adoption / usage / growth / sync-health scores / recommendation effectiveness / predictive workload / platform KPI history | **do not exist** as provider-agnostic contracts | **deferred** |
+
+## Step 2 — Truthfulness decision: Focus, not Pulse
+
+The intended flagship was a **Platform Pulse**, but a pulse needs a platform-level history/momentum
+series, and none is reachable. Per the phase's own rule, the flagship is instead a current-state
+**Platform Focus** — where to focus first across the footprint (open work per Operating System, ranked by
+urgency). A test asserts `hasPlatformHistory === false` and that no focus area carries a trend/history/
+momentum field.
+
+## Step 2 (flagship) — Platform Focus
+
+`components/executive-viz/PlatformFocus.tsx`: a footprint KPI header (Leagues / Need attention / Open
+decisions / Drafts soon) over a ranked "Where the work is" bar set — each Operating System focus area
+(Lineups / Waivers / Trades / Draft prep / Engagement) by open-recommendation count, colored by its
+highest open priority, worst-first. Honest all-clear and unavailable states. Reuses `ExecutiveHorizontalBars`.
+
+## Step 3 — Supporting visualizations
+
+`components/executive-viz/PlatformSupportingViz.tsx`, from the same snapshot:
+
+| Graph | Question | Data | Form |
+| --- | --- | --- | --- |
+| **Executive Workload** | How much work is waiting, and how urgent? | all open recommendations by priority | `ExecutiveHorizontalBars` |
+| **Attention Summary** | What is flagged across my footprint? | `attentionQueue` by severity | `ExecutiveHorizontalBars` |
+
+Deferred (no reachable contract): Platform Pulse/history, adoption/usage/growth, sync-health scores,
+recommendation effectiveness, predictive workload, platform KPI history, and any historical comparison.
+
+## Step 4 — Engine reuse
+
+No new primitive — the flagship and both supporting cards reuse `ExecutiveVisualizationShell` +
+`ExecutiveHorizontalBars`; the footprint KPI tile composes the existing `decisionOsToneClasses` inline.
+
+## Steps 5–8 — Provider abstraction, hierarchy, executive UX
+
+Rendered at the TOP of the Manager Hub, ABOVE the Manager/Waiver/Draft workspaces (the executive layer
+that summarizes them, verified live by DOM order). Every card answers one executive question (where to
+focus first / how much work / what's flagged). Provider-abstraction source scan of the customer-facing
+files is clean.
+
+## Step 9 — Verification
+
+Targeted regression + full typecheck (see commit). Live-verified against the real authenticated Manager
+Hub — the workspace rendered POPULATED with real data: Platform Focus "Engagement needs the most attention
+— 2 open decisions across 1 league, 1 needing attention", footprint KPIs (Leagues 1 / Need attention 1 /
+Open decisions 2 / Drafts soon 0), ranked focus bars (Engagement red/at-risk "1 high priority", Waivers
+green/healthy), Executive Workload "2 open decisions; 1 high priority", Attention Summary "3 signals; 1
+critical" — sitting ABOVE the Championship Trajectory workspace, with zero provider/player terms. **A
+screenshot was captured successfully** showing the full populated workspace and the hierarchy.
+
+## Step 10 — Tests
+
+`__tests__/executive-viz/platform-executive-workspace.test.tsx` (11): cross-OS focus roll-up + ranking,
+the mandatory no-platform-history assertion, all-clear + unavailable, workload/attention priority+severity
+distributions, deferred platform analytics, component render states, provider/player abstraction, and the
+hierarchy assertion (Platform OS renders before the Manager workspace) + primitive reuse.
+
+## Boundaries / deferred
+
+No backend changes, no Decision OS changes, no fabricated platform trends/momentum/health-scores/adoption/
+usage/predictive-workload/KPIs/historical comparisons, no player-centric content, no raw provider payloads,
+no Legacy/B2C. All seven planned Executive Analytics Workspaces are now complete; the roadmap transitions
+to final production-readiness polish (theming/white-label, accessibility, launch validation).
+
+## Files changed (V2.7)
+
+- `lib/executive-viz/platformFocusViewModel.ts` *(new — flagship + 2 builders + deferred marker)*
+- `components/executive-viz/PlatformFocus.tsx` *(new — flagship)*
+- `components/executive-viz/PlatformSupportingViz.tsx` *(new — 2 supporting cards)*
+- `components/decision-os/ManagerCommandCenterSection.tsx` *(Platform OS workspace at the top)*
+- `__tests__/executive-viz/platform-executive-workspace.test.tsx` *(new, 11 tests)*
+- docs: this file + `OS_PROGRESS_DASHBOARD.md` + `FANTASY_OS_SUITE_CLIENT_AGNOSTIC_ROADMAP.md`

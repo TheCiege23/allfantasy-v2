@@ -50,6 +50,11 @@ import {
   DraftReadinessCard,
   DraftPreparationImpactCard,
 } from '@/components/executive-viz/DraftSupportingViz'
+import PlatformFocus from '@/components/executive-viz/PlatformFocus'
+import {
+  ExecutiveWorkloadCard,
+  AttentionSummaryCard,
+} from '@/components/executive-viz/PlatformSupportingViz'
 import CommissionerAttentionQueue from './CommissionerAttentionQueue'
 import ManagerPriorityModule from './ManagerPriorityModule'
 import ManagerLeagueSwitcher from './ManagerLeagueSwitcher'
@@ -199,6 +204,21 @@ export default function ManagerCommandCenterSection({ leagues }: ManagerCommandC
             className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-700"
           >
             {error}
+          </div>
+        ) : null}
+
+        {/* Phase V2.7 — Platform OS Executive Analytics Workspace. The executive layer ABOVE the
+            individual Operating Systems below: the Platform Focus flagship (dominant) answers "what
+            requires my attention across my entire footprint?" and SUMMARIZES the Manager/Waiver/Draft
+            workspaces that follow (open work per Operating System) — it does not duplicate them. No
+            platform history/trend is reachable, so it is a current-state focus view, not a Pulse. */}
+        {snapshot ? (
+          <div data-testid="platform-os-workspace" className="space-y-4" aria-label="Platform overview">
+            <PlatformFocus snapshot={snapshot} draftsApproachingCount={snapshot.draftsApproachingCount} />
+            <div className="grid gap-4 md:grid-cols-2">
+              <ExecutiveWorkloadCard snapshot={snapshot} />
+              <AttentionSummaryCard snapshot={snapshot} />
+            </div>
           </div>
         ) : null}
 

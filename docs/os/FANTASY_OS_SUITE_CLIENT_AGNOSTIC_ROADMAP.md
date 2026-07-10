@@ -1482,6 +1482,33 @@ Impact empty), with zero provider/ADP terms and the flagship visually dominant. 
 readiness combinations are covered by unit tests. A screenshot captured the lower workspace successfully.
 11 new tests. Full detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.6.
 
+### V2.7 — Platform OS Executive Analytics Workspace (2026-07-10) — final workspace
+
+The seventh and final Executive Analytics Workspace, and the only one that sits ABOVE the others: Platform
+OS is the executive layer that summarizes the individual Operating Systems, answering "What requires my
+attention across my entire Fantasy OS footprint?" The intended flagship was a **Platform Pulse**, but the
+Step 1 audit found no reachable platform-level history/momentum/trend series (only per-league `leagueTrends`
+direction and `PlatformOsSnapshot.trendCoverage` counts), so, per the phase's own rule, the flagship is a
+current-state **Platform Focus** (a test asserts it exposes no platform history). It is built from the
+signed-in user's cross-league `ManagerCommandCenterSnapshot` — footprint KPIs (leagues, needing attention,
+open decisions, drafts soon) over a ranked "where the work is" bar set (open recommendations per Operating
+System, worst-first). Two supporting graphs — Executive Workload (all open decisions by priority) and
+Attention Summary (signals by severity) — reinforce it. Adoption/usage/growth, sync-health scores,
+recommendation effectiveness, predictive workload, and any platform KPI history are deferred (no reachable
+contract). No new engine primitive: all three reuse `ExecutiveVisualizationShell` + `ExecutiveHorizontalBars`.
+Rendered at the top of the Manager Hub, above the Manager/Waiver/Draft workspaces it summarizes.
+
+**Verification**: live-tested against the real authenticated Manager Hub — the workspace rendered POPULATED
+("Engagement needs the most attention — 2 open decisions across 1 league, 1 needing attention", footprint
+KPIs, ranked focus bars, workload + attention distributions), sitting above the Championship Trajectory
+workspace, with zero provider/player terms. A screenshot was captured successfully. 11 new tests. Full
+detail: `EXECUTIVE_VISUALIZATION_ENGINE.md` §Phase V2.7.
+
+**All seven planned Executive Analytics Workspaces are now complete** — Commissioner, Manager, League,
+Trade, Waiver, Draft, and Platform OS. The roadmap transitions from building new workspaces to final
+production-readiness: executive polish, consistency, accessibility, theming/white-label readiness, and
+launch validation.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
@@ -1647,6 +1674,22 @@ readiness combinations are covered by unit tests. A screenshot captured the lowe
   primitive (the flagship is `ExecutiveDecisionSequence`'s fourth consumer). The non-`executive-viz`/non-doc
   change is `ManagerCommandCenterSection.tsx` (renders the Draft OS workspace from its already-fetched
   snapshot — no Decision OS logic/route/contract touched).
+- V2.7 brought the engine to Platform OS — the final workspace: one flagship + two supporting graphs,
+  entirely within the B2B/licensing product and entirely presentation-only. All are built from the
+  cross-league `ManagerCommandCenterSnapshot` (recommendations by category/priority + attention signals +
+  league counts + `draftsApproachingCount`) via new pure builders in `platformFocusViewModel.ts` — no new
+  fetch, contract, or intelligence; the operator-scoped admin `PlatformOsSnapshot` is a different scope and
+  was not used. The intended Platform Pulse was rejected as untruthful: no platform-level history/trend
+  series is reachable, so the flagship is a current-state Platform Focus (a test asserts it exposes no
+  platform history), and platform momentum/adoption/usage/sync-health/recommendation-effectiveness/
+  predictive-workload/KPI-history/historical-comparisons are deferred. Platform OS summarizes the other
+  Operating Systems (open work per OS) — it does not duplicate them. No fabricated platform trends/scores;
+  no raw provider payloads, player-level records, or internal IDs on the surface (verified live +
+  source-scanned); no player-centric content; no Legacy/B2C. No new engine primitive (reuses
+  `ExecutiveVisualizationShell` + `ExecutiveHorizontalBars`). The non-`executive-viz`/non-doc change is
+  `ManagerCommandCenterSection.tsx` (renders the Platform OS workspace at the top of the Manager Hub, above
+  the workspaces it summarizes — no Decision OS logic/route/contract touched). With this, all seven planned
+  Executive Analytics Workspaces are complete.
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely
