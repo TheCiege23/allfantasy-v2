@@ -9,6 +9,7 @@ import {
   DecisionOsPanel,
   DecisionOsUpdatedStamp,
   decisionOsCardClassName,
+  decisionOsToneClasses,
 } from './DecisionOsCardPrimitives'
 
 type MissionControlCardProps = {
@@ -17,12 +18,21 @@ type MissionControlCardProps = {
   compact?: boolean
 }
 
-const overallStatusClass: Record<string, string> = {
-  excellent: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
-  healthy: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
-  watch: 'border-amber-500/25 bg-amber-500/10 text-amber-300',
-  at_risk: 'border-rose-500/25 bg-rose-500/10 text-rose-300',
-  critical: 'border-rose-500/25 bg-rose-500/10 text-rose-300',
+// Phase V1.1: was a private `overallStatusClass` table — migrated onto the shared
+// `decisionOsToneClasses`. The real 5-value `OverallStatus` domain (`lib/league-health/league-health-engine.ts`)
+// maps cleanly onto the 4 shared tones with zero color change: excellent/healthy were already the same
+// emerald as `good`; at_risk/critical were already the same rose as `danger`.
+const OVERALL_STATUS_TONE: Record<string, Parameters<typeof decisionOsToneClasses>[0]> = {
+  excellent: 'good',
+  healthy: 'good',
+  watch: 'warning',
+  at_risk: 'danger',
+  critical: 'danger',
+}
+
+function overallStatusToneClasses(status: string): string {
+  const tone = OVERALL_STATUS_TONE[status]
+  return tone ? decisionOsToneClasses(tone) : decisionOsToneClasses('neutral')
 }
 
 function StatChip({ label, value }: { label: string; value: number }) {
@@ -96,7 +106,7 @@ export default function MissionControlCard({ snapshot, variant = 'commissioner',
           {engine ? (
             <span
               data-testid="mission-control-health-status"
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${overallStatusClass[engine.overallStatus] ?? 'border-subtle bg-surface-muted text-muted'}`}
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${overallStatusToneClasses(engine.overallStatus)}`}
             >
               {engine.overallStatus}
             </span>

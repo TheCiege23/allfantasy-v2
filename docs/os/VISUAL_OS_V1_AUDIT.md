@@ -139,3 +139,28 @@ genuine, explicit, un-hidden placeholders. No new fabrication found.
 - A full design pass on `/league/[id]` (League Focus) — untouched this phase.
 - Renaming `CommissionerAttentionQueue` to a neutral name now that Manager OS reuses it (cosmetic,
   no behavior change, previously flagged as low-risk future cleanup in OS-C1).
+
+## Update — Phase V1.1
+
+Both of the above "deferred" items were picked up this phase, plus the remaining half of Finding 2:
+
+- **Finding 2 closed**: `MissionControlCard.tsx`, `LeaguePulseCard.tsx`, `DecisionRecommendationsCard.tsx`,
+  and `CommissionerAttentionQueue.tsx`'s independent tone tables are now migrated onto
+  `decisionOsToneClasses`. `CommissionerAttentionQueue`'s real 5-tier severity domain (critical > high >
+  medium > low > informational) doesn't fit the 4-value tone system without losing a real, currently-visible
+  distinction — extended the primitives file additively with `decisionOsSeverityToneClasses` rather than
+  forcing a collapse (see `DecisionOsCardPrimitives.tsx` for the documented reasoning).
+- **AI Prompt Cards / Migration Center**: migrated onto semantic tokens (`decisionOsToneClasses` for
+  Migration Center's status badges; `text-primary`/`text-secondary` + a readable `-600` accent shade for
+  AI Prompt Cards' icon chips and "Ask Chimmy" CTA text, replacing the light `-300`/`400` pastels).
+- **New Finding 10 (real, found via direct source read, same defect class as Findings 3/4)**:
+  `app/league/[leagueId]/tabs/LeagueTab.tsx`'s two Decision OS launcher links ("Manager Intelligence",
+  "League Intelligence") hardcoded `text-violet-100`/`text-cyan-100`/`text-*-200/60` — the identical
+  light-pastel-on-light-background contrast risk pattern already found and fixed twice in Phase V1.0.
+  Fixed by routing body text through `text-primary`/`text-secondary` and keeping only the icon+arrow in a
+  readable, saturated accent (`violet-600`/`text-status-info`). Live pixel verification of this specific
+  page was blocked by an intermittent "Loading league..." hang on cold navigation in this sandbox
+  (unrelated to the fix — confirmed via direct source read that the change is a pure className swap, no
+  logic touched); the equivalent token-routing pattern was verified live and correct on 3 other pages
+  (Commissioner Hub hero, AI Prompt Cards, Migration Center) via `preview_eval` computed-style checks.
+- Full detail in `VISUAL_OS_V1_FOUNDATION.md`'s Phase V1.1 section.

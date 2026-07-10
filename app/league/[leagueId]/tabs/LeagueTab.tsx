@@ -660,39 +660,45 @@ export function LeagueTab({
       {/* Decision OS launchers — Manager Intelligence (all members; entry shown only when the
           hub client flag is on) + Commissioner "League Intelligence" (member-readable; the
           commissioner-only cards are API-gated with 403 + an honest restricted state in the hub).
-          League home is the LAUNCHER — it does not duplicate hub contents. */}
+          League home is the LAUNCHER — it does not duplicate hub contents.
+          Phase V1.1: heading/detail text was `text-violet-100`/`text-cyan-100` and `text-*-200/60` —
+          a light pastel palette tuned for a dark background, the same class of light-mode contrast bug
+          found and fixed on Commissioner Hub in Phase V1.0 (docs/os/VISUAL_OS_V1_AUDIT.md Finding 3/4).
+          Body text now routes through `text-primary`/`text-secondary`; only the icon+arrow keep a
+          readable, saturated accent color instead of a light one, preserving the violet/cyan visual
+          distinction between the two launchers. */}
       <section className="grid gap-3 sm:grid-cols-2" aria-label="Decision OS intelligence">
         {process.env.NEXT_PUBLIC_MANAGER_INTELLIGENCE_HUB_ENABLED === 'true' ? (
           <Link
             href={`/league/${league.id}/manager-hub`}
             data-testid="nav-manager-intelligence"
-            className="flex items-start justify-between gap-3 rounded-2xl border border-violet-400/25 bg-violet-500/[0.06] px-4 py-3 hover:bg-violet-500/[0.10]"
+            className="flex items-start justify-between gap-3 rounded-2xl border border-violet-500/25 bg-violet-500/10 px-4 py-3 hover:bg-violet-500/15"
           >
             <span className="min-w-0">
-              <span className="flex items-center gap-2 text-[13px] font-semibold text-violet-100">
-                <Zap className="h-4 w-4 shrink-0" aria-hidden /> Manager Intelligence
+              <span className="flex items-center gap-2 text-[13px] font-semibold text-primary">
+                <Zap className="h-4 w-4 shrink-0 text-violet-600" aria-hidden /> Manager Intelligence
               </span>
-              <span className="mt-0.5 block text-[11px] text-violet-200/60">
+              <span className="mt-0.5 block text-[11px] text-secondary">
                 Roster health, weekly outlook, transactions, and historical decision patterns.
               </span>
             </span>
-            <span aria-hidden className="shrink-0 text-violet-300/80">-&gt;</span>
+            <span aria-hidden className="shrink-0 text-violet-600">-&gt;</span>
           </Link>
         ) : null}
         <Link
           href={`/league/${league.id}/intelligence`}
           data-testid="nav-commissioner-intelligence"
-          className="flex items-start justify-between gap-3 rounded-2xl border border-cyan-400/25 bg-cyan-500/[0.06] px-4 py-3 hover:bg-cyan-500/[0.10]"
+          className="flex items-start justify-between gap-3 rounded-2xl border border-status-info/25 bg-status-info/10 px-4 py-3 hover:bg-status-info/15"
         >
           <span className="min-w-0">
-            <span className="flex items-center gap-2 text-[13px] font-semibold text-cyan-100">
-              <Trophy className="h-4 w-4 shrink-0" aria-hidden /> League Intelligence
+            <span className="flex items-center gap-2 text-[13px] font-semibold text-primary">
+              <Trophy className="h-4 w-4 shrink-0 text-status-info" aria-hidden /> League Intelligence
             </span>
-            <span className="mt-0.5 block text-[11px] text-cyan-200/60">
+            <span className="mt-0.5 block text-[11px] text-secondary">
               League health, activity, trade-review workload, rules, and audit history.
             </span>
           </span>
-          <span aria-hidden className="shrink-0 text-cyan-300/80">-&gt;</span>
+          <span aria-hidden className="shrink-0 text-status-info">-&gt;</span>
         </Link>
       </section>
       {showHomeHero ? (

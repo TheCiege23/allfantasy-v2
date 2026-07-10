@@ -12,6 +12,7 @@ import { ErrorBoundaryClient } from '@/components/error-handling/ErrorBoundaryCl
 import { PlayerComparisonUIProvider } from '@/components/player-comparison-ui';
 import { buildSeoMeta } from '@/lib/seo';
 import { resolveEffectiveDataMode } from '@/lib/theme';
+import { getLanguageTextDirection, resolveLanguage } from '@/lib/i18n/constants';
 import './globals.css';
 
 export const viewport = {
@@ -85,7 +86,8 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
   const cookieLang = cookieStore.get('af_lang')?.value;
-  const htmlLang = cookieLang === 'es' ? 'es' : 'en';
+  const htmlLang = resolveLanguage(cookieLang);
+  const htmlDir = getLanguageTextDirection(htmlLang);
   const cookieMode = cookieStore.get('af_mode')?.value;
   const htmlMode = resolveEffectiveDataMode(cookieMode);
 
@@ -106,14 +108,24 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     }
   }
 
-  const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
-  const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
-  const fbAppId = process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
+  // Phase V1.1: `PLAYWRIGHT_E2E` already exists (see the try/catch above) as this codebase's own signal
+  // for "this is an automated, non-production run." Reusing it here — rather than inventing a new flag
+  // — to suppress third-party ad-tracking scripts (Meta Pixel, GTM/gtag, Google Ads conversion) ONLY
+  // when explicitly opted into via a dedicated `.claude/launch.json` config (`next-dev-visual-qa`).
+  // Unset in normal local dev and always unset in production, so default analytics behavior is
+  // unchanged. Root cause: these scripts fire unconditionally whenever their env vars are populated,
+  // including under `next dev`, and their volume of outbound network calls was saturating the browser
+  // automation tooling used for Visual OS screenshot capture (docs/os/VISUAL_OS_V1_FOUNDATION.md).
+  const isVisualQaMode = process.env.PLAYWRIGHT_E2E === '1';
+  const gaMeasurementId = isVisualQaMode ? '' : process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID || '';
+  const metaPixelId = isVisualQaMode ? '' : process.env.NEXT_PUBLIC_META_PIXEL_ID || '';
+  const fbAppId = isVisualQaMode ? '' : process.env.NEXT_PUBLIC_FB_APP_ID || '1790659191546539';
   const useRailwayStylesFallback = railwayRuntimeEnvKeys.some((key) => Boolean(process.env[key]));
   return (
     <html
       lang={htmlLang}
       data-lang={htmlLang}
+      dir={htmlDir}
       data-mode={htmlMode}
       className="scroll-smooth"
       suppressHydrationWarning
@@ -338,7 +350,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             rather than replacing it with an amber error UI.
           */}
           <ErrorBoundaryClient fallback={null}>
-            <MetaPixelPageViewTracker pixelId={metaPixelId} />
+            {isVisualQaMode ? null : <MetaPixelPageViewTracker pixelId={metaPixelId} />}
             <SafeGlobalChrome fbAppId={fbAppId} />
           </ErrorBoundaryClient>
 

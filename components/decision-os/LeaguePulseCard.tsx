@@ -13,6 +13,7 @@ import {
   DecisionOsUpdatedStamp,
   DecisionOsWhyPanel,
   decisionOsCardClassName,
+  decisionOsToneClasses,
 } from './DecisionOsCardPrimitives'
 
 type LeaguePulseCardProps = {
@@ -21,18 +22,23 @@ type LeaguePulseCardProps = {
   compact?: boolean
 }
 
-const toneClass: Record<LeaguePulseTone, string> = {
-  positive: 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300',
-  warning: 'border-amber-500/25 bg-amber-500/10 text-amber-300',
-  danger: 'border-rose-500/25 bg-rose-500/10 text-rose-300',
-  neutral: 'border-subtle bg-surface-muted text-secondary',
+// Phase V1.1: was 2 private tone tables (`toneClass`, `statusClasses`) — both migrated onto the shared
+// `decisionOsToneClasses`. `LeaguePulseTone` (positive/warning/danger/neutral, `lib/decision-os/league-pulse.ts`)
+// and `LeaguePulseViewModel['status']` (healthy/watch/at-risk/insufficient-data) are real, pre-existing
+// domain vocabularies with their own meaning to the business logic — kept as-is, not renamed, only
+// translated to the shared tone at the render boundary.
+function metricToneClasses(tone: LeaguePulseTone): string {
+  if (tone === 'positive') return decisionOsToneClasses('good')
+  if (tone === 'warning') return decisionOsToneClasses('warning')
+  if (tone === 'danger') return decisionOsToneClasses('danger')
+  return decisionOsToneClasses('neutral')
 }
 
-function statusClasses(status: LeaguePulseViewModel['status']) {
-  if (status === 'healthy') return 'border-emerald-500/25 bg-emerald-500/10 text-emerald-300'
-  if (status === 'watch') return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
-  if (status === 'at-risk') return 'border-rose-500/25 bg-rose-500/10 text-rose-300'
-  return 'border-subtle bg-surface-muted text-muted'
+function statusClasses(status: LeaguePulseViewModel['status']): string {
+  if (status === 'healthy') return decisionOsToneClasses('good')
+  if (status === 'watch') return decisionOsToneClasses('warning')
+  if (status === 'at-risk') return decisionOsToneClasses('danger')
+  return decisionOsToneClasses('neutral')
 }
 
 export default function LeaguePulseCard({ pulse, variant = 'dashboard', compact = false }: LeaguePulseCardProps) {
@@ -69,7 +75,7 @@ export default function LeaguePulseCard({ pulse, variant = 'dashboard', compact 
           </div>
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-3 lg:min-w-[280px]">
             {pulse.metrics.slice(0, 3).map((metric) => (
-              <div key={metric.label} className={`min-w-0 rounded-xl border px-3 py-2 ${toneClass[metric.tone]}`}>
+              <div key={metric.label} className={`min-w-0 rounded-xl border px-3 py-2 ${metricToneClasses(metric.tone)}`}>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] opacity-80">{metric.label}</p>
                 <p className="mt-1 break-words text-lg font-black">{metric.value}</p>
               </div>

@@ -15,21 +15,13 @@
  */
 import { AlertTriangle, CheckCircle2, Info, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { AttentionSignalSeverity, DecisionOsAttentionSignal } from '@/lib/decision-os/attentionSignals'
-import { DecisionOsPanel } from './DecisionOsCardPrimitives'
+import { DecisionOsPanel, decisionOsSeverityToneClasses } from './DecisionOsCardPrimitives'
 
 type CommissionerAttentionQueueProps = {
   entries: DecisionOsAttentionSignal[]
   leagueNameById: Map<string, string>
   /** Cap how many entries render, independent of how many the API returned. Defaults to all. */
   limit?: number
-}
-
-const SEVERITY_CLASSES: Record<AttentionSignalSeverity, string> = {
-  critical: 'border-rose-500/30 bg-rose-500/10',
-  high: 'border-orange-500/30 bg-orange-500/10',
-  medium: 'border-amber-500/30 bg-amber-500/10',
-  low: 'border-sky-500/30 bg-sky-500/10',
-  informational: 'border-emerald-500/30 bg-emerald-500/10',
 }
 
 const SEVERITY_ICON_CLASSES: Record<AttentionSignalSeverity, string> = {
@@ -73,7 +65,7 @@ export default function CommissionerAttentionQueue({ entries, leagueNameById, li
               <li
                 key={entry.id}
                 data-testid={`attention-queue-item-${entry.severity}`}
-                className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${SEVERITY_CLASSES[entry.severity]}`}
+                className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${decisionOsSeverityToneClasses(entry.severity)}`}
               >
                 <SeverityIcon severity={entry.severity} />
                 <div className="min-w-0">

@@ -12,6 +12,7 @@ import {
   DecisionOsUpdatedStamp,
   DecisionOsWhyPanel,
   decisionOsCardClassName,
+  decisionOsToneClasses,
 } from './DecisionOsCardPrimitives'
 
 type DecisionRecommendationsCardProps = {
@@ -20,12 +21,15 @@ type DecisionRecommendationsCardProps = {
   compact?: boolean
 }
 
-function priorityClass(priority: string) {
+// Phase V1.1: was a private `priorityClass` table — migrated onto the shared `decisionOsToneClasses`.
+// A clean 4-way match, including 'medium', which was already cyan — the exact hex `--color-info`
+// resolves to (`#0e7490`), so this is a semantic-token migration with zero visible color change.
+function priorityClass(priority: string): string {
   const value = priority.toLowerCase()
-  if (value === 'critical') return 'border-rose-500/25 bg-rose-500/10 text-rose-300'
-  if (value === 'high') return 'border-amber-500/25 bg-amber-500/10 text-amber-300'
-  if (value === 'medium') return 'border-cyan-500/25 bg-cyan-500/10 text-cyan-300'
-  return 'border-subtle bg-surface-muted text-secondary'
+  if (value === 'critical') return decisionOsToneClasses('danger')
+  if (value === 'high') return decisionOsToneClasses('warning')
+  if (value === 'medium') return decisionOsToneClasses('info')
+  return decisionOsToneClasses('neutral')
 }
 
 function descriptionForVariant(variant: DecisionRecommendationsCardProps['variant']) {

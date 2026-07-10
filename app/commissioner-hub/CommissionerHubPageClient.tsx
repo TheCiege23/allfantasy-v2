@@ -33,6 +33,7 @@ import MissionControlCard from '@/components/decision-os/MissionControlCard'
 import LeagueAnalyticsCard from '@/components/decision-os/LeagueAnalyticsCard'
 import LeagueContextCard from '@/components/decision-os/LeagueContextCard'
 import CommissionerCommandCenterSection from '@/components/decision-os/CommissionerCommandCenterSection'
+import { decisionOsToneClasses } from '@/components/decision-os/DecisionOsCardPrimitives'
 import type {
   CommissionerHealthAction,
   CommissionerLeagueHealthSnapshot,
@@ -336,17 +337,21 @@ const MIGRATION_PLATFORMS: {
   },
 ]
 
+// Phase V1.1: badge text was `text-emerald-300`/`text-amber-300` — the same light-pastel contrast
+// pattern fixed elsewhere this phase (docs/os/VISUAL_OS_V1_AUDIT.md Finding 3/4). Routed through
+// `decisionOsToneClasses` for the badge; only the small status dot keeps its own solid color, since a
+// filled dot has no text-contrast concern.
 const MIGRATION_STATUS_CLASSES: Record<string, { badge: string; dot: string }> = {
   active: {
-    badge: 'border-emerald-500/25 bg-emerald-500/[0.08] text-emerald-300',
+    badge: decisionOsToneClasses('good'),
     dot: 'bg-emerald-400',
   },
   legacy: {
-    badge: 'border-amber-500/25 bg-amber-500/[0.08] text-amber-300',
+    badge: decisionOsToneClasses('warning'),
     dot: 'bg-amber-400',
   },
   coming_soon: {
-    badge: 'border-subtle bg-surface-muted text-muted',
+    badge: decisionOsToneClasses('neutral'),
     dot: 'bg-surface-hover',
   },
 }
@@ -967,7 +972,11 @@ export default function CommissionerHubPageClient({
                   className="group flex flex-col gap-2.5 rounded-2xl border border-violet-500/[0.14] bg-gradient-to-br from-violet-500/[0.06] to-transparent px-4 py-4 transition-all hover:border-violet-500/25 hover:from-violet-500/[0.09]"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-300">
+                    {/* Phase V1.1: icon chip text was `text-violet-300` — a light pastel meant for a
+                        dark background, the same contrast bug class fixed on Commissioner Hub's hero
+                        and Platform Readiness Snapshot in Phase V1.0 (docs/os/VISUAL_OS_V1_AUDIT.md
+                        Finding 3/4). Swapped to a saturated, readable `-600` shade. */}
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-violet-500/30 bg-violet-500/10 text-violet-600">
                       <Icon className="h-3.5 w-3.5" aria-hidden />
                     </span>
                     {card.badge && (
@@ -982,7 +991,7 @@ export default function CommissionerHubPageClient({
                     </p>
                     <p className="mt-0.5 text-[11px] leading-snug text-muted">{card.desc}</p>
                   </div>
-                  <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-400/60 group-hover:text-violet-300">
+                  <div className="flex items-center gap-1 text-[11px] font-semibold text-violet-600 group-hover:text-violet-700">
                     <Sparkles className="h-3 w-3" aria-hidden />
                     Ask Chimmy
                   </div>
@@ -1018,7 +1027,7 @@ export default function CommissionerHubPageClient({
                   </div>
                   <p className="text-[11px] text-muted">{platform.desc}</p>
                   {platform.status !== 'coming_soon' && (
-                    <p className="text-[11px] font-semibold text-emerald-400/70 transition group-hover:text-emerald-300">
+                    <p className="text-[11px] font-semibold text-status-success transition group-hover:text-status-success">
                       {COPY.migration.importCta}
                     </p>
                   )}
@@ -1050,8 +1059,8 @@ export default function CommissionerHubPageClient({
         {memberLeagues.length > 0 && (
           <section>
             <div className="mb-4 flex items-center gap-2">
-              <Trophy className="h-4 w-4 text-cyan-400" aria-hidden />
-              <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/70">
+              <Trophy className="h-4 w-4 text-status-info" aria-hidden />
+              <p className="text-[11px] font-bold uppercase tracking-widest text-status-info">
                 {COPY.memberLeagues.sectionLabel}
                 <span className="ml-2 rounded-full border border-subtle bg-surface-muted px-1.5 py-0.5 text-[9px] font-bold text-muted">
                   {memberLeagues.length}
@@ -1063,10 +1072,10 @@ export default function CommissionerHubPageClient({
                 <Link
                   key={league.id}
                   href={`/league/${league.id}`}
-                  className="group flex items-center gap-3 rounded-2xl border border-subtle bg-surface-muted p-4 transition hover:border-cyan-500/20 hover:bg-surface-hover"
+                  className="group flex items-center gap-3 rounded-2xl border border-subtle bg-surface-muted p-4 transition hover:border-status-info/20 hover:bg-surface-hover"
                 >
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-subtle bg-surface-muted">
-                    <Trophy className="h-4 w-4 text-cyan-400/50" aria-hidden />
+                    <Trophy className="h-4 w-4 text-status-info" aria-hidden />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-[14px] font-semibold text-secondary group-hover:text-primary">
@@ -1088,11 +1097,11 @@ export default function CommissionerHubPageClient({
         )}
 
         {/* ── Trust Block ── */}
-        <section className="rounded-2xl border border-emerald-500/[0.12] bg-emerald-500/[0.03] p-5">
+        <section className="rounded-2xl border border-status-success/20 bg-status-success/[0.03] p-5">
           <div className="flex items-start gap-3">
-            <Shield className="mt-0.5 h-5 w-5 shrink-0 text-emerald-400/70" aria-hidden />
+            <Shield className="mt-0.5 h-5 w-5 shrink-0 text-status-success" aria-hidden />
             <div>
-              <p className="text-[13px] font-bold text-emerald-300/80">{COPY.trust.heading}</p>
+              <p className="text-[13px] font-bold text-status-success">{COPY.trust.heading}</p>
               <p className="mt-1 text-[12px] leading-relaxed text-muted">{COPY.trust.body1}</p>
               <p className="mt-2 text-[12px] leading-relaxed text-muted">{COPY.trust.body2}</p>
             </div>

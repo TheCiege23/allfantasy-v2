@@ -1158,8 +1158,67 @@ resolver, route, or authorization behavior was modified.
 Live-verified on the running dev server via `preview_inspect` (computed CSS for both contrast fixes),
 `preview_eval` (zero horizontal overflow and zero undersized touch targets at 768px/375px), and
 `preview_snapshot` (rendered content/empty states) — `preview_screenshot` itself timed out repeatedly in
-this session due to this app's dev-mode ad-tracking network volume, unrelated to any code change; noted
-explicitly rather than claimed as tested. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
+this session, hypothesized at the time to be this app's dev-mode ad-tracking network volume (**Phase
+V1.1 later disproved this as the sole cause** — see below). Noted explicitly rather than claimed as
+tested. Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
+
+### V1.1 — Visual OS Expansion and Shared Primitive Consolidation (2026-07-10)
+
+Continues directly from V1.0 (`528c6285c`). Same boundaries: zero Decision OS logic, authorization, or
+backend contract changes.
+
+**Tone consolidation (Step 2)**: read all 4 remaining hand-rolled tone tables directly and mapped every
+real domain value to the closest exact-match shared tone before writing any code —
+`MissionControlCard.tsx` (`overallStatusClass`, the real 5-value `OverallStatus` domain from
+`lib/league-health/league-health-engine.ts`), `LeaguePulseCard.tsx` (2 separate tables: `toneClass` for
+`LeaguePulseTone`, `statusClasses` for `LeaguePulseStatus`), and `DecisionRecommendationsCard.tsx`
+(`priorityClass`) all migrated onto `decisionOsToneClasses` with **zero real color change** — every
+mapped value already resolved to the identical color the shared tone produces (confirmed the `medium`
+priority's cyan is the exact hex `--color-info` resolves to). `CommissionerAttentionQueue.tsx`'s real
+5-tier severity domain (critical > high > medium > low > informational) does **not** fit the 4-value tone
+system without collapsing 2 real severities into one color — per the phase's own explicit instruction not
+to force a fit, additively extended `DecisionOsCardPrimitives.tsx` with `decisionOsSeverityToneClasses`,
+a full border+background sibling to the pre-existing dot-only `SEVERITY_DOT_CLASS`. Also deduplicated
+`CommissionerCommandCenterOverview.tsx`/`ManagerCommandCenterOverview.tsx`'s byte-for-byte-identical
+private `StatChip` into the shared `DecisionOsStatChip` — the one gap V1.0 built the primitive for but
+never finished wiring.
+
+**Surface upgrades (Step 3)**: Migration Center's status badges + "Import →" CTA + Trust Block +
+"Leagues I Play In" header (found during the same pass, same defect class) migrated onto semantic
+tokens; AI Prompt Cards' icon chips and "Ask Chimmy" CTA migrated from `text-violet-300`/`400` to a
+readable `text-violet-600`. Found (via direct source read, not assumption) a 3rd instance of the exact
+V1.0 light-pastel-on-light-background contrast bug in `app/league/[leagueId]/tabs/LeagueTab.tsx`'s two
+Decision OS launcher links ("Manager Intelligence"/"League Intelligence") — fixed the same way, body
+text through `text-primary`/`text-secondary`, only the icon+arrow keeping a readable accent.
+
+**League Focus audit (Step 4)**: read `LeagueTab.tsx` (868 lines) directly. Confirmed the page already
+does what the audit asked — real Decision OS data wired in (`LeaguePulseCard`, `ManagerDnaCard`+
+`DecisionRecommendationsCard`, `UserOsCard`), a deliberate "launcher, not duplicate" design already
+documented in the page's own source comment, and truthful empty/insufficient-data states throughout. The
+2 launcher links were the only real visual issue found; live pixel verification of this specific page was
+blocked by an intermittent "Loading league…" hang on cold navigation in this sandbox (documented as a
+real, out-of-scope-to-fix finding, not silently ignored) — the fix itself was verified correct via direct
+source diff and via the identical token-routing pattern working live on 3 other pages.
+
+**Screenshot diagnosis (Step 5)**: found and fixed a real root cause — `app/layout.tsx` fires Meta
+Pixel/GA/Google Ads scripts unconditionally whenever their env vars are populated, including under plain
+`next dev` (verified via `preview_network`: 60+ third-party requests on a normal page load). Added a
+QA-only gate reusing `PLAYWRIGHT_E2E` (an existing signal already used elsewhere in the same file), wired
+to a new, dedicated `.claude/launch.json` profile (`next-dev-visual-qa`) — the default `next-dev` config
+and production (`next-start`) are completely untouched, so real analytics behavior is unaffected. Verified
+live: zero third-party requests after the fix. **This did not fully explain the original timeout** —
+`preview_screenshot` still hung after the fix, tested across 3 different pages and a fresh browser
+restart. The actual working mitigation was tool selection: `claude-in-chrome`'s screenshot action
+reliably captures the same running server where `preview_screenshot` hangs. Documented honestly rather
+than overclaiming the analytics fix alone solved it — it's still real, valuable QA hygiene, just not the
+full story.
+
+**Verification**: live-verified with real populated data — a persisted authenticated session in this
+sandbox (pre-existing, no credentials entered) surfaced a real league with real Decision OS signals,
+screenshotted on both Commissioner Hub and Manager Hub in light theme, direct proof the V1.0 contrast fix
+holds under real data. 27 new tests (`decision-os-tone-migration.test.tsx`), full regression suite and
+typecheck run against the CURRENT baseline (158, back to the original established number — the 162 seen
+mid-V1.0 confirmed as transient, unrelated branch drift). Full detail: `VISUAL_OS_V1_FOUNDATION.md`.
 
 ## 26. Boundaries honored
 
@@ -1217,6 +1276,12 @@ explicitly rather than claimed as tested. Full detail: `VISUAL_OS_V1_FOUNDATION.
   Decision OS composition, resolver, route, or authorization behavior changed; `CommissionerShowcasePanel`'s
   `buildRecommendations`/`buildAiSummary` functions (and the OS-B7 truthfulness guarantees they carry) are
   byte-for-byte unchanged; no new providers, no new intelligence, no backend contracts modified.
+- V1.1 touched only presentation + one QA-only dev-server gate: 4 tone tables migrated (zero real color
+  change), 1 genuinely-necessary additive primitive extension (documented, not a forced fit), 3 surfaces
+  aligned onto semantic tokens, 1 new opt-in `.claude/launch.json` profile — the default `next-dev`
+  config and production (`next-start`) analytics behavior are completely unchanged; no Decision OS
+  composition, resolver, route, or authorization behavior touched; no new providers, no new intelligence,
+  no backend contracts modified, no league behavior changed (League Focus got a className-only fix).
 - No actual email sending, push notifications, Resend integration, Firebase/APNs, background jobs, cron,
   queues, persistence, new Decision OS intelligence, or new notification types built in OS-B5 — every
   non-in-app adapter is an honest stub, and Decision OS/the Notification Engine remain completely

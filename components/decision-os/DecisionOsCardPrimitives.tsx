@@ -279,3 +279,23 @@ export function DecisionOsLoadingSkeleton({ rows = 3 }: { rows?: number }) {
     </div>
   )
 }
+
+/** Phase V1.1 — a genuinely additive extension, not a forced fit onto `DecisionOsTone`. Real severity
+ * (`DecisionOsSeverityLabel`, above) is a 5-tier domain (critical > high > medium > low >
+ * informational) that `SEVERITY_DOT_CLASS` already models for a small status dot; `CommissionerAttentionQueue`
+ * needed the same 5-tier domain for a full border+background card treatment, which `DecisionOsTone`'s
+ * 4 non-neutral buckets (good/warning/danger/info) cannot represent without collapsing "high" and
+ * "medium" into the same color and losing a real, currently-visible distinction. Consolidated here
+ * (rather than left as `CommissionerAttentionQueue`'s own private table) so any future 5-tier-severity
+ * card reuses one source instead of re-hardcoding the same 5 colors. */
+const SEVERITY_TONE_CLASS: Record<DecisionOsSeverityLabel, string> = {
+  critical: 'border-rose-500/30 bg-rose-500/10',
+  high: 'border-orange-500/30 bg-orange-500/10',
+  medium: 'border-amber-500/30 bg-amber-500/10',
+  low: 'border-sky-500/30 bg-sky-500/10',
+  informational: 'border-emerald-500/30 bg-emerald-500/10',
+}
+
+export function decisionOsSeverityToneClasses(severity: DecisionOsSeverityLabel): string {
+  return SEVERITY_TONE_CLASS[severity]
+}
