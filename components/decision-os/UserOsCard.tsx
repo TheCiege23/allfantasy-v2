@@ -89,7 +89,7 @@ export default function UserOsCard({ snapshot, variant = 'league' }: UserOsCardP
           <div data-testid="user-os-unavailable">
             <DecisionOsInsufficientDataCallout
               title="Your team intelligence is unavailable"
-              message="This league's Decision OS data could not be resolved right now."
+              message="This league's data couldn't be loaded right now."
               missing={['manager activity']}
             />
           </div>

@@ -126,7 +126,7 @@ export default function MissionControlCard({ snapshot, variant = 'commissioner',
           {!leagueHealth.available ? (
             <DecisionOsInsufficientDataCallout
               title="League health unavailable"
-              message="This league's Decision OS health data could not be resolved right now."
+              message="This league's health data couldn't be loaded right now."
               missing={['league health']}
             />
           ) : null}

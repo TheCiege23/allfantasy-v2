@@ -12,7 +12,7 @@ import path from 'node:path'
 
 const leagueTab = fs.readFileSync(path.join(process.cwd(), 'app/league/[leagueId]/tabs/LeagueTab.tsx'), 'utf8')
 // The Decision OS launcher section only (scoped so we don't scan unrelated cards).
-const launcher = leagueTab.match(/aria-label="Decision OS intelligence"[\s\S]*?<\/section>/)?.[0] ?? ''
+const launcher = leagueTab.match(/aria-label="League intelligence"[\s\S]*?<\/section>/)?.[0] ?? ''
 
 describe('Decision OS Demo Layer — league-home launchers', () => {
   it('exposes a Manager Intelligence entry to /manager-hub, gated by the hub client flag', () => {

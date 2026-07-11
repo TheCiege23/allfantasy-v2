@@ -1797,6 +1797,24 @@ to run the pilot (a real participant + a demo-mode decision + an authorized auth
 Zero code changed. **The blocker is not engineering — it is the absence of a real pilot audience, which only
 the business can supply.**
 
+### V10.0 — Production readiness & launch audit (2026-07-10)
+
+Audit-and-fix-only. A source + live audit of every customer-facing surface found ONE genuine defect class
+and invented nothing: the internal engine name "Decision OS" (required invisible to customers) plus resolver
+implementation language ("could not be resolved") leaked into RENDERED customer copy in seven strings across
+six Decision OS card empty/unavailable/error states — surfaces V8.5 certified the gateway but never scanned.
+Fixed with provider-neutral, implementation-free copy and a durable regression guard
+(`__tests__/customer-copy-neutrality.test.ts`) that fails if any of the eight customer surfaces render
+implementation terminology. Everything else audited clean: no provider-name leakage on executive surfaces,
+no placeholder content, no other implementation terms, all three routes HTTP 200, Demo Truth labels correct,
+visual consistency intact (shared `ExecutiveVisualizationShell`/tokens), data truthfulness preserved
+(preview≠live, unavailable≠zero, real freshness). No architecture or Decision OS change. Verification: guard
+9/9; the full `__tests__/decision-os` suite 3132/3132; typecheck 158 baseline, 0 touched-file errors.
+Deliverable: `FANTASY_OS_PRODUCTION_READINESS_LAUNCH_AUDIT.md`. Verdict: technically ready for public launch
+of the gateway/preview and the live experience on a connected account; remaining items honestly gated on a
+live authenticated session, two product contracts, and the diverse cohort — future work should be driven
+exclusively by real customer evidence.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.

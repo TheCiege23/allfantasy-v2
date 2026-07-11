@@ -166,7 +166,7 @@ export default function ManagerCommandCenterSection({
           <DecisionOsEmptyState
             icon={Compass}
             title="Your multi-league overview will appear here"
-            description="Import or create a league to begin receiving Decision OS insights — once you belong to at least one league, this becomes your default view of what needs attention across every team you play in."
+            description="Import or create a league to begin receiving executive insights — once you belong to at least one league, this becomes your default view of what needs attention across every team you play in."
           />
         </div>
       </section>

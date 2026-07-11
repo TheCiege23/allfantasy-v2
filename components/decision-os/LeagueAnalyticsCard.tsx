@@ -90,7 +90,7 @@ export default function LeagueAnalyticsCard({ snapshot, variant = 'commissioner'
           <div data-testid="league-analytics-unavailable">
             <DecisionOsInsufficientDataCallout
               title="League Analytics unavailable"
-              message="This league's Decision OS activity data could not be resolved right now."
+              message="This league's activity data couldn't be loaded right now."
               missing={['league health']}
             />
           </div>

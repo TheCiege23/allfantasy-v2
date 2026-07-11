@@ -672,7 +672,7 @@ export function LeagueTab({
           Body text now routes through `text-primary`/`text-secondary`; only the icon+arrow keep a
           readable, saturated accent color instead of a light one, preserving the violet/cyan visual
           distinction between the two launchers. */}
-      <section className="grid gap-3 sm:grid-cols-2" aria-label="Decision OS intelligence">
+      <section className="grid gap-3 sm:grid-cols-2" aria-label="League intelligence">
         {process.env.NEXT_PUBLIC_MANAGER_INTELLIGENCE_HUB_ENABLED === 'true' ? (
           <Link
             href={`/league/${league.id}/manager-hub`}

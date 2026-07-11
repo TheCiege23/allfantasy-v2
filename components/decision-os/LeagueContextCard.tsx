@@ -90,7 +90,7 @@ export default function LeagueContextCard({ leagueId, canManage = false, variant
           <DecisionOsEmptyState
             icon={DollarSign}
             title="League Context is loading"
-            description="What Decision OS knows about this league's financial state will appear here once loaded."
+            description="This league's financial state will appear here once loaded."
           />
         </div>
       </section>
@@ -109,7 +109,7 @@ export default function LeagueContextCard({ leagueId, canManage = false, variant
         </div>
         <h2 className="mt-3 text-xl font-black tracking-tight text-primary">Is this league free or paid?</h2>
         <p className="mt-1 text-xs leading-5 text-secondary">
-          A belief Decision OS records, not a payment or collection system — see{' '}
+          A recorded belief, not a payment or collection system — see{' '}
           <span className="font-semibold">League Finance</span> for AllFantasy&apos;s own paid-league
           treasury feature.
         </p>

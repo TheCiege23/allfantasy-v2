@@ -79,7 +79,7 @@ export default function CommissionerLeagueHealthRanking({
       <div data-testid="league-health-ranking-unavailable">
         <DecisionOsEmptyState
           title="No league health data available yet"
-          description="Decision OS could not resolve a health read for any of your leagues right now."
+          description="A health read for your leagues couldn't be loaded right now."
         />
       </div>
     )
