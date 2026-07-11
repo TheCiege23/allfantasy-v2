@@ -152,7 +152,7 @@ function buildRecommendations(args: {
       {
         key: 'draft-readiness',
         title: 'Draft readiness not yet available',
-        body: 'Import or create a league to begin receiving Decision OS insights.',
+        body: 'Import or create a league to begin receiving Fantasy OS league intelligence.',
         tone: 'info',
         preview: true,
       },
