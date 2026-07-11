@@ -1815,6 +1815,24 @@ of the gateway/preview and the live experience on a connected account; remaining
 live authenticated session, two product contracts, and the diverse cohort — future work should be driven
 exclusively by real customer evidence.
 
+### RC1 — Release Candidate 1 Certification (2026-07-10)
+
+Formal governance/certification, no engineering. Verified the repository (branch `g15-event-foundation`, 28
+V-series phase commits each hash-filled, 0 unfilled dashboard placeholders, clean owned working tree), that
+all 12 release artifacts exist and are current, the launch configuration (two white-label tenants with
+`allfantasy` default identity theme; the three customer routes; authentication boundaries; error/empty/
+loading handling; the test-enforced implementation-term-invisibility guard), and engineering freeze (no
+unfinished architectural work, no incomplete Decision OS subsystems, no partially implemented workspaces, no
+unfinished provider abstractions, no launch-blocking engineering debt). Built a release risk register: **zero
+release-blocking** items; the remaining risks are Customer-Validation (unverified populated real-data
+visuals; undone diverse-cohort calibration), External-Dependency (blocked manager composition + DB
+resolvers), Commercial (no real pilot yet), and Operational (production build must run in CI/Vercel) — none
+closable by engineering. Current snapshot: 100/100 RC1 readiness suites, `__tests__/decision-os` 3132/3132,
+typecheck 158 baseline, routes HTTP 200 with no impl-term/provider leaks. **Release Candidate 1 is formally
+CERTIFIED. Engineering is frozen** — future development must be driven exclusively by verified customer
+evidence and production experience (a real pilot, the multi-account cohort, and the manager-identity + DB-store
+contracts), not additional speculative engineering. Deliverable: `FANTASY_OS_RC1_CERTIFICATION.md`.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
