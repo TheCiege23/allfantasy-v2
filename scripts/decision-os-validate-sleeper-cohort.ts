@@ -26,6 +26,7 @@ import { persistPortfolio } from '../lib/validation-cohort/persistence/persistPo
 import { FileEvidenceStore } from '../lib/validation-cohort/persistence/fileEvidenceStore'
 import { checkEvidenceIntegrity, summarizeIntegrityBySeverity } from '../lib/validation-cohort/persistence/integrityChecker'
 import { buildLeagueReadModel, buildPlatformReadModel } from '../lib/validation-cohort/evidence/decisionOsReadModel'
+import { runCorpusValidation, type CorpusDataSource } from '../lib/validation-cohort/validation/corpusRunner'
 import { makeDefaultFetch } from '../lib/validation-cohort/sleeperCohortClient'
 import { renderHumanSummary } from '../lib/validation-cohort/reportBuilder'
 import type { CohortAggregateReport } from '../lib/validation-cohort/types'
@@ -63,7 +64,8 @@ function loadResumeSet(): Set<string> {
 
 ;(async () => {
   const lines = readCohortLines()
-  if (lines.length === 0) {
+  // --validate is REPORT-ONLY over an already-persisted corpus — it needs no cohort input.
+  if (lines.length === 0 && !hasFlag('validate')) {
     console.error('no cohort input — pass --username=<name> or --cohort=<file>')
     process.exit(1)
   }
@@ -109,6 +111,30 @@ function loadResumeSet(): Set<string> {
     console.log(`[discover] wrote ${mPath}`)
     console.log(`[discover] wrote ${cPath}`)
     console.log('DISCOVER_OK')
+    return
+  }
+
+  // ── Validate mode (Phase V8.3): REPORT-ONLY Decision OS validation over an already-persisted corpus.
+  //    Never fetches provider data. ──
+  if (hasFlag('validate')) {
+    const storeRoot = path.resolve(arg('store') ?? path.join(os.tmpdir(), 'decision-os-evidence-store'))
+    const store = new FileEvidenceStore(storeRoot)
+    const corpusLeagues = await store.listLeagues()
+    if (corpusLeagues.length === 0) {
+      console.error(`no persisted corpus at ${storeRoot} — run --persist first`)
+      process.exit(1)
+    }
+    // Label by data source honestly — a single public account is NOT a diverse cohort.
+    const dataSource: CorpusDataSource = (arg('dataSource') as CorpusDataSource) ?? 'single-account-smoke'
+    const report = runCorpusValidation(corpusLeagues, dataSource)
+    fs.mkdirSync(storeRoot, { recursive: true })
+    fs.writeFileSync(path.join(storeRoot, `decision-os-validation-${stamp0}.json`), JSON.stringify(report, null, 2))
+    console.log(
+      `[validate] dataSource=${report.dataSource} leaguesEvaluated=${report.leaguesEvaluated} recommendations=${report.diversity.total} perLeague=${report.diversity.perLeague.toFixed(2)}`,
+    )
+    console.log(`[validate] typeDistribution=${JSON.stringify(report.diversity.typeDistribution)}`)
+    console.log(`[validate] overFiring=${report.overFiring.length} underFiringCandidates=${report.underFiring.length}`)
+    console.log('VALIDATE_CORPUS_OK')
     return
   }
 

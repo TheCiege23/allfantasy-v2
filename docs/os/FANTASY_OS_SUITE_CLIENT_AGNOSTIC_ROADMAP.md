@@ -1714,6 +1714,27 @@ by `transaction_id`) and an over-broad leak-scan regex (re-scanned: zero real le
 seven OS compatible with zero corrupt findings. No Decision OS behavior changed. Tests 8 new; full targeted
 188/188; typecheck 158 baseline. Remaining: the real supplied cohort + a Prisma-backed store.
 
+### V8.3 — Persisted-corpus Decision OS validation & counterfactual proof (2026-07-10)
+
+Exercised the existing Decision OS against the persisted provider-neutral corpus and — critically — replaced
+the V8.2 "compatibility boolean" with an honest semantic trace: only `monitorLeagueHealth` (League/
+Commissioner health + interventions) and `deriveLeagueAttentionSignals` (attention signals from that health)
+genuinely RUN over the file corpus; the composed subsystems (Mission Control, Manager Command Center, Daily
+Brief, full recommendation composition) are DB-backed and were NOT run (their inputs are assembled by
+DB-backed resolvers the file corpus doesn't reconstruct; no compatibility adapter was built — that would be
+speculative). New `lib/validation-cohort/validation/`: a report-only runner (`--validate`, never fetches)
+that emits recommendation records with full provenance (source subsystem, evidence categories, observed
+facts, missing evidence, deterministic input fingerprint) plus diversity + over/under-firing analysis.
+Counterfactual fixtures PROVE the runnable derivations are causally evidence-responsive (low vs high trade,
+active vs inactive managers, quiet vs busy waivers change output; toggling an irrelevant TE-premium flag
+changes nothing). Live report-only run over 6 real `theciege24` leagues: 22 recommendations. The observed
+over-firing (`league_context_incomplete`/`league_requires_review` in all six) was TRACED to the corpus
+legitimately lacking financial-status/draft-date evidence — a partial-/unavailable-evidence artifact, NOT a
+defect — so per the phase's proven-defect rule, ZERO Decision OS changes were made. One-home ownership and
+zero-provider-leak are test-enforced. Tests 9 new; full targeted 197/197; typecheck 158 baseline. The
+outstanding input remains the real multi-account cohort; exercising the DB-backed composed subsystems over
+the corpus would need a DB-backed store or adapter (unbuilt, would be speculative).
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
