@@ -27,6 +27,11 @@ const CUSTOMER_SURFACES = [
   'lib/decision-os/league-pulse.ts',
   // Fantasy OS enterprise workspace launch card (task_39ac1c17) — customer-facing dashboard surface.
   'app/dashboard/components/FantasyOsLaunchCard.tsx',
+  // Fantasy OS Phase 4 executive intelligence workspace — customer-facing executive surfaces.
+  'components/fantasy-os/executive/ExecutiveWorkspace.tsx',
+  'components/fantasy-os/executive/primitives.tsx',
+  'components/fantasy-os/executive/charts.tsx',
+  'app/fantasy-os/executive/page.tsx',
 ]
 
 // Implementation terms that must never appear in customer-visible strings.
