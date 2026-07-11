@@ -110,8 +110,11 @@ describe("CommissionerCommandCenterSection", () => {
       expect(screen.getByTestId("command-center-overview")).toBeInTheDocument()
     })
     expect(screen.getByTestId("league-health-ranking")).toBeInTheDocument()
-    expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("Redraft Rebels")
-    expect(screen.getByTestId("attention-queue-item-high")).toHaveTextContent("3 managers at risk of leaving")
+    // Unique, id-based attention-queue testid (PR #185 fix — severity is not unique across items).
+    expect(screen.getByTestId("attention-queue-item-league_requires_review:league-2:0")).toHaveTextContent("Redraft Rebels")
+    expect(screen.getByTestId("attention-queue-item-league_requires_review:league-2:0")).toHaveTextContent(
+      "3 managers at risk of leaving",
+    )
     // Phase OS-B6: the standalone "Recent Changes" card was removed (redundant with Today's Brief's
     // own league highlights) — no `recent-changes-*` testid exists on the page anymore.
     expect(screen.queryByTestId("recent-changes-empty")).not.toBeInTheDocument()

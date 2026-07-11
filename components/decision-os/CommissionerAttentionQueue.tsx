@@ -64,7 +64,8 @@ export default function CommissionerAttentionQueue({ entries, leagueNameById, li
             return (
               <li
                 key={entry.id}
-                data-testid={`attention-queue-item-${entry.severity}`}
+                data-testid={`attention-queue-item-${entry.id}`}
+                data-severity={entry.severity}
                 className={`flex items-start gap-2 rounded-lg border px-3 py-2 text-sm ${decisionOsSeverityToneClasses(entry.severity)}`}
               >
                 <SeverityIcon severity={entry.severity} />
