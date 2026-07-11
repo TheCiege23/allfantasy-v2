@@ -1778,6 +1778,25 @@ technically-certified / requires-live-session / blocked-cohort / blocked-contrac
 new; full targeted 214/214; typecheck 158 baseline. Per the phase's own guidance, the next step is a real
 customer pilot session, not further speculative engineering.
 
+### V9.0 — Real pilot execution: NO-SESSION RECORD (2026-07-10)
+
+The phase required executing a REAL customer/partner pilot session and collecting observed evidence. **No
+real pilot participant, organization, presenter, or scheduled session existed** in this environment, and the
+phase explicitly forbids fabricating participants, sessions, reactions, questions, comprehension, feature
+requests, defects, usage results, outcomes, or commercial interest. So the phase's explicit **No-Session
+Fallback** was executed: verify technical readiness, confirm the session materials are prepared, and STOP
+before producing findings. Nothing was fabricated — no observations, no findings, no scorecard, no defects.
+Technical readiness was verified live (`/fantasy-os`, `/manager-hub`, `/commissioner-hub` all HTTP 200; no
+implementation terms or provider identifiers on the executive surface; Demo Truth labels render; 91/91
+targeted tests; typecheck 158 baseline unchanged). All 11 session materials (demonstration script, observation
+log + findings-report templates, gap-analysis framework, success criteria, pilot/onboarding/security guides,
+technical certification, demo truth model, capability boundary matrix) are present and ready. Commercial
+readiness is explicitly NOT claimed — Part 16 forbids declaring it from technical certification alone.
+`FANTASY_OS_PILOT_SESSION_RUNBOOK_AND_NO_SESSION_RECORD.md` states the outcome and the exact inputs required
+to run the pilot (a real participant + a demo-mode decision + an authorized authenticated account for live).
+Zero code changed. **The blocker is not engineering — it is the absence of a real pilot audience, which only
+the business can supply.**
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.
