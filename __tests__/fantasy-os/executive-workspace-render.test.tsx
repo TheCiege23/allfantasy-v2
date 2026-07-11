@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { render, screen, fireEvent, within } from '@testing-library/react'
 import { ExecutiveWorkspace } from '@/components/fantasy-os/executive/ExecutiveWorkspace'
 import { deriveAll } from '@/lib/fantasy-os/exec-intelligence/derive'
+import { buildFreshness } from '@/lib/fantasy-os/sync/freshness'
 import type { ExecSnapshot, ExecLeagueRow, ExecManagerRow } from '@/lib/fantasy-os/exec-data/types'
 
 const L = (o: Partial<ExecLeagueRow>): ExecLeagueRow => ({
@@ -71,5 +72,20 @@ describe('ExecutiveWorkspace render (test-render verified)', () => {
   it('never renders internal engine terminology', () => {
     const { container } = render(<ExecutiveWorkspace data={data} productName="AllFantasy" />)
     expect(container.textContent ?? '').not.toMatch(/Decision OS|Decision Operating System|resolver|shadow-compare/i)
+  })
+
+  it('shows a truthful delayed freshness badge for stale real data (not relabeled)', () => {
+    const freshness = buildFreshness({
+      seasonState: 'regular_season',
+      lastSuccessfulSyncAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(), // 2h ago → delayed in season
+      lastAttemptedSyncAt: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+      now: new Date(),
+      sourceProvider: 'p', sourceWindowStart: '2019', sourceWindowEnd: '2025',
+    })
+    render(<ExecutiveWorkspace data={data} productName="AllFantasy" freshness={freshness} />)
+    const badge = screen.getByTestId('sync-freshness')
+    expect(badge).toHaveTextContent(/Delayed/i)
+    // Freshness is separate from truth: Live League Data still present on KPIs.
+    expect(screen.getAllByText('Live League Data').length).toBeGreaterThan(0)
   })
 })

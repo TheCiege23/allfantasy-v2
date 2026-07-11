@@ -7,6 +7,9 @@ import { canAccessFantasyOS } from '@/lib/fantasy-os/access'
 import { fetchExecSnapshot } from '@/lib/fantasy-os/exec-data/client'
 import { deriveAll } from '@/lib/fantasy-os/exec-intelligence/derive'
 import { ExecutiveWorkspace } from '@/components/fantasy-os/executive/ExecutiveWorkspace'
+import { resolveSeasonState } from '@/lib/fantasy-os/sync/season'
+import { buildFreshness } from '@/lib/fantasy-os/sync/freshness'
+import { EXEC_SOURCE_PROVIDER } from '@/lib/fantasy-os/exec-intelligence/truth'
 
 const BRAND = resolveTenantBrand()
 
@@ -43,7 +46,22 @@ export default async function ExecutiveIntelligencePage() {
   }
 
   const data = deriveAll(result.snapshot)
-  return <ExecutiveWorkspace data={data} productName={BRAND.copy.productName} />
+
+  // Season-aware freshness: no scheduler has advanced past the certified import yet, so the last successful
+  // sync is the certified import time. Freshness is truthful (may read "delayed") and never relabels data.
+  const now = new Date()
+  const { state: seasonState } = resolveSeasonState({ sport: 'nfl', provider: 'sleeper', now })
+  const freshness = buildFreshness({
+    seasonState,
+    lastSuccessfulSyncAt: result.snapshot.run.importedAt,
+    lastAttemptedSyncAt: result.snapshot.run.importedAt,
+    now,
+    sourceProvider: EXEC_SOURCE_PROVIDER,
+    sourceWindowStart: data.platform.freshness.sourceWindowStart,
+    sourceWindowEnd: data.platform.freshness.sourceWindowEnd,
+  })
+
+  return <ExecutiveWorkspace data={data} productName={BRAND.copy.productName} freshness={freshness} />
 }
 
 function ExecutiveUnavailable({ reason, detail, productName }: { reason: 'disabled' | 'unavailable'; detail: string; productName: string }) {

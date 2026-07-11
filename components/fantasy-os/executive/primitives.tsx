@@ -8,6 +8,8 @@
 import type { ReactNode } from 'react'
 import type { TruthLabel } from '@/lib/fantasy-os/exec-intelligence/truth'
 import type { Explanation, EvidenceItem, ConfidenceLevel } from '@/lib/fantasy-os/exec-intelligence/explanation'
+import type { FreshnessContract, SyncStatus } from '@/lib/fantasy-os/sync/freshness'
+import { ageMinutes } from '@/lib/fantasy-os/sync/freshness'
 
 export function fmt(n: number): string {
   return n.toLocaleString('en-US')
@@ -56,6 +58,39 @@ export function DataFreshness({ importedAt, window }: { importedAt: string; wind
       <span className="font-semibold text-secondary">Source window:</span> {window} ·{' '}
       <span className="font-semibold text-secondary">Imported:</span> {imported}
     </p>
+  )
+}
+
+const SYNC_STATUS_CLASS: Record<SyncStatus, string> = {
+  current: 'border-status-success/30 bg-status-success/10 text-status-success',
+  refreshing: 'border-brand-primary/30 bg-brand-primary/[0.08] text-brand-primary',
+  delayed: 'border-status-warning/30 bg-status-warning/10 text-status-warning',
+  partial: 'border-status-warning/30 bg-status-warning/10 text-status-warning',
+  unavailable: 'border-subtle bg-surface-muted text-muted',
+}
+const SYNC_STATUS_LABEL: Record<SyncStatus, string> = {
+  current: 'Current', refreshing: 'Refreshing', delayed: 'Delayed', partial: 'Partial', unavailable: 'Unavailable',
+}
+
+/**
+ * Freshness is SEPARATE from the truth label: stale real data stays "Live League Data" and shows a truthful
+ * "Delayed" freshness — never relabeled as preview. Shows sync status, last successful update, season cadence.
+ */
+export function SyncFreshnessBadge({ freshness, now }: { freshness: FreshnessContract; now?: Date }) {
+  const ref = now ?? new Date()
+  const age = ageMinutes(freshness.lastSuccessfulSyncAt, ref)
+  const ago = age == null ? 'never' : age < 60 ? `${Math.round(age)}m ago` : age < 1440 ? `${Math.round(age / 60)}h ago` : `${Math.round(age / 1440)}d ago`
+  const cadence = freshness.refreshCadenceMinutes >= 60 ? `${freshness.refreshCadenceMinutes / 60}h` : `${freshness.refreshCadenceMinutes}m`
+  return (
+    <div className="flex flex-col items-end gap-1" data-testid="sync-freshness">
+      <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${SYNC_STATUS_CLASS[freshness.syncStatus]}`} data-sync-status={freshness.syncStatus}>
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
+        {SYNC_STATUS_LABEL[freshness.syncStatus]}
+      </span>
+      <span className="text-[11px] text-muted">
+        Last update {ago} · {freshness.seasonState.replace('_', ' ')} · refresh {cadence}
+      </span>
+    </div>
   )
 }
 

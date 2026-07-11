@@ -21,6 +21,7 @@ import type {
 } from '@/lib/fantasy-os/exec-intelligence/contracts'
 import { isRenderableInsight, type Explanation } from '@/lib/fantasy-os/exec-intelligence/explanation'
 import { EXEC_OFFSEASON_LIMITATION, sourceWindowLabel } from '@/lib/fantasy-os/exec-intelligence/truth'
+import type { FreshnessContract } from '@/lib/fantasy-os/sync/freshness'
 import {
   ExecutiveKpiCard,
   ExecutiveKpiRow,
@@ -29,6 +30,7 @@ import {
   WorkspaceSectionHeader,
   SourceWindowNotice,
   DataFreshness,
+  SyncFreshnessBadge,
   fmt,
 } from './primitives'
 import { ExecutiveChartCard, YearBarChart, GroupedYearChart, DistributionBars, ChartLegend } from './charts'
@@ -97,7 +99,7 @@ function RankedTable({ title, rows, metricLabel }: { title: string; rows: Ranked
   )
 }
 
-export function ExecutiveWorkspace({ data, productName }: { data: ExecutiveWorkspaceData; productName: string }) {
+export function ExecutiveWorkspace({ data, productName, freshness }: { data: ExecutiveWorkspaceData; productName: string; freshness?: FreshnessContract | null }) {
   const [tab, setTab] = useState<TabId>('platform')
   const window = sourceWindowLabel(data.platform)
 
@@ -109,7 +111,7 @@ export function ExecutiveWorkspace({ data, productName }: { data: ExecutiveWorks
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-muted">{productName} · Executive Intelligence</p>
             <h1 className="text-2xl font-black tracking-tight text-primary">Portfolio Intelligence</h1>
           </div>
-          <DataFreshness importedAt={data.platform.freshness.importedAt} window={window} />
+          {freshness ? <SyncFreshnessBadge freshness={freshness} /> : <DataFreshness importedAt={data.platform.freshness.importedAt} window={window} />}
         </div>
         <SourceWindowNotice window={window} limitation={EXEC_OFFSEASON_LIMITATION} />
       </header>

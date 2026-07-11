@@ -108,3 +108,52 @@ then renders the explicit "not enabled here" unavailable state.
 The workspace's entire value is truthful executive intelligence. A silent fallback to fabricated or
 production data would (a) mislead executives, (b) violate the truth-label contract, and (c) risk exposing
 real unrelated-manager PII. The data source therefore fails **closed** to an explicit unavailable state.
+
+## 14. Season-aware synchronization (`lib/fantasy-os/sync/`)
+
+**Cadence** — a deterministic season resolver (`season.ts`) maps the UTC calendar date to a `SeasonState`
+(preseason / regular_season / postseason / offseason / unknown). Cadence: **30 min in season** (pre/regular/post),
+**4h offseason**, unknown → 4h fail-safe + warning. Boundaries are on the UTC **date** only, so DST clock
+shifts never change cadence. NFL boundaries are explicit and tested; the resolver is provider/sport-neutral
+(ESPN, Yahoo, Fantrax, MFL, Fleaflicker share the sport calendars).
+
+**Scheduler** — one FREQUENT fixed Vercel cron (`*/30 * * * *` → `/api/cron/fantasy-os-exec-sync`, guarded by
+`CRON_SECRET`) resolves the season, derives the cadence, and only syncs when the elapsed time since the last
+**completed** run meets that cadence (`isSyncDue`). One fixed schedule ⇒ season-aware behavior. Refreshes never
+depend on a page view. The durable runner (`runner.ts`) provides: leased distributed lock (overlap prevention +
+stale-lease recovery), retry with exponential backoff + jitter, resumable per-scope checkpoints, idempotent
+persistence, run timeout, partial-failure recovery, and full accounting where **request attempts ≠ logical
+requests** (both classified). Operational tables live in `fos_phase4`: `sync_schedule`, `sync_run`,
+`sync_checkpoint`, `sync_request`, `sync_failure`, `sync_snapshot`, `sync_lock`.
+
+**Incremental** — scheduled runs request only changed data since the last checkpoint (`INCREMENTAL_SCOPES`);
+immutable historical records are reused from checkpoint, never re-crawled. The original unrestricted discovery
+is never repeated. The **offseason** enrichment (`OFFSEASON_SCOPES`) closes the week-0 gap append-only and
+writes a **new** versioned `sync_snapshot` with its own checksum/provenance — it never overwrites the certified
+discovery manifest.
+
+**Freshness** — separate from truth labels (`freshness.ts`). Season-aware thresholds: in season current ≤45m /
+critical >90m; offseason current ≤5h / critical >8h. Every workspace header shows `syncStatus`
+(current/refreshing/delayed/partial/unavailable) + last successful update + season + cadence. Stale REAL data
+stays **Live League Data** with a truthful **Delayed** badge — never relabeled as Presentation Preview.
+
+**Failure behavior** — a failed/partial run does NOT delete verified data, fabricate content, mark itself
+successful, advance the certified checkpoint, or corrupt totals. Partial runs persist only completed scopes,
+record incomplete scopes, expose `partial`, and retain the previous verified snapshot until a new one certifies.
+
+**Live-collector gate** — the rate-limited Sleeper incremental fetchers are gated behind
+`FANTASY_OS_EXEC_SYNC_LIVE === 'true'` (separate from `FANTASY_OS_EXEC_ENABLED`), so the heartbeat cron is safe
+to deploy and never hits the provider until the collector is explicitly provisioned in an approved environment.
+
+**Deployment** — Vercel Cron supports the required cadences (the repo already runs `*/5`, `*/15`, and 4-hourly
+crons). If bounded provider collection ever exceeds function limits, move execution to a dedicated worker while
+keeping the read path unchanged.
+
+## 15. Updated Phase 4 exit criteria
+
+Phase 4 is complete only when: automatic season-aware sync runs; cadence changes correctly between season
+states; 30-min in-season + 4h offseason schedules operate; offseason week-0 collection is supported; freshness
+is visible in all seven workspaces; stale/partial data is labeled truthfully; rate limits + retries are tested;
+idempotency is proven; no unrestricted historical discovery repeats; production credentials + data remain
+protected. **Design + deterministic core + heartbeat + freshness UI are done and tested; the live rate-limited
+collector run + recurring-execution proof are deployment-gated (flag-off by default).**

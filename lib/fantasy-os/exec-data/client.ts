@@ -167,4 +167,26 @@ export async function fetchExecSnapshot(): Promise<ExecSnapshotResult> {
   }
 }
 
+/** Read-only: the finished_at of the most recent COMPLETED sync run for a run key (for the scheduler due-check). */
+export async function fetchLastCompletedSyncAt(runKey: string): Promise<{ available: boolean; finishedAt: string | null; detail?: string }> {
+  const gate = isEnabled()
+  if (!gate.ok) return { available: false, finishedAt: null, detail: gate.detail }
+  try {
+    const pool = await getPool(gate.url)
+    if (!pool) return { available: false, finishedAt: null, detail: 'pool unavailable' }
+    const res = await pool.query(
+      `SELECT finished_at FROM fos_phase4.sync_run WHERE run_key = ${quoteLiteral(runKey)} AND status = 'completed' ORDER BY finished_at DESC NULLS LAST LIMIT 1`,
+    )
+    const row = res.rows[0]
+    return { available: true, finishedAt: row?.finished_at ? String(row.finished_at) : null }
+  } catch (err) {
+    return { available: false, finishedAt: null, detail: err instanceof Error ? err.message : 'error' }
+  }
+}
+
+/** Minimal single-quote escaping for the read-only run-key lookup (values are internal, not user input). */
+function quoteLiteral(v: string): string {
+  return `'${v.replace(/'/g, "''")}'`
+}
+
 export type { ExecImportRun, ExecLeagueRow, ExecManagerRow, ExecSnapshot, ExecSnapshotResult }
