@@ -72,6 +72,13 @@ export const SUBSCRIPTION_TOKEN_POLICY_CONFIG: SubscriptionTokenPolicyConfig = {
       discountedTokenSpendPct: 45,
       supportsUnlimitedLowTierInFuture: true,
     },
+    // Enterprise workspace tier — highest allowances (matches/exceeds Supreme).
+    enterprise: {
+      monthlyIncludedPremiumCredits: 1000,
+      yearlyIncludedPremiumCredits: 15000,
+      discountedTokenSpendPct: 45,
+      supportsUnlimitedLowTierInFuture: true,
+    },
   },
 }
 

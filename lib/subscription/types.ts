@@ -5,6 +5,8 @@
 
 /** Feature IDs used for hasAccess(featureId). Matches useEntitlement plan mapping. */
 export type SubscriptionFeatureId =
+  /** Enterprise Fantasy OS executive workspace access — gates the /fantasy-os route + nav. */
+  | 'fantasy_os_workspace'
   | 'trade_analyzer'
   | 'ai_chat'
   | 'ai_waivers'
@@ -81,6 +83,8 @@ export type SubscriptionPlanId =
   | 'all_access'
   /** Top tier: AF Supreme — includes All-Access stack + highest token allowances (see subscription policy). */
   | 'supreme'
+  /** Enterprise workspace tier — grants the Fantasy OS executive workspace (`fantasy_os_workspace` feature). */
+  | 'enterprise'
 
 /** Entitlement status from GET /api/subscription/entitlements */
 export type EntitlementStatus = 'active' | 'grace' | 'past_due' | 'expired' | 'none'

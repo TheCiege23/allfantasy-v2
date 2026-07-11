@@ -88,6 +88,8 @@ export function getDisplayPlanName(planId: SubscriptionPlanId): string {
       return "AF All-Access Bundle"
     case "supreme":
       return "AF Supreme"
+    case "enterprise":
+      return "AF Enterprise"
   }
 }
 
