@@ -5,6 +5,7 @@ import GoogleProvider from "next-auth/providers/google";
 import AppleProvider from "next-auth/providers/apple";
 import SpotifyProvider from "next-auth/providers/spotify";
 import FacebookProvider from "next-auth/providers/facebook";
+import DiscordProvider from "next-auth/providers/discord";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
 import { resolveUnifiedAuthIdentity } from "@/lib/auth/AuthIdentityResolver";
@@ -397,6 +398,26 @@ if (facebookClientId && facebookClientSecret) {
   );
 }
 
+// This app already has a separate Discord OAuth flow for account/bot integration
+// (lib/discord/constants.ts, /api/auth/discord/callback, /api/discord/bot-callback)
+// with its own registered redirect URIs. Deliberately NOT reusing that client id
+// here — NextAuth login needs its own explicit DISCORD_CLIENT_ID/SECRET, and
+// https://www.allfantasy.ai/api/auth/callback/discord (+ the localhost equivalent)
+// must be added as an ADDITIONAL redirect URI on whichever Discord app is used for
+// login, so the two flows never collide.
+const discordClientId = process.env.DISCORD_CLIENT_ID;
+const discordClientSecret = process.env.DISCORD_CLIENT_SECRET;
+
+if (discordClientId && discordClientSecret) {
+  providers.push(
+    DiscordProvider({
+      clientId: discordClientId,
+      clientSecret: discordClientSecret,
+      // Default authorization scope is already "identify+email".
+    })
+  );
+}
+
 /** NextAuth reads `NEXTAUTH_URL` from the environment for OAuth redirects (set in Vercel to your canonical origin). */
 export const authOptions: NextAuthOptions = {
   secret: getAuthSecret(),
@@ -428,7 +449,7 @@ export const authOptions: NextAuthOptions = {
         return true;
       }
 
-      if (account.provider === "google" || account.provider === "apple" || account.provider === "spotify" || account.provider === "facebook") {
+      if (account.provider === "google" || account.provider === "apple" || account.provider === "spotify" || account.provider === "facebook" || account.provider === "discord") {
         const runSocialLink = async (): Promise<true> => {
           const oauthEmail = resolveOAuthEmailFromCallback(user, profile);
           if (oauthEmail) {
@@ -441,14 +462,22 @@ export const authOptions: NextAuthOptions = {
             throw new Error("FACEBOOK_EMAIL_MISSING");
           }
 
-          const provider: "google" | "apple" | "spotify" | "facebook" =
+          // Discord accounts normally carry a verified email, but guard the same way
+          // in case a user somehow reaches this callback without one.
+          if (account.provider === "discord" && !oauthEmail) {
+            throw new Error("DISCORD_EMAIL_MISSING");
+          }
+
+          const provider: "google" | "apple" | "spotify" | "facebook" | "discord" =
             account.provider === "google"
               ? "google"
               : account.provider === "apple"
                 ? "apple"
                 : account.provider === "facebook"
                   ? "facebook"
-                  : "spotify";
+                  : account.provider === "discord"
+                    ? "discord"
+                    : "spotify";
           const linkedUser = await linkSocialAccountToAppUser({
             provider,
             providerAccountId: account.providerAccountId,
@@ -510,10 +539,33 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
+        if (account.provider === "discord") {
+          try {
+            return await runSocialLink();
+          } catch (err) {
+            console.error("[discord-signin] FATAL:", err);
+            const errMsg = err instanceof Error ? err.message : "";
+            if (errMsg === "DISCORD_EMAIL_MISSING") {
+              return "/auth/error?error=DISCORD_EMAIL_MISSING";
+            }
+            return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
+          }
+        }
+
         try {
           return await runSocialLink();
         } catch (error) {
           console.error("[auth] social account linking error:", error);
+          // linkSocialAccountToAppUser() already refuses to create a NEW AppUser
+          // without an email (SOCIAL_PROVIDER_EMAIL_MISSING) — this only maps that
+          // to a clearer message. It does NOT add a new early guard: Apple only
+          // returns email on a user's FIRST authorization, so a blanket "no email
+          // -> reject" check here (before the existing-account lookup) would break
+          // legitimate repeat Apple sign-ins for already-linked accounts.
+          const errMsg = error instanceof Error ? error.message : "";
+          if (errMsg === "SOCIAL_PROVIDER_EMAIL_MISSING") {
+            return "/auth/error?error=SOCIAL_PROVIDER_EMAIL_MISSING";
+          }
           return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
         }
       }

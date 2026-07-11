@@ -342,6 +342,7 @@ describe('auth / scope enforcement (independent of provider)', () => {
       getManagerIntelligence:  vi.fn(),
       getLeagueIntelligence:   vi.fn(),
       getPlatformIntelligence: vi.fn(),
+      getLeagueManagerIntelligences: vi.fn(),
     }
     const ctx = makeCtx(TEST_KEY_COMMISSIONER /* no leagueId */)
     const result = await leagueIntelligenceHandler(ctx, provider)

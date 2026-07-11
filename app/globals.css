@@ -467,11 +467,68 @@
 }
 
 .af-dashboard-topbar {
+  /* Dashboard V2 Phase 3.9A — the dashboard is a deliberately dark "command center"
+     (its body/cards are fixed-dark in every app theme). Re-scope the dark-mode design
+     tokens onto the top bar so the bar AND every theme-token-driven control inside it
+     (title, language/theme toggles, rank badge, DashboardHeaderControls) stay
+     dark-consistent and readable even in light ("Claro") theme, instead of inheriting a
+     washed-out white bar. Scoped to this dashboard-only class — does not touch AppShell
+     or the global theme. */
+  --bg: #000000;
+  --panel: #0a0a0a;
+  --panel2: #141414;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.68);
+  --muted2: rgba(255, 255, 255, 0.48);
+  --accent: #7c3aed;
+  --accent-cyan: #67e8f9;
+  --accent-cyan-strong: #22d3ee;
+  --accent-emerald: #6ee7b7;
+  --accent-emerald-strong: #34d399;
+  --accent-amber: #fcd34d;
+  --accent-amber-strong: #f59e0b;
+  --accent-red: #fca5a5;
+  --accent-red-strong: #ef4444;
+  --accent-purple: #c084fc;
+  --subtle-bg: rgba(255, 255, 255, 0.1);
+  --badge-text-amber: #fde68a;
+  --badge-text-cyan: #a5f3fc;
+  --badge-text-emerald: #a7f3d0;
+  --badge-text-red: #fecaca;
+  --dropdown-bg: #111827;
+  --dropdown-text: rgba(255, 255, 255, 0.92);
+  color-scheme: dark;
+
   background:
     radial-gradient(circle at 8% 0%, color-mix(in srgb, var(--accent-cyan) 14%, transparent), transparent 34%),
     color-mix(in srgb, var(--panel) 96%, transparent);
   border-color: var(--border);
   box-shadow: 0 18px 54px -42px color-mix(in srgb, var(--accent-cyan) 50%, transparent);
+}
+
+.af-import-shell {
+  /* Phase 4.1 — the /import surface is a deliberately dark experience (mirrors
+     the Dashboard V2 command-center pattern). Re-scope the dark-mode design
+     tokens so text/border/panel values inside this class resolve to their dark
+     values in every app theme, preventing washed-out labels in the "Claro"
+     light theme. Same pattern as `.af-dashboard-topbar` (Phase 3.9A). */
+  --bg: #020617;
+  --panel: #0a0a0a;
+  --panel2: #141414;
+  --border: rgba(255, 255, 255, 0.1);
+  --text: rgba(255, 255, 255, 0.92);
+  --muted: rgba(255, 255, 255, 0.68);
+  --muted2: rgba(255, 255, 255, 0.48);
+  --accent: #22d3ee;
+  --accent-cyan: #67e8f9;
+  --accent-cyan-strong: #22d3ee;
+  --accent-emerald: #6ee7b7;
+  --accent-emerald-strong: #34d399;
+  --subtle-bg: rgba(255, 255, 255, 0.1);
+  --badge-text-cyan: #a5f3fc;
+  --badge-text-emerald: #a7f3d0;
+  color-scheme: dark;
 }
 
 .af-world-cup-page {
@@ -1551,6 +1608,11 @@ html[data-mode="legacy"] {
   border-color: var(--alert-info-border);
   color: var(--alert-info-text);
 }
+.badge-soon {
+  background: var(--badge-soon-bg);
+  border-color: var(--badge-soon-border);
+  color: var(--badge-soon-text);
+}
 
 /* ─── Adaptive link colour ────────────────────────────────────────────────── */
 .link-themed {
@@ -1558,6 +1620,157 @@ html[data-mode="legacy"] {
 }
 .link-themed:hover {
   color: var(--link-color-hover);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Commissioner OS — design tokens (Phase 0.1)
+   Additive only. Every color token below is a semantic alias onto the
+   existing alert palette (error, warn, success, info), muted text, and
+   accent-purple — not a new hex value. var() references resolve at
+   computed-value time against whichever html[data-mode] is active, so
+   these never need per-mode redeclaration.
+   Structural tokens (spacing, radius, sizing, z-index, opacity, typography)
+   are mode-independent, matching the existing space, radius, and
+   transition naming convention already in this file.
+   ═══════════════════════════════════════════════════════════════════════════ */
+:root {
+  /* Severity (5-tier, per Design Language & Experience System §8/§11) */
+  --severity-critical-text: var(--alert-error-text);
+  --severity-critical-bg: var(--alert-error-bg);
+  --severity-critical-border: var(--alert-error-border);
+
+  --severity-elevated-text: var(--alert-warn-text);
+  --severity-elevated-bg: var(--alert-warn-bg);
+  --severity-elevated-border: var(--alert-warn-border);
+
+  /* Advisory = Elevated's hue, deliberately lower-weight — a milder concern,
+     never a second, unrelated color. */
+  --severity-advisory-text: color-mix(in srgb, var(--alert-warn-text) 70%, var(--muted));
+  --severity-advisory-bg: color-mix(in srgb, var(--alert-warn-bg) 60%, transparent);
+  --severity-advisory-border: color-mix(in srgb, var(--alert-warn-border) 60%, transparent);
+
+  /* Standard = neutral. No ongoing concern means no alarm color at all. */
+  --severity-standard-text: var(--muted);
+  --severity-standard-bg: transparent;
+  --severity-standard-border: var(--border);
+
+  --severity-positive-text: var(--alert-success-text);
+  --severity-positive-bg: var(--alert-success-bg);
+  --severity-positive-border: var(--alert-success-border);
+
+  /* Status roles beyond severity (Design Language §11) */
+  --status-information-text: var(--alert-info-text);
+  --status-information-bg: var(--alert-info-bg);
+  --status-information-border: var(--alert-info-border);
+
+  /* Opportunity: must never read as a problem, so it never borrows Warning
+     or Critical's hue — reuses the existing purple accent instead, already
+     themed per-mode and unclaimed by any other severity role. */
+  --status-opportunity-text: var(--accent-purple);
+  --status-opportunity-bg: color-mix(in srgb, var(--accent-purple) 10%, transparent);
+  --status-opportunity-border: color-mix(in srgb, var(--accent-purple) 25%, transparent);
+
+  --status-disabled-text: var(--muted2);
+  --status-disabled-bg: transparent;
+  --status-disabled-border: var(--border);
+
+  /* Benchmark comparison — distinct names even where values equal severity
+     tokens, so benchmarking never blurs into the severity language
+     (Design Language §11: "never reused as generic good/neutral/bad"). */
+  --benchmark-above: var(--alert-success-text);
+  --benchmark-equal: var(--muted);
+  --benchmark-below: var(--alert-error-text);
+
+  /* Spacing — base-4 scale. --space-card (16px) and --space-section (32px),
+     already defined above, are this scale's --space-16 and --space-32;
+     left untouched so nothing that already references them changes. */
+  --space-4: 0.25rem;
+  --space-8: 0.5rem;
+  --space-12: 0.75rem;
+  --space-16: 1rem;
+  --space-24: 1.5rem;
+  --space-32: 2rem;
+  --space-48: 3rem;
+  --space-64: 4rem;
+  --space-96: 6rem;
+
+  /* Radius — three named steps. Values match the existing --radius-button/
+     --radius-card (already both 12px) and --radius-card-lg (16px). */
+  --radius-subtle: 0.5rem;
+  --radius-standard: 0.75rem;
+  --radius-generous: 1rem;
+
+  /* Elevation — two levels only, per Design Language §21. Light-mode value
+     matches the existing .glow-box shadow exactly. */
+  --elevation-0: none;
+  --elevation-1: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05);
+
+  /* Motion — named aliases onto the existing transition tokens, so
+     Commissioner OS code can reference motion by the same bands the
+     Design Language System names (§15), without duplicating timings. */
+  --motion-micro: var(--transition-premium);
+  --motion-panel: var(--transition-slow);
+
+  /* Icon / control / badge / container sizing — no prior token existed. */
+  --icon-size-compact: 16px;
+  --icon-size-standard: 20px;
+  --icon-size-large: 24px;
+
+  --control-height-compact: 32px;
+  --control-height-standard: 40px;
+  --control-height-large: 48px;
+
+  --badge-height-compact: 18px;
+  --badge-height-standard: 22px;
+
+  --container-width-reading: 720px;
+  --container-width-dashboard: 1440px;
+
+  /* Z-index — intentionally stays below the two pre-existing hardcoded
+     values in this file ([data-radix-popper-content-wrapper]: 90 and
+     .crest-intro-overlay: 120), so this scale can never collide with them. */
+  --z-base: 1;
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-drawer: 30;
+  --z-modal: 40;
+  --z-command-palette: 50;
+  --z-toast: 60;
+
+  /* Opacity */
+  --opacity-disabled: 0.5;
+  --opacity-hover: 0.9;
+  --opacity-overlay: 0.6;
+
+  /* Typography — extends the existing --text-xs(12)/--text-sm(14)/
+     --text-base(16)/--text-lg(18) scale upward with the named roles the
+     Design Language System calls for (§12): Caption=xs, Label=sm, Body=base. */
+  --text-subheader: 1.25rem;
+  --text-header: 1.5rem;
+  --text-display: 2rem;
+
+  /* Breakpoints — reference only; custom properties cannot be read inside
+     @media conditions, so these document the values, while
+     lib/commissioner-os/tokens/breakpoints.ts is the authoritative,
+     JS-consumable source. Matches the existing 640px mobile threshold
+     already used elsewhere in this file. */
+  --breakpoint-tablet: 640px;
+  --breakpoint-desktop: 1024px;
+  --breakpoint-large-desktop: 1440px;
+}
+
+html[data-mode="dark"],
+html[data-mode="legacy"] {
+  /* Dark/legacy elevation reuses .glow-box's existing dark-mode treatment
+     (glow instead of a plain shadow, which reads poorly on dark surfaces). */
+  --elevation-1: 0 0 20px rgba(34, 211, 238, 0.15), 0 0 60px rgba(34, 211, 238, 0.08),
+    0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+/* Tabular figures for the Metrics typography role (Design Language §12) —
+   numbers must not shift width as their digit count changes. */
+.text-metric {
+  font-variant-numeric: tabular-nums;
 }
 
 /* ─── Settings / SettingsChrome dark background fallback ─────────────────── */
@@ -1887,6 +2100,138 @@ select, option {
   .draft-live-focus-ring {
     transition: none !important;
   }
+  .warroom-card,
+  .warroom-fade-in-stagger,
+  .warroom-glow-pulse,
+  .warroom-menu-in,
+  .warroom-pressable,
+  .warroom-lift {
+    animation: none !important;
+    transition: none !important;
+    transform: none !important;
+    opacity: 1 !important;
+  }
+}
+
+/* Dashboard "war room" cards — dark, fixed-theme (not toggled by light/dark mode).
+   Phase 2.6A: always-on depth (subtle shadow + inset top sheen) so cards read as
+   collectible objects at rest, not just on hover — the premium-card feel the
+   visual identity pass asks for. */
+/* Dashboard V2 Phase 4B — shared premium-motion tokens. One easing + a small set of
+   durations so every dashboard interaction settles with the same restrained cadence
+   (decelerate curve; think Linear/Apple). Referenced by the classes below and by
+   Tailwind arbitrary values in components (e.g. ease-[cubic-bezier(0.22,1,0.36,1)]). */
+:root {
+  --dash-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --dash-dur-fast: 130ms;
+  --dash-dur: 200ms;
+}
+
+.warroom-card {
+  position: relative;
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
+    0 8px 24px -14px rgba(0, 0, 0, 0.6);
+  transition:
+    transform var(--dash-dur) var(--dash-ease),
+    box-shadow var(--dash-dur) var(--dash-ease),
+    border-color var(--dash-dur) var(--dash-ease);
+}
+
+.warroom-card:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    0 1px 0 0 rgba(255, 255, 255, 0.08) inset,
+    0 16px 40px -16px rgba(0, 0, 0, 0.65);
+}
+
+@keyframes warroom-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.warroom-fade-in-stagger {
+  animation: warroom-fade-in 0.45s var(--dash-ease) both;
+}
+
+/* Popover / dropdown entrance — fade + settle from the top-right (profile menu, Why). */
+@keyframes warroom-menu-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.warroom-menu-in {
+  animation: warroom-menu-in 150ms var(--dash-ease) both;
+  transform-origin: top right;
+}
+
+/* Reveal — a lighter fade for inline content that expands in place (Pulse "Why"). */
+@keyframes warroom-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.warroom-reveal {
+  animation: warroom-reveal 160ms var(--dash-ease) both;
+}
+
+/* Pressable — consistent press affordance + hover transition for buttons and chips.
+   Consolidates the ad-hoc `transition`/`active:scale-95` timings into one cadence. */
+.warroom-pressable {
+  transition:
+    transform var(--dash-dur-fast) var(--dash-ease),
+    background-color var(--dash-dur) var(--dash-ease),
+    border-color var(--dash-dur) var(--dash-ease),
+    color var(--dash-dur) var(--dash-ease),
+    box-shadow var(--dash-dur) var(--dash-ease);
+}
+
+.warroom-pressable:active {
+  transform: scale(0.97);
+}
+
+/* Lift — subtle hover elevation for interactive tiles that aren't full cards. */
+.warroom-lift {
+  transition:
+    transform var(--dash-dur) var(--dash-ease),
+    border-color var(--dash-dur) var(--dash-ease),
+    background-color var(--dash-dur) var(--dash-ease);
+}
+
+.warroom-lift:hover {
+  transform: translateY(-1px);
+}
+
+@keyframes warroom-glow-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px currentColor inset, 0 0 18px -6px currentColor;
+  }
+  50% {
+    box-shadow: 0 0 0 1px currentColor inset, 0 0 26px -4px currentColor;
+  }
+}
+
+.warroom-glow-pulse {
+  animation: warroom-glow-pulse 2.4s ease-in-out infinite;
 }
 
 /* Zombie event animations — non-blocking; pair with SSE `zombie_event_animation` payloads */

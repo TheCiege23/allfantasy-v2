@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { useState, useEffect, type CSSProperties } from "react"
+import { useState, useEffect, type CSSProperties, type ReactNode } from "react"
 import { signIn } from "next-auth/react"
 import {
   Shield,
@@ -12,6 +12,9 @@ import {
   CheckCircle2,
   ArrowRight,
   X,
+  TrendingUp,
+  Crown,
+  Swords,
 } from "lucide-react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
@@ -28,6 +31,7 @@ import {
   isSocialProviderEnabled,
 } from "@/lib/auth/SocialProviderResolver"
 import { buildProviderPendingHref } from "@/lib/auth/ProviderPendingFlow"
+import { positionColor } from "@/lib/draft/positions"
 
 function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined): string {
   if (typeof callbackUrl === "string") {
@@ -39,6 +43,152 @@ function resolveSuccessfulLoginRedirect(callbackUrl: string | null | undefined):
     }
   }
   return "/dashboard"
+}
+
+/** Small avatar chip for the welcome panel's preview cards — reuses the real product's position colors. */
+function MiniAvatar({ initials, pos }: { initials: string; pos: string }) {
+  const color = positionColor(pos)
+  return (
+    <span
+      className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[10px] font-bold"
+      style={{
+        background: `color-mix(in srgb, ${color} 22%, var(--panel2))`,
+        color,
+        border: `1px solid color-mix(in srgb, ${color} 45%, transparent)`,
+      }}
+    >
+      {initials}
+    </span>
+  )
+}
+
+function TrustStat({ label }: { label: string }) {
+  return (
+    <span
+      className="rounded-full border px-3 py-1 text-[11px] font-semibold"
+      style={{ borderColor: "var(--border)", color: "var(--muted)", background: "color-mix(in srgb, var(--panel2) 60%, transparent)" }}
+    >
+      {label}
+    </span>
+  )
+}
+
+function DecorativeCard({ label, live, children }: { label: string; live?: boolean; children: ReactNode }) {
+  return (
+    <div
+      className="login-card-hover rounded-xl border p-3"
+      style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 55%, transparent)" }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span className="text-[10px] font-bold uppercase" style={{ color: "var(--muted)" }}>{label}</span>
+        {live && (
+          <span
+            className="login-live-pulse rounded-full px-2 py-0.5 text-[9px] font-bold uppercase"
+            style={{ background: "color-mix(in srgb, var(--accent-red) 16%, transparent)", color: "var(--accent-red)" }}
+          >
+            Live
+          </span>
+        )}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+/** Fantasy command-center welcome panel — desktop: full panel with the AF crest + preview cards; mobile: compact strip above the form. */
+function WelcomeFantasyPanel() {
+  return (
+    <>
+      {/* Desktop: full panel */}
+      <aside className="relative z-10 hidden flex-col justify-center px-10 py-16 lg:flex xl:px-16" aria-hidden="true">
+        <div className="mx-auto w-full max-w-md">
+          <img
+            src="/brand/af-shield-transparent.png"
+            alt=""
+            width={40}
+            height={40}
+            className="mb-5 h-10 w-10 object-contain"
+          />
+          <h1 className="mb-3 text-[32px] font-black leading-tight sm:text-[38px]" style={{ color: "var(--text)" }}>
+            Welcome back to your league.
+          </h1>
+          <p className="mb-8 text-sm leading-6" style={{ color: "var(--muted)" }}>
+            Your matchups, waivers, trades, drafts, and commissioner tools are waiting.
+          </p>
+
+          <div className="space-y-3">
+            <DecorativeCard label="Live Matchup" live>
+              <div className="flex items-center justify-between text-[12px] font-semibold" style={{ color: "var(--text)" }}>
+                <span>Dynasty Dragons</span>
+                <span className="text-[15px] font-black" style={{ color: "var(--accent-cyan)" }}>78.4</span>
+              </div>
+              <div className="mt-1 flex items-center justify-between text-[12px] font-semibold" style={{ color: "var(--muted)" }}>
+                <span>Gridiron Gang</span>
+                <span className="text-[15px] font-black" style={{ color: "var(--text)" }}>71.2</span>
+              </div>
+            </DecorativeCard>
+
+            <DecorativeCard label="Waiver Alert">
+              <div className="flex items-center gap-2.5">
+                <MiniAvatar initials="RS" pos="WR" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-[12px] font-semibold" style={{ color: "var(--text)" }}>Rome Odunze available</p>
+                  <p className="text-[10px]" style={{ color: "var(--muted)" }}>62% rostered · trending up</p>
+                </div>
+                <TrendingUp className="h-4 w-4 shrink-0" style={{ color: "var(--accent-emerald)" }} aria-hidden="true" />
+              </div>
+            </DecorativeCard>
+
+            <DecorativeCard label="Trade Offer">
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-bold" style={{ color: "var(--accent-emerald-strong)" }}>96/100 fair</span>
+              </div>
+              <p className="text-[12px]" style={{ color: "var(--text)" }}>
+                Jonathan Taylor <span style={{ color: "var(--muted)" }}>for</span> DeVonta Smith
+              </p>
+            </DecorativeCard>
+
+            <DecorativeCard label="Commissioner Alert">
+              <div className="flex items-center gap-2.5">
+                <Crown className="h-4 w-4 shrink-0" style={{ color: "var(--accent-amber-strong)" }} aria-hidden="true" />
+                <p className="text-[12px] font-medium" style={{ color: "var(--text)" }}>Playoff bracket locks in 3 days</p>
+              </div>
+            </DecorativeCard>
+
+            <DecorativeCard label="Draft Room">
+              <div className="flex items-center gap-2.5">
+                <Swords className="h-4 w-4 shrink-0" style={{ color: "var(--accent-purple)" }} aria-hidden="true" />
+                <p className="text-[12px] font-medium" style={{ color: "var(--text)" }}>
+                  On the clock <span style={{ color: "var(--muted)" }}>— Pick 1.03, 0:58 remaining</span>
+                </p>
+              </div>
+            </DecorativeCard>
+          </div>
+
+          <div className="mt-8 flex flex-wrap items-center gap-2 border-t pt-6" style={{ borderColor: "var(--border)" }}>
+            <TrustStat label="Secure & Private" />
+            <TrustStat label="Fantasy Sports Only" />
+            <TrustStat label="Built for Commissioners" />
+            <TrustStat label="No Gambling" />
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile/tablet: compact intro above the form — crest visible, no cards, form stays near the top */}
+      <div className="relative z-10 flex flex-col items-center px-4 pt-8 text-center lg:hidden">
+        <img
+          src="/brand/af-shield-transparent.png"
+          alt=""
+          width={36}
+          height={36}
+          className="mb-3 h-9 w-9 object-contain"
+        />
+        <h1 className="text-2xl font-black leading-tight" style={{ color: "var(--text)" }}>
+          Welcome back to your league.
+        </h1>
+      </div>
+    </>
+  )
 }
 
 export default function LoginContent() {
@@ -228,20 +378,14 @@ export default function LoginContent() {
     if (socialLoadingProvider) return
     setSocialLoadingProvider(provider)
     try {
-      // Always route social sign-in through NextAuth (not Supabase) since the
-      // entire app uses getServerSession / JWT for auth. Supabase OAuth creates a
-      // separate session that NextAuth can't see, causing redirect loops.
-      if (provider === "google" || provider === "spotify") {
-        await signIn(provider, { callbackUrl: postLoginRedirect })
-        return
-      }
-
-      const appleEnabled = isSocialProviderEnabled("apple")
-
-      if (
-        (provider === "apple" && appleEnabled) ||
-        isSocialProviderEnabled(provider)
-      ) {
+      // Every provider (including google/spotify) is gated through the same
+      // shared isSocialProviderEnabled() check used by /signup — no
+      // per-provider bypass. NextAuth (not Supabase) still handles the
+      // actual sign-in call below; the app uses getServerSession/JWT for
+      // auth everywhere, so routing through this check first doesn't
+      // reintroduce the old Supabase-session redirect-loop issue this
+      // function used to special-case around.
+      if (isSocialProviderEnabled(provider)) {
         await signIn(provider, { callbackUrl: postLoginRedirect })
         return
       }
@@ -258,7 +402,7 @@ export default function LoginContent() {
   }
 
   const inputSurfaceStyle: CSSProperties = {
-    background: "var(--panel2)",
+    background: "color-mix(in srgb, var(--panel2) 82%, transparent)",
     color: "var(--text)",
     borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
   }
@@ -317,7 +461,10 @@ export default function LoginContent() {
         </div>
       </nav>
 
-      <main className="relative z-10 flex min-h-[calc(100vh-56px)] items-center justify-center px-4 py-10 sm:px-4 sm:py-16">
+      <main className="relative z-10 min-h-[calc(100vh-56px)] lg:grid lg:grid-cols-2">
+        <WelcomeFantasyPanel />
+
+        <div className="flex flex-col items-center justify-center px-4 py-8 sm:px-4 sm:py-12 lg:py-16">
         <div className="w-full max-w-[440px]">
           <div className="pb-8 text-center">
             <div className="relative mb-5 inline-flex">
@@ -380,8 +527,11 @@ export default function LoginContent() {
             className="rounded-[18px] border p-8"
             style={{
               borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
-              background: "var(--panel)",
-              boxShadow: "0 24px 80px color-mix(in srgb, var(--text) 10%, transparent)",
+              background: "color-mix(in srgb, var(--panel) 78%, transparent)",
+              backdropFilter: "blur(20px)",
+              WebkitBackdropFilter: "blur(20px)",
+              boxShadow:
+                "0 24px 80px color-mix(in srgb, var(--text) 10%, transparent), inset 0 1px 0 color-mix(in srgb, white 6%, transparent)",
             }}
           >
             <form onSubmit={handlePasswordLogin} className="space-y-4">
@@ -520,6 +670,11 @@ export default function LoginContent() {
                 type="button"
                 onClick={() => void handleSocialProvider("google")}
                 disabled={socialLoadingProvider !== null}
+                aria-label={
+                  isSocialProviderEnabled("google")
+                    ? "Continue with Google"
+                    : "Continue with Google — Coming Soon"
+                }
                 className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border px-4 py-3 text-sm font-medium transition hover:opacity-95 disabled:opacity-70"
                 style={{
                   borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
@@ -534,11 +689,21 @@ export default function LoginContent() {
                   <path d="M9 3.58c1.321 0 2.508.454 3.44 1.345l2.582-2.58C13.463.891 11.426 0 9 0A8.997 8.997 0 00.957 4.958L3.964 6.29C4.672 4.163 6.656 3.58 9 3.58z" fill="#EA4335" />
                 </svg>
                 <span>{socialLoadingProvider === "google" ? t("login.opening") : t("login.continueWithGoogle")}</span>
+                {!isSocialProviderEnabled("google") && (
+                  <span className="badge-soon ml-1 rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em]">
+                    Soon
+                  </span>
+                )}
               </button>
               <button
                 type="button"
                 onClick={() => void handleSocialProvider("spotify")}
                 disabled={socialLoadingProvider !== null}
+                aria-label={
+                  isSocialProviderEnabled("spotify")
+                    ? "Continue with Spotify"
+                    : "Continue with Spotify — Coming Soon"
+                }
                 className="flex w-full items-center justify-center gap-2.5 rounded-[10px] border px-4 py-3 text-sm font-medium transition hover:opacity-95 disabled:opacity-70"
                 style={{
                   borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
@@ -551,15 +716,19 @@ export default function LoginContent() {
                   <path d="M16.8 16.64a.75.75 0 0 1-1.03.25c-2.8-1.71-6.32-2.1-10.45-1.13a.75.75 0 1 1-.34-1.46c4.52-1.05 8.43-.62 11.57 1.3.36.22.47.68.25 1.04Zm1.48-3.3a.95.95 0 0 1-1.3.31c-3.2-1.97-8.07-2.55-11.84-1.36a.95.95 0 0 1-.58-1.81c4.3-1.38 9.66-.72 13.4 1.57.45.28.6.86.32 1.3Zm.12-3.43C14.57 7.63 8.82 7.4 5.34 8.48a1.15 1.15 0 1 1-.68-2.2c4-1.22 10.43-.98 14.93 1.7a1.15 1.15 0 0 1-1.18 1.93Z" fill="#fff" />
                 </svg>
                 <span>{socialLoadingProvider === "spotify" ? t("login.opening") : t("login.continueWithSpotify")}</span>
+                {!isSocialProviderEnabled("spotify") && (
+                  <span className="badge-soon ml-1 rounded border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.04em]">
+                    Soon
+                  </span>
+                )}
               </button>
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-6">
               {[
                 {
                   provider: "apple" as const,
                   label: "Apple",
-                  soonOnly: true,
                   icon: (
                     <svg className="h-5 w-5 [color:var(--text)]" viewBox="0 0 18 18" aria-hidden="true">
                       <path
@@ -576,10 +745,18 @@ export default function LoginContent() {
                 {
                   provider: "facebook" as const,
                   label: "Facebook",
-                  soonOnly: true, // Temporarily disabled — Facebook login is under review; re-enable when resolved
                   icon: (
                     <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
                       <path fill="#1877F2" d="M24 12.073C24 5.405 18.627 0 12 0S0 5.405 0 12.073c0 6.03 4.388 11.025 10.125 11.927V15.563H7.078v-3.49h3.047V9.43c0-3.025 1.792-4.697 4.533-4.697 1.312 0 2.686.235 2.686.235v2.97h-1.513c-1.491 0-1.956.93-1.956 1.883v2.252h3.328l-.532 3.49h-2.796v8.437C19.612 23.098 24 18.103 24 12.073z" />
+                    </svg>
+                  ),
+                },
+                {
+                  provider: "discord" as const,
+                  label: "Discord",
+                  icon: (
+                    <svg className="h-5 w-5" viewBox="0 0 24 24" aria-hidden="true">
+                      <path fill="#5865F2" d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.373-.292a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.121.1.247.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.076.076 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.06.06 0 0 0-.031-.03zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.956-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.956 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z" />
                     </svg>
                   ),
                 },
@@ -620,29 +797,27 @@ export default function LoginContent() {
                   ),
                 },
               ].map((item) => {
-                const soonOnly = "soonOnly" in item && item.soonOnly === true
+                const enabled = isSocialProviderEnabled(item.provider)
                 return (
                   <button
                     key={item.provider}
                     type="button"
-                    onClick={() => {
-                      if (soonOnly) return
-                      void handleSocialProvider(item.provider)
-                    }}
-                    disabled={socialLoadingProvider !== null || soonOnly}
+                    onClick={() => void handleSocialProvider(item.provider)}
+                    disabled={socialLoadingProvider !== null}
+                    aria-label={enabled ? `Continue with ${item.label}` : `${item.label} — Coming Soon`}
                     className="relative flex flex-col items-center gap-1 rounded-[10px] border px-2 py-3 transition hover:opacity-95 disabled:cursor-not-allowed disabled:opacity-50"
                     style={{
                       borderColor: "color-mix(in srgb, var(--border) 100%, transparent)",
                       background: "var(--panel2)",
                       color: "var(--text)",
                     }}
-                    title={soonOnly ? `${item.label} — coming soon` : `Continue with ${item.label}`}
+                    title={enabled ? `Continue with ${item.label}` : `${item.label} — coming soon`}
                   >
-                    <span
-                      className="badge-soon absolute right-1 top-1 rounded border px-1 text-[8px] font-bold uppercase tracking-[0.04em]"
-                    >
-                      Soon
-                    </span>
+                    {!enabled && (
+                      <span className="badge-soon absolute right-1 top-1 rounded border px-1 text-[8px] font-bold uppercase tracking-[0.04em]">
+                        Soon
+                      </span>
+                    )}
                     {item.icon}
                     <span className="text-[10px]" style={{ color: "var(--muted)" }}>
                       {item.label}
@@ -678,6 +853,22 @@ export default function LoginContent() {
                 </button>
               </div>
             )}
+
+            <div className="mt-6 flex items-center justify-center border-t pt-4" style={{ borderColor: "var(--border)" }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setAdminError(null)
+                  setAdminRemaining(null)
+                  setAdminModalOpen(true)
+                }}
+                className="inline-flex items-center gap-1.5 text-xs font-medium transition hover:opacity-80"
+                style={{ color: "var(--muted)" }}
+              >
+                <Shield className="h-3.5 w-3.5" style={{ color: "var(--accent-purple)" }} />
+                Secure admin access
+              </button>
+            </div>
           </div>
 
           <div className="mt-6 text-center text-sm" style={{ color: "var(--muted)" }}>
@@ -691,26 +882,8 @@ export default function LoginContent() {
             </Link>
           </div>
         </div>
+        </div>
       </main>
-
-      <button
-        type="button"
-        onClick={() => {
-          setAdminError(null)
-          setAdminRemaining(null)
-          setAdminModalOpen(true)
-        }}
-        className="fixed bottom-5 right-5 z-30 flex h-11 w-11 items-center justify-center rounded-full border backdrop-blur-md transition hover:opacity-90"
-        style={{
-          borderColor: "color-mix(in srgb, var(--accent-purple) 35%, var(--border))",
-          background: "color-mix(in srgb, var(--accent-purple) 12%, transparent)",
-          color: "var(--muted)",
-        }}
-        title="Admin access"
-        aria-label="Admin sign in"
-      >
-        <Shield className="h-5 w-5" />
-      </button>
 
       {adminModalOpen && (
         <div
@@ -812,14 +985,36 @@ export default function LoginContent() {
           </div>
         </div>
       )}
+
+      <style jsx>{`
+        .login-card-hover {
+          transition: transform 200ms ease, box-shadow 200ms ease;
+        }
+        .login-card-hover:hover {
+          transform: translateY(-2px);
+          box-shadow: 0 12px 28px -18px rgba(2, 6, 23, 0.35);
+        }
+        .login-live-pulse {
+          position: relative;
+        }
+        .login-live-pulse::before {
+          content: "";
+          position: absolute;
+          inset: -2px;
+          border-radius: 9999px;
+          border: 1px solid color-mix(in srgb, var(--accent-red) 55%, transparent);
+          animation: loginLivePulse 1.8s ease-out infinite;
+        }
+        @keyframes loginLivePulse {
+          0% { opacity: 0.6; transform: scale(1); }
+          100% { opacity: 0; transform: scale(1.4); }
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .login-card-hover { transition: none; }
+          .login-card-hover:hover { transform: none; }
+          .login-live-pulse::before { animation: none !important; opacity: 0.35; }
+        }
+      `}</style>
     </div>
   )
 }
-
-
-
-
-
-
-
-

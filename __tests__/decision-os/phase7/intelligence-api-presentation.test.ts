@@ -147,6 +147,7 @@ function makeProvider(overrides: Partial<IntelligenceDataProvider> = {}): Intell
     getManagerIntelligence:  async () => makeManagerIntel(),
     getLeagueIntelligence:   async () => makeLeagueIntel(),
     getPlatformIntelligence: async () => makePlatformIntel(),
+    getLeagueManagerIntelligences: async () => [makeManagerIntel()],
     ...overrides,
   }
 }
@@ -433,6 +434,25 @@ describe('view=presentation — manager', () => {
     expect(Array.isArray(data.badges)).toBe(true)
     expect(Array.isArray(data.metrics)).toBe(true)
     expect(Array.isArray(data.topRecommendations)).toBe(true)
+  })
+
+  // Regression coverage for a fixed presentation-adapters.ts defect: buildManagerCard
+  // was previously called with 6 stray positional args instead of the (managerId,
+  // leagueId, input, options?) shape cards.ts actually declares. buildManagerApiPresentation's
+  // `mc?.overallEngagementScore ?? 0` / `mc?.retentionRisk ?? 'medium'` fallbacks meant the
+  // corrupted card silently produced 0/'medium' instead of the fixture's real 67/'low' — and
+  // both fallback values still satisfy `typeof === 'number'`/`'string'`, so the tests above
+  // never caught it. Asserting exact values closes that gap.
+  it('engagementScore, healthScore, and retentionRisk carry the real fixture values (not the undefined-input fallback)', async () => {
+    enableApi()
+    const r = await managerIntelligenceHandler(
+      makeCtx(TEST_KEY_MANAGER, { leagueId: 'lgr-001', managerId: 'mgr-001', view: 'presentation' }),
+      makeProvider(),
+    )
+    const { data } = r.body as PresentationApiResponse<ManagerApiPresentation>
+    expect(data.engagementScore).toBe(67)
+    expect(data.healthScore).toBe(67)
+    expect(data.retentionRisk).toBe('low')
   })
 
   it('data has version=PRESENTATION_VERSION', async () => {

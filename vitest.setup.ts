@@ -1,4 +1,23 @@
 import '@testing-library/jest-dom';
+
+/**
+ * jsdom does not implement ResizeObserver. cmdk (components/ui/command.tsx,
+ * used by any command-palette-style UI) observes its list's size to manage
+ * scroll-into-view for the highlighted item, so any test that mounts a
+ * <Command> throws "ResizeObserver is not defined" without this stub.
+ */
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+;(globalThis as unknown as { ResizeObserver: typeof ResizeObserverStub }).ResizeObserver ??= ResizeObserverStub
+
+/** jsdom also does not implement scrollIntoView, which cmdk calls when the highlighted item changes. */
+if (typeof Element !== 'undefined' && !Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = function scrollIntoView() {}
+}
+
 /**
  * Default env for Vitest so route handlers that read process.env do not 500
  * when keys are unset locally/CI. Uses `??=` so real env wins.

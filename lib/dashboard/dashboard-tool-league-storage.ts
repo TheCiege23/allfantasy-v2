@@ -23,6 +23,12 @@ export function writeDashboardToolLeagueId(leagueId: string | null) {
   } catch {}
 }
 
+/**
+ * Resolves the persisted/preferred league selection, or `null` for "All Leagues" —
+ * the real default for the Global Command Center (Dashboard V2 Phase 2.1). Does NOT
+ * auto-pick `leagues[0]` anymore: "All Leagues" is a legitimate, persistable state,
+ * not just a transient gap before some league gets chosen.
+ */
 export function resolveDashboardToolLeagueId(
   leagues: { id: string }[],
   preferredId: string | null | undefined,
@@ -34,5 +40,5 @@ export function resolveDashboardToolLeagueId(
     const id = c.trim()
     if (leagues.some((l) => l.id === id)) return id
   }
-  return leagues[0]?.id ?? null
+  return null
 }

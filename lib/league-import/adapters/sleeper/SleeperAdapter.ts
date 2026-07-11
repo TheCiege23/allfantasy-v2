@@ -5,6 +5,7 @@ import { SleeperRosterMapper } from './SleeperRosterMapper'
 import { SleeperScoringMapper } from './SleeperScoringMapper'
 import { SleeperScheduleMapper } from './SleeperScheduleMapper'
 import { SleeperHistoryMapper } from './SleeperHistoryMapper'
+import { mapSleeperTradedPicks } from './SleeperTradedPicksMapper'
 import type { SleeperImportPayload } from './types'
 
 export const SleeperAdapter: ILeagueImportAdapter<SleeperImportPayload> = {
@@ -25,6 +26,10 @@ export const SleeperAdapter: ILeagueImportAdapter<SleeperImportPayload> = {
     const scoring = SleeperScoringMapper.map(raw)
     const schedule = SleeperScheduleMapper.map(raw)
     const history = SleeperHistoryMapper.map(raw)
+    // Block F — normalize `/traded_picks` into the canonical shape. Absent =
+    // provider didn't include the field on this payload (fetch failure or
+    // pre-Block-F caller); empty array = no picks currently in a traded state.
+    const tradedPicks = raw.tradedPicks !== undefined ? mapSleeperTradedPicks(raw) : undefined
     const rosterCount = rosters.length
     const rostersWithPlayers = rosters.filter((roster) => (roster.player_ids?.length ?? 0) > 0).length
     const previousSeasonCount = raw.previousSeasons?.length ?? 0
@@ -36,6 +41,8 @@ export const SleeperAdapter: ILeagueImportAdapter<SleeperImportPayload> = {
 
     const result: NormalizedImportResult = {
       source,
+      // Phase 2.4 (§5) — forward non-fatal fetch failures so they persist as ImportWarnings.
+      fetchWarnings: raw.fetchWarnings,
       league: league ?? {
         name: raw.league?.name ?? 'Imported League',
         sport: 'NFL',
@@ -49,6 +56,7 @@ export const SleeperAdapter: ILeagueImportAdapter<SleeperImportPayload> = {
       scoring: scoring ?? null,
       schedule,
       draft_picks: history.draft_picks,
+      traded_picks: tradedPicks,
       transactions: history.transactions,
       standings: history.standings,
       player_map: raw.playerMap ?? {},

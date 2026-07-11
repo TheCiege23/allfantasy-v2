@@ -45,8 +45,10 @@ const EXCLUDED_DIRS = [
   'app/api/ai/providers', 'app/api/ai/tools',
   // Route-budget cleanup (2026-06-22): internal diagnostics/metrics/meta with no
   // production caller. Mirrors scripts/vercel-next-build.cjs routeDirsToDisable.
+  // (league-health removed 2026-07-06 — Dashboard Sprint 2's MyLeagueCard is now a
+  // real production caller; it must stay built. See vercel-next-build.cjs.)
   'app/api/meta/logs', 'app/api/intelligence/snapshot', 'app/api/providers/status',
-  'app/api/chaos-detector', 'app/api/league-health', 'app/api/league-meta',
+  'app/api/chaos-detector', 'app/api/league-meta',
   'app/api/platform/service-map', 'app/api/ai/decision-log', 'app/api/ai/validation',
   'app/api/ai/memory/quality',
   'app/api/health/fantasycalc', 'app/api/health/player-valuations', 'app/api/system/health',

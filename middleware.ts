@@ -47,6 +47,10 @@ const GEO_EXEMPT_PREFIXES = [
   "/privacy",
   "/data-deletion",
   "/disclaimer",
+  "/mission",
+  "/no-gambling-policy",
+  "/ai-transparency",
+  "/contact",
   "/api/health",
   "/api/auth",
   "/api/geo",
@@ -83,6 +87,10 @@ const USERNAME_GATE_EXEMPT: string[] = [
   "/privacy",
   "/data-deletion",
   "/disclaimer",
+  "/mission",
+  "/no-gambling-policy",
+  "/ai-transparency",
+  "/contact",
   "/support",
 ]
 

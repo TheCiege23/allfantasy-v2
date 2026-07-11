@@ -34,10 +34,6 @@ import {
   mapRosterMovesToEvents,
   mapDraftRowsToEvents,
 } from '../mappers'
-import {
-  mapImportedActivityRowsToEvents,
-  type ImportedActivityEventRow,
-} from '../importedActivityToEvents'
 import { assembleManagerBehavioralFacts, assembleLeagueBehavioralFacts } from '../assemble'
 import { deriveManagerBehavioralIntelligence }  from '../manager-intelligence'
 import { deriveLeagueBehavioralIntelligence }   from '../league-intelligence'
@@ -73,36 +69,6 @@ export interface RealDataProviderDeps {
   }>
   /** Read-only: returns league ids ordered most-recent-first, up to `take` entries. */
   findLeagueIds(take: number): Promise<{ id: string }[]>
-  /** Read-only: imported/external-league activity rows for a league (Increment 3, additive). */
-  loadImportedActivityRows(leagueId: string, since?: Date): Promise<ImportedActivityEventRow[]>
-}
-
-/**
- * Default imported-activity loader. Degrades honestly: if the `decisionOsImportedActivity`
- * model isn't generated/migrated yet, returns [] so AF-native behavior is unchanged (never crashes).
- *
- * Exported (Commissioner OS Surface Alignment, Phase B Increment 1) so other real behavioral-facts
- * compositions — e.g. `dashboard-intelligence.ts`, which duplicates this file's event-loading shape
- * for its own additional redraft sources — can reuse the SAME imported-activity loader instead of
- * re-implementing its honest-degradation logic a second time.
- */
-export async function defaultLoadImportedActivityRows(leagueId: string, since?: Date): Promise<ImportedActivityEventRow[]> {
-  try {
-    const delegate = (defaultPrisma as unknown as {
-      decisionOsImportedActivity?: { findMany(args: unknown): Promise<ImportedActivityEventRow[]> }
-    })?.decisionOsImportedActivity
-    if (!delegate || typeof delegate.findMany !== 'function') return []
-    return await delegate.findMany({
-      where: {
-        OR: [{ afLeagueId: leagueId }, { providerLeagueId: leagueId }],
-        ...(since ? { occurredAt: { gte: since } } : {}),
-      },
-      orderBy: { occurredAt: 'desc' },
-    })
-  } catch {
-    // Model not generated/migrated yet, or read failed → degrade honestly; AF-native reads are unaffected.
-    return []
-  }
 }
 
 const defaultDeps: RealDataProviderDeps = {
@@ -110,7 +76,6 @@ const defaultDeps: RealDataProviderDeps = {
   loadLeagueTradeRows: defaultLoadLeagueTradeRows,
   loadRosterMoveRows:  defaultLoadRosterMoveRows,
   loadDraftRows:       defaultLoadDraftRows,
-  loadImportedActivityRows: defaultLoadImportedActivityRows,
   findLeagueIds: (take) =>
     defaultPrisma.league.findMany({
       orderBy: { createdAt: 'desc' },
@@ -132,21 +97,17 @@ async function loadAllLeagueEvents(
   since:    Date,
   deps:     RealDataProviderDeps,
 ): Promise<BehavioralEvent[]> {
-  const [waiverRows, tradeRows, rosterMoveRows, draftData, importedRows] = await Promise.all([
+  const [waiverRows, tradeRows, rosterMoveRows, draftData] = await Promise.all([
     deps.loadWaiverClaimRows(leagueId, since),
     deps.loadLeagueTradeRows(leagueId, since),
     deps.loadRosterMoveRows(leagueId, since),
     deps.loadDraftRows(leagueId),
-    deps.loadImportedActivityRows(leagueId, since),
   ])
   return [
-    // AF-native events (unchanged)
     ...mapWaiverClaimsToEvents(waiverRows),
     ...mapLeagueTradesToEvents(tradeRows),
     ...mapRosterMovesToEvents(rosterMoveRows),
     ...mapDraftRowsToEvents(draftData.session, draftData.picks),
-    // Imported/external-league events (Increment 3, additive — external-only managers included)
-    ...mapImportedActivityRowsToEvents(importedRows).events,
   ]
 }
 
@@ -206,6 +167,21 @@ export function createRealDataProvider(
       }
     },
 
+    async getLeagueManagerIntelligences(leagueId) {
+      try {
+        const lookback = lookbackDays()
+        const since    = sinceDate(lookback)
+        const events   = await loadAllLeagueEvents(leagueId, since, d)
+        // Reuses the same buildLeaguePipeline getLeagueIntelligence already calls —
+        // this is the managerIntelligences half of that pipeline's result, previously
+        // computed and discarded. No new derivation, no second computation.
+        const { managerIntelligences } = buildLeaguePipeline(leagueId, events, lookback)
+        return managerIntelligences
+      } catch {
+        return null
+      }
+    },
+
     async getPlatformIntelligence() {
       try {
         const lookback    = lookbackDays()
@@ -248,10 +224,6 @@ export function createRealDataProvider(
 
 /**
  * Default singleton real provider for route file opt-in.
- * Phase 5.9 wired the `/api/v1/intelligence/*` routes to select this at call time via
- * `resolveDataProvider()` (`provider-selector.ts`) when `DECISION_OS_INTELLIGENCE_API_PROVIDER=real`
- * — routes are NOT hardcoded to the stub anymore (this comment previously said otherwise; corrected
- * in Phase D Increment 9, see `docs/os/PLATFORM_INTELLIGENCE_CUTOVER_ADR.md`). The remaining gate is
- * environment configuration (the env var itself, plus real tenant/API-key issuance), not this code.
+ * Routes currently use stubDataProvider (Phase 5.7); swap to this in Phase 5.9.
  */
 export const realDataProvider: IntelligenceDataProvider = createRealDataProvider()

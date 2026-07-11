@@ -68,6 +68,9 @@ export async function POST(req: NextRequest) {
     appUserId: auth.userId,
     provider,
     sourceLeagueId: sourceId,
+    // Phase 2.2: committing a full (playable) league is commissioner-only. Enforced for
+    // providers where commissioner status is determinable (Sleeper); no-op for others.
+    requireCommissioner: true,
     attestation: body.attestation?.accepted
       ? { accepted: true, statement: body.attestation.statement }
       : undefined,

@@ -18,106 +18,48 @@ import {
   rememberUnifiedAuthDestination,
 } from "@/lib/auth/UnifiedAuthOrchestrator"
 import { pickPostCredentialSignupNavigation } from "@/lib/auth/postSignupRedirectPolicy"
-import { getDisclaimerUrl, getTermsUrl, getPrivacyUrl } from "@/lib/legal/LegalRouteResolver"
+import { getTermsUrl, getPrivacyUrl, getNoGamblingPolicyUrl } from "@/lib/legal/LegalRouteResolver"
 import { SIGNUP_TIMEZONES, DEFAULT_SIGNUP_TIMEZONE } from "@/lib/signup/timezones"
-import { AVATAR_PRESETS, AVATAR_PRESET_LABELS, type AvatarPresetId } from "@/lib/signup/avatar-presets"
 import { getPasswordStrength } from "@/lib/signup/PasswordStrengthResolver"
-import {
-  formatSignupPhoneDisplay,
-  normalizePhoneForSubmit,
-  normalizeSignupPhoneDigits,
-} from "@/lib/signup/SignupFlowController"
+import { normalizePhoneForSubmit } from "@/lib/signup/SignupFlowController"
 import {
   checkUsernameAvailability,
   suggestUsername,
 } from "@/lib/signup/UsernameAvailabilityService"
-import { validateAvatarUploadFile } from "@/lib/signup/AvatarPickerService"
 import {
-  LEGACY_IMPORT_PROVIDERS,
   getLegacyImportProviderMessage,
   type LegacyImportProvider,
 } from "@/lib/signup/LegacyImportOnboardingService"
 import { validateSignupAgreements } from "@/lib/signup/AgreementAcceptanceService"
-import { isSignupAgreementGateOpen } from "@/lib/legal/SignupAgreementGate"
-import SocialLoginButtons from "@/components/auth/SocialLoginButtons"
-import { IdentityImageRenderer } from "@/components/identity/IdentityImageRenderer"
+import OAuthButtonRow from "@/components/auth/OAuthButtonRow"
+import AccountBenefitsCard from "@/components/auth/AccountBenefitsCard"
+import TrustBar from "@/components/auth/TrustBar"
+import SignupProgressIndicator from "@/components/auth/SignupProgressIndicator"
+import AdvancedOptionsSection from "@/components/auth/AdvancedOptionsSection"
 import { useOptionalLanguage } from "@/components/i18n/LanguageProviderClient"
+import LanguageToggle from "@/components/i18n/LanguageToggle"
+import { ModeToggle } from "@/components/theme/ModeToggle"
+import { useThemeMode } from "@/components/theme/ThemeProvider"
 import {
-  DEFAULT_LANG,
-  SUPPORTED_LANGUAGES,
-  getLanguageDisplayName,
   resolveLanguage,
   type LanguageCode,
 } from "@/lib/i18n/constants"
 import { trackLandingSignupComplete } from "@/lib/landing-analytics"
 import { trackMetaEventsFromResponse } from "@/lib/meta-client"
 import { useGeoRestriction } from "@/lib/geo/useGeoRestriction"
-import { DEFAULT_THEME } from "@/lib/theme"
 import {
-  ArrowLeft,
-  ArrowRight,
   Loader2,
   TriangleAlert,
   Eye,
   EyeOff,
   CheckCircle2,
-  Sparkles,
   X,
   CreditCard,
 } from "lucide-react"
 
-const AVATAR_PRESET_EMOJIS: Record<AvatarPresetId, string> = {
-  crest: "🏆",
-  bolt: "⚡",
-  crown: "👑",
-  trophy: "🏆",
-  star: "⭐",
-  flame: "🔥",
-  shield: "🛡️",
-  diamond: "💎",
-  medal: "🥇",
-  target: "🎯",
-  zap: "⚡",
-  comet: "☄️",
-  moon: "🌙",
-  sun: "☀️",
-  football: "🏈",
-  basketball: "🏀",
-  baseball: "⚾",
-  hockey: "🏒",
-  soccer: "⚽",
-  champion: "🤺",
-}
-
-type SignupStep = 1 | 2
-
-const SIGNUP_PHONE_COUNTRIES = [
-  { code: "+1", label: "US/CA" },
-  { code: "+52", label: "MX" },
-  { code: "+44", label: "UK" },
-  { code: "+34", label: "ES" },
-  { code: "+33", label: "FR" },
-  { code: "+49", label: "DE" },
-  { code: "+54", label: "AR" },
-  { code: "+55", label: "BR" },
-  { code: "+61", label: "AU" },
-  { code: "+81", label: "JP" },
-  { code: "+91", label: "IN" },
-]
-
-const SIGNUP_LANGUAGE_BADGES: Record<LanguageCode, string> = {
-  en: "EN",
-  es: "ES",
-  zh: "ZH",
-  fil: "FIL",
-  vi: "VI",
-  fr: "FR",
-  ar: "AR",
-}
-
 export default function SignupContent() {
   const { t, language } = useOptionalLanguage()
-  const mode = DEFAULT_THEME
+  const { mode } = useThemeMode()
   const searchParams = useSearchParams()
   const router = useRouter()
   const nextParam = searchParams?.get("next") ?? undefined
@@ -133,6 +75,7 @@ export default function SignupContent() {
   )
   const refParam = searchParams?.get("ref")?.trim() || undefined
 
+  const [fullName, setFullName] = useState("")
   const [username, setUsername] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -153,12 +96,10 @@ export default function SignupContent() {
   const [phoneVerifyingCode, setPhoneVerifyingCode] = useState(false)
   const [phoneVerificationMessage, setPhoneVerificationMessage] = useState<string | null>(null)
   const [showDlModal, setShowDlModal] = useState(false)
-  const [currentStep, setCurrentStep] = useState<SignupStep>(1)
-  const [showOptionalProfile, setShowOptionalProfile] = useState(false)
-  const [showOptionalPreferences, setShowOptionalPreferences] = useState(false)
-  const [disclaimerScrolledToEnd, setDisclaimerScrolledToEnd] = useState(false)
+  const [showAdvancedOptions, setShowAdvancedOptions] = useState(false)
   const [legacyImportMessage, setLegacyImportMessage] = useState<string | null>(null)
   const [ageConfirmed, setAgeConfirmed] = useState(false)
+  const [consentChecked, setConsentChecked] = useState(false)
   const [verificationMethod, setVerificationMethod] = useState<"EMAIL" | "PHONE">("EMAIL")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -169,7 +110,6 @@ export default function SignupContent() {
   >("idle")
   const [usernameMessage, setUsernameMessage] = useState<string>("")
   const [usernameSuggestion, setUsernameSuggestion] = useState<string | null>(null)
-  /** After user clicks Continue on step 1 — avoids noisy unchecked-DB copy while typing */
   const [usernameContinueAttempted, setUsernameContinueAttempted] = useState(false)
   const [disclaimerAgreed, setDisclaimerAgreed] = useState(false)
   const [termsAgreed, setTermsAgreed] = useState(false)
@@ -179,17 +119,6 @@ export default function SignupContent() {
   const geo = useGeoRestriction()
 
   const passwordStrength = useMemo(() => getPasswordStrength(password), [password])
-  const stepLabels = useMemo(
-    () => [
-      { id: 1 as SignupStep, label: "Account" },
-      { id: 2 as SignupStep, label: "Verify" },
-    ],
-    []
-  )
-  const agreementGateOpen = useMemo(
-    () => isSignupAgreementGateOpen({ disclaimerAgreed, termsAgreed }),
-    [disclaimerAgreed, termsAgreed]
-  )
   const passwordsMatch = useMemo(() => {
     if (!confirmPassword.length) return false
     return password === confirmPassword
@@ -202,22 +131,6 @@ export default function SignupContent() {
       source,
     })
   }, [])
-  const progressPercent = useMemo(() => {
-    const fields = [
-      !!username.trim(),
-      usernameStatus === "ok" || usernameStatus === "unvalidated" || usernameStatus === "unchecked",
-      !!email.trim(),
-      !!password && passwordStrength.valid,
-      password === confirmPassword && confirmPassword.length >= 8,
-      !!timezone,
-      !!preferredLanguage,
-      ageConfirmed,
-      verificationMethod === "PHONE" ? phoneCodeVerified : true,
-      termsAgreed,
-      disclaimerAgreed,
-    ]
-    return Math.round((fields.filter(Boolean).length / fields.length) * 100)
-  }, [username, usernameStatus, email, password, passwordStrength.valid, confirmPassword, timezone, preferredLanguage, ageConfirmed, verificationMethod, phoneCodeVerified, termsAgreed, disclaimerAgreed])
   const timezoneGroups = useMemo(() => {
     return SIGNUP_TIMEZONES.reduce<Record<string, typeof SIGNUP_TIMEZONES>>((acc, item) => {
       if (!acc[item.region]) acc[item.region] = []
@@ -225,17 +138,16 @@ export default function SignupContent() {
       return acc
     }, {})
   }, [])
-  const hasOptionalProfileValues = useMemo(() => {
+  const hasAdvancedValues = useMemo(() => {
     return Boolean(
       phone.trim() ||
       avatarPreview ||
       avatarPreset !== "crest" ||
-      legacyImportMessage
+      legacyImportMessage ||
+      timezone !== DEFAULT_SIGNUP_TIMEZONE ||
+      preferredLanguageTouched
     )
-  }, [phone, avatarPreview, avatarPreset, legacyImportMessage])
-  const hasOptionalPreferenceValues = useMemo(() => {
-    return timezone !== DEFAULT_SIGNUP_TIMEZONE || preferredLanguageTouched
-  }, [timezone, preferredLanguageTouched])
+  }, [phone, avatarPreview, avatarPreset, legacyImportMessage, timezone, preferredLanguageTouched])
 
   const applyUsernameSuggestion = useCallback(async () => {
     const base = username.trim() || "user"
@@ -322,9 +234,33 @@ export default function SignupContent() {
     }
   }
 
+  const handlePhoneNumberChange = useCallback((digits: string) => {
+    setPhone(digits)
+    setPhoneCodeSent(false)
+    setPhoneCode("")
+    setPhoneCodeVerified(false)
+    setPhoneVerificationMessage(null)
+  }, [])
+
+  const handlePhoneCountryCodeChange = useCallback((code: string) => {
+    setPhoneCountryCode(code)
+    setPhoneCodeSent(false)
+    setPhoneCode("")
+    setPhoneCodeVerified(false)
+    setPhoneVerificationMessage(null)
+  }, [])
+
   function handleLegacyImportProviderClick(provider: LegacyImportProvider) {
     setLegacyImportMessage(getLegacyImportProviderMessage(provider))
   }
+
+  const handleConsentChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const v = e.target.checked
+    setConsentChecked(v)
+    setAgeConfirmed(v)
+    setDisclaimerAgreed(v)
+    setTermsAgreed(v)
+  }, [])
 
   useEffect(() => {
     rememberUnifiedAuthDestination(postSignupDestination)
@@ -349,16 +285,10 @@ export default function SignupContent() {
   }, [])
 
   useEffect(() => {
-    if (hasOptionalProfileValues && !showOptionalProfile) {
-      setShowOptionalProfile(true)
+    if (hasAdvancedValues && !showAdvancedOptions) {
+      setShowAdvancedOptions(true)
     }
-  }, [hasOptionalProfileValues, showOptionalProfile])
-
-  useEffect(() => {
-    if (hasOptionalPreferenceValues && !showOptionalPreferences) {
-      setShowOptionalPreferences(true)
-    }
-  }, [hasOptionalPreferenceValues, showOptionalPreferences])
+  }, [hasAdvancedValues, showAdvancedOptions])
 
   // Debounced username availability + profanity check
   useEffect(() => {
@@ -433,73 +363,9 @@ export default function SignupContent() {
     }
   }, [username, t])
 
-  function validateStep(step: SignupStep): boolean {
-    if (step === 1) {
-      if (!username.trim()) {
-        setError("Enter a username.")
-        return false
-      }
-      if (
-        usernameStatus !== "ok" &&
-        usernameStatus !== "unvalidated" &&
-        usernameStatus !== "unchecked"
-      ) {
-        setError(usernameMessage || "Choose an available username before continuing.")
-        return false
-      }
-      if (!email.trim()) {
-        setError("Enter your email address.")
-        return false
-      }
-      if (!passwordStrength.valid) {
-        setError("Create a stronger password before continuing.")
-        return false
-      }
-      if (!passwordsMatch) {
-        setError("Passwords do not match.")
-        return false
-      }
-    }
-
-    if (step === 1) {
-      if (!timezone) {
-        setError("Choose your timezone.")
-        return false
-      }
-      if (!preferredLanguage) {
-        setError("Choose your preferred language.")
-        return false
-      }
-    }
-
-    setError("")
-    return true
-  }
-
-  function handleNextStep(step: SignupStep) {
-    if (step === 1) {
-      setUsernameContinueAttempted(true)
-    }
-    if (!validateStep(step)) return
-    setCurrentStep(Math.min(2, step + 1) as SignupStep)
-  }
-
-  function handleBackStep(step: SignupStep) {
-    setError("")
-    setCurrentStep(Math.max(1, step - 1) as SignupStep)
-  }
-
-  function handleStepFormSubmit(e: React.FormEvent) {
-    if (currentStep < 2) {
-      e.preventDefault()
-      handleNextStep(currentStep)
-      return
-    }
-    void handleSubmit(e)
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
+    setUsernameContinueAttempted(true)
     setLoading(true)
     setError("")
 
@@ -531,7 +397,7 @@ export default function SignupContent() {
           username: username.trim(),
           email: email.trim(),
           password,
-          displayName: username.trim(),
+          displayName: fullName.trim() || username.trim(),
           phone: normalizePhoneForSubmit(phone, phoneCountryCode) || undefined,
           ageConfirmed,
           verificationMethod,
@@ -737,14 +603,7 @@ export default function SignupContent() {
 
         <main className="flex min-h-[calc(100vh-56px)] items-start justify-center px-4 py-10">
           <div className="w-full max-w-lg">
-            <div className="mb-8 text-center">
-              <img
-                src="/af-crest.png"
-                alt="AllFantasy crest"
-                className="mx-auto mb-4 h-16 w-16 object-contain"
-                style={{ filter: "drop-shadow(0 0 14px rgba(6,182,212,0.4))" }}
-              />
-            </div>
+            <SignupProgressIndicator currentStepIndex={2} />
             <div
               className="rounded-2xl border p-8 text-center shadow-2xl"
               style={{ borderColor: "var(--border)", background: "var(--panel)" }}
@@ -819,6 +678,21 @@ export default function SignupContent() {
     )
   }
 
+  const submitDisabled =
+    loading ||
+    !fullName.trim() ||
+    (usernameStatus !== "ok" &&
+      usernameStatus !== "unvalidated" &&
+      usernameStatus !== "unchecked") ||
+    !username.trim() ||
+    !email.trim() ||
+    !password ||
+    !confirmPassword ||
+    password !== confirmPassword ||
+    !passwordStrength.valid ||
+    !consentChecked ||
+    (verificationMethod === "PHONE" && (!phone.trim() || !phoneCodeVerified))
+
   return (
     <div className="min-h-screen" style={{ background: "var(--bg)", color: "var(--text)" }}>
       <header
@@ -830,7 +704,7 @@ export default function SignupContent() {
           WebkitBackdropFilter: "blur(16px)",
         }}
       >
-        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between px-4 sm:px-6">
+        <div className="mx-auto flex h-14 max-w-6xl items-center justify-between gap-2 px-4 sm:px-6">
           <Link href="/" className="flex items-center gap-2.5">
             <img src="/af-crest.png" alt="AllFantasy crest" className="h-7 w-7 object-contain" />
             <span
@@ -845,13 +719,18 @@ export default function SignupContent() {
               AllFantasy
             </span>
           </Link>
-          <Link
-            href={loginUrlWithIntent(postSignupDestination)}
-            className="rounded-lg border px-4 py-2 text-sm font-medium transition hover:opacity-90"
-            style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-          >
-            Sign In
-          </Link>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <LanguageToggle variant="compact" />
+            <ModeToggle />
+            <Link
+              href={loginUrlWithIntent(postSignupDestination)}
+              className="rounded-lg border px-3 py-2 text-sm font-medium transition hover:opacity-90"
+              style={{ borderColor: "var(--border)", color: "var(--muted)" }}
+            >
+              <span className="hidden sm:inline">{t("signup.alreadyHaveAccount")} </span>
+              {t("common.signIn")}
+            </Link>
+          </div>
         </div>
       </header>
 
@@ -862,7 +741,7 @@ export default function SignupContent() {
             "radial-gradient(ellipse 60% 50% at 50% 0%, color-mix(in srgb, var(--accent-cyan) 8%, transparent) 0%, transparent 65%)",
         }}
       >
-        <div className="w-full max-w-xl">
+        <div className="w-full max-w-5xl">
           <div className="mb-8 text-center">
             <img
               src="/af-crest.png"
@@ -870,61 +749,17 @@ export default function SignupContent() {
               className="mx-auto mb-4 h-16 w-16 object-contain"
               style={{ filter: "drop-shadow(0 0 14px rgba(6,182,212,0.4))" }}
             />
-            <h1 className="mb-1 text-3xl font-semibold tracking-tight">Create Your Account</h1>
+            <h1 className="mb-1 text-3xl font-semibold tracking-tight">{t("signup.headline")}</h1>
             <p className="text-sm" style={{ color: "var(--muted)" }}>
-              One account for the Sports App, Brackets, and AI Tools.
+              {t("signup.subheadline")}
             </p>
           </div>
 
-          <div className="mb-10 flex items-start justify-center">
-            {stepLabels.map((step, index) => (
-              <div key={step.id} className="flex items-start">
-                <div className="relative flex flex-col items-center">
-                  <div
-                    className="flex h-8 w-8 items-center justify-center rounded-full border text-sm font-semibold transition-all"
-                    style={{
-                      borderColor:
-                        currentStep === step.id
-                          ? "transparent"
-                          : currentStep > step.id
-                            ? "color-mix(in srgb, var(--accent-emerald-strong) 60%, transparent)"
-                            : "var(--border)",
-                      background:
-                        currentStep === step.id
-                          ? "linear-gradient(135deg, var(--accent-cyan), #3b82f6)"
-                          : currentStep > step.id
-                            ? "color-mix(in srgb, var(--accent-emerald-strong) 14%, transparent)"
-                            : "var(--panel)",
-                      color:
-                        currentStep === step.id
-                          ? "#fff"
-                          : currentStep > step.id
-                            ? "var(--accent-emerald-strong)"
-                            : "var(--muted)",
-                    }}
-                  >
-                    {currentStep > step.id ? "✓" : step.id}
-                  </div>
-                  <span className="absolute top-10 whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.1em]" style={{ color: currentStep >= step.id ? "var(--muted)" : "var(--muted2)" }}>
-                    {step.label}
-                  </span>
-                </div>
-                {index < stepLabels.length - 1 && (
-                  <div
-                    className="mx-1 mt-4 h-[2px] w-10 rounded-full"
-                    style={{
-                      background: currentStep > step.id ? "var(--accent-emerald-strong)" : "var(--border)",
-                      opacity: currentStep > step.id ? 0.5 : 1,
-                    }}
-                  />
-                )}
-              </div>
-            ))}
-          </div>
+          <SignupProgressIndicator currentStepIndex={1} />
 
           {error && (
             <div
-              className="mb-4 rounded-2xl border p-3 text-sm"
+              className="mx-auto mb-4 max-w-xl rounded-2xl border p-3 text-sm"
               style={{
                 borderColor: "color-mix(in srgb, var(--accent-red-strong) 40%, transparent)",
                 background: "color-mix(in srgb, var(--accent-red-strong) 10%, transparent)",
@@ -940,7 +775,7 @@ export default function SignupContent() {
 
           {!geo.loading && geo.isPaidBlocked && geo.stateCode ? (
             <div
-              className="mb-4 rounded-2xl border p-4 text-sm leading-6"
+              className="mx-auto mb-4 max-w-xl rounded-2xl border p-4 text-sm leading-6"
               style={{
                 borderColor: "color-mix(in srgb, var(--accent-amber-strong) 35%, transparent)",
                 background: "color-mix(in srgb, var(--accent-amber-strong) 10%, transparent)",
@@ -963,21 +798,56 @@ export default function SignupContent() {
             </div>
           ) : null}
 
-          <form onSubmit={handleStepFormSubmit} className="space-y-4">
-            <section
-              className={currentStep === 1 ? "block" : "hidden"}
-            >
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_360px]">
+            <form onSubmit={handleSubmit} className="order-1 space-y-4">
               <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
-                <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
-                  Step 1 of 2 — Account Setup
+                <div className="mb-1 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
+                  {t("signup.step1.eyebrow")}
                 </div>
+                <p className="mb-5 text-xs" style={{ color: "var(--muted2)" }}>
+                  {t("signup.step1.helper")}
+                </p>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                      Username <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    <label htmlFor="signup-fullname" className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      {t("signup.field.fullName.label")} <span style={{ color: "var(--accent-cyan)" }}>*</span>
                     </label>
                     <input
+                      id="signup-fullname"
+                      value={fullName}
+                      onChange={(e) => setFullName(e.target.value)}
+                      className="w-full rounded-xl border px-4 py-3 text-sm transition focus-ring"
+                      style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                      placeholder={t("signup.field.fullName.placeholder")}
+                      autoComplete="name"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="signup-email" className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      {t("signup.field.email.label")} <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    </label>
+                    <input
+                      id="signup-email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      type="email"
+                      className="w-full rounded-xl border px-4 py-3 text-sm transition focus-ring"
+                      style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                      placeholder="you@example.com"
+                      autoComplete="email"
+                      required
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="signup-username" className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      {t("signup.field.username.label")} <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    </label>
+                    <input
+                      id="signup-username"
                       value={username}
                       onChange={(e) => {
                         const v = e.target.value.replace(/[^A-Za-z0-9_]/g, "")
@@ -986,7 +856,7 @@ export default function SignupContent() {
                           setError("")
                         }
                       }}
-                      className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
+                      className="w-full rounded-xl border px-4 py-3 text-sm transition focus-ring"
                       style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
                       placeholder="your_username"
                       maxLength={30}
@@ -1045,31 +915,16 @@ export default function SignupContent() {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                      Email <span style={{ color: "var(--accent-cyan)" }}>*</span>
-                    </label>
-                    <input
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      type="email"
-                      className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
-                      style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                      Password <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    <label htmlFor="signup-password" className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      {t("signup.field.password.label")} <span style={{ color: "var(--accent-cyan)" }}>*</span>
                     </label>
                     <div className="relative">
                       <input
+                        id="signup-password"
                         value={password}
                         onChange={(e) => setPassword(e.target.value)}
                         type={showPassword ? "text" : "password"}
-                        className="w-full rounded-xl border px-4 py-3 pr-12 text-sm outline-none transition"
+                        className="w-full rounded-xl border px-4 py-3 pr-12 text-sm transition focus-ring"
                         style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
                         placeholder="At least 8 characters"
                         autoComplete="new-password"
@@ -1078,7 +933,7 @@ export default function SignupContent() {
                       />
                       <button
                         type="button"
-                        aria-label={showPassword ? "Hide password" : "Show password"}
+                        aria-label={showPassword ? t("common.hidePassword") : t("common.showPassword")}
                         onClick={() => setShowPassword(!showPassword)}
                         className="absolute right-3 top-1/2 -translate-y-1/2 transition"
                         style={{ color: "var(--muted2)" }}
@@ -1112,15 +967,16 @@ export default function SignupContent() {
                   </div>
 
                   <div>
-                    <label className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                      Confirm Password <span style={{ color: "var(--accent-cyan)" }}>*</span>
+                    <label htmlFor="signup-confirm-password" className="mb-1 block text-sm font-medium" style={{ color: "var(--muted)" }}>
+                      {t("signup.field.confirmPassword.label")} <span style={{ color: "var(--accent-cyan)" }}>*</span>
                     </label>
                     <div className="relative">
                       <input
+                        id="signup-confirm-password"
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         type={showPassword ? "text" : "password"}
-                        className="w-full rounded-xl border px-4 py-3 pr-12 text-sm outline-none transition"
+                        className="w-full rounded-xl border px-4 py-3 pr-12 text-sm transition focus-ring"
                         style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
                         placeholder="Re-enter your password"
                         autoComplete="new-password"
@@ -1143,532 +999,133 @@ export default function SignupContent() {
                   </div>
                 </div>
 
-                <div className="mt-6 flex gap-3">
+                <div className="mt-5">
                   <button
                     type="button"
-                    onClick={() => handleNextStep(1)}
-                    className="flex-1 rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90"
-                    style={{
-                      backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
-                      color: "var(--on-accent-bg)",
-                    }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      Continue <ArrowRight className="h-4 w-4" />
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </section>
-
-            <section className={currentStep === 1 ? "block" : "hidden"}>
-              <div className="rounded-2xl border p-4" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
-                <div className="space-y-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowOptionalProfile((prev) => !prev)}
+                    onClick={() => setShowAdvancedOptions((prev) => !prev)}
                     className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm font-medium transition hover:opacity-90"
                     style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
+                    aria-expanded={showAdvancedOptions}
                   >
-                    <span>Optional profile details</span>
-                    <span style={{ color: "var(--muted2)" }}>{showOptionalProfile ? "Hide" : "Add"}</span>
+                    <span>{showAdvancedOptions ? t("signup.advanced.toggle.hide") : t("signup.advanced.toggle.show")}</span>
+                    <span style={{ color: "var(--muted2)" }}>{showAdvancedOptions ? "▲" : "▼"}</span>
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowOptionalPreferences((prev) => !prev)}
-                    className="flex w-full items-center justify-between rounded-xl border px-4 py-3 text-left text-sm font-medium transition hover:opacity-90"
-                    style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-                  >
-                    <span>Preferences (timezone and language)</span>
-                    <span style={{ color: "var(--muted2)" }}>{showOptionalPreferences ? "Hide" : "Review"}</span>
-                  </button>
-                </div>
-                <p className="mt-3 text-xs" style={{ color: "var(--muted2)" }}>
-                  You can keep defaults and continue now, or expand these sections to personalize before verification.
-                </p>
-              </div>
-            </section>
-
-            <section className={currentStep === 1 && showOptionalProfile ? "block" : "hidden"}>
-              <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
-                <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
-                  Profile (optional)
-                </div>
-
-                <div className="mb-6">
-                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                    Profile Avatar
-                  </label>
-                  <div className="mb-4 flex items-center gap-4">
-                    <div
-                      className="flex h-[72px] w-[72px] items-center justify-center overflow-hidden rounded-full border-2"
-                      style={{ borderColor: "color-mix(in srgb, var(--border) 100%, transparent)", background: "var(--panel2)" }}
-                    >
-                      <IdentityImageRenderer
-                        avatarUrl={avatarPreview}
-                        avatarPreset={avatarPreview ? null : avatarPreset}
-                        displayName={username || email}
-                        username={username || email}
-                        size="md"
+                  {!showAdvancedOptions && (
+                    <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
+                      {t("signup.advanced.helper")}
+                    </p>
+                  )}
+                  {showAdvancedOptions && (
+                    <div className="mt-4 rounded-xl border p-4" style={{ borderColor: "var(--border)", background: "color-mix(in srgb, var(--panel2) 60%, transparent)" }}>
+                      <AdvancedOptionsSection
+                        verificationMethod={verificationMethod}
+                        onVerificationMethodChange={setVerificationMethod}
+                        phone={{
+                          countryCode: phoneCountryCode,
+                          onCountryCodeChange: handlePhoneCountryCodeChange,
+                          number: phone,
+                          onNumberChange: handlePhoneNumberChange,
+                          codeSent: phoneCodeSent,
+                          code: phoneCode,
+                          onCodeChange: (v) => {
+                            setPhoneCode(v)
+                            setPhoneCodeVerified(false)
+                          },
+                          codeVerified: phoneCodeVerified,
+                          sendingCode: phoneSendingCode,
+                          verifyingCode: phoneVerifyingCode,
+                          verificationMessage: phoneVerificationMessage,
+                          onSendCode: handleSendPhoneCode,
+                          onVerifyCode: handleVerifyPhoneCode,
+                        }}
+                        avatar={{
+                          preset: avatarPreset,
+                          onPresetChange: setAvatarPreset,
+                          preview: avatarPreview,
+                          onPreviewChange: setAvatarPreview,
+                          fileError: avatarFileError,
+                          onFileErrorChange: setAvatarFileError,
+                          fallbackName: fullName || username || email,
+                        }}
+                        legacyImport={{
+                          message: legacyImportMessage,
+                          onProviderClick: handleLegacyImportProviderClick,
+                          onSkip: () => setLegacyImportMessage("No problem. Skip import for now and import later from Settings."),
+                        }}
+                        timezone={{
+                          value: timezone,
+                          onChange: setTimezone,
+                          groups: timezoneGroups,
+                        }}
+                        language={{
+                          value: preferredLanguage,
+                          onChange: (lang) => {
+                            setPreferredLanguageTouched(true)
+                            setPreferredLanguage(lang)
+                          },
+                        }}
                       />
                     </div>
-                    <div>
-                      <h3 className="text-sm font-semibold">Pick your avatar</h3>
-                      <p className="text-xs leading-5" style={{ color: "var(--muted)" }}>
-                        Choose a preset or upload your own. You can always change this later.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAvatarPreset(null)
-                        setAvatarPreview(null)
-                        setAvatarFileError(null)
-                      }}
-                      className="rounded-xl border px-2 py-3 text-center text-[11px] transition"
-                      style={{
-                        borderColor: avatarPreset == null && !avatarPreview ? "var(--accent-cyan)" : "var(--border)",
-                        background: avatarPreset == null && !avatarPreview ? "color-mix(in srgb, var(--accent-cyan) 10%, transparent)" : "var(--panel2)",
-                        color: avatarPreset == null && !avatarPreview ? "var(--text)" : "var(--muted)",
-                      }}
-                    >
-                      Initial
-                    </button>
-                    {AVATAR_PRESETS.map((preset) => (
-                      <button
-                        key={preset}
-                        type="button"
-                        onClick={() => {
-                          setAvatarPreset(preset)
-                          setAvatarPreview(null)
-                          setAvatarFileError(null)
-                        }}
-                        className="rounded-xl border px-2 py-2 text-center transition"
-                        style={{
-                          borderColor: avatarPreset === preset && !avatarPreview ? "var(--accent-cyan)" : "var(--border)",
-                          background: avatarPreset === preset && !avatarPreview ? "color-mix(in srgb, var(--accent-cyan) 10%, transparent)" : "var(--panel2)",
-                        }}
-                        title={AVATAR_PRESET_LABELS[preset]}
-                      >
-                        <span className="block text-lg">{AVATAR_PRESET_EMOJIS[preset as AvatarPresetId]}</span>
-                        <span className="mt-1 block text-[9px]" style={{ color: "var(--muted2)" }}>
-                          {AVATAR_PRESET_LABELS[preset as AvatarPresetId]}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="mt-3 flex flex-wrap items-center gap-3">
-                    <label
-                      className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-dashed px-4 py-2 text-xs transition"
-                      style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                    >
-                      <input
-                        type="file"
-                        accept="image/*"
-                        data-testid="signup-avatar-upload-input"
-                        className="hidden"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0]
-                          if (!file) return
-                          const validationError = validateAvatarUploadFile(file)
-                          if (validationError) {
-                            setAvatarFileError(validationError)
-                            return
-                          }
-                          const reader = new FileReader()
-                          reader.onload = () => {
-                            setAvatarPreview(reader.result as string)
-                            setAvatarFileError(null)
-                          }
-                          reader.readAsDataURL(file)
-                        }}
-                      />
-                      Upload your own image
-                    </label>
-                    {avatarPreview && (
-                      <button
-                        type="button"
-                        onClick={() => setAvatarPreview(null)}
-                        className="rounded-lg border px-3 py-2 text-xs transition"
-                        style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                      >
-                        Remove upload
-                      </button>
-                    )}
-                  </div>
-                  {avatarFileError && (
-                    <p className="mt-2 text-xs" style={{ color: "var(--accent-red-strong)" }}>
-                      {avatarFileError}
-                    </p>
                   )}
                 </div>
 
-                <div className="mb-6">
-                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                    Phone Number <span className="text-xs" style={{ color: "var(--muted2)" }}>(optional)</span>
-                  </label>
-                  <div className="grid overflow-hidden rounded-xl border sm:grid-cols-[128px_1fr]" style={{ borderColor: "var(--border)" }}>
-                    <div className="hidden" style={{ background: "var(--panel2)", color: "var(--muted)" }}>
-                      <span>🇺🇸</span>
-                      <span>+1</span>
-                    </div>
-                    <select
-                      value={phoneCountryCode}
-                      onChange={(e) => {
-                        setPhoneCountryCode(e.target.value)
-                        setPhoneCodeSent(false)
-                        setPhoneCode("")
-                        setPhoneCodeVerified(false)
-                        setPhoneVerificationMessage(null)
-                      }}
-                      className="border-0 px-3 py-3 text-sm font-semibold outline-none"
-                      style={{ background: "var(--panel2)", color: "var(--text)" }}
-                      aria-label="Phone country code"
-                    >
-                      {SIGNUP_PHONE_COUNTRIES.map((country) => (
-                        <option key={`${country.code}-${country.label}`} value={country.code}>
-                          {country.label} {country.code}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      value={phone}
-                      onChange={(e) => {
-                        const digits = normalizeSignupPhoneDigits(e.target.value)
-                        setPhone(digits)
-                        setPhoneCodeSent(false)
-                        setPhoneCode("")
-                        setPhoneCodeVerified(false)
-                        setPhoneVerificationMessage(null)
-                      }}
-                      type="tel"
-                      className="min-w-0 border-0 border-t px-4 py-3 text-sm outline-none sm:border-l sm:border-t-0"
-                      style={{ background: "var(--panel2)", color: "var(--text)" }}
-                      placeholder={phoneCountryCode === "+1" ? "(555) 123-4567" : "Local number"}
-                      autoComplete="tel"
-                      inputMode="numeric"
-                    />
-                  </div>
-                  <p className="mt-2 text-xs" style={{ color: "var(--muted2)" }}>
-                    Used for account security. Never shared or sold.
-                  </p>
-                  {phone.length > 0 && (
-                    <p className="mt-1 text-xs" style={{ color: "var(--muted2)" }}>
-                      Sends as: {normalizePhoneForSubmit(phone, phoneCountryCode)}{" "}
-                      <span aria-hidden>({formatSignupPhoneDisplay(phone, phoneCountryCode)})</span>
-                    </p>
-                  )}
-                </div>
-
-                <div
-                  className="rounded-2xl border p-5"
-                  style={{
-                    borderColor: "var(--border)",
-                    background: "color-mix(in srgb, var(--panel2) 92%, transparent)",
-                  }}
-                >
-                  <div className="mb-2 flex items-center gap-2 text-sm font-medium">
-                    <Sparkles className="h-4 w-4" style={{ color: "var(--accent-cyan)" }} />
-                    Legacy import (optional)
-                  </div>
-                  <p className="mb-3 text-xs leading-5" style={{ color: "var(--muted)" }}>
-                    Import your fantasy history to get placed into rankings and level systems. Skip it for now and start at level 1.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {LEGACY_IMPORT_PROVIDERS.filter((provider) => provider.id !== "sleeper").map((provider) => (
-                      <button
-                        key={provider.id}
-                        type="button"
-                        onClick={() => handleLegacyImportProviderClick(provider.id)}
-                        className="rounded-xl border px-3 py-2 text-xs transition"
-                        style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
-                      >
-                        {provider.label} {provider.status === "planned" ? "(soon)" : ""}
-                      </button>
-                    ))}
-                    <button
-                      type="button"
-                      onClick={() => setLegacyImportMessage("No problem. Skip import for now and import later from Settings.")}
-                      className="rounded-xl border px-3 py-2 text-xs transition"
-                      style={{ borderColor: "var(--border)", background: "var(--panel)", color: "var(--muted)" }}
-                    >
-                      Skip import for now
-                    </button>
-                  </div>
-                  {legacyImportMessage && <p className="mt-3 text-xs" style={{ color: "var(--muted)" }}>{legacyImportMessage}</p>}
-                </div>
-
-              </div>
-            </section>
-
-            <section className={currentStep === 1 && showOptionalPreferences ? "block" : "hidden"}>
-              <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
-                <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
-                  Preferences
-                </div>
-
-                <div className="mb-6">
-                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                    Timezone <span style={{ color: "var(--accent-cyan)" }}>*</span>
-                  </label>
-                  <select
-                    value={timezone}
-                    onChange={(e) => setTimezone(e.target.value)}
-                    className="w-full rounded-xl border px-4 py-3 text-sm outline-none transition"
-                    style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-                  >
-                    {Object.entries(timezoneGroups).map(([region, timezones]) => (
-                      <optgroup key={region} label={region}>
-                        {timezones.map((tz) => (
-                          <option key={tz.value} value={tz.value}>
-                            {tz.label}
-                          </option>
-                        ))}
-                      </optgroup>
-                    ))}
-                  </select>
-                  <div
-                    className="mt-3 flex items-start gap-2 rounded-xl border p-3 text-xs leading-5"
-                    style={{
-                      borderColor: "color-mix(in srgb, var(--accent-cyan) 18%, transparent)",
-                      background: "color-mix(in srgb, var(--accent-cyan) 8%, transparent)",
-                      color: "color-mix(in srgb, var(--accent-cyan) 75%, #fff)",
-                    }}
-                  >
-                    <span>🕐</span>
-                    <p>
-                      This sets your universal timezone across the app. Schedules, draft clocks, matchup deadlines, and notifications will all reflect your local time.
-                    </p>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                    Language <span style={{ color: "var(--accent-cyan)" }}>*</span>
-                  </label>
-                  <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                    {SUPPORTED_LANGUAGES.map((lang) => (
-                      <button
-                        key={lang}
-                        type="button"
-                        onClick={() => {
-                          setPreferredLanguageTouched(true)
-                          setPreferredLanguage(lang)
-                        }}
-                        className="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition"
-                        style={{
-                          borderColor: preferredLanguage === lang ? "var(--accent-cyan)" : "var(--border)",
-                          background: preferredLanguage === lang ? "color-mix(in srgb, var(--accent-cyan) 8%, transparent)" : "var(--panel2)",
-                        }}
-                      >
-                        <span className="text-xl">{SIGNUP_LANGUAGE_BADGES[lang]}</span>
-                        <span>
-                          <strong className="block text-sm">{getLanguageDisplayName(lang)}</strong>
-                          <small style={{ color: "var(--muted)" }}>
-                            {lang === DEFAULT_LANG ? "Default language" : "Available language"}
-                          </small>
-                        </span>
-                      </button>
-                    ))}
-                    <div className="hidden" aria-hidden="true">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPreferredLanguageTouched(true)
-                        setPreferredLanguage("en")
-                      }}
-                      className="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition"
-                      style={{
-                        borderColor: preferredLanguage === "en" ? "var(--accent-cyan)" : "var(--border)",
-                        background: preferredLanguage === "en" ? "color-mix(in srgb, var(--accent-cyan) 8%, transparent)" : "var(--panel2)",
-                      }}
-                    >
-                      <span className="text-xl">🇺🇸</span>
-                      <span>
-                        <strong className="block text-sm">English</strong>
-                        <small style={{ color: "var(--muted)" }}>Default language</small>
-                      </span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPreferredLanguageTouched(true)
-                        setPreferredLanguage("es")
-                      }}
-                      className="flex items-center gap-3 rounded-xl border px-4 py-3 text-left transition"
-                      style={{
-                        borderColor: preferredLanguage === "es" ? "var(--accent-cyan)" : "var(--border)",
-                        background: preferredLanguage === "es" ? "color-mix(in srgb, var(--accent-cyan) 8%, transparent)" : "var(--panel2)",
-                      }}
-                    >
-                      <span className="text-xl">🇪🇸</span>
-                      <span>
-                        <strong className="block text-sm">Español</strong>
-                        <small style={{ color: "var(--muted)" }}>Spanish</small>
-                      </span>
-                    </button>
-                  </div>
-                  </div>
-                </div>
-
-              </div>
-            </section>
-
-            <section className={currentStep === 2 ? "block" : "hidden"}>
-              <div className="rounded-2xl border p-6" style={{ borderColor: "var(--border)", background: "var(--panel)" }}>
-                <div className="mb-5 text-[11px] font-bold uppercase tracking-[0.1em]" style={{ color: "var(--accent-emerald-strong)" }}>
-                  Step 2 of 2 — Verify &amp; Agree
-                </div>
-
-                <div className="mb-6">
-                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                    Verification Method <span style={{ color: "var(--accent-cyan)" }}>*</span>
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 rounded-xl border p-1" style={{ borderColor: "var(--border)", background: "var(--panel2)" }}>
-                    <button
-                      type="button"
-                      onClick={() => setVerificationMethod("EMAIL")}
-                      className="rounded-lg px-3 py-2 text-sm font-medium transition"
-                      style={{
-                        background: verificationMethod === "EMAIL" ? "linear-gradient(135deg, var(--accent-cyan), #3b82f6)" : "transparent",
-                        color: verificationMethod === "EMAIL" ? "#fff" : "var(--muted)",
-                      }}
-                    >
-                      ✉️ Email
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setVerificationMethod("PHONE")}
-                      className="rounded-lg px-3 py-2 text-sm font-medium transition"
-                      style={{
-                        background: verificationMethod === "PHONE" ? "linear-gradient(135deg, var(--accent-cyan), #3b82f6)" : "transparent",
-                        color: verificationMethod === "PHONE" ? "#fff" : "var(--muted)",
-                      }}
-                    >
-                      📱 Phone
-                    </button>
-                  </div>
-                  <p className="mt-2 text-xs text-center" style={{ color: "var(--muted2)" }}>
-                    {verificationMethod === "PHONE"
-                      ? "We'll send a one-time code to your phone number."
-                      : "We'll send a verification link to your email address."}
-                  </p>
-
-                  {verificationMethod === "PHONE" && (
-                    <div className="mt-4 space-y-2">
-                      <div className="grid overflow-hidden rounded-xl border sm:grid-cols-[128px_1fr]" style={{ borderColor: "var(--border)" }}>
-                        <select
-                          value={phoneCountryCode}
-                          onChange={(e) => {
-                            setPhoneCountryCode(e.target.value)
-                            setPhoneCodeSent(false)
-                            setPhoneCode("")
-                            setPhoneCodeVerified(false)
-                            setPhoneVerificationMessage(null)
-                          }}
-                          className="border-0 px-3 py-3 text-sm font-semibold outline-none"
-                          style={{ background: "var(--panel2)", color: "var(--text)" }}
-                          aria-label="Phone country code for verification"
-                        >
-                          {SIGNUP_PHONE_COUNTRIES.map((country) => (
-                            <option key={`verify-${country.code}-${country.label}`} value={country.code}>
-                              {country.label} {country.code}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          value={phone}
-                          onChange={(e) => {
-                            const digits = normalizeSignupPhoneDigits(e.target.value)
-                            setPhone(digits)
-                            setPhoneCodeSent(false)
-                            setPhoneCode("")
-                            setPhoneCodeVerified(false)
-                            setPhoneVerificationMessage(null)
-                          }}
-                          type="tel"
-                          className="min-w-0 border-0 border-t px-4 py-3 text-sm outline-none sm:border-l sm:border-t-0"
-                          style={{ background: "var(--panel2)", color: "var(--text)" }}
-                          placeholder={phoneCountryCode === "+1" ? "(555) 123-4567" : "Local number"}
-                          autoComplete="tel"
-                          inputMode="numeric"
-                        />
-                      </div>
-                      {phone.length > 0 ? (
-                        <p className="text-xs" style={{ color: "var(--muted2)" }}>
-                          Sends as: {normalizePhoneForSubmit(phone, phoneCountryCode)}
-                        </p>
-                      ) : (
-                        <p className="text-xs" style={{ color: "var(--muted2)" }}>
-                          Choose your country code, then enter your phone number.
-                        </p>
-                      )}
-                      <div className="flex flex-col gap-2 sm:flex-row">
-                        <button
-                          type="button"
-                          onClick={handleSendPhoneCode}
-                          disabled={phoneSendingCode || !phone.trim()}
-                          className="rounded-xl border px-4 py-3 text-xs transition disabled:opacity-50"
-                          style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}
-                        >
-                          {phoneSendingCode ? "Sending..." : phoneCodeSent ? "Resend code" : "Send code"}
-                        </button>
-                        <input
-                          value={phoneCode}
-                          onChange={(e) => {
-                            setPhoneCode(e.target.value.replace(/\D/g, "").slice(0, 6))
-                            setPhoneCodeVerified(false)
-                          }}
-                          placeholder="Enter code"
-                          inputMode="numeric"
-                          className="flex-1 rounded-xl border px-4 py-3 text-sm outline-none transition"
-                          style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--text)" }}
-                        />
-                        <button
-                          type="button"
-                          onClick={handleVerifyPhoneCode}
-                          disabled={phoneVerifyingCode || phoneCode.length < 4 || !phoneCodeSent}
-                          className="rounded-xl border px-4 py-3 text-xs transition disabled:opacity-50"
-                          style={{
-                            borderColor: "color-mix(in srgb, var(--accent-cyan) 35%, transparent)",
-                            background: "color-mix(in srgb, var(--accent-cyan) 10%, transparent)",
-                            color: "color-mix(in srgb, #fff 84%, var(--accent-cyan))",
-                          }}
-                        >
-                          {phoneVerifyingCode ? "Verifying..." : "Verify"}
-                        </button>
-                      </div>
-                      {phoneVerificationMessage && (
-                        <p className="text-xs" style={{ color: phoneCodeVerified ? "var(--accent-emerald-strong)" : "var(--muted2)" }}>
-                          {phoneVerificationMessage}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                <div className="mb-5">
-                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                    Age Confirmation <span style={{ color: "var(--accent-cyan)" }}>*</span>
-                  </label>
+                <div className="mt-5">
                   <label
                     className="flex cursor-pointer items-start gap-3 rounded-xl border p-4"
                     style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
                   >
                     <input
                       type="checkbox"
-                      checked={ageConfirmed}
-                      onChange={(e) => setAgeConfirmed(e.target.checked)}
+                      checked={consentChecked}
+                      onChange={handleConsentChange}
+                      required
+                      aria-required="true"
                       className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-cyan-400"
                     />
                     <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
-                      <strong style={{ color: "var(--text)" }}>I am 18 years of age or older</strong>
-                      <br />
-                      You must be 18+ to create an AllFantasy account and use this platform.
+                      <strong style={{ color: "var(--text)" }}>{t("signup.consent.intro")}</strong>
+                      <ul className="mt-1 list-disc space-y-1 pl-4">
+                        <li>{t("signup.consent.bullet1")}</li>
+                        <li>
+                          {t("signup.consent.bullet2Prefix")}{" "}
+                          <Link
+                            href={getTermsUrl(true, nextParam)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                            style={{ color: "var(--accent-cyan)" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {t("signup.consent.bullet2TermsLink")}
+                          </Link>{" "}
+                          {t("signup.consent.bullet2And")}{" "}
+                          <Link
+                            href={getPrivacyUrl(true, nextParam)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                            style={{ color: "var(--accent-cyan)" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {t("signup.consent.bullet2PrivacyLink")}
+                          </Link>
+                          .
+                        </li>
+                        <li>
+                          {t("signup.consent.bullet3Prefix")} (
+                          <Link
+                            href={getNoGamblingPolicyUrl(true, nextParam)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="underline"
+                            style={{ color: "var(--accent-cyan)" }}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {t("signup.consent.bullet3Link")}
+                          </Link>
+                          ).
+                        </li>
+                      </ul>
                     </span>
                   </label>
                   <p className="mt-2 pl-7 text-xs" style={{ color: "var(--muted2)" }}>
@@ -1679,192 +1136,62 @@ export default function SignupContent() {
                       className="underline"
                       style={{ color: "var(--muted)" }}
                     >
-                      Verify with a driver&apos;s license
+                      {t("signup.consent.driverLicenseLink")}
                     </button>{" "}
-                    for future identity-protected features.
+                    {t("signup.consent.driverLicenseSuffix")}
                   </p>
                 </div>
 
-                <div className="mb-5">
-                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                    Disclaimer <span style={{ color: "var(--accent-cyan)" }}>*</span>
-                  </label>
-                  <div
-                    onScroll={(e) => {
-                      const el = e.currentTarget
-                      if (el.scrollHeight - el.scrollTop - el.clientHeight < 24) {
-                        setDisclaimerScrolledToEnd(true)
-                      }
-                    }}
-                    className="relative mb-2 max-h-48 overflow-y-auto rounded-xl border p-4 text-sm leading-6"
-                    style={{ borderColor: "var(--border)", background: "var(--panel2)", color: "var(--muted)" }}
-                  >
-                    <strong style={{ color: "var(--text)" }}>AllFantasy.ai — Platform Disclaimer</strong>
-                    <br />
-                    AllFantasy.ai is a fantasy sports entertainment platform designed exclusively for recreational use. This platform does not constitute, support, or facilitate gambling, daily fantasy sports contests for real money, or wagering of any kind.
-                    <br />
-                    <br />
-                    By creating an account, you acknowledge that AllFantasy.ai is intended solely for entertainment purposes. AI-generated analysis, trade recommendations, player projections, and related data are informational only.
-                    <br />
-                    <br />
-                    All user data is handled in accordance with our{" "}
-                    <Link
-                      href={getPrivacyUrl(true, nextParam)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="underline"
-                      style={{ color: "var(--accent-cyan)" }}
-                    >
-                      Privacy Policy
-                    </Link>
-                    . By using this platform you agree to comply with all applicable laws in your jurisdiction.
-                    <br />
-                    <br />
-                    <Link
-                      href={getDisclaimerUrl(true, nextParam)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="font-medium underline"
-                      style={{ color: "var(--accent-cyan)" }}
-                    >
-                      Read the full Disclaimer →
-                    </Link>
-                  </div>
-                  {!disclaimerScrolledToEnd && !disclaimerAgreed ? (
-                    <p className="mb-3 text-xs" style={{ color: "var(--muted2)" }}>
-                      Scroll through the disclaimer to enable acknowledgement.
-                    </p>
-                  ) : null}
-                  <label
-                    className="flex items-start gap-3 rounded-xl border p-4 transition"
-                    style={{
-                      borderColor: "var(--border)",
-                      background: "var(--panel2)",
-                      opacity: disclaimerScrolledToEnd || disclaimerAgreed ? 1 : 0.45,
-                      pointerEvents: disclaimerScrolledToEnd || disclaimerAgreed ? "auto" : "none",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={disclaimerAgreed}
-                      disabled={!disclaimerScrolledToEnd && !disclaimerAgreed}
-                      onChange={(e) => setDisclaimerAgreed(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-cyan-400"
-                    />
-                    <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
-                      <strong style={{ color: "var(--text)" }}>I have read and acknowledge the Disclaimer</strong>
-                      <br />
-                      Scroll through the above to acknowledge.
+                <button
+                  type="submit"
+                  disabled={submitDisabled}
+                  className="mt-5 w-full rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{
+                    backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
+                    color: "var(--on-accent-bg)",
+                  }}
+                >
+                  {loading ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      {t("signup.creatingAccount")}
                     </span>
-                  </label>
-                </div>
-
-                <div className="mb-5">
-                  <label className="mb-2 block text-sm font-medium" style={{ color: "var(--muted)" }}>
-                    Terms &amp; Conditions <span style={{ color: "var(--accent-cyan)" }}>*</span>
-                  </label>
-                  <label
-                    className="flex cursor-pointer items-start gap-3 rounded-xl border p-4"
-                    style={{ borderColor: "var(--border)", background: "var(--panel2)" }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={termsAgreed}
-                      onChange={(e) => setTermsAgreed(e.target.checked)}
-                      className="mt-0.5 h-4 w-4 shrink-0 rounded border-white/30 bg-transparent accent-cyan-400"
-                    />
-                    <span className="text-sm leading-6" style={{ color: "var(--muted)" }}>
-                      <strong style={{ color: "var(--text)" }}>I agree to the Terms of Service and Privacy Policy</strong>
-                      <br />
-                      By creating an account you accept our{" "}
-                      <Link
-                        href={getTermsUrl(true, nextParam)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline"
-                        style={{ color: "var(--accent-cyan)" }}
-                      >
-                        Terms of Service
-                      </Link>{" "}
-                      and{" "}
-                      <Link
-                        href={getPrivacyUrl(true, nextParam)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="underline"
-                        style={{ color: "var(--accent-cyan)" }}
-                      >
-                        Privacy Policy
-                      </Link>
-                      .
-                    </span>
-                  </label>
-                </div>
+                  ) : (
+                    t("signup.createAccount")
+                  )}
+                </button>
 
                 <div className="my-6 flex items-center gap-3">
                   <div className="h-px flex-1" style={{ background: "var(--border)" }} />
                   <span className="text-xs uppercase tracking-[0.08em]" style={{ color: "var(--muted2)" }}>
-                    or sign up with
+                    {t("signup.oauth.divider")}
                   </span>
                   <div className="h-px flex-1" style={{ background: "var(--border)" }} />
                 </div>
 
-                <SocialLoginButtons callbackUrl={postSignupDestination} />
+                <OAuthButtonRow callbackUrl={postSignupDestination} />
 
-                <div className="mt-6 flex gap-3">
-                  <button
-                    type="button"
-                    onClick={() => handleBackStep(2)}
-                    className="flex-1 rounded-xl border px-4 py-3 text-sm font-medium transition hover:opacity-90"
-                    style={{ borderColor: "var(--border)", color: "var(--muted)" }}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <ArrowLeft className="h-4 w-4" /> Back
-                    </span>
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={
-                      loading ||
-                      (usernameStatus !== "ok" &&
-                        usernameStatus !== "unvalidated" &&
-                        usernameStatus !== "unchecked") ||
-                      !username.trim() ||
-                      !email.trim() ||
-                      !password ||
-                      !confirmPassword ||
-                      password !== confirmPassword ||
-                      !passwordStrength.valid ||
-                      !ageConfirmed ||
-                      !agreementGateOpen ||
-                      (verificationMethod === "PHONE" && (!phone.trim() || !phoneCodeVerified))
-                    }
-                    className="flex-[1.4] rounded-xl px-4 py-3 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                    style={{
-                      backgroundImage: "linear-gradient(90deg, var(--accent-cyan), #3b82f6)",
-                      color: "var(--on-accent-bg)",
-                    }}
-                  >
-                    {loading ? (
-                      <span className="inline-flex items-center gap-2">
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Creating account...
-                      </span>
-                    ) : (
-                      <span className="inline-flex items-center gap-2">Create Account</span>
-                    )}
-                  </button>
-                </div>
+                <p className="mt-4 text-center text-[11px] leading-5" style={{ color: "var(--muted2)" }}>
+                  {t("signup.legal.notice")}
+                </p>
+
+                <p className="mt-4 text-center text-sm" style={{ color: "var(--muted)" }}>
+                  {t("signup.alreadyHaveAccount")}{" "}
+                  <Link href={loginUrlWithIntent(postSignupDestination)} className="underline" style={{ color: "var(--accent-cyan)" }}>
+                    {t("common.signIn")}
+                  </Link>
+                </p>
               </div>
-            </section>
+            </form>
 
-            <p className="text-center text-sm" style={{ color: "var(--muted)" }}>
-              {t("signup.alreadyHaveAccount")}{" "}
-              <Link href={loginUrlWithIntent(postSignupDestination)} className="underline" style={{ color: "var(--accent-cyan)" }}>
-                {t("common.signIn")}
-              </Link>
-            </p>
-          </form>
+            <div className="order-2">
+              <AccountBenefitsCard />
+            </div>
+          </div>
+
+          <div className="mt-8">
+            <TrustBar />
+          </div>
         </div>
       </main>
 
@@ -1939,4 +1266,3 @@ export default function SignupContent() {
     </div>
   )
 }
-

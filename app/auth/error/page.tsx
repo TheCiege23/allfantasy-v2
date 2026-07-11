@@ -20,6 +20,10 @@ const ERROR_MESSAGES: Record<string, string> = {
     "Facebook did not share your email address. To fix this: go to Facebook → Settings → Security and Login → Apps and Websites, remove AllFantasy, then try signing in again. This forces Facebook to re-ask for the email permission cleanly.",
   FACEBOOK_TOKEN_INVALID:
     "Facebook authorization failed — your session may have been revoked or expired. Please try signing in with Facebook again. If this keeps happening, remove AllFantasy from your Facebook app settings and re-authorize.",
+  DISCORD_EMAIL_MISSING:
+    "Discord did not share a verified email address. Please verify your email on Discord, then try signing in again.",
+  SOCIAL_PROVIDER_EMAIL_MISSING:
+    "That sign-in method didn't share an email address, so we can't create a new AllFantasy account from it. If you already have an account, sign in with your email and password first, then connect this method from Settings.",
   Default: "An error occurred during sign in.",
 }
 

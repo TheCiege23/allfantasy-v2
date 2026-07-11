@@ -59,8 +59,37 @@ export interface NormalizedLeagueSettings {
   regular_season_length?: number
   schedule_unit?: string
   matchup_frequency?: string
+  /**
+   * Waiver type canonicalized to AF vocabulary ('faab' | 'rolling' | 'off').
+   * Producers map from provider-native enums (Sleeper `settings.waiver_type` int → string).
+   */
   waiver_type?: string
   faab_budget?: number | null
+  /**
+   * Tier 0 fields — populated by provider mappers when the source exposes them,
+   * consumed by the canonical normalizer + persistence layer. All optional; `undefined`
+   * leaves the corresponding League column at its Prisma default. Types match the
+   * eventual column types (int / bool) so the persistence layer can pass them through
+   * without additional coercion.
+   */
+  waiver_bid_min?: number
+  playoff_start_week?: number
+  playoff_teams?: number
+  trade_deadline_week?: number
+  trade_review_days?: number
+  pick_trading?: boolean
+  reserve_slots?: number
+  taxi_slots?: number
+  taxi_years?: number
+  taxi_allow_vets?: boolean
+  taxi_deadline_week?: number
+  max_keepers?: number
+  reserve_allow_cov?: boolean
+  reserve_allow_sus?: boolean
+  reserve_allow_out?: boolean
+  reserve_allow_na?: boolean
+  reserve_allow_dnr?: boolean
+  reserve_allow_doubtful?: boolean
   [key: string]: unknown
 }
 
@@ -131,6 +160,27 @@ export interface NormalizedTransaction {
   draft_picks?: unknown[]
 }
 
+/**
+ * Block F — normalized future traded draft pick.
+ *
+ * Maps to `future_draft_picks` (persistence). Field semantics preserve Sleeper's
+ * ownership chain, which is the single most valuable dynasty asset outside of
+ * players themselves.
+ *
+ * Roster IDs are provider-native strings (Sleeper "1".."12"), matching
+ * `league_teams.externalId`. `previous_owner_roster_id` is optional because
+ * `future_draft_picks` has no dedicated column for it (schema limitation) — the
+ * persistence layer drops this field with a documented gap. Kept on the normalized
+ * type so a future schema addition can wire it up without a mapper rewrite.
+ */
+export interface NormalizedTradedPick {
+  season: number
+  round: number
+  original_roster_id: string
+  current_owner_roster_id: string
+  previous_owner_roster_id?: string
+}
+
 /** Normalized standings entry. */
 export interface NormalizedStandingsEntry {
   source_team_id: string
@@ -179,6 +229,12 @@ export interface NormalizedImportResult {
   scoring: NormalizedScoring | null
   schedule: NormalizedMatchup[]
   draft_picks: NormalizedDraftPick[]
+  /**
+   * Block F — future traded draft picks (Sleeper `/league/{id}/traded_picks`).
+   * Absent = provider does not expose traded picks; empty array = provider
+   * exposes them but no picks are currently in a traded state.
+   */
+  traded_picks?: NormalizedTradedPick[]
   transactions: NormalizedTransaction[]
   standings: NormalizedStandingsEntry[]
   player_map: Record<string, { name: string; position: string; team: string }>
@@ -188,6 +244,14 @@ export interface NormalizedImportResult {
   coverage: ImportCoverage
   /** Fetches that failed after exhausting retries during ingestion — distinct from ImportCoverage's "no data was returned" states. */
   fetch_warnings?: ImportWarningRecord[]
+  /**
+   * Phase 2.4 (§5) — non-fatal source-fetch failures forwarded from the provider
+   * fetch layer (e.g. Sleeper `SleeperImportPayload.fetchWarnings`). The canonical
+   * normalizer folds these into `CanonicalImportBundle.warnings`, which the commit
+   * layer already persists as `ImportWarning` records — so an incomplete import is
+   * surfaced, never silently marked complete. Absent = every resource fetched cleanly.
+   */
+  fetchWarnings?: string[]
 }
 
 /** Identity mapping: source id -> AF canonical id or stable key. */

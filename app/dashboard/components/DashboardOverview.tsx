@@ -2,32 +2,18 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import LeaguePulseCard from '@/components/decision-os/LeaguePulseCard'
-import ManagerDnaCard from '@/components/decision-os/ManagerDnaCard'
-import DecisionRecommendationsCard from '@/components/decision-os/DecisionRecommendationsCard'
-import { buildDashboardLeaguePulse } from '@/lib/decision-os/league-pulse'
-import { buildManagerDnaViewModel } from '@/lib/decision-os/manager-dna'
-import { buildDecisionRecommendationsViewModel } from '@/lib/decision-os/recommendations'
-import type { ManagerIntelligencePayload } from '@/lib/decision-os/dashboard-intelligence'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { AiTimeContextPayload } from '@/lib/time-engine/types'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import type { TodayActionsEngineResponse } from '@/lib/today-actions-engine'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import type { ChecklistStep, UserLeague } from '../types'
-import { AIToolsGrid } from '@/components/ai-tools/AIToolsGrid'
-import { PowerRankingsMiniCard } from '@/components/ai-tools/PowerRankingsMiniCard'
-import { InjuryImpactMiniCard } from '@/components/ai-tools/InjuryImpactMiniCard'
-import { WarRoomMiniCard } from '@/components/ai-tools/WarRoomMiniCard'
-import { MatchupPrepMiniCard } from '@/components/ai-tools/MatchupPrepMiniCard'
 import type { LineupCheckPayload } from './LineupIssuesModal'
 import { LineupIssuesModal } from './LineupIssuesModal'
 import { PendingTradesModal } from './PendingTradesModal'
 import { RankingsCard } from './RankingsCard'
-import { TodayStrip } from './TodayStrip'
 import { WaiverRecommendationsModal } from './WaiverRecommendationsModal'
 import { FavoriteSportsOnboardingModal } from './FavoriteSportsOnboardingModal'
-import { StandingsWidget } from '@/components/sports/StandingsWidget'
 import { QuickCreateModal } from '@/components/league-creation/QuickCreateModal'
 import { ConnectPlatformsModal } from './ConnectPlatformsModal'
 import type { FavoriteSportsSelection } from '@/lib/dashboard/favorite-sports-storage'
@@ -38,17 +24,30 @@ import {
 } from '@/lib/dashboard/favorite-sports-storage'
 import { buildLandingInviteUrl } from '@/lib/dashboard/invite-link-storage'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { tInterpolate as interpolateI18nMessage } from '@/lib/i18n/tInterpolate'
 import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
-import { useDashboardToolLeague } from '@/hooks/useDashboardToolLeague'
+import { useFantasyContext, type PrimaryContext } from '@/hooks/useFantasyContext'
 import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
-import { DashboardIntelligenceRail } from './DashboardIntelligenceRail'
-import { TodaysMissionStrip } from './TodaysMissionStrip'
-import { WarRoomPreviewBlock } from './WarRoomPreviewBlock'
-import { DashboardLiveScoresWidget } from './DashboardLiveScoresWidget'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
-import { WorldCupDashboardPromo } from './WorldCupDashboardPromo'
-import { Swords, Sparkles, Crown, Trophy } from 'lucide-react'
+import { CareerProgressionStrip } from './CareerProgressionStrip'
+import { Crown } from 'lucide-react'
+import { ActionCenter, countActionItems } from './warroom/ActionCenter'
+import { TodayTimeline } from './warroom/TodayTimeline'
+import { MyLeagueCard, rawStage } from './warroom/MyLeagueCard'
+import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
+import { CommissionerHub } from './warroom/CommissionerHub'
+import { CommissionerHQ } from './warroom/CommissionerHQ'
+import { CoachNotes } from './warroom/CoachNotes'
+import { DashboardHero } from './warroom/DashboardHero'
+import { TeamThisWeek } from './warroom/TeamThisWeek'
+import { SeasonOutlook } from './warroom/SeasonOutlook'
+import { SeasonJourney } from './warroom/SeasonJourney'
+import { WaiverWirePreview } from './warroom/WaiverWirePreview'
+import { RecommendationTimeline } from './warroom/RecommendationTimeline'
+import { InjuryImpactPanel } from './warroom/InjuryImpactPanel'
+import { PlatformPulseCard } from './warroom/PlatformPulseCard'
+import { SectionHeading, CONTEXT_ACCENT } from './warroom/SectionHeading'
+import { buildPlatformPulse } from '@/lib/platform-pulse'
+import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
 const STRIP_FETCH_STALE_MS = 5 * 60_000
@@ -62,12 +61,19 @@ type OnboardingState = {
 }
 
 type DashboardOverviewProps = {
+  userId: string
   userName: string
   leagues: UserLeague[]
+  /** True until the first `/api/league/list` response (SSR or client) resolves — lets My Leagues
+   *  show a loading skeleton instead of looking indistinguishable from "zero leagues." */
+  leaguesLoading?: boolean
   onTriggerImport: () => void
   onOpenChimmy: () => void
   /** SSR snapshot of `/api/user/rank` — rankings card renders without a client fetch round-trip. */
   initialUserRankPayload?: Record<string, unknown> | null
+  /** SSR snapshot of `getCommissionerHubHealthForUser` (Phase 2.3 Commissioner HQ) — one entry
+   *  per commissioned league, same engine as the real `/commissioner-hub` page. */
+  initialCommissionerHealthSnapshots?: CommissionerLeagueHealthSnapshot[] | null
 }
 
 function getDefaultOnboardingState(): OnboardingState {
@@ -109,57 +115,19 @@ function writeOnboardingState(value: OnboardingState) {
 }
 
 export function DashboardOverview({
+  userId,
   userName,
   leagues,
+  leaguesLoading = false,
   onTriggerImport,
   onOpenChimmy: _onOpenChimmy,
   initialUserRankPayload = null,
+  initialCommissionerHealthSnapshots = null,
 }: DashboardOverviewProps) {
   const router = useRouter()
   const { t, tInterpolate } = useLanguage()
   const { hasPro } = useEntitlements()
-  const { selectedLeagueId, selectedLeague, setSelectedLeagueId } = useDashboardToolLeague(leagues)
-  // Phase 8.3 — real Decision OS intelligence for the same league the mini-cards below already
-  // scope to (useDashboardToolLeague is the existing "League Intelligence" selector for this
-  // page; reused here, not a new anchor). Reuses the Phase 8.1/8.2 pipeline unchanged.
-  const [managerIntelligence, setManagerIntelligence] = useState<ManagerIntelligencePayload | null>(null)
-  useEffect(() => {
-    if (!selectedLeagueId) {
-      setManagerIntelligence(null)
-      return
-    }
-    let cancelled = false
-    void fetch(`/api/decision-os/manager-intelligence?leagueId=${encodeURIComponent(selectedLeagueId)}`, {
-      credentials: 'same-origin',
-      cache: 'no-store',
-    })
-      .then((res) => (res.ok ? (res.json() as Promise<ManagerIntelligencePayload>) : null))
-      .then((data) => {
-        if (!cancelled) setManagerIntelligence(data)
-      })
-      .catch(() => {
-        if (!cancelled) setManagerIntelligence(null)
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [selectedLeagueId])
-  const leaguePulse = useMemo(
-    () =>
-      buildDashboardLeaguePulse({
-        connectedLeagues: leagues,
-        managerDna: managerIntelligence?.managerDna ?? null,
-      }),
-    [leagues, managerIntelligence],
-  )
-  const managerDna = useMemo(
-    () => buildManagerDnaViewModel({ source: managerIntelligence?.managerDna ?? null }),
-    [managerIntelligence],
-  )
-  const recommendations = useMemo(
-    () => buildDecisionRecommendationsViewModel({ source: managerIntelligence?.recommendations ?? null }),
-    [managerIntelligence],
-  )
+  const { context, selectedLeagueId, selectedLeague, setSelectedLeagueId } = useFantasyContext(leagues)
   const [onboarding, setOnboarding] = useState<OnboardingState>(getDefaultOnboardingState())
   /** UI-only per session — not persisted */
   const [checklistExpanded, setChecklistExpanded] = useState(false)
@@ -187,6 +155,10 @@ export function DashboardOverview({
   const [todayPrimaryLeagueId, setTodayPrimaryLeagueId] = useState<string | null>(null)
   /** Waiver process timing from DB league fields when resolved. */
   const [todayWaiverTiming, setTodayWaiverTiming] = useState<TodayActionsEngineResponse['waiverTiming'] | null>(null)
+  /** Native (non-Sleeper) trades expiring within 48h, from `/api/dashboard/today-actions`. */
+  const [expiringNativeTrades, setExpiringNativeTrades] = useState<TodayActionsEngineResponse['expiringNativeTrades']>(
+    [],
+  )
   /** AI Auto Start/Sit Protection snapshot (swap counts + global toggle). */
   const [todayAutoProtection, setTodayAutoProtection] = useState<
     TodayActionsEngineResponse['autoStartSitProtection'] | null
@@ -237,6 +209,7 @@ export function DashboardOverview({
           setTodayCounts(data.counts)
           setTodayPrimaryLeagueId(data.primaryLeagueId ?? null)
           setTodayWaiverTiming(data.waiverTiming ?? null)
+          setExpiringNativeTrades(data.expiringNativeTrades ?? [])
           setTodayAutoProtection(data.autoStartSitProtection ?? null)
           setStripTimeContext(data.aiTimeContext ?? null)
           stripFetchedAt.current = Date.now()
@@ -247,6 +220,7 @@ export function DashboardOverview({
           setTodayCounts(null)
           setTodayPrimaryLeagueId(null)
           setTodayWaiverTiming(null)
+          setExpiringNativeTrades([])
           setTodayAutoProtection(null)
           setStripTimeContext(null)
           stripFetchedAt.current = Date.now()
@@ -261,6 +235,7 @@ export function DashboardOverview({
         setTodayCounts(null)
         setTodayPrimaryLeagueId(null)
         setTodayWaiverTiming(null)
+        setExpiringNativeTrades([])
         setTodayAutoProtection(null)
         setStripTimeContext(null)
         stripFetchedAt.current = Date.now()
@@ -443,6 +418,7 @@ export function DashboardOverview({
         setTodayCounts(data.counts)
         setTodayPrimaryLeagueId(data.primaryLeagueId ?? null)
         setTodayWaiverTiming(data.waiverTiming ?? null)
+        setExpiringNativeTrades(data.expiringNativeTrades ?? [])
         setTodayAutoProtection(data.autoStartSitProtection ?? null)
         setStripTimeContext(data.aiTimeContext ?? null)
         stripFetchedAt.current = Date.now()
@@ -454,20 +430,6 @@ export function DashboardOverview({
     () => selectedLeagueId ?? todayPrimaryLeagueId ?? undefined,
     [selectedLeagueId, todayPrimaryLeagueId],
   )
-
-  const stripWaiverTimingHint = useMemo(() => {
-    const w = todayWaiverTiming
-    if (!w?.nextWaiverProcessKnown || !w.waiverTimingHint?.trim()) return null
-    return w.waiverTimingHint.trim()
-  }, [todayWaiverTiming])
-
-  const stripProtectionActivityHint = useMemo(() => {
-    const p = todayAutoProtection
-    if (!p || p.autoSwapsLast24h <= 0) return null
-    return p.autoSwapsLast24h === 1
-      ? '1 AI lineup protection swap in the last 24 hours (see Settings → AI protection for history).'
-      : `${p.autoSwapsLast24h} AI lineup protection swaps in the last 24 hours (see Settings → AI protection for history).`
-  }, [todayAutoProtection])
 
   const handleLineupIssuesClick = useCallback(() => {
     setLineupModalOpen(true)
@@ -520,26 +482,6 @@ export function DashboardOverview({
       .finally(() => setTradeLoading(false))
   }, [tradeData, refreshTodayActionsBundle])
 
-  const handleInjuryToolClick = useCallback(() => {
-    if (typeof window === 'undefined') return
-    document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.dispatchEvent(
-      new CustomEvent('af-open-ai-tool', {
-        detail: { tool: 'injury', ...(aiToolFocusLeagueId ? { focusLeagueId: aiToolFocusLeagueId } : {}) },
-      }),
-    )
-  }, [aiToolFocusLeagueId])
-
-  const handleMatchupPrepToolClick = useCallback(() => {
-    if (typeof window === 'undefined') return
-    document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    window.dispatchEvent(
-      new CustomEvent('af-open-ai-tool', {
-        detail: { tool: 'matchupPrep', ...(aiToolFocusLeagueId ? { focusLeagueId: aiToolFocusLeagueId } : {}) },
-      }),
-    )
-  }, [aiToolFocusLeagueId])
-
   const handleWarRoomToolClick = useCallback(() => {
     if (typeof window === 'undefined') return
     document.querySelector('[data-testid="ai-tools-grid"]')?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -563,6 +505,7 @@ export function DashboardOverview({
           setTodayCounts(d.counts)
           setTodayPrimaryLeagueId(d.primaryLeagueId ?? null)
           setTodayWaiverTiming(d.waiverTiming ?? null)
+          setExpiringNativeTrades(d.expiringNativeTrades ?? [])
           setTodayAutoProtection(d.autoStartSitProtection ?? null)
           setStripTimeContext(d.aiTimeContext ?? null)
           stripFetchedAt.current = Date.now()
@@ -581,82 +524,11 @@ export function DashboardOverview({
     }
   }, [leagues, setSelectedLeagueId])
 
-  const lineupPrimaryLabel = useMemo(() => {
-    if (!lineupData) return ''
-    return interpolateI18nMessage(
-      t,
-      lineupData.displayLabelKey,
-      lineupData.displayLabelParams as Record<string, string | number>,
-    )
-  }, [lineupData, t])
-
-  const lineupSecondaryFromApi = useMemo(() => {
-    if (!lineupData?.displaySubtextKey || !lineupData.displaySubtextParams) return null
-    return interpolateI18nMessage(
-      t,
-      lineupData.displaySubtextKey,
-      lineupData.displaySubtextParams as Record<string, string | number>,
-    )
-  }, [lineupData, t])
-
-  const lineupUrgentHint = useMemo(() => {
-    if (!lineupData?.urgentSubtextKey || !lineupData.urgentSubtextParams) return null
-    return interpolateI18nMessage(
-      t,
-      lineupData.urgentSubtextKey,
-      lineupData.urgentSubtextParams as Record<string, string | number>,
-    )
-  }, [lineupData, t])
-
-  const lineupClearSubtext = useMemo(() => {
-    if (!lineupData) return null
-    if ((lineupData.totalUnresolvedSlotActions ?? 0) > 0 || (lineupData.scanWarningLeagues ?? 0) > 0) return null
-    const n = lineupData.scannedLeagues ?? 0
-    if (n <= 0) return null
-    return n === 1
-      ? t('dashboard.today.lineupScannedLeaguesOne')
-      : tInterpolate('dashboard.today.lineupScannedLeaguesMany', { n })
-  }, [lineupData, t, tInterpolate])
-
-  const lineupChipState = useMemo(() => {
-    if (!lineupReady || !lineupData) return 'loading' as const
-    const unresolved = lineupData.totalUnresolvedSlotActions ?? lineupData.totalIssues ?? 0
-    const warn = lineupData.scanWarningLeagues ?? 0
-    if (unresolved > 0 || warn > 0) return 'issues' as const
-    return 'clear' as const
-  }, [lineupReady, lineupData])
-
-  const lineupChipSubtext =
-    lineupChipState === 'clear' ? lineupClearSubtext : lineupSecondaryFromApi
-
   const waiverChipCount = useMemo(() => {
     if (todayCounts) return todayCounts.waiverPickupSuggestions
     if (!waiverData?.recommendations?.length) return 0
     return waiverData.recommendations.reduce((n, r) => n + (r.pickups?.length ?? 0), 0)
   }, [todayCounts, waiverData])
-
-  const lineupInjuryDecisionsToReview = useMemo(() => {
-    if (todayCounts) return todayCounts.lineupInjuryDecisionsToReview
-    const actions = lineupData?.actions ?? []
-    const inj = new Set(['injured_starter', 'questionable_starter', 'doubtful_starter'])
-    return actions.filter((a) => inj.has(a.reasonType) && a.severity !== 'info').length
-  }, [todayCounts, lineupData])
-
-  const injuryReportRowsInUserSports = useMemo(() => {
-    if (todayCounts) return todayCounts.injuryReportRowsInUserSports
-    return waiverData?.injuryPulse?.length ?? 0
-  }, [todayCounts, waiverData])
-
-  const matchupPrepDecisionsToReview = useMemo(() => {
-    if (todayCounts) return todayCounts.matchupPrepDecisionsToReview
-    const actions = lineupData?.actions ?? []
-    return actions.filter((a) => a.reasonType === 'matchup_prep' || a.sourceModule === 'MatchupPrep').length
-  }, [todayCounts, lineupData])
-
-  const leaguesWithSyncedMatchupData = useMemo(() => {
-    if (todayCounts) return todayCounts.leaguesWithSyncedWeeklyMatchupData
-    return 0
-  }, [todayCounts])
 
   const warRoomDecisionsToReview = useMemo(() => {
     if (todayCounts) return todayCounts.warRoomDecisionsToReview
@@ -666,29 +538,43 @@ export function DashboardOverview({
 
   const pendingTradeChipCount = tradeData?.totalPending ?? 0
 
-  const todayTimeAuthorityHint = useMemo(() => {
-    const tc = stripTimeContext
-    if (!tc) return null
-    const parts: string[] = []
-    if (tc.timezoneMismatch) {
-      parts.push(
-        `Account timezone (${tc.userTimezone}) differs from this device — lineup locks use server time as source of truth.`,
-      )
-    }
-    if (tc.deviceClockMismatch && tc.clockSkewSeconds != null) {
-      parts.push(`Device clock skew ~${Math.abs(Math.round(tc.clockSkewSeconds))}s detected.`)
-    }
-    if (
-      tc.nextLockTimeUTC &&
-      tc.timeUntilNextLockMs != null &&
-      tc.timeUntilNextLockMs >= 0 &&
-      tc.timeUntilNextLockMs < 1000 * 60 * 60 * 72
-    ) {
-      const m = Math.max(1, Math.floor(tc.timeUntilNextLockMs / 60000))
-      parts.push(`Next lock ~${m}m · local ${tc.userLocalTime}.`)
-    }
-    return parts.length ? parts.join(' ') : null
-  }, [stripTimeContext])
+  /** Leagues in pre_draft with a real, future draftDate — purely client-side, no new fetch. */
+  const upcomingDrafts = useMemo(() => {
+    const now = Date.now()
+    return leagues
+      .filter((l) => rawStage(l) === 'pre_draft' && l.draftDate && new Date(l.draftDate).getTime() > now)
+      .map((l) => ({ leagueId: l.id, leagueName: l.name, draftDate: l.draftDate as string }))
+  }, [leagues])
+
+  const urgentTodayCount = useMemo(
+    () => countActionItems(lineupData?.actions ?? [], waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview),
+    [lineupData, waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview],
+  )
+
+  /** Dashboard V2 Phase 3.6 — Platform Pulse. A pure aggregation over intelligence already in
+   *  memory (actions, cross-league counts, SSR commissioner health, upcoming drafts) — no new
+   *  fetch, no duplicate engine. Context-aware; self-gates to an empty list when nothing matters. */
+  const pulseItems = useMemo(
+    () =>
+      buildPlatformPulse({
+        context,
+        selectedLeagueId,
+        actions: lineupData?.actions ?? [],
+        waiverCount: waiverChipCount,
+        pendingTradeCount: pendingTradeChipCount,
+        commissionerHealth: initialCommissionerHealthSnapshots,
+        upcomingDrafts,
+      }),
+    [
+      context,
+      selectedLeagueId,
+      lineupData,
+      waiverChipCount,
+      pendingTradeChipCount,
+      initialCommissionerHealthSnapshots,
+      upcomingDrafts,
+    ],
+  )
 
   const handleAiShortcut = useCallback((_prompt: string) => {
     if (typeof window === 'undefined') return
@@ -696,44 +582,251 @@ export function DashboardOverview({
     window.dispatchEvent(new CustomEvent('af-dashboard-open-mobile-left'))
   }, [])
 
+  /** My Leagues narrows to commissioned-only in Commissioner Focus (secondary billing per the
+   *  locked Dashboard V2 architecture, Section 1); Global and Team Focus show every league. */
+  const myLeaguesList = context === 'commissioner' ? leagues.filter((l) => l.isCommissioner) : leagues
+
+  /** Phase 3.7 — per-context accent for section headings (cyan Global / amber Commissioner /
+   *  emerald Team), the single source of Dashboard V2's context identity. */
+  const contextAccent = CONTEXT_ACCENT[context]
+
+  const todaysAgendaSection = (
+    <section key="agenda" className="space-y-3">
+      <SectionHeading accent={contextAccent}>{t('dashboard.warroom.today.title')}</SectionHeading>
+      <ActionCenter
+        lineupActions={lineupData?.actions ?? []}
+        waiverPickupSuggestions={waiverChipCount}
+        pendingTradeCount={pendingTradeChipCount}
+        warRoomDecisionsToReview={warRoomDecisionsToReview}
+        onLineupIssuesClick={handleLineupIssuesClick}
+        onWaiverClick={handleWaiverClick}
+        onTradesClick={handleTradeClick}
+        onWarRoomClick={handleWarRoomToolClick}
+      />
+      <TodayTimeline
+        lineupActions={lineupData?.actions ?? []}
+        waiverTiming={todayWaiverTiming}
+        autoSwapsLast24h={todayAutoProtection?.autoSwapsLast24h ?? 0}
+        pendingTradeCount={pendingTradeChipCount}
+        upcomingDrafts={upcomingDrafts}
+        expiringNativeTrades={expiringNativeTrades}
+      />
+    </section>
+  )
+
+  const myLeaguesSection = leaguesLoading ? (
+    <section key="myLeagues" className="space-y-2.5">
+      <SectionHeading accent={contextAccent} icon={Crown}>{t('dashboard.warroom.myLeagues.title')}</SectionHeading>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {[0, 1].map((i) => (
+          <div key={i} className="warroom-card h-[168px] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
+        ))}
+      </div>
+    </section>
+  ) : myLeaguesList.length > 0 ? (
+    <section key="myLeagues" className="space-y-2.5">
+      <SectionHeading accent={contextAccent} icon={Crown}>{t('dashboard.warroom.myLeagues.title')}</SectionHeading>
+      <div className="grid gap-3 sm:grid-cols-2">
+        {myLeaguesList.map((l) => (
+          <MyLeagueCard
+            key={l.id}
+            league={l}
+            userId={userId}
+            waiverTiming={l.id === todayPrimaryLeagueId ? todayWaiverTiming : null}
+          />
+        ))}
+      </div>
+    </section>
+  ) : null
+
+  const commissionerHubSection = (
+    // Global's condensed cross-league list — unchanged from Phase 2.1/2.2. Commissioner Focus
+    // uses the richer, single-league commissionerHQSection below instead (Phase 2.3).
+    <CommissionerHub key="commissionerHub" leagues={leagues} />
+  )
+
+  /** Dashboard V2 Phase 2.3 — Commissioner HQ. Only rendered in Commissioner Focus, for the one
+   *  selected (commissioned) league. Falls back to a snapshot-less card (still real deep links,
+   *  just no health/recommendations) if the SSR snapshot doesn't include this league yet. */
+  const commissionerHQSection =
+    context === 'commissioner' && selectedLeague ? (
+      <CommissionerHQ
+        key="commissionerHQ"
+        league={selectedLeague}
+        snapshot={initialCommissionerHealthSnapshots?.find((s) => s.leagueId === selectedLeague.id) ?? null}
+      />
+    ) : null
+
+  const weeklyGamePlanSection = (
+    <CoachNotes key="weeklyGamePlan" lineupActions={lineupData?.actions ?? []} pendingTrades={tradeData?.trades ?? []} />
+  )
+
+  const rankingsLegacySection = (
+    <section key="rankingsLegacy" className="space-y-2.5">
+      <SectionHeading accent={contextAccent}>{t('dashboard.warroom.rankingsLegacy.title')}</SectionHeading>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <RankingsCard
+          initialRankPayload={initialUserRankPayload}
+          onImportNow={handleImport}
+          rankRefreshKey={rankRefreshKey}
+          onAskChimmy={() => {
+            const prompt =
+              'Explain my AllFantasy AF rank, tier, and XP — what should I focus on to climb the ladder?'
+            handleAiShortcut(prompt)
+            window.dispatchEvent(
+              new CustomEvent('af-chimmy-shortcut', {
+                detail: { prompt },
+              })
+            )
+          }}
+        />
+        <LegacySnapshotCard rankPayload={initialUserRankPayload} />
+      </div>
+      {/* Phase 4.3 Rankings UI — visualizes REAL career fields from the rank
+          payload (championships, playoffs, seasons, leagues). Self-gates to
+          nothing when the profile is unimported, so it never adds empty noise. */}
+      <CareerProgressionStrip rankPayload={initialUserRankPayload as Parameters<typeof CareerProgressionStrip>[0]['rankPayload']} />
+    </section>
+  )
+
+  const leagueBuzzSection = <LeagueActivityFeed key="leagueBuzz" />
+
+  /** Phase 3.1 — Recommendation Timeline (Decision OS "Recommend + Explain" centerpiece). Surfaces
+   *  the real AI lineup/start-sit/waiver/matchup signals with their confidence, expected gain, and
+   *  inline reasoning. Self-gates when there are no recommendations. */
+  const recommendationsSection = (
+    <RecommendationTimeline key="recommendations" actions={lineupData?.actions ?? []} />
+  )
+
+  /** Phase 3.6 — Platform Pulse: the cross-context intelligence briefing, placed first in every
+   *  context as the "front page." Self-gates (renders null) when the engine finds nothing. */
+  const platformPulseSection = <PlatformPulseCard key="platformPulse" items={pulseItems} />
+
+  /** Dashboard V2 Phase 2.4 — Team Focus sections, scoped to the one selected league (only
+   *  rendered in team context, where selectedLeague is guaranteed non-null). Each reuses an
+   *  existing component; nothing here is a new data source. */
+  const teamMatchupSection =
+    context === 'team' && selectedLeague ? (
+      <section key="teamMatchup" className="space-y-2.5">
+        <SectionHeading accent={contextAccent}>{t('dashboard.warroom.teamThisWeek.title')}</SectionHeading>
+        <TeamThisWeek league={selectedLeague} userId={userId} />
+      </section>
+    ) : null
+
+  // Phase 3 — season-long trajectory (playoff/championship odds + expected wins/seed/elimination
+  // risk) from the real season-forecast engine. Pairs with the this-week matchup card above.
+  const teamSeasonOutlookSection =
+    context === 'team' && selectedLeague ? (
+      <SeasonOutlook key="teamSeasonOutlook" league={selectedLeague} userId={userId} />
+    ) : null
+
+  // Phase 3.2 — Injury Impact (Monitor + Explain): which of my starters are hurt, how much it
+  // matters, and why — from the real injury-impact engine. Scoped to the selected league.
+  const teamInjuryImpactSection =
+    context === 'team' && selectedLeague ? (
+      <InjuryImpactPanel key="teamInjuryImpact" league={selectedLeague} />
+    ) : null
+
+  // Waiver pickups for just the selected league (real chimmyAdvice-backed recs); self-gates to
+  // nothing when there are no pending pickups for it, so no empty card in the quiet case.
+  const teamWaiverData =
+    context === 'team' && selectedLeague && waiverData
+      ? {
+          ...waiverData,
+          recommendations: waiverData.recommendations.filter((r) => r.leagueId === selectedLeague.id),
+        }
+      : null
+  const teamWaiverSection = teamWaiverData ? (
+    <WaiverWirePreview key="teamWaiver" data={teamWaiverData} onOpenAll={handleWaiverClick} />
+  ) : null
+
+  const teamSeasonJourneySection =
+    context === 'team' && selectedLeague ? (
+      <SeasonJourney
+        key="teamSeasonJourney"
+        lifecycleState={rawStage(selectedLeague)}
+        currentWeek={selectedLeague.currentWeek ?? null}
+        tradeDeadlineWeek={selectedLeague.tradeDeadlineWeek ?? null}
+        playoffStartWeek={selectedLeague.playoffStartWeek ?? null}
+      />
+    ) : null
+
+  /** Dashboard V2 Phase 2.2/2.4 — FantasyContextEngine section priority. Same components in every
+   *  context (per the "reuse, don't duplicate" rule); only their order changes. Global matches
+   *  the Phase 2.1 shell unchanged. Commissioner Focus promotes the Commissioner HQ to primary
+   *  billing. Team Focus (Phase 2.4) answers "what gives my team the best chance to win this week":
+   *  Weekly Game Plan → This Week's Matchup (primary decision card) → today's start/sit + lineup +
+   *  waiver actions → this league's waiver pickups → Season Journey → Rankings & Legacy → Buzz. */
+  /** Dashboard V2 Phase 3.8A — command-center layout. Same components/engines as before, but
+   *  arranged into a two-column grid (primary decision/intelligence column + secondary
+   *  context/portfolio column) so wide screens fill densely instead of a narrow centered column.
+   *  Collapses to a single stack below the `xl` breakpoint. `primary` gets the ~2/3 width. */
+  const layoutByContext: Record<PrimaryContext, { primary: ReactNode[]; secondary: ReactNode[] }> = {
+    global: {
+      primary: [platformPulseSection, recommendationsSection, todaysAgendaSection, weeklyGamePlanSection],
+      secondary: [myLeaguesSection, commissionerHubSection, rankingsLegacySection, leagueBuzzSection],
+    },
+    commissioner: {
+      primary: [platformPulseSection, commissionerHQSection, todaysAgendaSection, weeklyGamePlanSection],
+      secondary: [myLeaguesSection, rankingsLegacySection, leagueBuzzSection],
+    },
+    team: {
+      primary: [
+        platformPulseSection,
+        teamMatchupSection,
+        teamSeasonOutlookSection,
+        teamInjuryImpactSection,
+        recommendationsSection,
+        weeklyGamePlanSection,
+        todaysAgendaSection,
+        teamWaiverSection,
+      ],
+      secondary: [teamSeasonJourneySection, rankingsLegacySection, leagueBuzzSection],
+    },
+  }
+  const layout = layoutByContext[context]
+
   return (
     <div className="h-full min-h-0 w-full overflow-y-auto [scrollbar-gutter:stable]">
-      <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
-        <WorldCupDashboardPromo />
-        {(() => {
-          const inSeasonNflLeagues = leagues.filter(
-            (l) => l.sport === 'NFL' && l.status === 'in_season'
-          )
-          if (inSeasonNflLeagues.length === 0) return null
-          const weekNum = inSeasonNflLeagues[0]?.currentWeek
-          return (
-            <div className="rounded-lg border border-cyan-500/20 bg-cyan-500/[0.04] px-3 py-2 text-[12px]">
-              <span className="font-semibold text-cyan-200">
-                🏈{weekNum != null ? ` NFL Week ${weekNum}` : ' NFL Season'}
-              </span>
-              <span className="ml-2 text-white/45">
-                {inSeasonNflLeagues.length === 1
-                  ? '1 league active this week'
-                  : `${inSeasonNflLeagues.length} leagues active this week`}
-              </span>
-            </div>
-          )
-        })()}
-        <DashboardIntelligenceRail
-          leagueId={selectedLeagueId ?? null}
-          leagueName={selectedLeague?.name ?? null}
-          leagueSport={selectedLeague?.sport ?? null}
-          leagueType={selectedLeague?.leagueType ?? null}
+      <div className="mx-auto w-full max-w-[1600px] space-y-6 px-4 py-6 sm:px-6">
+        {/* 1. DASHBOARD HERO — Dashboard V2 Phase 2.2, context-aware (Global / Commissioner / Team).
+            World Cup promo moved out of the primary dashboard experience in Phase 2.1 (still
+            reachable at /brackets/world-cup, not deleted). */}
+        <DashboardHero
+          context={context}
+          userName={userName}
+          leagues={leagues}
+          selectedLeagueId={selectedLeagueId}
+          selectedLeague={selectedLeague}
+          onSelectLeagueId={setSelectedLeagueId}
+          urgentTodayCount={urgentTodayCount}
+          leaguesNeedingAttention={(initialCommissionerHealthSnapshots ?? []).filter((s) => s.healthScore < 55).length}
+          upcomingDraftCount={upcomingDrafts.length}
+          commissionerHealth={
+            selectedLeague ? initialCommissionerHealthSnapshots?.find((s) => s.leagueId === selectedLeague.id) ?? null : null
+          }
+          teamLineupDecisions={
+            selectedLeague ? (lineupData?.actions ?? []).filter((a) => a.leagueId === selectedLeague.id).length : 0
+          }
+          waiverPriority={
+            selectedLeague && waiverData
+              ? waiverData.recommendations
+                  .filter((r) => r.leagueId === selectedLeague.id)
+                  .reduce((n, r) => n + (r.pickups?.length ?? 0), 0)
+              : 0
+          }
         />
-        <TodaysMissionStrip
-          warRoomDecisions={warRoomDecisionsToReview}
-          pendingTrades={pendingTradeChipCount}
-          waiverSuggestions={waiverChipCount}
-          onWarRoomClick={handleWarRoomToolClick}
-          onChimmyClick={() => handleAiShortcut('')}
-          onTradesClick={handleTradeClick}
-          onWaiverClick={handleWaiverClick}
-        />
+
+        {/* 2-7. Command-center grid — Dashboard V2 Phase 3.8A. Same components/engines; a
+            primary decision column (~2/3) beside a secondary context/portfolio column (~1/3) on
+            wide screens, collapsing to a single stack below `xl`. Phase 3.8D moves this directly
+            under the hero (ahead of the setup checklist) so the hero flows straight into Platform
+            Pulse; the onboarding checklist now sits below the intelligence. */}
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 xl:items-start">
+          <div className="space-y-5 xl:col-span-2">{layout.primary}</div>
+          <div className="space-y-5">{layout.secondary}</div>
+        </div>
+
         {allDone ? (
           <p className="text-xs text-cyan-400/95">{t('dashboard.overview.allSet')}</p>
         ) : checklistExpanded ? (
@@ -879,315 +972,10 @@ export function DashboardOverview({
           </button>
         )}
 
-        <section className="relative overflow-hidden rounded-2xl border border-cyan-500/[0.15] bg-gradient-to-br from-cyan-500/[0.07] via-[#050814] to-violet-500/[0.04] p-5">
-          <div
-            aria-hidden
-            className="pointer-events-none absolute inset-x-0 top-0 h-32 opacity-70"
-            style={{
-              background:
-                'radial-gradient(ellipse 80% 60% at 50% -10%, rgba(34,211,238,0.16) 0%, transparent 70%)',
-            }}
-          />
-          <p className="text-[11px] font-bold uppercase tracking-widest text-cyan-400/60">
-            Daily Briefing
-          </p>
-          <h1 className="mt-1.5 text-[26px] font-black leading-tight tracking-tight text-white sm:text-[30px]">
-            Your fantasy command center is live.
-          </h1>
-          <p className="mt-2 max-w-xl text-[13px] leading-relaxed text-white/55">
-            Chimmy is watching your drafts, matchups, waivers, and league activity so you know what to do next.
-          </p>
-          <p className="mt-1.5 text-[12px] font-semibold text-amber-400/70">
-            Built for commissioners. Loved by managers.
-          </p>
-
-          {/* Primary command cards */}
-          <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <Link
-              href="/war-room"
-              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-cyan-500/30 bg-gradient-to-br from-cyan-500/[0.12] via-cyan-500/[0.06] to-transparent p-4 transition hover:border-cyan-400/50 hover:from-cyan-500/[0.18] active:opacity-90"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-cyan-500/20 text-cyan-400">
-                <Swords className="h-4 w-4" aria-hidden />
-              </span>
-              <p className="text-[15px] font-bold text-white">Open War Room</p>
-              <p className="text-[12px] leading-snug text-white/55">Draft smarter with AI pick strategy.</p>
-              <span className="mt-auto pt-1 text-[12px] font-semibold text-cyan-400 transition group-hover:text-cyan-300">
-                Enter →
-              </span>
-            </Link>
-
-            <Link
-              href="/commissioner-hub"
-              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/[0.10] via-amber-500/[0.05] to-transparent p-4 shadow-[0_0_20px_rgba(245,158,11,0.06)] transition hover:border-amber-400/50 hover:from-amber-500/[0.16] active:opacity-90"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/20 text-amber-400">
-                <Crown className="h-4 w-4" aria-hidden />
-              </span>
-              <p className="text-[15px] font-bold text-white">
-                {leagues.some((l) => l.isCommissioner) ? 'Commissioner Hub' : 'Run a League'}
-              </p>
-              <p className="text-[12px] leading-snug text-white/55">Create, import, invite, and manage your league.</p>
-              <span className="mt-auto pt-1 text-[12px] font-semibold text-amber-400 transition group-hover:text-amber-300">
-                Enter →
-              </span>
-            </Link>
-
-            <button
-              type="button"
-              onClick={() => handleAiShortcut('')}
-              className="group relative flex flex-col gap-2 overflow-hidden rounded-2xl border border-violet-500/30 bg-gradient-to-br from-violet-500/[0.10] via-violet-500/[0.05] to-transparent p-4 text-left transition hover:border-violet-400/50 hover:from-violet-500/[0.16] active:opacity-90"
-            >
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/20 text-violet-400">
-                <Sparkles className="h-4 w-4" aria-hidden />
-              </span>
-              <p className="text-[15px] font-bold text-white">Ask Chimmy</p>
-              <p className="text-[12px] leading-snug text-white/55">Get calm, evidence-based fantasy help.</p>
-              <span className="mt-auto pt-1 text-[12px] font-semibold text-violet-400 transition group-hover:text-violet-300">
-                Ask →
-              </span>
-            </button>
-          </div>
-
-          {/* Secondary action row */}
-          <div className="mt-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-2">
-            <Link
-              href="/create-league"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-            >
-              {t('dashboard.overview.createLeague')}
-            </Link>
-            <button
-              type="button"
-              onClick={() => setQuickCreateOpen(true)}
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-purple-500/30 bg-purple-500/10 px-3 py-2 text-[12px] font-semibold text-purple-300 transition hover:bg-purple-500/20 active:bg-purple-500/25 sm:w-auto"
-            >
-              ✨ Quick Create
-            </button>
-            <button
-              type="button"
-              onClick={handleImport}
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/20 px-3 py-2 text-[12px] font-semibold text-white active:bg-white/10 sm:w-auto"
-            >
-              {t('dashboard.overview.import')}
-            </button>
-            <Link
-              href="/find-league"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-            >
-              {t('dashboard.overview.findLeague')}
-            </Link>
-            <Link
-              href="/brackets"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-              data-testid="dashboard-brackets-link"
-            >
-              {t('dashboard.overview.brackets')}
-            </Link>
-            <Link
-              href="/af-rankings"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-              data-testid="dashboard-rankings-link"
-            >
-              Rankings
-            </Link>
-            <Link
-              href="/ai/tools"
-              className="touch-manipulation inline-flex min-h-[40px] w-full items-center justify-center rounded-xl border border-white/15 px-3 py-2 text-[12px] font-semibold text-white/70 transition hover:border-white/30 hover:bg-white/[0.04] active:bg-white/10 sm:w-auto"
-              data-testid="dashboard-ai-tools-link"
-            >
-              Intelligence Hub
-            </Link>
-          </div>
-        </section>
-
-        <TodayStrip
-          leagues={leagues}
-          lineupChipState={lineupChipState}
-          lineupPrimaryLabel={lineupPrimaryLabel}
-          lineupSubtext={lineupChipSubtext}
-          lineupUrgentHint={lineupUrgentHint}
-          lineupTooltip={t('dashboard.today.lineupChipTooltipDefault')}
-          onLineupIssuesClick={handleLineupIssuesClick}
-          waiverPickupSuggestions={waiverChipCount}
-          onWaiverClick={handleWaiverClick}
-          lineupInjuryDecisionsToReview={lineupInjuryDecisionsToReview}
-          injuryReportRowsInUserSports={injuryReportRowsInUserSports}
-          onInjuryClick={handleInjuryToolClick}
-          matchupPrepDecisionsToReview={matchupPrepDecisionsToReview}
-          leaguesWithSyncedMatchupData={leaguesWithSyncedMatchupData}
-          onMatchupPrepClick={handleMatchupPrepToolClick}
-          pendingTradeCount={pendingTradeChipCount}
-          onTradesClick={handleTradeClick}
-          warRoomDecisionsToReview={warRoomDecisionsToReview}
-          onWarRoomClick={handleWarRoomToolClick}
-          timeAuthorityHint={todayTimeAuthorityHint}
-          waiverTimingHint={stripWaiverTimingHint}
-          protectionActivityHint={stripProtectionActivityHint}
-        />
-
-        <DashboardLiveScoresWidget leagues={leagues} />
-
-        <WarRoomPreviewBlock />
-
-        {(() => {
-          const commLeagues = leagues.filter((l) => l.isCommissioner)
-          const memberLeagues = leagues.filter((l) => !l.isCommissioner)
-          if (leagues.length === 0) return null
-          return (
-            <section className="space-y-4">
-              {commLeagues.length > 0 && (
-                <div>
-                  <div className="mb-2.5 flex items-center gap-1.5">
-                    <Crown className="h-3.5 w-3.5 text-amber-400" aria-hidden />
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-amber-400/80">
-                      Leagues I Manage
-                    </p>
-                    <Link
-                      href="/commissioner-hub"
-                      className="ml-auto text-[11px] font-semibold text-amber-400/50 transition hover:text-amber-300"
-                    >
-                      Commissioner Hub →
-                    </Link>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {commLeagues.slice(0, 4).map((l) => (
-                      <Link
-                        key={l.id}
-                        href={`/league/${l.id}`}
-                        className="group flex items-center gap-2.5 rounded-xl border border-amber-500/[0.12] bg-amber-500/[0.04] px-3 py-2.5 transition hover:border-amber-500/25 hover:bg-amber-500/[0.07]"
-                      >
-                        <Crown className="h-3.5 w-3.5 shrink-0 text-amber-400/60" aria-hidden />
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/80 group-hover:text-white">
-                          {l.name}
-                        </span>
-                        <span className="shrink-0 text-[11px] text-white/30">{l.sport}</span>
-                      </Link>
-                    ))}
-                    {commLeagues.length > 4 && (
-                      <Link
-                        href="/commissioner-hub"
-                        className="flex items-center justify-center gap-1 rounded-xl border border-amber-500/15 px-3 py-2.5 text-[12px] text-amber-400/50 transition hover:border-amber-500/25 hover:text-amber-300"
-                      >
-                        +{commLeagues.length - 4} more in Commissioner Hub
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              )}
-              {memberLeagues.length > 0 && (
-                <div>
-                  <div className="mb-2.5 flex items-center gap-1.5">
-                    <Trophy className="h-3.5 w-3.5 text-cyan-400/70" aria-hidden />
-                    <p className="text-[11px] font-bold uppercase tracking-widest text-white/35">
-                      Leagues I Play In
-                    </p>
-                  </div>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {memberLeagues.slice(0, 4).map((l) => (
-                      <Link
-                        key={l.id}
-                        href={`/league/${l.id}`}
-                        className="group flex items-center gap-2.5 rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-2.5 transition hover:border-cyan-500/20 hover:bg-white/[0.04]"
-                      >
-                        <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-white/70 group-hover:text-white/90">
-                          {l.name}
-                        </span>
-                        <span className="shrink-0 text-[11px] text-white/30">{l.sport}</span>
-                      </Link>
-                    ))}
-                    {memberLeagues.length > 4 && (
-                      <span className="flex items-center justify-center gap-1 rounded-xl border border-white/[0.06] px-3 py-2.5 text-[12px] text-white/30">
-                        +{memberLeagues.length - 4} more
-                      </span>
-                    )}
-                  </div>
-                </div>
-              )}
-            </section>
-          )
-        })()}
-
-        <section className="space-y-3">
-          <div>
-            <p className="text-[12px] font-semibold uppercase tracking-wider text-white/30">
-              {t('dashboard.overview.leagueIntelligenceTitle')}
-            </p>
-            <p className="mt-1 max-w-xl text-[11px] leading-snug text-white/45">
-              {t('dashboard.overview.leagueIntelligenceSubtitle')}
-            </p>
-          </div>
-
-          {leagues.length > 1 ? (
-            <label className="block max-w-md text-[10px] font-bold uppercase tracking-wide text-white/40">
-              {t('dashboard.overview.leagueSelectorLabel')}
-              <select
-                value={selectedLeagueId ?? ''}
-                onChange={(e) => {
-                  const id = e.target.value
-                  setSelectedLeagueId(id)
-                  try {
-                    const url = new URL(window.location.href)
-                    url.searchParams.set('league', id)
-                    window.history.replaceState({}, '', url.toString())
-                  } catch {
-                    /* ignore */
-                  }
-                }}
-                className="mt-1.5 w-full rounded-xl border border-white/10 bg-[#0a1220] px-3 py-2 text-[13px] text-white/90"
-              >
-                {leagues.map((l) => (
-                  <option key={l.id} value={l.id}>
-                    {l.name} ({l.sport})
-                  </option>
-                ))}
-              </select>
-            </label>
-          ) : leagues.length === 1 && selectedLeague ? (
-            <p className="text-[11px] text-cyan-200/85">
-              <span className="inline-flex max-w-full items-center truncate rounded-full border border-white/10 bg-white/[0.04] px-2.5 py-1 font-semibold text-white/90">
-                {selectedLeague.name}
-              </span>{' '}
-              <span className="text-white/45">{String(selectedLeague.sport)}</span>
-            </p>
-          ) : null}
-
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <PowerRankingsMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-            <InjuryImpactMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-            <WarRoomMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-            <MatchupPrepMiniCard leagues={leagues} selectedLeagueId={selectedLeagueId} />
-          </div>
-
-          <LeaguePulseCard pulse={leaguePulse} variant="dashboard" />
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ManagerDnaCard profile={managerDna} variant="dashboard" compact />
-            <DecisionRecommendationsCard model={recommendations} variant="dashboard" compact />
-          </div>
-        </section>
-
-        <AIToolsGrid leagues={leagues} selectedLeagueId={selectedLeagueId} />
-
-        {selectedLeague ? (
-          <StandingsWidget leagueId={selectedLeague.id} sport={String(selectedLeague.sport)} />
-        ) : null}
-
-        <RankingsCard
-          initialRankPayload={initialUserRankPayload}
-          onImportNow={handleImport}
-          rankRefreshKey={rankRefreshKey}
-          onAskChimmy={() => {
-            const prompt =
-              'Explain my AllFantasy AF rank, tier, and XP — what should I focus on to climb the ladder?'
-            handleAiShortcut(prompt)
-            window.dispatchEvent(
-              new CustomEvent('af-chimmy-shortcut', {
-                detail: { prompt },
-              })
-            )
-          }}
-        />
-        <LegacySnapshotCard rankPayload={initialUserRankPayload} />
+        {/* 8. FOOTER */}
+        <footer className="border-t border-white/[0.06] pt-4 text-center text-[11px] text-white/25">
+          {t('dashboard.warroom.footer.tagline')}
+        </footer>
       </div>
 
       <LineupIssuesModal

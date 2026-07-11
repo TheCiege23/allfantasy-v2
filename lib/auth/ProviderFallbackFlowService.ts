@@ -8,7 +8,9 @@ const PROVIDER_FALLBACK_MESSAGES: Record<SocialProvider, string> = {
   apple:
     'Apple sign-in is not configured for this environment. It will appear here when enabled.',
   facebook:
-    'Facebook sign-in is not configured for this environment. It will appear here when enabled.',
+    'Facebook sign-in is pending Meta platform review. It will appear here once that review clears.',
+  discord:
+    'Discord sign-in is not configured for this environment. It will appear here when enabled.',
   instagram:
     'Instagram sign-in is planned. Follow updates for when it is available.',
   x: 'X sign-in is planned. Follow updates for when it is available.',
@@ -25,6 +27,7 @@ export function getProviderDisplayName(provider: SocialProvider): string {
     spotify: 'Spotify',
     apple: 'Apple',
     facebook: 'Facebook',
+    discord: 'Discord',
     instagram: 'Instagram',
     x: 'X',
     tiktok: 'TikTok',

@@ -4,4 +4,5 @@ export {
   getTermsUrl,
   getPrivacyUrl,
   getDataDeletionUrl,
+  getNoGamblingPolicyUrl,
 } from "@/lib/legal/legal-route-resolver"

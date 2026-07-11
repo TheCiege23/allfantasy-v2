@@ -29,26 +29,26 @@ import {
 } from '@/lib/seo'
 
 export const metadata: Metadata = buildSeoMeta({
-  title: 'AllFantasy.ai — The Intelligence Platform for Fantasy Sports | NFL, NBA, NHL, MLB & More',
+  title: 'AllFantasy.ai — Run Your League. Win Your League. | NFL, NBA, NHL, MLB & More',
   description:
-    'AllFantasy.ai turns real league and user data into better decisions for players, commissioners, and fantasy platforms. League intelligence, trade analysis, waiver tools, and draft help across NFL, NBA, NHL, MLB, NCAA, and Soccer.',
+    'AllFantasy.ai is the commissioner-first fantasy sports platform for serious managers. Build your league, draft live, manage trades and waivers, and chase the championship across NFL, NBA, NHL, MLB, NCAA, and Soccer.',
   canonicalPath: '/',
-  openGraphTitle: 'AllFantasy.ai — The Intelligence Platform for Fantasy Sports',
+  openGraphTitle: 'AllFantasy.ai — Run Your League. Win Your League.',
   openGraphDescription:
-    'Real league and user data, turned into better decisions. League health, trade analysis, waiver tools, and draft help for serious managers and commissioners.',
-  twitterTitle: 'AllFantasy.ai — The Intelligence Platform for Fantasy Sports',
-  twitterDescription: 'Real data. Better decisions. Healthier fantasy leagues.',
+    'The commissioner-first fantasy sports platform for serious managers. Live drafts, trades, waivers, standings, and championships — across every sport you play.',
+  twitterTitle: 'AllFantasy.ai — Run Your League. Win Your League.',
+  twitterDescription: 'The commissioner-first fantasy sports platform for serious managers.',
   imagePath: '/af-crest.png',
   keywords: [
-    'fantasy sports intelligence',
+    'fantasy sports',
     'fantasy football',
     'fantasy basketball',
-    'league intelligence',
     'trade analyzer',
-    'waiver wire tools',
+    'waiver wire',
     'draft assistant',
     'dynasty fantasy',
     'devy fantasy',
+    'fantasy league commissioner',
     'AllFantasy',
   ],
 })
@@ -56,14 +56,14 @@ export const metadata: Metadata = buildSeoMeta({
 const HOME_WEBPAGE_SCHEMA = getWebPageSchema({
   name: 'AllFantasy.ai',
   description:
-    'The intelligence platform for fantasy sports — NFL, NBA, NHL, MLB, NCAA, and Soccer — with league intelligence, trade analysis, waiver tools, and commissioner tools.',
+    'Commissioner-first fantasy sports platform for NFL, NBA, NHL, MLB, NCAA, and Soccer with league management, live drafts, trades, and waiver tools.',
   url: '/',
 })
 
 const HOME_SOFTWARE_APP_SCHEMA = getSoftwareApplicationSchema({
   name: 'AllFantasy.ai',
   description:
-    'The intelligence platform for fantasy sports. League intelligence, trade analyzer, waiver tools, and draft assistant for serious managers and commissioners.',
+    'Commissioner-first fantasy sports platform for serious managers with league management, live drafts, trade tools, and waiver wire tracking.',
   url: 'https://allfantasy.ai/',
   applicationCategory: 'SportsApplication',
 })

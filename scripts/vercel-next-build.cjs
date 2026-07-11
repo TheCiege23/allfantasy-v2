@@ -101,7 +101,8 @@ const routeDirsToDisable = [
   path.join('app', 'api', 'intelligence', 'snapshot'),
   path.join('app', 'api', 'providers', 'status'),
   path.join('app', 'api', 'chaos-detector'),
-  path.join('app', 'api', 'league-health'),
+  // league-health: NO LONGER excluded — the dashboard's MyLeagueCard (Sprint 2,
+  // Command Center redesign) is now a real production caller.
   path.join('app', 'api', 'league-meta'),
   path.join('app', 'api', 'platform', 'service-map'),
   path.join('app', 'api', 'ai', 'decision-log'),
@@ -179,6 +180,8 @@ const filesToKeep = new Set([
   path.join('app', 'api', 'admin', 'world-cup', 'actions', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'fantasy-data', 'import', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'fantasy-data', 'status', 'route.ts').replace(/\\/g, '/'),
+  // Duplicate-manager fraud-hardening verification tool — used from /admin/duplicate-manager-verify.
+  path.join('app', 'api', 'admin', 'duplicate-manager-verify', 'route.ts').replace(/\\/g, '/'),
 ])
 
 function directoryExists(targetPath) {

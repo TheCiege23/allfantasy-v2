@@ -3,6 +3,7 @@ import { attachChimmyAdviceToLineupSummary } from '@/lib/lineup-actions/chimmyLi
 import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { fetchWaiverDashboard } from '@/lib/dashboard-strip/fetchWaiverDashboard'
 import { fetchTradesDashboard } from '@/lib/dashboard-strip/fetchTradesDashboard'
+import { fetchExpiringNativeTradesForUser } from '@/lib/dashboard-strip/fetchExpiringNativeTrades'
 import { buildAiTimeContextPayload } from '@/lib/time-engine/userContext'
 import { runWarRoomCommandCenter } from '@/lib/war-room-command-center'
 import type { WarRoomToggles } from '@/lib/war-room-command-center/types'
@@ -57,6 +58,7 @@ export async function runTodayActions(userId: string): Promise<TodayActionsEngin
     computeLineupActionsForUser(userId),
     fetchWaiverDashboard(userId),
     fetchTradesDashboard(userId),
+    fetchExpiringNativeTradesForUser(userId),
     countLeaguesWithWeeklyMatchupForUserTeams(userId),
     computeWaiverTimingForLeague(primaryLeague?.id ?? null, userId),
     (async (): Promise<{ globalEnabled: boolean; autoSwapsLast24h: number }> => {
@@ -94,20 +96,26 @@ export async function runTodayActions(userId: string): Promise<TodayActionsEngin
     'trades',
     failureDetails,
   )
+  const expiringNativeTradesResolved = settledValue(
+    settled[3] as PromiseSettledResult<Awaited<ReturnType<typeof fetchExpiringNativeTradesForUser>>>,
+    [],
+    'expiringNativeTrades',
+    failureDetails,
+  )
   const matchupSyncedResolved = settledValue(
-    settled[3] as PromiseSettledResult<number>,
+    settled[4] as PromiseSettledResult<number>,
     0,
     'matchupSyncedLeagues',
     failureDetails,
   )
   const waiverTimingResolved = settledValue(
-    settled[4] as PromiseSettledResult<Awaited<ReturnType<typeof computeWaiverTimingForLeague>>>,
+    settled[5] as PromiseSettledResult<Awaited<ReturnType<typeof computeWaiverTimingForLeague>>>,
     { nextWaiverProcessKnown: false, nextWaiverProcessIsoUtc: null, waiverTimingHint: null },
     'waiverTiming',
     failureDetails,
   )
   const autoProtectionResolved = settledValue(
-    settled[5] as PromiseSettledResult<{ globalEnabled: boolean; autoSwapsLast24h: number }>,
+    settled[6] as PromiseSettledResult<{ globalEnabled: boolean; autoSwapsLast24h: number }>,
     { globalEnabled: true, autoSwapsLast24h: 0 },
     'autoProtection',
     failureDetails,
@@ -116,6 +124,7 @@ export async function runTodayActions(userId: string): Promise<TodayActionsEngin
   const lineupRaw = lineupResolved.value
   const waivers = waiversResolved.value
   const trades = tradesResolved.value
+  const expiringNativeTrades = expiringNativeTradesResolved.value
   const leaguesWithSyncedWeeklyMatchupData = matchupSyncedResolved.value
   const waiverTiming = waiverTimingResolved.value
   const autoProtectionRows = autoProtectionResolved.value
@@ -187,6 +196,7 @@ export async function runTodayActions(userId: string): Promise<TodayActionsEngin
     lineup,
     waivers,
     trades,
+    expiringNativeTrades,
     primaryLeagueId: primaryLeague?.id ?? null,
     counts: {
       waiverPickupSuggestions,
@@ -214,6 +224,7 @@ export async function runTodayActions(userId: string): Promise<TodayActionsEngin
       lineup: lineupResolved.status,
       waivers: waiversResolved.status,
       trades: tradesResolved.status,
+      expiringNativeTrades: expiringNativeTradesResolved.status,
       waiverTiming: waiverTimingResolved.status,
       matchupSyncedLeagues: matchupSyncedResolved.status,
       autoProtection: autoProtectionResolved.status,
@@ -222,6 +233,7 @@ export async function runTodayActions(userId: string): Promise<TodayActionsEngin
         lineupResolved.status !== 'ok' ||
         waiversResolved.status !== 'ok' ||
         tradesResolved.status !== 'ok' ||
+        expiringNativeTradesResolved.status !== 'ok' ||
         waiverTimingResolved.status !== 'ok' ||
         matchupSyncedResolved.status !== 'ok' ||
         autoProtectionResolved.status !== 'ok' ||

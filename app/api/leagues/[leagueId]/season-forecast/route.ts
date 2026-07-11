@@ -6,6 +6,12 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getSeasonForecast, runSeasonForecast } from '@/lib/season-forecast/SeasonForecastEngine'
 import { prisma } from '@/lib/prisma'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
+import type { TeamSeasonForecast } from '@/lib/season-forecast/types'
+import {
+  buildTeamForecastTrajectory,
+  type TeamForecastTrajectory,
+} from '@/lib/trajectory'
+import type { SeasonForecastHistoryRow } from '@/lib/trajectory/adapters/seasonForecast'
 
 export async function GET(
   req: NextRequest,
@@ -34,10 +40,45 @@ export async function GET(
       },
       select: { generatedAt: true },
     })
+
+    // Phase 3.4 — additive: server-computed week-over-week trajectory per team,
+    // from the reusable Trajectory Foundation. `getSeasonForecast` returns the
+    // snapshot for exactly `week`, so limiting history to `week <= requested`
+    // makes the trajectory's "current" point identical to what the card shows.
+    // Self-gates by construction: with a single snapshot every summary reports
+    // `hasChange: false`. One snapshot read powers every team.
+    let trajectories: Record<string, TeamForecastTrajectory> = {}
+    try {
+      const historyRows = await prisma.seasonForecastSnapshot.findMany({
+        where: { leagueId, season, week: { lte: week } },
+        orderBy: { week: 'asc' },
+        select: { week: true, generatedAt: true, teamForecasts: true },
+      })
+      const rows: SeasonForecastHistoryRow[] = historyRows.map(
+        (r: { week: number; generatedAt: Date; teamForecasts: unknown }) => ({
+          week: r.week,
+          generatedAt: r.generatedAt.toISOString(),
+          teamForecasts: (r.teamForecasts as unknown as TeamSeasonForecast[]) ?? [],
+        }),
+      )
+      const entries = await Promise.all(
+        teamForecasts.map(async (tf): Promise<[string, TeamForecastTrajectory]> => [
+          tf.teamId,
+          await buildTeamForecastTrajectory({ leagueId, season, teamId: tf.teamId }, rows),
+        ]),
+      )
+      trajectories = Object.fromEntries(entries)
+    } catch (trajErr) {
+      // Trajectory is a progressive enhancement — never fail the forecast for it.
+      console.error('[SeasonForecast GET trajectory]', trajErr)
+      trajectories = {}
+    }
+
     return NextResponse.json({
       teamForecasts,
       generated: true,
       generatedAt: snapshot?.generatedAt?.toISOString?.() ?? null,
+      trajectories,
     })
   } catch (e) {
     console.error('[SeasonForecast GET]', e)

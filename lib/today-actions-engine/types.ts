@@ -1,6 +1,7 @@
 import type { LineupActionSummaryPayload } from '@/lib/lineup-actions/types'
 import type { TradesDashboardResponse, WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import type { AiTimeContextPayload } from '@/lib/time-engine/types'
+import type { ExpiringNativeTrade } from '@/lib/dashboard-strip/fetchExpiringNativeTrades'
 
 /**
  * Per-signal health status for the Today Actions pipeline. `ok` = fetch succeeded and
@@ -11,6 +12,7 @@ export type TodayActionsSignalHealth = {
   lineup: 'ok' | 'failed'
   waivers: 'ok' | 'failed'
   trades: 'ok' | 'failed'
+  expiringNativeTrades: 'ok' | 'failed'
   waiverTiming: 'ok' | 'failed'
   matchupSyncedLeagues: 'ok' | 'failed'
   autoProtection: 'ok' | 'failed'
@@ -28,6 +30,8 @@ export type TodayActionsEngineResponse = {
   lineup: LineupActionSummaryPayload
   waivers: WaiverDashboardResponse
   trades: TradesDashboardResponse
+  /** Native (non-Sleeper) AfLeagueTrade rows expiring within 48h for the user's own rosters. */
+  expiringNativeTrades: ExpiringNativeTrade[]
   /** Primary league used for War Room snapshot + waiver timing (most recently updated claimed team). */
   primaryLeagueId: string | null
   counts: {

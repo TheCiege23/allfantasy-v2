@@ -170,6 +170,54 @@ export async function persistImportWithCanonicalAudit(input: {
       })
     }
 
+    // Phase 3.1 Rankings wiring — turn on the previously-dormant import→rank
+    // bridge. Sleeper only, schema-free: (a) derive `LegacyEvidenceRecord` rows
+    // from imported standings + previous-season chain, (b) trigger a rank
+    // recompute for the league. Wrapped in a single try/catch so a legacy-engine
+    // hiccup can NEVER fail the import — the import is already committed above.
+    if (input.provider === 'sleeper') {
+      try {
+        const { deriveEvidenceRowsFromImport } = await import(
+          '@/lib/legacy-score-engine/importedFactsToEvidence'
+        )
+        const { runLegacyScoreEngineForLeague } = await import(
+          '@/lib/legacy-score-engine/LegacyScoreEngine'
+        )
+        const playoffTeamCount =
+          (input.normalized.league as { playoff_team_count?: number | null } | null)
+            ?.playoff_team_count ?? null
+        const previousSeasonCount = input.normalized.previous_seasons?.length ?? 0
+        const rows = deriveEvidenceRowsFromImport(input.normalized, {
+          playoffTeamCount,
+          previousSeasonCount,
+        })
+        if (rows.length > 0) {
+          await prisma.legacyEvidenceRecord.createMany({ data: rows })
+        }
+        // Fire-and-forget recompute: `void` marks the promise as intentionally
+        // unawaited. If it throws asynchronously, the outer try/catch below on
+        // this iteration path won't see it — the recompute failing is not a
+        // failed import and must never block or corrupt the run.
+        void runLegacyScoreEngineForLeague(persisted.league.id).catch(() => undefined)
+      } catch (rankErr) {
+        // Non-fatal: log via a warning row so it's traceable, but the import
+        // remains 'completed' — the imported data itself is intact.
+        await prisma.importWarning
+          .create({
+            data: {
+              runId: run.id,
+              leagueId: persisted.league.id,
+              code: 'legacy_evidence_wiring_failed',
+              message:
+                rankErr instanceof Error ? rankErr.message : String(rankErr),
+              severity: 'warn',
+              metadata: {},
+            },
+          })
+          .catch(() => undefined)
+      }
+    }
+
     return { persisted, runId: run.id }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)

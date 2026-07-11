@@ -102,6 +102,7 @@
     "test": "vitest run",
     "test:engine": "vitest run __tests__/engine/league-engine-core.test.ts __tests__/integration/league-engine-flows.integration.test.ts __tests__/league-engine-comprehensive.test.ts",
     "test:engine:db": "vitest run __tests__/integration/league-engine-db.integration.test.ts",
+    "test:import:db": "vitest run __tests__/integration/sleeper-import-db.integration.test.ts",
     "simulate:league-engine": "tsx scripts/run-league-engine-simulation.ts",
     "simulate:league-engine:full": "tsx scripts/run-league-engine-simulation.ts --full",
     "test:watch": "vitest",

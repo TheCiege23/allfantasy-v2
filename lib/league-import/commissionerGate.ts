@@ -23,6 +23,13 @@ export interface CommissionerGateResult {
   verification?: 'api' | 'attestation'
   /** True when the provider can't be API-verified and caller must resubmit with attestation. */
   requiresAttestation?: boolean
+  /**
+   * Whether the requesting user is the source-league commissioner/owner. Set only for
+   * providers we can determine it for (Sleeper today). `undefined` = not determined for
+   * this provider — a caller requiring a commissioner fails closed only when this is
+   * explicitly `false` (Phase 2.2: Sleeper full-league import is commissioner-only).
+   */
+  isCommissioner?: boolean
 }
 
 export interface AttestationInput {
@@ -73,7 +80,14 @@ async function checkSleeper(appUserId: string, sourceLeagueId: string): Promise<
     if (!me) {
       return { ok: false, reason: 'You are not a member of that Sleeper league.' }
     }
-    return { ok: true, sourceManagerId: sleeperUserId, verification: 'api' }
+    // Sleeper marks commissioners with `is_owner: true` (co-commissioners allowed).
+    // `metadata.is_commissioner` is unreliable — verified null on real leagues — so it
+    // is only a secondary signal, never the sole basis. Fails closed: a member who is
+    // neither owner-flagged nor commissioner-flagged resolves to isCommissioner=false.
+    const metaCommish = me.metadata?.is_commissioner
+    const isCommissioner =
+      me.is_owner === true || metaCommish === true || metaCommish === 'true'
+    return { ok: true, sourceManagerId: sleeperUserId, verification: 'api', isCommissioner }
   } catch (err) {
     return {
       ok: false,
@@ -152,6 +166,30 @@ export async function assertImportCommissioner(args: {
   sourceLeagueId: string
   /** Optional self-attestation payload. Recorded when present; not required. */
   attestation?: AttestationInput
+  /**
+   * Phase 2.2 — when true, a full-league (playable) import is being requested and the
+   * requester must be the source-league commissioner. Enforced only where commissioner
+   * status can be determined (Sleeper); providers whose `isCommissioner` is undetermined
+   * keep their existing membership behavior (no regression). Default false preserves the
+   * legacy/profile-import membership semantics.
+   */
+  requireCommissioner?: boolean
+}): Promise<CommissionerGateResult> {
+  const base = await resolveImportGate(args)
+  if (args.requireCommissioner && base.ok && base.isCommissioner === false) {
+    return {
+      ok: false,
+      isCommissioner: false,
+      reason: 'Only the Sleeper commissioner can import this league into AllFantasy.',
+    }
+  }
+  return base
+}
+
+async function resolveImportGate(args: {
+  appUserId: string
+  provider: ImportProvider
+  sourceLeagueId: string
 }): Promise<CommissionerGateResult> {
   if (args.provider === 'sleeper') {
     return checkSleeper(args.appUserId, args.sourceLeagueId)

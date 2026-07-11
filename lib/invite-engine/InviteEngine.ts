@@ -8,6 +8,8 @@ import { assertPaidJoinAllowed, linkDuesToRoster } from '@/lib/league-finance/jo
 import { validateInviteCode, validateFantasyInviteCode } from '@/lib/league-invite'
 import { attributeSignupToReferrer, grantRewardForSignup } from '@/lib/referral'
 import { joinByInviteCode } from '@/lib/creator-system'
+import { assessLeagueJoinRisk } from '@/lib/identity/DuplicateManagerRiskService'
+import { createDuplicateManagerFlag } from '@/lib/identity/DuplicateManagerFlagService'
 import { generateInviteToken, normalizeToken } from './tokenGenerator'
 import {
   buildInviteDeepLink,
@@ -178,14 +180,56 @@ async function incrementInviteUseCount(linkId: string, useCount: number, maxUses
   })
 }
 
-async function createFantasyLeagueRoster(leagueId: string, userId: string) {
+/** Looks up current useCount/maxUses then increments — for callers (e.g. a deferred duplicate-manager-flag approval) that only have the link id on hand. */
+export async function incrementInviteUseCountById(linkId: string): Promise<void> {
+  const link = await prisma.inviteLink.findUnique({ where: { id: linkId }, select: { useCount: true, maxUses: true } })
+  if (!link) return
+  await incrementInviteUseCount(linkId, link.useCount, link.maxUses)
+}
+
+export async function createFantasyLeagueRoster(
+  leagueId: string,
+  userId: string,
+  options?: { skipRiskCheck?: boolean; inviteLinkId?: string | null }
+) {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.roster.findUnique({
       where: { leagueId_platformUserId: { leagueId, platformUserId: userId } },
       select: { id: true },
     })
     if (existing) {
-      return { ok: true as const, leagueId, alreadyMember: true as const }
+      return { ok: true as const, leagueId, alreadyMember: true as const, pendingReview: false as const }
+    }
+
+    // Duplicate-manager risk check — before any roster is created, so a high-risk
+    // join never lands a team until a commissioner/admin explicitly allows it.
+    // Household-exempt / low risk: proceeds silently. Medium: proceeds + visible
+    // flag. High: blocked here; DuplicateManagerFlagService.resolveDuplicateManagerFlag
+    // re-invokes this same function with skipRiskCheck to complete the join later,
+    // so leagueTeam/growthAttribution/dues side effects below never get duplicated.
+    if (!options?.skipRiskCheck) {
+      const assessment = await assessLeagueJoinRisk({ leagueId, joiningUserId: userId, client: tx as unknown as Prisma.TransactionClient })
+      if (assessment.riskLevel === 'high') {
+        await createDuplicateManagerFlag({
+          leagueId,
+          joiningUserId: userId,
+          assessment,
+          status: 'pending_review',
+          inviteLinkId: options?.inviteLinkId ?? null,
+          client: tx as unknown as Prisma.TransactionClient,
+        })
+        return { ok: true as const, leagueId, alreadyMember: false as const, pendingReview: true as const }
+      }
+      if (assessment.riskLevel === 'medium') {
+        await createDuplicateManagerFlag({
+          leagueId,
+          joiningUserId: userId,
+          assessment,
+          status: 'flagged',
+          inviteLinkId: options?.inviteLinkId ?? null,
+          client: tx as unknown as Prisma.TransactionClient,
+        })
+      }
     }
 
     const [league, rosterCount, draftSession, profile] = await Promise.all([
@@ -281,8 +325,13 @@ async function createFantasyLeagueRoster(leagueId: string, userId: string) {
       },
     })
 
-    return { ok: true as const, leagueId, alreadyMember: false as const }
+    return { ok: true as const, leagueId, alreadyMember: false as const, pendingReview: false as const }
   })
+}
+
+/** Exported entry point for DuplicateManagerFlagService — completes a join that was previously held for review, bypassing the risk check (already resolved by the commissioner action that calls this). */
+export async function createFantasyLeagueRosterBypassingRiskCheck(leagueId: string, userId: string) {
+  return createFantasyLeagueRoster(leagueId, userId, { skipRiskCheck: true })
 }
 
 function buildPreviewResult(input: {
@@ -894,7 +943,8 @@ export async function getInvitePreview(
 
 export async function acceptInvite(
   code: string,
-  userId: string
+  userId: string,
+  requestMeta?: { ip?: string | null; userAgent?: string | null; deviceId?: string | null }
 ): Promise<
   | {
       ok: true
@@ -903,6 +953,7 @@ export async function acceptInvite(
       alreadyMember?: boolean
       alreadyRedeemed?: boolean
       destinationHref?: string | null
+      pendingReview?: boolean
     }
   | { ok: false; error: string }
 > {
@@ -924,8 +975,35 @@ export async function acceptInvite(
     }
 
     if (link.type === 'league' && link.targetId) {
-      const result = await createFantasyLeagueRoster(link.targetId, userId)
+      if (requestMeta) {
+        const { recordIdentitySignal } = await import('@/lib/identity/IdentitySignalRecorder')
+        await recordIdentitySignal({
+          userId,
+          ip: requestMeta.ip,
+          userAgent: requestMeta.userAgent,
+          deviceId: requestMeta.deviceId,
+          context: 'league_join',
+          contextId: link.targetId,
+        })
+      }
+
+      const result = await createFantasyLeagueRoster(link.targetId, userId, { inviteLinkId: link.id })
       if (!result.ok) return { ok: false, error: result.error }
+      if (result.pendingReview) {
+        // High duplicate-manager risk — held for commissioner/admin review. No
+        // roster created, invite use count NOT incremented (join hasn't happened
+        // yet); see DuplicateManagerFlagService.resolveDuplicateManagerFlag for
+        // how an "allow"/"household" decision later completes this same join.
+        await recordInviteEvent(link.id, 'accepted', undefined, { userId, pendingReview: true })
+        return {
+          ok: true,
+          targetId: link.targetId,
+          inviteType: 'league',
+          alreadyMember: false,
+          pendingReview: true,
+          destinationHref: null,
+        }
+      }
       if (!result.alreadyMember) {
         await incrementInviteUseCount(link.id, link.useCount, link.maxUses)
       }

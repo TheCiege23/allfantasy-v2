@@ -22,12 +22,15 @@ describe('dashboard embedded league hub', () => {
     expect(src).toContain('data-af-league-embed-chrome-off')
   })
 
-  it('DashboardShell keeps three-panel shell when a league is selected', () => {
+  it('DashboardShell uses Floating Communications (no permanent chat column) when a league is selected', () => {
     const src = read('app/dashboard/DashboardShell.tsx')
     expect(src).toContain('SelectedLeagueHomePanel')
-    expect(src).toContain('<LeftChatPanel')
+    // Phase 2.5 Unified Communications: the permanent LeftChatPanel column was replaced by the
+    // FloatingCommunications hub (hideLeftRail / leftPanel={null}); the RightControlPanel is retained.
+    expect(src).not.toContain('<LeftChatPanel')
+    expect(src).toContain('<FloatingCommunications')
+    expect(src).toContain('hideLeftRail')
     expect(src).toContain('<RightControlPanel')
-    expect(src).toContain("initialOpenChat={effectiveActiveLeagueId ? 'league' : null}")
   })
 
   it('League page passes embedMode from ?embed=1 into LeagueShell', () => {
