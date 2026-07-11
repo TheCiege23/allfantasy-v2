@@ -1,0 +1,127 @@
+/**
+ * Fantasy OS Phase 5 — Sleeper provider adapter (real; players capability).
+ *
+ * Sleeper is a public API (no key). This adapter transforms Sleeper's raw player map into CanonicalPlayer,
+ * validates the payload shape (schema-drift protection), and attaches provenance. It does NOT resolve
+ * canonical identity — it emits `unresolved:` provisional ids + `providerIds.sleeper`; the gateway's
+ * resolution step assigns the real canonical id (canonical ids are never provider ids).
+ */
+import type { CanonicalPlayer } from '../contracts'
+import type { ProviderCapabilityDeclaration } from '../capabilities'
+import type { ProviderResult } from '../errors'
+import { classifyError } from '../errors'
+import { BaseProviderAdapter, type FetchPlayersInput, type ProviderHealth } from '../adapter'
+
+const BASE = 'https://api.sleeper.app/v1' // db-first-exception: gateway provider adapter (server-side sports data)
+
+type RawSleeperPlayer = {
+  player_id?: string
+  first_name?: string
+  last_name?: string
+  full_name?: string
+  position?: string | null
+  fantasy_positions?: string[] | null
+  team?: string | null
+  status?: string | null
+  injury_status?: string | null
+  active?: boolean
+  birth_date?: string | null
+}
+
+async function getJson<T>(url: string, timeoutMs = 9000): Promise<{ ok: true; data: T } | { ok: false; status?: number; err: unknown }> {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const res = await fetch(url, { signal: controller.signal, headers: { 'user-agent': 'fantasy-os-gateway' } })
+    clearTimeout(timer)
+    if (!res.ok) return { ok: false, status: res.status, err: new Error(`HTTP ${res.status}`) }
+    return { ok: true, data: (await res.json()) as T }
+  } catch (err) {
+    clearTimeout(timer)
+    return { ok: false, err }
+  }
+}
+
+export class SleeperAdapter extends BaseProviderAdapter {
+  provider = 'sleeper'
+
+  getCapabilities(): ProviderCapabilityDeclaration {
+    return {
+      provider: 'sleeper',
+      sports: ['NFL'],
+      capabilities: ['players', 'rosters', 'transactions', 'draft_data'],
+      refreshSupport: { players: 'scheduled', rosters: 'scheduled', transactions: 'scheduled', draft_data: 'scheduled' },
+      limitations: [
+        'No projections, live scores, play-by-play, or weather.',
+        'Injury data limited to a coarse player.injury_status field (not a full availability feed).',
+        'The full player map is large — cache aggressively; do not refetch every run.',
+      ],
+    }
+  }
+
+  async healthCheck(): Promise<ProviderHealth> {
+    const started = Date.now()
+    const r = await getJson<{ season?: string }>(`${BASE}/state/nfl`, 6000)
+    const latencyMs = Date.now() - started
+    if (r.ok && r.data && typeof r.data === 'object') return { provider: this.provider, state: 'healthy', checkedAt: new Date().toISOString(), latencyMs }
+    return { provider: this.provider, state: 'unavailable', checkedAt: new Date().toISOString(), latencyMs, detail: 'state endpoint unreachable' }
+  }
+
+  async fetchPlayers(input: FetchPlayersInput): Promise<ProviderResult<CanonicalPlayer[]>> {
+    const sport = input.sport.toLowerCase()
+    if (sport !== 'nfl') return { ok: false, provider: this.provider, error: classifyError(this.provider, new Error(`unsupported sport ${input.sport}`)) }
+    const fetchedAt = new Date().toISOString()
+    const snapshotVersion = `sleeper-players-nfl:${fetchedAt.slice(0, 10)}`
+
+    const r = await getJson<Record<string, RawSleeperPlayer>>(`${BASE}/players/nfl`, 20000)
+    if (!r.ok) return { ok: false, provider: this.provider, error: classifyError(this.provider, r.err, r.status) }
+
+    // Schema-drift protection: the payload MUST be a non-empty object map of player records.
+    const map = r.data
+    if (!map || typeof map !== 'object' || Array.isArray(map)) {
+      return { ok: false, provider: this.provider, error: { code: 'schema_mismatch', provider: this.provider, message: 'players payload was not an object map', retriable: false } }
+    }
+    const entries = Object.entries(map)
+    if (entries.length === 0) {
+      return { ok: false, provider: this.provider, error: { code: 'schema_mismatch', provider: this.provider, message: 'players payload was empty', retriable: false } }
+    }
+
+    const limit = input.limit ?? entries.length
+    const players: CanonicalPlayer[] = []
+    let rejected = 0
+    for (const [id, raw] of entries) {
+      if (players.length >= limit) break
+      const canonical = mapPlayer(id, raw, fetchedAt, snapshotVersion)
+      if (canonical) players.push(canonical)
+      else rejected++
+    }
+
+    return { ok: true, provider: this.provider, data: players, partial: rejected > 0, fetchedAt, snapshotVersion }
+  }
+}
+
+/** Pure Sleeper→CanonicalPlayer mapping (the seam). Rejects records missing the minimal required shape. */
+export function mapPlayer(id: string, raw: RawSleeperPlayer, fetchedAt: string, snapshotVersion: string): CanonicalPlayer | null {
+  const pid = raw.player_id ?? id
+  if (!pid) return null
+  const first = raw.first_name ?? ''
+  const last = raw.last_name ?? ''
+  const display = raw.full_name ?? `${first} ${last}`.trim()
+  if (!display) return null
+  return {
+    canonicalPlayerId: `unresolved:sleeper:${pid}`, // gateway resolution assigns the real canonical id
+    sport: 'NFL',
+    providerIds: { sleeper: String(pid) },
+    firstName: first,
+    lastName: last,
+    displayName: display,
+    position: raw.position ?? null,
+    positions: Array.isArray(raw.fantasy_positions) ? raw.fantasy_positions : raw.position ? [raw.position] : [],
+    teamId: raw.team ?? null,
+    status: raw.status ?? null,
+    injuryStatus: raw.injury_status ?? null,
+    active: raw.active === true,
+    metadata: { needsResolution: true, birthDate: raw.birth_date ?? null },
+    source: { primaryProvider: 'sleeper', providerRecordId: String(pid), fetchedAt, sourceUpdatedAt: null, snapshotVersion },
+  }
+}
