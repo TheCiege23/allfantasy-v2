@@ -1756,6 +1756,28 @@ operational importer and production write paths are untouched. Zero Decision OS 
 targeted 82/82; typecheck 158 baseline. Remaining before diverse-cohort calibration: the real multi-account
 cohort; a legitimate manager-identity/pattern contract; and a DB-backed store to exercise the resolvers.
 
+### V8.5 — Demo Truth Model, real-data visual QA & pilot technical certification (2026-07-10)
+
+Pivoted from Decision OS architecture to the customer-facing experience. Built the **Demo Truth Model**
+(`lib/fantasy-os/demoTruthModel.ts` + `components/fantasy-os/DemoStateBadge.tsx`): one shared, customer-facing
+vocabulary for how data is sourced and how fresh it is — live-connected / presentation-preview /
+engineering-smoke / partial-evidence / stale-evidence / unavailable-evidence / empty-healthy / sync-failure —
+with three test-enforced invariants (preview is never labeled live; unavailable evidence is never rendered as
+zero; engineering smoke is never shown as a user portfolio) and truthful freshness derived only from the real
+snapshot `generatedAt` (null → the UI says so, never invents one). Wired the canonical badges into the
+`/fantasy-os` gateway and fixed one real customer-facing defect: the live-demo card exposed the implementation
+term "Decision OS snapshots" (Part 3 forbids it) and didn't distinguish "live" from "unavailable" without a
+connected account — now it shows a provider-neutral **Data unavailable** badge and implementation-free copy.
+Honest boundary documented: the persisted validation corpus does NOT feed the customer hubs (they render from
+DB-backed product endpoints), so populated real-data visual QA of the seven workspaces needs an authenticated
+DB session driven through the browser — verified via deterministic component/route tests and disclosed, not
+claimed. Deliverables: the Demo Truth Model + copy/freshness standard, the Customer Route & Data-State Map +
+seven-OS visual state matrix (labeled by evidence level), and the Pilot Technical Certification (status labels:
+technically-certified / requires-live-session / blocked-cohort / blocked-contract / deferred). Live `/fantasy-os`
+= HTTP 200, canonical labels, no implementation terms, no provider-id leak. Zero Decision OS changes. Tests 13
+new; full targeted 214/214; typecheck 158 baseline. Per the phase's own guidance, the next step is a real
+customer pilot session, not further speculative engineering.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.

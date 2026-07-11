@@ -51,13 +51,21 @@ describe('Fantasy OS gateway — entry + routing', () => {
     expect(screen.getByText(/2 leagues connected/i)).toBeTruthy()
   })
 
-  it('labels the two demo modes distinctly (preview vs live)', () => {
+  it('labels the two demo modes with truthful Demo Truth Model badges (preview never says live)', () => {
     render(<FantasyOsGateway leagues={mixed} isAuthenticated />)
-    expect(screen.getByText(/Presentation preview/i)).toBeTruthy()
-    expect(screen.getByText(/Live connected demo/i)).toBeTruthy()
-    // preview routes to the presentation-safe commissioner hub
+    // canonical badges: a "Preview" badge and a "Live" badge (connected account)
+    expect(screen.getByLabelText(/Preview\. Presentation preview data/i)).toBeTruthy()
+    expect(screen.getByLabelText(/Live\. Your connected/i)).toBeTruthy()
+    // the preview affordance must never be labeled live
+    expect(screen.queryByLabelText(/Preview.*live/i)).toBeNull()
     const preview = screen.getByRole('link', { name: /Open preview/i })
     expect(preview.getAttribute('href')).toBe('/commissioner-hub')
+  })
+
+  it('shows Data unavailable (not Live) for the live path when no leagues are connected', () => {
+    render(<FantasyOsGateway leagues={[]} isAuthenticated />)
+    expect(screen.getByLabelText(/Data unavailable/i)).toBeTruthy()
+    expect(screen.queryByLabelText(/^Live\./i)).toBeNull()
   })
 
   it('renders the guided seven-OS rail in order', () => {

@@ -11,6 +11,7 @@ import { useMemo, useState } from 'react'
 import Link from 'next/link'
 import { LayoutGrid, Shield, ArrowRight, Compass, Eye, Radio } from 'lucide-react'
 import { resolveTenantBrand, tenantThemeStyle } from '@/lib/white-label'
+import DemoStateBadge from '@/components/fantasy-os/DemoStateBadge'
 
 const BRAND = resolveTenantBrand()
 
@@ -131,13 +132,13 @@ export default function FantasyOsGateway({
         <h2 className="text-[13px] font-bold uppercase tracking-widest text-secondary">Demonstration</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           <div className="rounded-2xl border border-status-info/25 bg-status-info/5 p-4">
-            <div className="flex items-center gap-2 text-status-info">
-              <Eye className="h-4 w-4" aria-hidden />
-              <p className="text-[12px] font-bold uppercase tracking-wide">Presentation preview</p>
+            <div className="flex items-center gap-2">
+              <Eye className="h-4 w-4 text-status-info" aria-hidden />
+              <DemoStateBadge state="presentation-preview" />
             </div>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-secondary">
+            <p className="mt-2 text-[12px] leading-relaxed text-secondary">
               A branded tour using presentation-safe preview data — clearly labeled as preview, no account
-              required.
+              required. Preview values are not your connected leagues.
             </p>
             <Link
               href="/commissioner-hub"
@@ -147,20 +148,20 @@ export default function FantasyOsGateway({
             </Link>
           </div>
           <div className="rounded-2xl border border-status-success/25 bg-status-success/5 p-4">
-            <div className="flex items-center gap-2 text-status-success">
-              <Radio className="h-4 w-4" aria-hidden />
-              <p className="text-[12px] font-bold uppercase tracking-wide">Live connected demo</p>
+            <div className="flex items-center gap-2">
+              <Radio className="h-4 w-4 text-status-success" aria-hidden />
+              <DemoStateBadge state={isAuthenticated && hasLeagues ? 'live-connected' : 'unavailable-evidence'} />
             </div>
-            <p className="mt-1.5 text-[12px] leading-relaxed text-secondary">
-              Real, authorized portfolio data through current Decision OS snapshots. Requires a connected
-              account; honest empty states where a decision has nothing open.
+            <p className="mt-2 text-[12px] leading-relaxed text-secondary">
+              Your real, authorized portfolio data, kept current. Requires a connected account; where a
+              decision has nothing open you'll see an honest “no action required”, not an empty guess.
             </p>
             <Link
               href={isAuthenticated && hasLeagues ? '/manager-hub' : '/login?callbackUrl=/fantasy-os'}
               prefetch={false}
               className="focus-ring mt-3 inline-flex items-center gap-1.5 text-[12px] font-bold text-status-success"
             >
-              {isAuthenticated && hasLeagues ? 'Open live demo' : 'Connect to enable'}
+              {isAuthenticated && hasLeagues ? 'Open live view' : 'Connect a league to activate'}
               <ArrowRight className="h-3.5 w-3.5" aria-hidden />
             </Link>
           </div>
