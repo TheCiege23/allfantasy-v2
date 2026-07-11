@@ -523,9 +523,6 @@ export function DraftRoomPageClient({
     draftPool === null && poolReadiness?.ready === false
       ? 'Preparing player pool...'
       : 'Loading player pool...'
-  const startDraftBlocked =
-    draftRoomState.canStart &&
-    (poolReadiness?.ready === false || poolFetching || !draftPool || draftPool.entries.length === 0)
   const effectiveDraftSport = draftPool?.sport ?? sport
 
   const draftedNames = useMemo(
@@ -927,6 +924,13 @@ export function DraftRoomPageClient({
   )
 
   const canDraft = draftRoomState.canDraft
+
+  // Relocated below draftRoomState: this render-time const reads draftRoomState.canStart,
+  // so it must be evaluated after the useMemo above to avoid a temporal-dead-zone crash
+  // ("Cannot access 'draftRoomState' before initialization"). Consumers are far below.
+  const startDraftBlocked =
+    draftRoomState.canStart &&
+    (poolReadiness?.ready === false || poolFetching || !draftPool || draftPool.entries.length === 0)
 
   useEffect(() => {
     if (!session) return

@@ -375,6 +375,12 @@ export async function persistImportedLeagueFromNormalization(
     isDynasty: normalized.league.isDynasty,
     sport: resolvedSport,
     season: seasonYear,
+    // Phase OS-C5: previously omitted entirely — `League.status` has no DB default, so every
+    // imported league silently ended up with status: null, which `leagueListFilter.ts` then
+    // misread as "incomplete legacy import" and hid. `?? undefined` (not `?? null`) so this write
+    // stays a no-op — same as every other optional field here — when the provider genuinely
+    // didn't report a status, rather than forcing an explicit null overwrite on every update.
+    status: normalized.league.status ?? undefined,
     rosterSize: normalized.league.rosterSize ?? undefined,
     starters: (normalized.league as Record<string, unknown>).roster_positions ?? undefined,
     avatarUrl: normalized.league_branding?.avatar_url ?? undefined,

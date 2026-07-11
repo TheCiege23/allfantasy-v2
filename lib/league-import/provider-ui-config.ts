@@ -10,8 +10,10 @@ export const IMPORT_PROVIDER_UI_OPTIONS: {
   label: string;
   /** True if preview + create-from-import are implemented. */
   available: boolean;
+  /** True if the import UI can discover leagues from an account identifier. */
+  supportsDiscovery?: boolean;
 }[] = [
-  { provider: 'sleeper', label: 'Sleeper', available: true },
+  { provider: 'sleeper', label: 'Sleeper', available: true, supportsDiscovery: true },
   { provider: 'espn', label: 'ESPN', available: true },
   { provider: 'yahoo', label: 'Yahoo', available: true },
   { provider: 'fantrax', label: 'Fantrax', available: true },
@@ -25,4 +27,10 @@ export function getImportProviderLabel(provider: ImportProvider): string {
 
 export function isImportProviderAvailable(provider: ImportProvider): boolean {
   return IMPORT_PROVIDER_UI_OPTIONS.some((o) => o.provider === provider && o.available);
+}
+
+export function supportsImportProviderDiscovery(provider: ImportProvider): boolean {
+  return IMPORT_PROVIDER_UI_OPTIONS.some(
+    (o) => o.provider === provider && o.available && o.supportsDiscovery === true,
+  );
 }

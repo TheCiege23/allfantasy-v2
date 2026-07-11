@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { cookies } from "next/headers"
 import { prisma } from "@/lib/prisma"
+import { getPlatformEvents, EVENT } from "@/lib/events"
 import { Prisma, VerificationMethod } from "@prisma/client"
 import bcrypt from "bcryptjs"
 import { sha256Hex, makeToken, isStrongPassword } from "@/lib/tokens"
@@ -138,8 +139,14 @@ async function withRegistrationConflictHandling<T>(operation: () => Promise<T>):
 
 export async function POST(req: Request) {
   try {
+    // E2E register bypass: enabled in non-production, OR in a production-MODE build
+    // only when the operator explicitly opts in via ALLOW_E2E_SEED=1 (the same flag
+    // the E2E seed route uses). Needed because the only stable local browser runtime
+    // is `next start` (production mode) against the STAGING DB. The real production
+    // deploy never sets ALLOW_E2E_SEED, so the bypass stays disabled there; it also
+    // still requires the x-allfantasy-e2e header. Never exposed to real users.
     const isE2ERequest =
-      process.env.NODE_ENV !== "production" &&
+      (process.env.NODE_ENV !== "production" || process.env.ALLOW_E2E_SEED === "1") &&
       req.headers.get("x-allfantasy-e2e") === "1"
 
     let detectedStateCode: string | null = null
@@ -519,6 +526,16 @@ export async function POST(req: Request) {
         console.warn("[register] avatar upload persistence failed (non-blocking):", avatarErr)
       }
     }
+
+    // G15.2b — best-effort emit (never throws). Account is created at this point.
+    // No PII in the payload — only the canonical user id.
+    await getPlatformEvents().emit(EVENT.AUTH_REGISTERED, {
+      actor: { type: "user", id: user.id },
+      source: "route:auth-register",
+      subjects: [{ kind: "user", id: user.id }],
+      idempotencyKey: `auth.registered:${user.id}`,
+      payload: { userId: user.id },
+    })
 
     // Mirror into EarlyAccessSignup so the admin "Signups" tab surfaces every new
     // account (not just waitlist entries). `confirmedAt` flips on email verify;

@@ -27,6 +27,13 @@ export interface SubmitImportResult {
   requiresAttestation?: boolean;
 }
 
+export interface DiscoverProviderLeaguesResult {
+  ok: boolean;
+  data?: unknown;
+  error?: string;
+  status?: number;
+}
+
 function getImportApiErrorMessage(
   data: { error?: string } | null | undefined,
   fallback: string
@@ -102,30 +109,15 @@ export async function submitImportCreation(
   }
 
   try {
-    const request =
-      provider === 'sleeper'
-        ? {
-            url: '/api/league/create',
-            body: {
-              platform: 'sleeper',
-              createFromSleeperImport: true,
-              sleeperLeagueId: trimmed,
-            },
-          }
-        : {
-            url: '/api/leagues/import/commit',
-            body: {
-              provider,
-              sourceId: trimmed,
-              ...(attestation?.accepted ? { attestation } : {}),
-              ...(options?.force ? { force: true } : {}),
-            },
-          };
-
-    const res = await fetch(request.url, {
+    const res = await fetch('/api/leagues/import/commit', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(request.body),
+      body: JSON.stringify({
+        provider,
+        sourceId: trimmed,
+        ...(attestation?.accepted ? { attestation } : {}),
+        ...(options?.force ? { force: true } : {}),
+      }),
     });
     const data = await res.json();
     if (!res.ok) {
@@ -134,6 +126,46 @@ export async function submitImportCreation(
         error: getImportApiErrorMessage(data, 'Failed to create league'),
         status: res.status,
         requiresAttestation: Boolean((data as { requiresAttestation?: boolean })?.requiresAttestation),
+      };
+    }
+    return { ok: true, data };
+  } catch (e) {
+    const message = e instanceof Error ? e.message : 'Network error';
+    return { ok: false, error: message };
+  }
+}
+
+export async function discoverProviderLeagues(
+  provider: ImportProvider,
+  accountIdentifier: string,
+  options?: { season?: string; sport?: string }
+): Promise<DiscoverProviderLeaguesResult> {
+  if (!isImportProviderAvailable(provider)) {
+    return { ok: false, error: `Import from ${provider} is not yet available.` };
+  }
+
+  const trimmed = accountIdentifier?.trim();
+  if (!trimmed) {
+    return { ok: false, error: 'Account identifier is required.' };
+  }
+
+  try {
+    const res = await fetch('/api/leagues/import/discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        provider,
+        accountIdentifier: trimmed,
+        ...(options?.season ? { season: options.season } : {}),
+        ...(options?.sport ? { sport: options.sport } : {}),
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        ok: false,
+        error: getImportApiErrorMessage(data, 'Failed to discover leagues'),
+        status: res.status,
       };
     }
     return { ok: true, data };

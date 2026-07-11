@@ -16,6 +16,7 @@ import { isNflRedraftCoreDashboardFromUserLeague } from '@/lib/league/is-nfl-red
 import { openDraftFromEmbeddedLeague } from '@/lib/dashboard/dashboard-draft-overlay-bridge'
 import { getNcaafBetaStatus, getNcaafBetaBannerInfo } from '@/lib/league/ncaaf-beta-guard'
 import { NcaafBetaDataBanner } from '@/components/NcaafBetaDataBanner'
+import { DraftPremiumShells } from '@/components/redraft-premium'
 
 export type DraftTabProps = {
   league: UserLeague
@@ -388,10 +389,6 @@ export function DraftTab({
   }, [league.scoring, league.sport])
   const enterDraftRoomHref = `/league/${league.id}/draft`
 
-  const handleSetTime = useCallback(() => {
-    console.log('DraftTab: Set Time (stub)', { leagueId: league.id })
-  }, [league.id])
-
   const handleMockDrafts = useCallback(async () => {
     try {
       const res = await fetch('/api/draft/create-mock', {
@@ -696,7 +693,7 @@ export function DraftTab({
             {canSetDraftTime ? (
               <button
                 type="button"
-                onClick={handleSetTime}
+                onClick={openSettingsDraft}
                 className="flex flex-1 items-center justify-center rounded-full bg-cyan-400 px-5 py-3 text-[12px] font-black uppercase tracking-wide text-[#0a0f18] shadow-md shadow-cyan-900/30 transition hover:bg-cyan-300"
                 data-testid="league-draftboard-set-time"
               >
@@ -735,12 +732,15 @@ export function DraftTab({
       />
 
       {nflRedraftShell && !isLeagueHome && preDraft ? (
-        <NflRedraftDraftOrderBlock
-          teams={displayTeams}
-          isCommissioner={Boolean(isCommissioner || isOwner)}
-          onOpenDraftSettings={() => openSettingsDraft()}
-          onGenerateDraftOrder={() => void handleGenerateDraftOrder()}
-        />
+        <div className="space-y-4">
+          <NflRedraftDraftOrderBlock
+            teams={displayTeams}
+            isCommissioner={Boolean(isCommissioner || isOwner)}
+            onOpenDraftSettings={() => openSettingsDraft()}
+            onGenerateDraftOrder={() => void handleGenerateDraftOrder()}
+          />
+          <DraftPremiumShells leagueId={league.id} compact />
+        </div>
       ) : null}
 
       <LeagueRecentActivity leagueId={league.id} />

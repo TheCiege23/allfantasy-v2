@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getServerSession } from 'next-auth'
+import { resolveChimmyCommissionerGrounding } from '@/lib/intelligence/chimmy/resolveChimmyGrounding'
 import { z } from 'zod'
 
 import { POST as postChatChimmy } from '@/app/api/chat/chimmy/route'
@@ -355,7 +356,11 @@ function appendImageToFormData(formData: FormData, image?: z.infer<typeof Chimmy
   formData.append('image', blob, fileName)
 }
 
-function buildForwardedRequest(req: NextRequest, payload: z.infer<typeof ChimmyJsonRequestSchema>) {
+function buildForwardedRequest(
+  req: NextRequest,
+  payload: z.infer<typeof ChimmyJsonRequestSchema>,
+  commissionerGrounding?: string | null,
+) {
   const formData = new FormData()
   formData.append('message', payload.message)
 
@@ -377,6 +382,10 @@ function buildForwardedRequest(req: NextRequest, payload: z.infer<typeof ChimmyJ
   }
   if (payload.userContext.leagueId) {
     formData.append('leagueId', payload.userContext.leagueId)
+  }
+  if (commissionerGrounding) {
+    // G15.10 — privacy-safe commissioner-intelligence grounding (additive; ignored if unused).
+    formData.append('commissionerGrounding', commissionerGrounding)
   }
   if (payload.userContext.sleeperUsername) {
     formData.append('sleeperUsername', payload.userContext.sleeperUsername)
@@ -520,7 +529,12 @@ export async function POST(req: NextRequest) {
     isAnthropicSupportedRequest(parseResult.data, anthropicImage)
 
   if (!useAnthropicPath) {
-    const delegatedResponse = await postChatChimmy(buildForwardedRequest(req, parseResult.data) as any)
+    // G15.10 — best-effort commissioner grounding (gated inside; returns null if not applicable).
+    const commissionerGrounding = await resolveChimmyCommissionerGrounding({
+      leagueId: parseResult.data.userContext.leagueId,
+      question: parseResult.data.message,
+    })
+    const delegatedResponse = await postChatChimmy(buildForwardedRequest(req, parseResult.data, commissionerGrounding) as any)
     return toCompatibilityResponse(delegatedResponse)
   }
 
@@ -582,6 +596,12 @@ export async function POST(req: NextRequest) {
 
   const resolvedTier = resolveServerTier(gate.decision.entitlement.plans)
   const anthropicContext = buildAnthropicUserContext(parseResult.data, userId, resolvedTier, afLang, anthropicImage)
+  // G15.10 — attach commissioner grounding (gated inside; null if not a commissioner/intent miss).
+  anthropicContext.commissionerGrounding = await resolveChimmyCommissionerGrounding({
+    userId,
+    leagueId: parseResult.data.userContext.leagueId,
+    question: parseResult.data.message,
+  })
   const tokenSpendId = gate.tokenSpend?.id ?? null
 
   // ── Daily cap check ──────────────────────────────────────────────────────────

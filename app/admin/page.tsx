@@ -8,6 +8,7 @@ import {
 } from "@/lib/admin-dashboard/AdminCommandCenterService"
 import { AiAuditLogsPanel } from "@/components/admin/AiAuditLogsPanel"
 import { AiProviderHealthPanel } from "@/components/admin/AiProviderHealthPanel"
+import { PlatformOsOperatorPanel } from "@/components/admin/PlatformOsOperatorPanel"
 import type {
   AdminProviderHealthRow,
   AdminProviderHealthStatus,
@@ -1546,6 +1547,14 @@ export default async function AdminPage({
             <AiAuditLogsPanel />
           </AccordionSection>
         </div>
+        <AccordionSection
+          id="platform-os"
+          title="Platform OS"
+          eyebrow="Decision OS — explicit league aggregation"
+          defaultOpen={false}
+        >
+          <PlatformOsOperatorPanel />
+        </AccordionSection>
 
         <section id="user-search" className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(360px,0.75fr)]">
           <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-4 shadow-[0_20px_70px_-52px_rgba(34,211,238,0.7)]">

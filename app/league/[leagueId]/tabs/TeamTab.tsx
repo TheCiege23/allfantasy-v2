@@ -1,8 +1,8 @@
-﻿'use client'
+'use client'
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ArrowLeftRight, ClipboardList, Settings, X, ExternalLink, Activity } from 'lucide-react'
 import { toast } from 'sonner'
 import { SubscriptionGateBadge } from '@/components/subscription/SubscriptionGateBadge'
@@ -15,7 +15,7 @@ import { PlayerHeadshot } from '@/components/league/PlayerHeadshot'
 import { TeamLogo } from '@/app/components/TeamLogo'
 import { getRosterPlayerIds } from '@/lib/waiver-wire/roster-utils'
 import type { UserLeague } from '@/app/dashboard/types'
-import { type PlayerMap, resolvePlayerName, useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
+import { type PlayerMap, useSleeperPlayers } from '@/lib/hooks/useSleeperPlayers'
 import { getStarterSlotLabels } from '@/lib/league/rosterSlots'
 import { IDPTeamDashboard } from '@/app/idp/components/IDPTeamDashboard'
 import { isWeatherSensitiveSport } from '@/lib/weather/outdoorSportMetadata'
@@ -40,6 +40,15 @@ import {
 } from '@/app/league/[leagueId]/tabs/team-tab-roster-helpers'
 import type { RosterLegalityFullResult } from '@/lib/roster-legality/types'
 import dynamic from 'next/dynamic'
+import type { UnifiedPlayerWireDto } from '@/lib/player-data/serializeUnifiedPlayerForApi'
+import {
+  buildDisplayPlayerMap,
+  resolveDisplayPlayer,
+  type DisplayPlayerMap,
+  type DisplayPlayerRecord,
+} from '@/lib/player-data/adapters/redraftDisplayPlayers'
+import { teamDefenseDisplayNameFromId } from '@/lib/redraft/teamDefenseIdentity'
+import { useLeagueRealtimeRefresh } from '@/hooks/useLeagueRealtimeRefresh'
 
 const TeamTabMatchupBanner = dynamic(
   () =>
@@ -110,6 +119,7 @@ export type TeamTabProps = {
 type DbRosterPayload = {
   source?: 'db'
   roster: unknown
+  unifiedRoster?: UnifiedPlayerWireDto[]
   rosterId?: string
   faabRemaining?: number
   slotLimits?: { starters: number; bench: number; ir: number; taxi: number; devy: number } | null
@@ -249,7 +259,7 @@ function positionBadgeClass(pos: string): string {
   if (p === 'TE') return 'border-orange-500/35 bg-orange-500/25 text-orange-400'
   if (p === 'K') return 'border-gray-500/35 bg-gray-500/25 text-gray-400'
   if (p === 'DEF' || p === 'DST') return 'border-purple-500/35 bg-purple-500/25 text-purple-400'
-  return 'border-white/15 bg-white/10 text-white/60'
+  return 'border-subtle bg-surface-muted text-secondary'
 }
 
 function managerInitials(name: string): string {
@@ -264,10 +274,10 @@ function managerInitials(name: string): string {
 
 function slotBadgeClass(slot: string): string {
   const u = slot.toUpperCase()
-  if (u === 'BN' || u === 'BENCH') return 'border-slate-400/30 bg-slate-500/20 text-slate-200'
-  if (u === 'IR') return 'border-white/15 bg-black/55 text-white'
-  if (u === 'TX' || u === 'TAXI') return 'border-white/15 bg-black/55 text-white'
-  if (u === 'DV' || u === 'DEVY') return 'border-white/15 bg-black/55 text-white'
+  if (u === 'BN' || u === 'BENCH') return 'border-subtle bg-surface-muted text-secondary'
+  if (u === 'IR') return 'border-subtle bg-surface-muted text-primary'
+  if (u === 'TX' || u === 'TAXI') return 'border-subtle bg-surface-muted text-primary'
+  if (u === 'DV' || u === 'DEVY') return 'border-subtle bg-surface-muted text-primary'
   if (u.includes('DL') || u === 'DE' || u === 'DT') return 'border-rose-400/35 bg-rose-500/20 text-rose-200'
   if (u.includes('LB')) return 'border-indigo-400/35 bg-indigo-500/20 text-indigo-200'
   if (u.includes('DB') || u === 'CB' || u === 'S') return 'border-fuchsia-400/35 bg-fuchsia-500/20 text-fuchsia-200'
@@ -278,7 +288,28 @@ function slotBadgeClass(slot: string): string {
   if (u.includes('FLEX') || u.includes('SF') || u.includes('SUPER') || u.includes('WRT')) return 'border-cyan-500/35 bg-cyan-500/25 text-cyan-400'
   if (u.includes('K')) return 'border-gray-500/35 bg-gray-500/25 text-gray-400'
   if (u.includes('DEF') || u.includes('DST')) return 'border-purple-500/35 bg-purple-500/25 text-purple-400'
-  return 'border-white/15 bg-white/10 text-white/60'
+  return 'border-subtle bg-surface-muted text-secondary'
+}
+
+function displayPlayerStatusText(player: DisplayPlayerRecord): string {
+  const injury = player.injuryStatus?.trim()
+  if (injury) return injury
+  const active = player.activeStatus?.trim()
+  return active || 'Active'
+}
+
+function displayPlayerStatusTextClass(status: string): string {
+  const normalized = status.toLowerCase()
+  if (/\bout\b|\bir\b|inactive|suspend|pup|injured reserve/.test(normalized)) return 'text-rose-300'
+  if (/questionable|doubtful|limited|injur|probable/.test(normalized)) return 'text-amber-300'
+  return 'text-emerald-300'
+}
+
+function displayPlayerStatusDotClass(status: string): string {
+  const normalized = status.toLowerCase()
+  if (/\bout\b|\bir\b|inactive|suspend|pup|injured reserve/.test(normalized)) return 'bg-rose-400'
+  if (/questionable|doubtful|limited|injur|probable/.test(normalized)) return 'bg-amber-300'
+  return 'bg-emerald-400'
 }
 
 function buildNflRedraftRosterChimmyPrompt(args: {
@@ -304,7 +335,7 @@ function buildNflRedraftRosterChimmyPrompt(args: {
   ].join('\n')
 }
 
-// â”€â”€â”€ Player Detail Bottom Sheet â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Player Detail Bottom Sheet
 
 function PlayerDetailSheet({
   playerId,
@@ -321,7 +352,7 @@ function PlayerDetailSheet({
   playerId: string
   slotLabel?: string
   sport: string
-  players: PlayerMap
+  players: DisplayPlayerMap
   week: number
   season: number
   onClose: () => void
@@ -330,9 +361,12 @@ function PlayerDetailSheet({
   canReplaceInLineup?: boolean
   onOpenReplace?: () => void
 }) {
-  const resolved = resolvePlayerName(playerId, players)
-  const pos = resolved.position || 'â€”'
-  const baseline = placeholderBaselineProjection(playerId)
+  const resolved = resolveDisplayPlayer(playerId, players)
+  const pos = resolved.position || '-'
+  const projection = resolved.projectedPoints ?? placeholderBaselineProjection(playerId)
+  const statusText = displayPlayerStatusText(resolved)
+  const statusTextClass = displayPlayerStatusTextClass(statusText)
+  const statusDotClass = displayPlayerStatusDotClass(statusText)
   const showCrest = isWeatherSensitiveSport(sport)
 
   // Close on Escape key
@@ -345,13 +379,13 @@ function PlayerDetailSheet({
   }, [onClose])
 
   const statusDot =
-    pos === 'DEF' || pos === 'DST' || pos === 'K'
+    (pos === 'DEF' || pos === 'DST' || pos === 'K') && !resolved.injuryStatus && !resolved.activeStatus
       ? null
       : (
         <span
-          className="h-2 w-2 rounded-full bg-emerald-400"
-          title="Status (Active â€” live injury feed coming soon)"
-          aria-label="Active"
+          className={`h-2 w-2 rounded-full ${statusDotClass}`}
+          title={`Status: ${statusText}`}
+          aria-label={statusText}
         />
       )
 
@@ -368,22 +402,23 @@ function PlayerDetailSheet({
         role="dialog"
         aria-modal="true"
         aria-label={`${resolved.name} player details`}
-        className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-lg rounded-t-2xl border-t border-white/[0.1] bg-[#111827] pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl"
+        className="fixed bottom-0 left-0 right-0 z-50 mx-auto max-w-lg rounded-t-2xl border-t border-subtle bg-surface pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-popover"
         data-testid="player-detail-sheet"
       >
         {/* Drag handle */}
         <div className="flex justify-center pt-3 pb-1">
-          <div className="h-1 w-10 rounded-full bg-white/20" />
+          <div className="h-1 w-10 rounded-full bg-surface-hover" />
         </div>
 
         {/* Header */}
         <div className="flex items-start gap-3 px-5 pb-3 pt-2">
           <div className="relative shrink-0">
             <PlayerHeadshot
-              sleeperId={playerId}
+              playerId={playerId}
               sport={sport}
               useResolver={String(sport ?? '').trim().toUpperCase() === 'NFL'}
               playerName={resolved.name}
+              headshotUrl={resolved.headshotUrl ?? resolved.imageUrl ?? null}
               position={resolved.position}
               espnId={players[playerId]?.espn_id}
               nbaId={players[playerId]?.nba_id}
@@ -393,15 +428,20 @@ function PlayerDetailSheet({
             />
           </div>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-base font-bold text-white">{resolved.name || `Player ${playerId.slice(-4)}`}</h2>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-white/55">
+            <h2 className="truncate text-base font-bold text-primary">{resolved.name || `Player ${playerId.slice(-4)}`}</h2>
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[12px] text-secondary">
               <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${positionBadgeClass(pos)}`}>{pos}</span>
               {resolved.team && resolved.team !== 'FA' ? (
                 <span className="flex items-center gap-1">
-                  <TeamLogo teamAbbr={resolved.team} sport={sport} size={14} />
+                  <TeamLogo
+                    teamAbbr={resolved.team}
+                    sport={sport}
+                    logoUrl={resolved.teamLogoUrl ?? null}
+                    size={14}
+                  />
                   {resolved.team}
                 </span>
-              ) : <span className="text-white/35">Free Agent</span>}
+              ) : <span className="text-muted">Free Agent</span>}
               {slotLabel ? (
                 <span className={`rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${slotBadgeClass(slotLabel)}`}>{slotLabel}</span>
               ) : null}
@@ -412,35 +452,35 @@ function PlayerDetailSheet({
             type="button"
             onClick={onClose}
             aria-label="Close player detail"
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/[0.12] bg-white/[0.06] text-white/55 hover:bg-white/[0.1] hover:text-white"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-subtle bg-surface-muted text-muted hover:bg-surface-hover hover:text-primary"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         {/* Stats row */}
-        <div className="mx-5 mb-4 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-white/[0.08] bg-white/[0.04]">
-          <div className="flex flex-col items-center gap-0.5 bg-[#111827] px-3 py-3">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-white/35">Proj</span>
-            <span className="text-[18px] font-bold text-white/90">
-              {baseline > 0 ? baseline.toFixed(1) : 'â€”'}
+        <div className="mx-5 mb-4 grid grid-cols-3 gap-px overflow-hidden rounded-xl border border-subtle bg-surface-muted">
+          <div className="flex flex-col items-center gap-0.5 bg-surface px-3 py-3">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-muted">Proj</span>
+            <span className="text-[18px] font-bold text-primary">
+              {projection > 0 ? projection.toFixed(1) : '-'}
             </span>
             {showCrest ? (
-              <span className="text-[9px] text-white/30">via AF</span>
+              <span className="text-[9px] text-muted">via AF</span>
             ) : null}
           </div>
-          <div className="flex flex-col items-center gap-0.5 bg-[#111827] px-3 py-3">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-white/35">Pts</span>
-            <span className="text-[18px] font-bold text-white/40">â€”</span>
-            <span className="text-[9px] text-white/25">live feed</span>
+          <div className="flex flex-col items-center gap-0.5 bg-surface px-3 py-3">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-muted">Pts</span>
+            <span className="text-[18px] font-bold text-muted">-</span>
+            <span className="text-[9px] text-muted">live feed</span>
           </div>
-          <div className="flex flex-col items-center gap-0.5 bg-[#111827] px-3 py-3">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-white/35">Status</span>
-            <span className="flex items-center gap-1 text-[12px] font-semibold text-emerald-300">
+          <div className="flex flex-col items-center gap-0.5 bg-surface px-3 py-3">
+            <span className="text-[10px] font-bold uppercase tracking-wide text-muted">Status</span>
+            <span className={`flex items-center gap-1 text-[12px] font-semibold ${statusTextClass}`}>
               <Activity className="h-3 w-3" />
-              Active
+              {statusText}
             </span>
-            <span className="text-[9px] text-white/25">injury feed</span>
+            <span className="text-[9px] text-muted">provider status</span>
           </div>
         </div>
 
@@ -450,7 +490,7 @@ function PlayerDetailSheet({
             <button
               type="button"
               onClick={() => onOpenReplace?.()}
-              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/[0.14] bg-white/[0.06] py-3 text-[13px] font-bold text-white/90 transition hover:bg-white/[0.12] active:scale-95"
+              className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-subtle bg-surface-muted py-3 text-[13px] font-bold text-primary transition hover:bg-surface-hover active:scale-95"
             >
               <ArrowLeftRight className="h-4 w-4" aria-hidden />
               Replace in lineup
@@ -492,7 +532,7 @@ function LineupReplacementPickerSheet({
   sourcePlayerId: string | null
   sourceSlotLabel?: string
   sport: string
-  players: PlayerMap
+  players: DisplayPlayerMap
   candidates: SwapCandidate[]
   saving: boolean
   locked: boolean
@@ -531,7 +571,7 @@ function LineupReplacementPickerSheet({
 
   if (!open || !sourcePlayerId) return null
 
-  const source = resolvePlayerName(sourcePlayerId, players)
+  const source = resolveDisplayPlayer(sourcePlayerId, players)
   const confirmDisabled =
     !selectedId ||
     saving ||
@@ -546,23 +586,23 @@ function LineupReplacementPickerSheet({
         role="dialog"
         aria-modal="true"
         aria-label="Replace player in lineup"
-        className="fixed bottom-0 left-0 right-0 z-[80] mx-auto max-h-[84dvh] w-full max-w-xl rounded-t-2xl border-t border-white/[0.1] bg-[#0a1228] pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl"
+        className="fixed bottom-0 left-0 right-0 z-[80] mx-auto max-h-[84dvh] w-full max-w-xl rounded-t-2xl border-t border-subtle bg-surface pb-[max(1rem,env(safe-area-inset-bottom))] shadow-popover"
       >
         <div className="flex justify-center pt-3 pb-1">
-          <div className="h-1 w-10 rounded-full bg-white/20" />
+          <div className="h-1 w-10 rounded-full bg-surface-hover" />
         </div>
         <div className="flex items-start justify-between gap-3 px-4 pb-3 pt-2">
           <div className="min-w-0">
-            <p className="text-sm font-bold text-white">Replace in lineup</p>
-            <p className="truncate text-[11px] text-white/50">
-              {source.name} Â· {source.position || 'â€”'}
-              {sourceSlotLabel ? ` Â· ${sourceSlotLabel}` : ''}
+            <p className="text-sm font-bold text-primary">Replace in lineup</p>
+            <p className="truncate text-[11px] text-muted">
+              {source.name} · {source.position || '-'}
+              {sourceSlotLabel ? ` · ${sourceSlotLabel}` : ''}
             </p>
           </div>
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-white/55 hover:bg-white/[0.08] hover:text-white"
+            className="rounded-lg p-1.5 text-muted hover:bg-surface-hover hover:text-primary"
             aria-label="Close replacement picker"
           >
             <X className="h-4 w-4" />
@@ -575,7 +615,7 @@ function LineupReplacementPickerSheet({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search by player or position"
-            className="w-full rounded-xl border border-white/[0.1] bg-[#040915] px-3 py-2 text-xs text-white placeholder:text-white/35 focus:border-cyan-500/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
+            className="w-full rounded-xl border border-subtle bg-surface-muted px-3 py-2 text-xs text-primary placeholder:text-muted focus:border-brand-primary/40 focus:outline-none focus:ring-1 focus:ring-focus/30"
           />
         </div>
 
@@ -583,13 +623,13 @@ function LineupReplacementPickerSheet({
           <p className="px-4 pb-2 text-xs text-amber-200/90">{lockMessage ?? 'Lineup is locked.'}</p>
         ) : null}
         {!autosaveWired ? (
-          <p className="px-4 pb-2 text-xs text-white/60">Lineup autosave route is not wired yet.</p>
+          <p className="px-4 pb-2 text-xs text-secondary">Lineup autosave route is not wired yet.</p>
         ) : null}
         {helperError ? <p className="px-4 pb-2 text-xs text-rose-300/90">{helperError}</p> : null}
 
         <div className="max-h-[46dvh] overflow-y-auto px-2">
           {filtered.length === 0 ? (
-            <p className="px-3 py-4 text-xs text-white/50">No eligible players match your filter.</p>
+            <p className="px-3 py-4 text-xs text-muted">No eligible players match your filter.</p>
           ) : (
             <ul className="space-y-1 pb-2">
               {filtered.map((c) => {
@@ -614,20 +654,21 @@ function LineupReplacementPickerSheet({
                         'w-full rounded-xl border px-3 py-2 text-left transition',
                         selected
                           ? 'border-cyan-400/50 bg-cyan-500/10'
-                          : 'border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.06]',
+                          : 'border-subtle bg-surface-muted hover:bg-surface-hover',
                         !c.eligible || locked ? 'opacity-40' : '',
                       ].join(' ')}
                       data-testid={`lineup-replace-candidate-${c.id}`}
                     >
                       <div className="flex items-center gap-2">
-                        <span className="inline-flex min-w-[2.25rem] shrink-0 justify-center rounded-md border border-white/15 bg-white/[0.06] px-1.5 py-0.5 text-[10px] font-bold text-white/70">
-                          {c.badge ?? 'â€”'}
+                        <span className="inline-flex min-w-[2.25rem] shrink-0 justify-center rounded-md border border-subtle bg-surface px-1.5 py-0.5 text-[10px] font-bold text-secondary">
+                          {c.badge ?? '-'}
                         </span>
                         <PlayerHeadshot
-                          sleeperId={c.id}
+                          playerId={c.id}
                           sport={sport}
                           useResolver={String(sport ?? '').trim().toUpperCase() === 'NFL'}
                           playerName={c.name}
+                          headshotUrl={p?.headshotUrl ?? p?.imageUrl ?? null}
                           position={c.position}
                           espnId={players[c.id]?.espn_id}
                           nbaId={players[c.id]?.nba_id}
@@ -636,13 +677,18 @@ function LineupReplacementPickerSheet({
                           variant="round"
                         />
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-semibold text-white">{c.name}</p>
-                          <p className="flex items-center gap-1 text-[10px] text-white/50">
-                            <span>{c.position || 'â€”'}</span>
-                            <span className="text-white/25">Â·</span>
+                          <p className="truncate text-xs font-semibold text-primary">{c.name}</p>
+                          <p className="flex items-center gap-1 text-[10px] text-muted">
+                            <span>{c.position || '-'}</span>
+                            <span className="text-muted">·</span>
                             {c.team && c.team !== 'FA' ? (
                               <>
-                                <TeamLogo teamAbbr={c.team} sport={sport} size={14} />
+                                <TeamLogo
+                                  teamAbbr={c.team}
+                                  sport={sport}
+                                  logoUrl={p?.teamLogoUrl ?? null}
+                                  size={14}
+                                />
                                 <span>{c.team}</span>
                               </>
                             ) : (
@@ -656,9 +702,9 @@ function LineupReplacementPickerSheet({
                           </span>
                         ) : null}
                       </div>
-                      <div className="mt-1.5 grid grid-cols-3 gap-2 text-[10px] text-white/55">
-                        <span>Proj: {baseline > 0 ? baseline.toFixed(1) : 'â€”'}</span>
-                        <span>Pts: â€”</span>
+                      <div className="mt-1.5 grid grid-cols-3 gap-2 text-[10px] text-secondary">
+                        <span>Proj: {baseline > 0 ? baseline.toFixed(1) : '-'}</span>
+                        <span>Pts: -</span>
                         <span>Status: {status}</span>
                       </div>
                     </button>
@@ -669,7 +715,7 @@ function LineupReplacementPickerSheet({
           )}
         </div>
 
-        <div className="border-t border-white/[0.08] px-4 pt-3">
+        <div className="border-t border-subtle px-4 pt-3">
           <button
             type="button"
             disabled={confirmDisabled}
@@ -680,11 +726,11 @@ function LineupReplacementPickerSheet({
             className={[
               'w-full rounded-xl border py-2.5 text-sm font-bold transition',
               confirmDisabled
-                ? 'cursor-not-allowed border-white/[0.1] bg-white/[0.05] text-white/35'
+                ? 'cursor-not-allowed border-subtle bg-surface-muted text-muted'
                 : 'border-cyan-400/35 bg-cyan-500/15 text-cyan-100 hover:bg-cyan-500/25',
             ].join(' ')}
           >
-            {saving ? 'Saving replacementâ€¦' : 'Confirm replacement'}
+            {saving ? 'Saving replacement...' : 'Confirm replacement'}
           </button>
         </div>
       </div>
@@ -707,10 +753,11 @@ function RosterRow({
   chimmyNote,
   onChimmyNoteChange,
   onAskChimmy,
+  liveScore,
 }: {
   playerId: string
   sport: string
-  players: PlayerMap
+  players: DisplayPlayerMap
   playersLoading: boolean
   onPlayerClick: (id: string, slotLabel?: string) => void
   slotLabel?: string
@@ -725,9 +772,23 @@ function RosterRow({
   chimmyNote?: string
   onChimmyNoteChange?: (value: string) => void
   onAskChimmy?: () => void
+  /** Live fantasy points for this player (current week, from SSE-refreshed roster). */
+  liveScore?: number | null
 }) {
-  const leftBadgeEarly = slotLabel ?? 'â€”'
-  const badgeClassEarly = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass('â€”')
+  // Flash animation when liveScore changes - hooks must run before any early return.
+  const [ptFlash, setPtFlash] = useState(false)
+  const prevLiveScore = useRef<number | null>(null)
+  useEffect(() => {
+    if (liveScore != null && prevLiveScore.current != null && liveScore !== prevLiveScore.current) {
+      setPtFlash(true)
+      const t = setTimeout(() => setPtFlash(false), 800)
+      return () => clearTimeout(t)
+    }
+    prevLiveScore.current = liveScore ?? null
+  }, [liveScore])
+
+  const leftBadgeEarly = slotLabel ?? '-'
+  const badgeClassEarly = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass('-')
   if (!playerId || playerId.trim() === '') {
     return (
       <div className="flex w-full items-center gap-2 rounded-lg border border-dashed border-white/[0.08] px-2 py-2 text-left">
@@ -741,18 +802,24 @@ function RosterRow({
         >
           {leftBadgeEarly}
         </button>
-        <span className="text-xs text-white/35">{emptyLabel ?? 'Empty'}</span>
+        <span className="text-xs text-muted">{emptyLabel ?? 'Empty'}</span>
       </div>
     )
   }
 
-  const resolved = resolvePlayerName(playerId, players)
-  const label = playersLoading ? `Player ${playerId.slice(-4)}` : resolved.name
-  const pos = resolved.position || 'â€”'
+  const resolved = resolveDisplayPlayer(playerId, players)
+  // A synthetic team-defense id (`nfl:def:KC`) is self-describing - its name is
+  // final and never "loading", so it must not be masked by the loading
+  // placeholder. Other ids keep the placeholder until the player map resolves.
+  const teamDefLabel = teamDefenseDisplayNameFromId(playerId)
+  const label = teamDefLabel ?? (playersLoading ? `Player ${playerId.slice(-4)}` : resolved.name)
+  const pos = resolved.position || '-'
   const showTeam = resolved.team && resolved.team !== 'FA'
   const leftBadge = slotLabel ?? pos
   const badgeClass = slotLabel ? slotBadgeClass(slotLabel) : positionBadgeClass(pos)
-  const baseline = placeholderBaselineProjection(playerId)
+  const baseline = resolved.projectedPoints ?? placeholderBaselineProjection(playerId)
+  const statusText = displayPlayerStatusText(resolved)
+  const statusDotClass = displayPlayerStatusDotClass(statusText)
   const crestSport = sport
   const showCrest = isWeatherSensitiveSport(crestSport)
 
@@ -781,10 +848,11 @@ function RosterRow({
       </span>
       <div className="relative shrink-0">
         <PlayerHeadshot
-          sleeperId={playerId}
+          playerId={playerId}
           sport={sport}
           useResolver={String(sport ?? '').trim().toUpperCase() === 'NFL'}
           playerName={label}
+          headshotUrl={resolved.headshotUrl ?? resolved.imageUrl ?? null}
           position={resolved.position}
           espnId={players[playerId]?.espn_id}
           nbaId={players[playerId]?.nba_id}
@@ -793,8 +861,8 @@ function RosterRow({
           variant="round"
         />
         <span
-          className="absolute bottom-0 right-0 h-2 w-2 rounded-full border border-[#0a1228] bg-white/25"
-          title="Injury status (coming soon)"
+          className={`absolute bottom-0 right-0 h-2 w-2 rounded-full border border-[#0a1228] ${statusDotClass}`}
+          title={`Status: ${statusText}`}
           aria-hidden
         />
       </div>
@@ -802,30 +870,35 @@ function RosterRow({
         <p className="truncate text-xs font-semibold text-white">{label}</p>
         <p className="flex flex-wrap items-center gap-1 text-[10px] text-white/40">
           {playersLoading ? (
-            'â€” Â· â€”'
+            '- · -'
           ) : (
             <>
-              <span>{resolved.position || 'â€”'}</span>
-              <span className="text-white/25">Â·</span>
+              <span>{resolved.position || '-'}</span>
+              <span className="text-white/25">·</span>
               {showTeam ? (
                 <>
-                  <TeamLogo teamAbbr={resolved.team} sport={sport} size={16} />
+                  <TeamLogo
+                    teamAbbr={resolved.team}
+                    sport={sport}
+                    logoUrl={resolved.teamLogoUrl ?? null}
+                    size={16}
+                  />
                   <span className="text-white/45">{resolved.team}</span>
                 </>
               ) : (
-                <span>â€”</span>
+                <span>-</span>
               )}
             </>
           )}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2 text-right text-xs text-white/45">
+      <div className="flex shrink-0 items-center gap-2 text-right text-xs text-muted">
         <span className="flex w-[4.5rem] items-center justify-end gap-0.5">
           <ProjectionDisplay
             projection={baseline}
             suffix=""
             showAFCrest={showCrest}
-            pointsClassName="text-xs text-white/45"
+            pointsClassName="text-xs text-muted"
             afCrestProps={
               showCrest
                 ? {
@@ -841,7 +914,12 @@ function RosterRow({
             }
           />
         </span>
-        <span className="w-10">â€”</span>
+        <span
+          className={ptFlash ? 'w-10 tabular-nums font-semibold text-cyan-300 transition-colors duration-700' : 'w-10 tabular-nums text-white/55 transition-colors duration-700'}
+          data-testid="roster-player-pts"
+        >
+          {liveScore != null ? liveScore.toFixed(2) : '-'}
+        </span>
       </div>
     </>
   )
@@ -876,7 +954,7 @@ function RosterRow({
             id={`chimmy-note-${playerId}`}
             value={chimmyNote ?? ''}
             onChange={(e) => onChimmyNoteChange(e.target.value)}
-            placeholder="Optional context for Chimmyâ€¦"
+            placeholder="Optional context for Chimmy..."
             rows={2}
             data-testid={`roster-row-chimmy-note-${playerId}`}
             className="mb-2 w-full resize-y rounded-md border border-white/[0.08] bg-[#0a1228] px-2 py-1.5 text-[11px] text-white/85 placeholder:text-white/25 focus:border-cyan-500/40 focus:outline-none focus:ring-1 focus:ring-cyan-500/30"
@@ -942,7 +1020,7 @@ export function TeamTab({
 }: TeamTabProps) {
   const router = useRouter()
   const resolvedSport = sport ?? league.sport
-  const { players, loading: playersLoading } = useSleeperPlayers(resolvedSport)
+  const { players: sleeperPlayers, loading: sleeperPlayersLoading } = useSleeperPlayers(resolvedSport)
   const isSleeper = league.platform === 'sleeper'
   const [week, setWeek] = useState(1)
   const [weekMenuOpen, setWeekMenuOpen] = useState(false)
@@ -962,6 +1040,8 @@ export function TeamTab({
   const [loading, setLoading] = useState(() => isSleeper || Boolean(userTeam))
   const [error, setError] = useState<string | null>(null)
   const [payload, setPayload] = useState<DbRosterPayload | SleeperApiPayload | null>(null)
+  // Live per-player fantasy points refreshed by SSE events (non-Sleeper only).
+  const [liveScores, setLiveScores] = useState<Map<string, number>>(() => new Map())
   const [autoCoachRow, setAutoCoachRow] = useState<{
     enabled: boolean
     leagueAutoCoachEnabled: boolean
@@ -1014,10 +1094,24 @@ export function TeamTab({
     [league],
   )
 
+  const players = useMemo(
+    () =>
+      buildDisplayPlayerMap(
+        sleeperPlayers,
+        payload && payload.source !== 'sleeper' ? payload.unifiedRoster ?? [] : [],
+      ),
+    [sleeperPlayers, payload],
+  )
+
+  const playersLoading =
+    payload && payload.source !== 'sleeper' && (payload.unifiedRoster?.length ?? 0) > 0
+      ? false
+      : sleeperPlayersLoading
+
   const buildChimmyProps = useCallback(
     (playerId: string, rosterSlotLabel: string) => {
       if (!nflRedraftCoreRoster || !playerId?.trim()) return {}
-      const resolved = resolvePlayerName(playerId, players)
+      const resolved = resolveDisplayPlayer(playerId, players)
       return {
         chimmyNote: chimmyNotesByPlayer[playerId] ?? '',
         onChimmyNoteChange: (v: string) =>
@@ -1028,8 +1122,8 @@ export function TeamTab({
             source: 'roster',
             prompt: buildNflRedraftRosterChimmyPrompt({
               playerName: resolved.name,
-              teamAbbr: resolved.team && resolved.team !== 'FA' ? resolved.team : 'â€”',
-              position: resolved.position || 'â€”',
+              teamAbbr: resolved.team && resolved.team !== 'FA' ? resolved.team : '-',
+              position: resolved.position || '-',
               rosterSlot: rosterSlotLabel,
               leagueName: String(league.name ?? 'League'),
               userQuestion: chimmyNotesByPlayer[playerId] ?? '',
@@ -1157,6 +1251,41 @@ export function TeamTab({
     void load()
   }, [load])
 
+  const loadLiveScores = useCallback(async () => {
+    if (isSleeper) return
+    try {
+      const res = await fetch(
+        `/api/redraft/roster?leagueId=${encodeURIComponent(league.id)}&week=${week}`,
+        { cache: 'no-store' },
+      )
+      if (!res.ok) return
+      const data = (await res.json()) as {
+        roster?: { players?: Array<{ playerId?: string; weeklyScore?: { fantasyPts?: number } | null }> }
+      }
+      const scored = data.roster?.players ?? []
+      const next = new Map<string, number>()
+      for (const p of scored) {
+        if (p.playerId && p.weeklyScore?.fantasyPts != null) {
+          next.set(p.playerId, p.weeklyScore.fantasyPts)
+        }
+      }
+      setLiveScores(next)
+    } catch {
+      // non-fatal - live scores are best-effort
+    }
+  }, [isSleeper, league.id, week])
+
+  useEffect(() => {
+    void loadLiveScores()
+  }, [loadLiveScores])
+
+  useLeagueRealtimeRefresh(league.id, (env) => {
+    const t = String(env.eventType ?? '')
+    if (t === 'player_changed' || t === 'league_changed' || t.includes('score')) {
+      void loadLiveScores()
+    }
+  })
+
   useEffect(() => {
     if (isSleeper || !userTeam) {
       setLegalitySnapshot(null)
@@ -1244,6 +1373,12 @@ export function TeamTab({
     if (!payload.roster) return null
     return partitionRoster(payload.roster, payload.slotLimits ?? null)
   }, [payload])
+
+  const missingNormalizedRosterData =
+    payload &&
+    payload.source !== 'sleeper' &&
+    getRosterPlayerIds(payload.roster).length > 0 &&
+    (payload.unifiedRoster?.length ?? 0) === 0
 
   const showIrSectionSleeper = (sleeperParts?.ir.length ?? 0) > 0
   const showTaxiSectionSleeper = (sleeperParts?.taxi.length ?? 0) > 0
@@ -1445,10 +1580,10 @@ const maxWeekMenu = useMemo(() => {
     const href = inviteToken ? `/join/${inviteToken}` : '/dashboard'
     return (
       <div className="flex min-h-[240px] flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-sm font-semibold text-white/80">You haven&apos;t claimed a team in this league</p>
+        <p className="text-sm font-semibold text-secondary">You haven&apos;t claimed a team in this league</p>
         <Link
           href={href}
-          className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-bold text-black transition hover:bg-cyan-400"
+          className="rounded-xl bg-brand-primary px-5 py-2.5 text-sm font-bold text-content-inverse transition hover:bg-brand-strong"
         >
           Claim a team
         </Link>
@@ -1460,15 +1595,15 @@ const maxWeekMenu = useMemo(() => {
     const href = inviteToken ? `/join/${inviteToken}` : '/dashboard'
     return (
       <div className="flex min-h-[240px] flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-sm font-semibold text-white/80">
+        <p className="text-sm font-semibold text-secondary">
           No Sleeper roster linked to your account in this league
         </p>
-        <p className="max-w-sm text-xs text-white/45">
+        <p className="max-w-sm text-xs text-muted">
           Link your Sleeper profile in settings or claim a team so we can match your owner ID.
         </p>
         <Link
           href={href}
-          className="rounded-xl border border-white/[0.12] px-5 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
+          className="rounded-xl border border-subtle bg-surface-muted px-5 py-2.5 text-sm font-semibold text-secondary transition hover:bg-surface-hover"
         >
           Back to dashboard
         </Link>
@@ -1494,10 +1629,10 @@ const maxWeekMenu = useMemo(() => {
 
   const waiverLine =
     payload?.source === 'sleeper' && payload.roster
-      ? `$FAAB: ${payload.roster.settings.waiver_budget_used}/1000 Â· Waiver position: #${payload.roster.settings.waiver_position}`
+      ? `$FAAB: ${payload.roster.settings.waiver_budget_used}/1000 · Waiver position: #${payload.roster.settings.waiver_position}`
       : payload && payload.source !== 'sleeper' && (payload as DbRosterPayload).faabRemaining != null
-        ? `FAAB: $${(payload as DbRosterPayload).faabRemaining} Â· Trade hub (soon)`
-        : 'FAAB: â€” Â· Trade hub (soon)'
+        ? `FAAB: $${(payload as DbRosterPayload).faabRemaining} · Trade hub (Coming Soon)`
+        : 'FAAB: - · Trade hub (Coming Soon)'
 
   const showIdpDashboard =
     idpLeagueUi &&
@@ -1530,6 +1665,16 @@ const maxWeekMenu = useMemo(() => {
           ) : null}
         </div>
       ) : null}
+      {missingNormalizedRosterData ? (
+        <div
+          className="rounded-xl border border-amber-400/35 bg-amber-500/10 px-4 py-3 text-xs text-amber-100"
+          data-testid="team-tab-normalized-warning"
+          role="status"
+        >
+          Normalized roster player data is still syncing. Lineup slots are available, but names,
+          images, and projections may be partial until the player foundation refresh finishes.
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
@@ -1539,7 +1684,7 @@ const maxWeekMenu = useMemo(() => {
                 <img
                   src={ownerAvatarSrc}
                   alt=""
-                  className="h-9 w-9 shrink-0 rounded-full border border-white/10 object-cover"
+                  className="h-9 w-9 shrink-0 rounded-full border border-subtle object-cover"
                 />
               ) : (
                 <div
@@ -1550,10 +1695,10 @@ const maxWeekMenu = useMemo(() => {
                 </div>
               )
             ) : null}
-            <h2 className="text-base font-bold text-white">{headerTeamName}</h2>
+            <h2 className="text-base font-bold text-primary">{headerTeamName}</h2>
             <button
               type="button"
-              className="rounded-lg p-1 text-white/40 hover:bg-white/10 hover:text-white/70"
+              className="rounded-lg p-1 text-muted hover:bg-surface-hover hover:text-secondary"
               aria-label="User settings"
               data-testid="team-tab-user-settings"
               onClick={() => (onUserSettingsClick ? onUserSettingsClick() : router.push('/settings'))}
@@ -1561,13 +1706,13 @@ const maxWeekMenu = useMemo(() => {
               <Settings className="h-4 w-4" />
             </button>
           </div>
-          <p className="mt-1 text-[11px] text-white/35">{waiverLine}</p>
+          <p className="mt-1 text-[11px] text-muted">{waiverLine}</p>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-2">
           <div className="flex items-center gap-1">
             <Link
               href={`/waiver-ai?leagueId=${encodeURIComponent(league.id)}`}
-              className="inline-flex h-10 flex-col items-center justify-center rounded-xl border border-white/[0.08] bg-[#121826] px-2.5 text-[9px] font-bold uppercase tracking-wide text-white/80 transition hover:border-cyan-500/30 hover:text-cyan-200"
+              className="inline-flex h-10 flex-col items-center justify-center rounded-xl border border-subtle bg-surface-muted px-2.5 text-[9px] font-bold uppercase tracking-wide text-secondary transition hover:border-brand-primary/30 hover:text-brand-primary"
               data-testid="team-tab-waiver"
             >
               <ClipboardList className="mb-0.5 h-4 w-4 text-cyan-300/90" strokeWidth={2} />
@@ -1575,25 +1720,25 @@ const maxWeekMenu = useMemo(() => {
             </Link>
             <Link
               href={`/league/${encodeURIComponent(league.id)}?view=trades`}
-              className="inline-flex h-10 flex-col items-center justify-center rounded-xl border border-white/[0.08] bg-[#121826] px-2.5 text-[9px] font-bold uppercase tracking-wide text-white/80 transition hover:border-cyan-500/30 hover:text-cyan-200"
+              className="inline-flex h-10 flex-col items-center justify-center rounded-xl border border-subtle bg-surface-muted px-2.5 text-[9px] font-bold uppercase tracking-wide text-secondary transition hover:border-brand-primary/30 hover:text-brand-primary"
               data-testid="team-tab-trade"
             >
               <ArrowLeftRight className="mb-0.5 h-4 w-4 text-cyan-300/90" strokeWidth={2} />
               Trade
             </Link>
           </div>
-          <div className="relative flex items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.04] px-2 py-1">
+          <div className="relative flex items-center gap-2 rounded-xl border border-subtle bg-surface-muted px-2 py-1">
             <button
               type="button"
-              className="px-2 text-white/50 hover:text-white"
+              className="px-2 text-muted hover:text-primary"
               onClick={() => setWeek((w) => Math.max(1, w - 1))}
               aria-label="Previous week"
             >
-              â†
+              &lt;-
             </button>
             <button
               type="button"
-              className="min-w-[4rem] text-center text-xs font-semibold text-white/80"
+              className="min-w-[4rem] text-center text-xs font-semibold text-secondary"
               aria-haspopup="listbox"
               aria-expanded={weekMenuOpen}
               onClick={() => setWeekMenuOpen((o) => !o)}
@@ -1603,15 +1748,15 @@ const maxWeekMenu = useMemo(() => {
             </button>
             <button
               type="button"
-              className="px-2 text-white/50 hover:text-white"
+              className="px-2 text-muted hover:text-primary"
               onClick={() => setWeek((w) => Math.min(maxWeekMenu, w + 1))}
               aria-label="Next week"
             >
-              â†’
+              -&gt;
             </button>
             {weekMenuOpen ? (
               <div
-                className="absolute right-0 top-[calc(100%+6px)] z-50 w-52 rounded-xl border border-white/[0.1] bg-[#0a1228] p-2 shadow-xl"
+                className="absolute right-0 top-[calc(100%+6px)] z-50 w-52 rounded-xl border border-subtle bg-surface p-2 shadow-popover"
                 role="listbox"
                 data-testid="team-tab-week-menu"
               >
@@ -1621,7 +1766,7 @@ const maxWeekMenu = useMemo(() => {
                       key={w}
                       type="button"
                       className={`rounded-lg px-2 py-1.5 text-center text-[11px] font-bold ${
-                        w === week ? 'bg-white/15 text-white' : 'text-white/70 hover:bg-white/[0.06]'
+                        w === week ? 'bg-surface-hover text-primary' : 'text-secondary hover:bg-surface-hover'
                       }`}
                       onClick={() => {
                         setWeek(w)
@@ -1651,26 +1796,26 @@ const maxWeekMenu = useMemo(() => {
       ) : null}
 
       {savingLineup ? (
-        <p className="text-[11px] text-cyan-200/80">Saving lineupâ€¦</p>
+        <p className="text-[11px] text-cyan-200/80">Saving lineup...</p>
       ) : null}
 
-      <div className="rounded-xl border border-white/[0.08] p-4">
+      <div className="rounded-xl border border-subtle bg-surface-muted p-4">
         <div className="flex items-center justify-between gap-4">
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <p className="text-sm font-bold text-white">âš¡ AI Auto Start/Sit Protection</p>
+              <p className="text-sm font-bold text-primary">Lightning AI Auto Start/Sit Protection</p>
               {!hasProAutoCoach ? <SubscriptionGateBadge featureId="pro_autocoach" /> : null}
             </div>
-            <p className="mt-0.5 text-xs text-white/50">
+            <p className="mt-0.5 text-xs text-muted">
               Pre-lock automation only: swaps clearly unavailable starters (OUT, inactive, IR, etc.) using live
-              status and the same projection engine as Start/Sit. Each player locks at their own game time â€” not the
+              status and the same projection engine as Start/Sit. Each player locks at their own game time - not the
               first game of the slate. Not Best Ball; no in-game fixes.
             </p>
             {autoCoachRow && autoCoachRow.leagueAutoCoachEnabled === false ? (
               <p className="mt-1 text-[11px] text-amber-400/70">Disabled by league commissioner.</p>
             ) : null}
             {isBestBall ? (
-              <p className="mt-1 text-[11px] text-white/40">Not available in Best Ball leagues.</p>
+              <p className="mt-1 text-[11px] text-muted">Not available in Best Ball leagues.</p>
             ) : null}
           </div>
           {hasProAutoCoach && autoCoachRow?.leagueAutoCoachEnabled !== false && !isBestBall ? (
@@ -1682,7 +1827,7 @@ const maxWeekMenu = useMemo(() => {
               onClick={() => void handleAutoCoachToggle()}
               className={[
                 'relative h-6 w-11 shrink-0 rounded-full border transition-colors',
-                autoCoachRow?.enabled ? 'border-cyan-400 bg-cyan-500' : 'border-white/20 bg-white/10',
+                autoCoachRow?.enabled ? 'border-cyan-400 bg-cyan-500' : 'border-subtle bg-surface-muted',
               ].join(' ')}
             >
               <span
@@ -1701,7 +1846,7 @@ const maxWeekMenu = useMemo(() => {
                 if (gateOptional) gateOptional.gate('pro_autocoach')
                 else setLocalAutoCoachGate(true)
               }}
-              className="relative h-6 w-11 shrink-0 rounded-full border border-white/15 bg-white/10 opacity-50"
+              className="relative h-6 w-11 shrink-0 rounded-full border border-subtle bg-surface-muted opacity-50"
               title={
                 isBestBall
                   ? 'Not available in Best Ball'
@@ -1714,9 +1859,9 @@ const maxWeekMenu = useMemo(() => {
         </div>
       </div>
 
-      <div className="rounded-xl border border-cyan-500/15 bg-[#0a1228]/50 p-4 backdrop-blur-sm">
-        <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-white/45">Start A vs B</p>
-        <p className="mb-3 text-xs text-white/45">
+      <div className="rounded-xl border border-brand-primary/15 bg-surface-muted p-4 backdrop-blur-sm">
+        <p className="mb-1 text-[10px] font-bold uppercase tracking-wide text-muted">Start A vs B</p>
+        <p className="mb-3 text-xs text-muted">
           Compare two players with deterministic projections first; AI explains the math (Pro). Supports all league sports.
         </p>
         <StartVsComparisonLauncher
@@ -1735,7 +1880,7 @@ const maxWeekMenu = useMemo(() => {
       {loading ? <SkeletonRows /> : null}
 
       {!loading && error ? (
-        <p className="rounded-xl border border-white/[0.07] bg-[#0c0c1e] px-4 py-3 text-sm text-white/50">{error}</p>
+        <p className="rounded-xl border border-white/[0.07] bg-[#0c0c1e] px-4 py-3 text-sm text-muted">{error}</p>
       ) : null}
 
       {!loading && !error && showIdpDashboard && payload?.source === 'sleeper' && sleeperParts ? (
@@ -1774,8 +1919,8 @@ const maxWeekMenu = useMemo(() => {
           <section>
             <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">Starters</p>
-                <p className="text-[11px] text-white/35">Click a row to open the player card (stub).</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted">Starters</p>
+                <p className="text-[11px] text-muted">Click a row to open the player card (stub).</p>
               </div>
               <div className="flex gap-4 text-[10px] font-semibold uppercase tracking-wide text-white/35">
                 <span className="w-10 text-right">OWN%</span>
@@ -1796,6 +1941,7 @@ const maxWeekMenu = useMemo(() => {
                   week={week}
                   season={seasonYear}
                   {...buildChimmyProps(id, sleeperStarterLabels[i] ?? 'Starter')}
+                  liveScore={liveScores.get(id) ?? null}
                 />
               ))}
             </div>
@@ -1803,8 +1949,8 @@ const maxWeekMenu = useMemo(() => {
 
           <section>
             <div className="mb-2 flex items-center gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Bench</p>
-              <div className="h-px flex-1 bg-white/[0.07]" />
+              <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Bench</p>
+              <div className="h-px flex-1 bg-subtle" />
             </div>
             <div className="space-y-1">
               {sleeperParts.bench.map((id) => (
@@ -1819,6 +1965,7 @@ const maxWeekMenu = useMemo(() => {
                   week={week}
                   season={seasonYear}
                   {...buildChimmyProps(id, 'Bench')}
+                  liveScore={liveScores.get(id) ?? null}
                 />
               ))}
             </div>
@@ -1827,8 +1974,8 @@ const maxWeekMenu = useMemo(() => {
           {showTaxiSectionSleeper ? (
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Taxi</p>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Taxi</p>
+                <div className="h-px flex-1 bg-subtle" />
               </div>
               <div className="space-y-1">
                 {sleeperParts.taxi.map((id) => (
@@ -1843,6 +1990,7 @@ const maxWeekMenu = useMemo(() => {
                     week={week}
                     season={seasonYear}
                     {...buildChimmyProps(id, 'Taxi')}
+                    liveScore={liveScores.get(id) ?? null}
                   />
                 ))}
               </div>
@@ -1852,8 +2000,8 @@ const maxWeekMenu = useMemo(() => {
           {showIrSectionSleeper ? (
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Reserve / IR</p>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Reserve / IR</p>
+                <div className="h-px flex-1 bg-subtle" />
               </div>
               <div className="space-y-1">
                 {sleeperParts.ir.map((id) => (
@@ -1868,6 +2016,7 @@ const maxWeekMenu = useMemo(() => {
                     week={week}
                     season={seasonYear}
                     {...buildChimmyProps(id, 'IR')}
+                    liveScore={liveScores.get(id) ?? null}
                   />
                 ))}
               </div>
@@ -1877,14 +2026,14 @@ const maxWeekMenu = useMemo(() => {
           {payload.roster.picks.length > 0 ? (
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Draft picks</p>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Draft picks</p>
+                <div className="h-px flex-1 bg-subtle" />
               </div>
-              <ul className="space-y-1 text-xs text-white/70">
+              <ul className="space-y-1 text-xs text-secondary">
                 {payload.roster.picks.map((p, i) => (
                   <li
                     key={`pick-${i}`}
-                    className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2"
+                    className="rounded-lg border border-subtle bg-surface-muted px-3 py-2"
                   >
                     {formatDraftPick(p)}
                   </li>
@@ -1901,10 +2050,10 @@ const maxWeekMenu = useMemo(() => {
             <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Starters</p>
-                  <div className="h-px flex-1 bg-white/[0.07]" />
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Starters</p>
+                  <div className="h-px flex-1 bg-subtle" />
                 </div>
-                <p className="mt-0.5 text-[11px] text-white/35">
+                <p className="mt-0.5 text-[11px] text-muted">
                   {lineupEditable
                     ? 'Tap a position badge (starters, bench, IR, taxi, devy) to swap. Lineup saves automatically.'
                     : 'Lineup changes are locked for this view or scoring period.'}
@@ -1942,6 +2091,7 @@ const maxWeekMenu = useMemo(() => {
                       : undefined
                   }
                   {...buildChimmyProps(lineupLists.starters[i] ?? '', slot.label)}
+                  liveScore={liveScores.get(lineupLists.starters[i] ?? '') ?? null}
                 />
               ))}
             </div>
@@ -1949,8 +2099,8 @@ const maxWeekMenu = useMemo(() => {
 
           <section>
             <div className="mb-2 flex items-center gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Bench</p>
-              <div className="h-px flex-1 bg-white/[0.07]" />
+              <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Bench</p>
+              <div className="h-px flex-1 bg-subtle" />
             </div>
             <div className="space-y-1">
               {dbBenchRows.map((id, i) => (
@@ -1974,6 +2124,7 @@ const maxWeekMenu = useMemo(() => {
                       : undefined
                   }
                   {...buildChimmyProps(id, 'BN')}
+                  liveScore={liveScores.get(id) ?? null}
                 />
               ))}
             </div>
@@ -1982,8 +2133,8 @@ const maxWeekMenu = useMemo(() => {
           {showIrSectionDb ? (
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Injured reserve</p>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Injured reserve</p>
+                <div className="h-px flex-1 bg-subtle" />
               </div>
               <div className="space-y-1">
                 {dbIrRows.map((id, i) => (
@@ -2007,6 +2158,7 @@ const maxWeekMenu = useMemo(() => {
                         : undefined
                     }
                     {...buildChimmyProps(id, 'IR')}
+                    liveScore={liveScores.get(id) ?? null}
                   />
                 ))}
               </div>
@@ -2016,8 +2168,8 @@ const maxWeekMenu = useMemo(() => {
           {showTaxiSectionDb ? (
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Taxi</p>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Taxi</p>
+                <div className="h-px flex-1 bg-subtle" />
               </div>
               <div className="space-y-1">
                 {lineupLists.taxi.length > 0 ? (
@@ -2041,10 +2193,11 @@ const maxWeekMenu = useMemo(() => {
                           : undefined
                       }
                       {...buildChimmyProps(id, 'TX')}
+                      liveScore={liveScores.get(id) ?? null}
                     />
                   ))
                 ) : (
-                  <p className="text-xs text-white/35">No taxi squad players</p>
+                  <p className="text-xs text-muted">No taxi squad players</p>
                 )}
               </div>
             </section>
@@ -2053,8 +2206,8 @@ const maxWeekMenu = useMemo(() => {
           {showDevySectionDb ? (
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Devy</p>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Devy</p>
+                <div className="h-px flex-1 bg-subtle" />
               </div>
               <div className="space-y-1">
                 {lineupLists.devy.length > 0 ? (
@@ -2078,10 +2231,11 @@ const maxWeekMenu = useMemo(() => {
                           : undefined
                       }
                       {...buildChimmyProps(id, 'DV')}
+                      liveScore={liveScores.get(id) ?? null}
                     />
                   ))
                 ) : (
-                  <p className="text-xs text-white/35">No devy players</p>
+                  <p className="text-xs text-muted">No devy players</p>
                 )}
               </div>
             </section>
@@ -2142,8 +2296,8 @@ const maxWeekMenu = useMemo(() => {
           <section>
             <div className="mb-2 flex flex-wrap items-end justify-between gap-2">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">Starters</p>
-                <p className="text-[11px] text-white/35">Click a row to open the player card (stub).</p>
+                <p className="text-[10px] font-bold uppercase tracking-wide text-muted">Starters</p>
+                <p className="text-[11px] text-muted">Click a row to open the player card (stub).</p>
               </div>
               <div className="flex gap-4 text-[10px] font-semibold uppercase tracking-wide text-white/35">
                 <span className="w-10 text-right">OWN%</span>
@@ -2163,6 +2317,7 @@ const maxWeekMenu = useMemo(() => {
                   week={week}
                   season={seasonYear}
                   {...buildChimmyProps(id, `S${i + 1}`)}
+                  liveScore={liveScores.get(id) ?? null}
                 />
               ))}
             </div>
@@ -2170,8 +2325,8 @@ const maxWeekMenu = useMemo(() => {
 
           <section>
             <div className="mb-2 flex items-center gap-2">
-              <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Bench</p>
-              <div className="h-px flex-1 bg-white/[0.07]" />
+              <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Bench</p>
+              <div className="h-px flex-1 bg-subtle" />
             </div>
             <div className="space-y-1">
               {dbParts.bench.map((id) => (
@@ -2186,6 +2341,7 @@ const maxWeekMenu = useMemo(() => {
                   week={week}
                   season={seasonYear}
                   {...buildChimmyProps(id, 'Bench')}
+                  liveScore={liveScores.get(id) ?? null}
                 />
               ))}
             </div>
@@ -2194,8 +2350,8 @@ const maxWeekMenu = useMemo(() => {
           {showIrSectionDb ? (
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">IR</p>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">IR</p>
+                <div className="h-px flex-1 bg-subtle" />
               </div>
               <div className="space-y-1">
                 {dbParts.ir.length > 0 ? (
@@ -2211,10 +2367,11 @@ const maxWeekMenu = useMemo(() => {
                       week={week}
                       season={seasonYear}
                       {...buildChimmyProps(id, 'IR')}
+                      liveScore={liveScores.get(id) ?? null}
                     />
                   ))
                 ) : (
-                  <p className="text-xs text-white/35">No players on IR</p>
+                  <p className="text-xs text-muted">No players on IR</p>
                 )}
               </div>
             </section>
@@ -2223,8 +2380,8 @@ const maxWeekMenu = useMemo(() => {
           {showTaxiSectionDb ? (
             <section>
               <div className="mb-2 flex items-center gap-2">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Taxi</p>
-                <div className="h-px flex-1 bg-white/[0.07]" />
+                <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Taxi</p>
+                <div className="h-px flex-1 bg-subtle" />
               </div>
               <div className="space-y-1">
                 {dbParts.taxi.length > 0 ? (
@@ -2240,10 +2397,11 @@ const maxWeekMenu = useMemo(() => {
                       week={week}
                       season={seasonYear}
                       {...buildChimmyProps(id, 'Taxi')}
+                      liveScore={liveScores.get(id) ?? null}
                     />
                   ))
                 ) : (
-                  <p className="text-xs text-white/35">No taxi squad players</p>
+                  <p className="text-xs text-muted">No taxi squad players</p>
                 )}
               </div>
             </section>
@@ -2253,12 +2411,12 @@ const maxWeekMenu = useMemo(() => {
 
       {!loading && !error && !isSleeper && userTeam && (draftPickRows.length > 0 || draftPickFallback.length > 0) ? (
         <section
-          className="rounded-xl border border-white/[0.08] bg-[#0a1228]/40 p-4"
+          className="rounded-xl border border-subtle bg-surface-muted p-4"
           data-testid="team-tab-draft-picks-section"
         >
           <div className="mb-3 flex items-center gap-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-white/55">Draft picks</p>
-            <div className="h-px flex-1 bg-white/[0.07]" />
+            <p className="text-[10px] font-bold uppercase tracking-wide text-secondary">Draft picks</p>
+            <div className="h-px flex-1 bg-subtle" />
           </div>
           <ul className="space-y-1.5">
             {draftPickRows.map((p) => (
@@ -2300,7 +2458,7 @@ const maxWeekMenu = useMemo(() => {
                       ? 'border-rose-500/35 bg-rose-500/10'
                       : p.tradeHint === 'received'
                         ? 'border-emerald-500/35 bg-emerald-500/10'
-                        : 'border-white/[0.06] bg-white/[0.03]',
+                        : 'border-subtle bg-surface-muted',
                   ].join(' ')}
                 >
                   {p.label}
@@ -2314,7 +2472,7 @@ const maxWeekMenu = useMemo(() => {
             {draftPickFallback.map((p, i) => (
               <li
                 key={`fb-${i}`}
-                className="rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2 text-xs text-white/70"
+                className="rounded-lg border border-subtle bg-surface-muted px-3 py-2 text-xs text-white/70"
               >
                 {formatDraftPick(p)}
               </li>
@@ -2324,11 +2482,11 @@ const maxWeekMenu = useMemo(() => {
       ) : null}
 
       {!loading && !error && payload?.source === 'sleeper' && payload.roster && !sleeperParts ? (
-        <p className="text-sm text-white/45">No roster data.</p>
+        <p className="text-sm text-muted">No roster data.</p>
       ) : null}
 
       {!loading && !error && payload && payload.source !== 'sleeper' && !dbParts ? (
-        <p className="text-sm text-white/45">No roster data.</p>
+        <p className="text-sm text-muted">No roster data.</p>
       ) : null}
 
       {draftPickDetailOpen ? (
@@ -2344,28 +2502,28 @@ const maxWeekMenu = useMemo(() => {
             aria-label="Close"
             onClick={() => setDraftPickDetailOpen(false)}
           />
-          <div className="relative z-[81] w-full max-w-md rounded-2xl border border-white/[0.12] bg-[#0a1228] p-5 shadow-2xl">
-            <h3 id="draft-pick-detail-title" className="text-sm font-bold text-white">
+          <div className="relative z-[81] w-full max-w-md rounded-2xl border border-subtle bg-surface p-5 shadow-popover">
+            <h3 id="draft-pick-detail-title" className="text-sm font-bold text-primary">
               Draft pick
             </h3>
             {draftPickDetailLoading ? (
-              <p className="mt-3 text-xs text-white/50">Loadingâ€¦</p>
+              <p className="mt-3 text-xs text-muted">Loading...</p>
             ) : draftPickDetail?.pick ? (
               <>
-                <p className="mt-2 text-sm text-white/90">{draftPickDetail.pick.label}</p>
-                <p className="mt-1 text-[11px] text-white/40">Status: {draftPickDetail.pick.status}</p>
-                <div className="mt-4 border-t border-white/[0.08] pt-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-white/35">Trade chain (AF)</p>
+                <p className="mt-2 text-sm text-primary">{draftPickDetail.pick.label}</p>
+                <p className="mt-1 text-[11px] text-muted">Status: {draftPickDetail.pick.status}</p>
+                <div className="mt-4 border-t border-subtle pt-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted">Trade chain (AF)</p>
                   {draftPickDetail.tradeChain.length === 0 ? (
-                    <p className="mt-2 text-xs text-white/45">No linked trades found for this pick id.</p>
+                    <p className="mt-2 text-xs text-muted">No linked trades found for this pick id.</p>
                   ) : (
-                    <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto text-xs text-white/75">
+                    <ul className="mt-2 max-h-48 space-y-2 overflow-y-auto text-xs text-secondary">
                       {draftPickDetail.tradeChain.map((t) => (
-                        <li key={t.tradeId} className="rounded-lg border border-white/[0.06] bg-white/[0.04] px-2 py-1.5">
-                          <span className="text-white/50">{new Date(t.createdAt).toLocaleString()}</span>
-                          <span className="mx-1 text-white/30">Â·</span>
+                        <li key={t.tradeId} className="rounded-lg border border-subtle bg-surface-muted px-2 py-1.5">
+                          <span className="text-muted">{new Date(t.createdAt).toLocaleString()}</span>
+                          <span className="mx-1 text-muted">·</span>
                           <span className="text-amber-200/90">{t.status}</span>
-                          <p className="mt-0.5 text-[11px] text-white/60">{t.summary}</p>
+                          <p className="mt-0.5 text-[11px] text-secondary">{t.summary}</p>
                         </li>
                       ))}
                     </ul>
@@ -2374,16 +2532,16 @@ const maxWeekMenu = useMemo(() => {
                     href={`/league/${encodeURIComponent(league.id)}?view=trades`}
                     className="mt-2 inline-block text-[10px] font-semibold text-cyan-400/90 hover:text-cyan-300"
                   >
-                    Open trades tab â†’
+                    Open trades tab -&gt;
                   </Link>
                 </div>
               </>
             ) : (
-              <p className="mt-3 text-xs text-white/50">Could not load pick details.</p>
+              <p className="mt-3 text-xs text-muted">Could not load pick details.</p>
             )}
             <button
               type="button"
-              className="mt-4 w-full rounded-xl border border-white/[0.12] py-2 text-sm font-semibold text-white/80 hover:bg-white/[0.06]"
+              className="mt-4 w-full rounded-xl border border-subtle bg-surface-muted py-2 text-sm font-semibold text-secondary hover:bg-surface-hover"
               onClick={() => setDraftPickDetailOpen(false)}
             >
               Close
@@ -2437,4 +2595,3 @@ const maxWeekMenu = useMemo(() => {
     </div>
   )
 }
-

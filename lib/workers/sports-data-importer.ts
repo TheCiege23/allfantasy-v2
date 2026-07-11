@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
+import { toPrismaJsonInput } from '@/lib/prisma-json'
 import { SUPPORTED_SPORTS, normalizeToSupportedSport, type SupportedSport } from '@/lib/sport-scope'
 import { normalizePlayerName, normalizePosition, normalizeTeamAbbrev } from '@/lib/team-abbrev'
 import { apiChain } from '@/lib/workers/api-chain'
@@ -289,16 +290,21 @@ export async function runSportsDataImporter(options?: {
                 name: row.name,
                 team: row.team,
                 position: row.position,
-                stats: row.stats,
-                projections: row.projections,
+                stats: toPrismaJsonInput(row.stats),
+                projections: toPrismaJsonInput(row.projections),
                 adp: row.adp,
                 dynastyValue: row.dynastyValue,
                 injuryStatus: row.injuryStatus,
                 injuryNotes: row.injuryNotes,
-                news: row.news,
+                news: toPrismaJsonInput(row.news),
                 dataSource: row.dataSource,
               },
-              create: row,
+              create: {
+                ...row,
+                stats: toPrismaJsonInput(row.stats),
+                projections: toPrismaJsonInput(row.projections),
+                news: toPrismaJsonInput(row.news),
+              },
             })
           )
         )
