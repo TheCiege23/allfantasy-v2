@@ -18,7 +18,7 @@ import {
   emptyEvidenceBundle,
 } from './contracts'
 
-const SLEEPER_BASE = 'https://api.sleeper.app/v1'
+const SLEEPER_BASE = 'https://api.sleeper.app/v1' // db-first-exception: validation-only DB-less cohort tooling (CLI + tests, never customer runtime)
 
 // ── Raw Sleeper shapes (only mapped fields) ───────────────────────────────────
 type RawRoster = {

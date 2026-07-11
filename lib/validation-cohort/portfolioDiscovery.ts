@@ -13,7 +13,7 @@ import { runPool, resolveUsername, type SleeperFetch } from './sleeperCohortClie
 import { resolvableCandidates } from './normalizeCohort'
 import { buildPortfolioManifest, buildHistoricalCoverageMatrix } from './portfolioManifest'
 
-const SLEEPER_BASE = 'https://api.sleeper.app/v1'
+const SLEEPER_BASE = 'https://api.sleeper.app/v1' // db-first-exception: validation-only DB-less cohort tooling (CLI + tests, never customer runtime)
 
 /** Raw Sleeper league shape (only the discovery-relevant fields). */
 type RawLeague = {

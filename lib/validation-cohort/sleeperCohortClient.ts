@@ -11,7 +11,7 @@
 import type { NormalizedLeagueFacts } from './types'
 import { anonymizeLeagueId } from './anonymize'
 
-const SLEEPER_BASE = 'https://api.sleeper.app/v1'
+const SLEEPER_BASE = 'https://api.sleeper.app/v1' // db-first-exception: validation-only DB-less cohort tooling (CLI + tests, never customer runtime)
 
 export type SleeperFetch = <T>(url: string) => Promise<T | null>
 
