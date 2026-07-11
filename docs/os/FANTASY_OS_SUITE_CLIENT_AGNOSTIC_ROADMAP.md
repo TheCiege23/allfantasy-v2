@@ -1735,6 +1735,27 @@ zero-provider-leak are test-enforced. Tests 9 new; full targeted 197/197; typech
 outstanding input remains the real multi-account cohort; exercising the DB-backed composed subsystems over
 the corpus would need a DB-backed store or adapter (unbuilt, would be speculative).
 
+### V8.4 — Production Decision OS evidence bridge & composition validation (2026-07-10)
+
+Closed the V8.3 semantic gap honestly. Part 1 traced the production composition graph and found it already
+factored into DB-backed `resolve*Snapshot` wrappers (fetch + assemble inputs) + PURE composition functions
+they call. So a narrow, read-only, provider-neutral evidence port (`CompositionEvidencePort` /
+`CorpusEvidencePort` in `lib/validation-cohort/validation/compositionBridge.ts`) supplies those pure
+functions' inputs from the persisted corpus — reusing the real composers, extracting nothing, duplicating
+no importer, writing nothing, importing no Prisma. Live over 6 real `theciege24` leagues the REAL production
+`composeDailyBrief` (5 items) and `composeNotificationFeed` (17) executed at production parity;
+`assemblePlatformRecommendations` and `assembleCommissionerRecommendations` executed (0 produced — a
+legitimate empty result from healthy, partial-slice inputs); `assembleManagerRecommendations` is
+blocked-unavailable-evidence (needs manager identity + behavioral patterns — must not fabricate); the three
+`resolve*Snapshot` DB wrappers are blocked-product-state. A composition execution matrix reports each with
+an explicit status (production-parity-executed / pure-derivation-executed / blocked-unavailable-evidence /
+blocked-product-state), never a boolean. Counterfactual proven at the composition level (an unhealthy league
+raises the Daily Brief output; a healthy corpus yields a legitimately empty brief). Boundaries verified: no
+`app/`/`components/` file imports the validation tooling; the bridge is read-only with no Prisma/writes; the
+operational importer and production write paths are untouched. Zero Decision OS changes. Tests 8 new; full
+targeted 82/82; typecheck 158 baseline. Remaining before diverse-cohort calibration: the real multi-account
+cohort; a legitimate manager-identity/pattern contract; and a DB-backed store to exercise the resolvers.
+
 ## 26. Boundaries honored
 
 - No code changes to this document's own original content — §23/§24/§25 are additive.

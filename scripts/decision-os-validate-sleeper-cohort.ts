@@ -27,6 +27,7 @@ import { FileEvidenceStore } from '../lib/validation-cohort/persistence/fileEvid
 import { checkEvidenceIntegrity, summarizeIntegrityBySeverity } from '../lib/validation-cohort/persistence/integrityChecker'
 import { buildLeagueReadModel, buildPlatformReadModel } from '../lib/validation-cohort/evidence/decisionOsReadModel'
 import { runCorpusValidation, type CorpusDataSource } from '../lib/validation-cohort/validation/corpusRunner'
+import { CorpusEvidencePort, runCompositionValidation } from '../lib/validation-cohort/validation/compositionBridge'
 import { makeDefaultFetch } from '../lib/validation-cohort/sleeperCohortClient'
 import { renderHumanSummary } from '../lib/validation-cohort/reportBuilder'
 import type { CohortAggregateReport } from '../lib/validation-cohort/types'
@@ -127,13 +128,18 @@ function loadResumeSet(): Set<string> {
     // Label by data source honestly — a single public account is NOT a diverse cohort.
     const dataSource: CorpusDataSource = (arg('dataSource') as CorpusDataSource) ?? 'single-account-smoke'
     const report = runCorpusValidation(corpusLeagues, dataSource)
+    // V8.4: execute the REAL production composition functions reachable via the evidence bridge.
+    const composition = runCompositionValidation(new CorpusEvidencePort(corpusLeagues))
     fs.mkdirSync(storeRoot, { recursive: true })
     fs.writeFileSync(path.join(storeRoot, `decision-os-validation-${stamp0}.json`), JSON.stringify(report, null, 2))
+    fs.writeFileSync(path.join(storeRoot, `composition-execution-matrix-${stamp0}.json`), JSON.stringify(composition, null, 2))
     console.log(
       `[validate] dataSource=${report.dataSource} leaguesEvaluated=${report.leaguesEvaluated} recommendations=${report.diversity.total} perLeague=${report.diversity.perLeague.toFixed(2)}`,
     )
     console.log(`[validate] typeDistribution=${JSON.stringify(report.diversity.typeDistribution)}`)
     console.log(`[validate] overFiring=${report.overFiring.length} underFiringCandidates=${report.underFiring.length}`)
+    console.log('[validate] composition execution matrix:')
+    for (const c of composition) console.log(`  ${c.status.padEnd(28)} ${c.subsystem} (${c.entryPoint}) produced=${c.producedCount} owner=${c.owner}`)
     console.log('VALIDATE_CORPUS_OK')
     return
   }
