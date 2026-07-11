@@ -12,6 +12,8 @@ import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/co
 import { DashboardOverview } from './components/DashboardOverview'
 import { DraftRoomOverlay } from './components/DraftRoomOverlay'
 import { RightControlPanel } from './components/RightControlPanel'
+import { FantasyOsLaunchCard } from './components/FantasyOsLaunchCard'
+import type { FantasyOsAccessView } from '@/lib/fantasy-os/access'
 import { DashboardHeaderControls } from './components/DashboardHeaderControls'
 import { FloatingCommunications } from './components/FloatingCommunications'
 import { SelectedLeagueHomePanel } from './components/SelectedLeagueHomePanel'
@@ -44,6 +46,8 @@ type DashboardShellProps = {
   /** From dashboard RSC — Commissioner HQ (Phase 2.3) hydrates from the same health/actions/
    *  recommendations engine as the real `/commissioner-hub` page, one snapshot per commissioned league. */
   initialCommissionerHealthSnapshots?: CommissionerLeagueHealthSnapshot[] | null
+  /** Server-resolved Fantasy OS enterprise-workspace access (owner/admin/enterprise). Gates the launch card. */
+  fantasyOsAccess?: FantasyOsAccessView | null
 }
 
 type DraftOverlayState = {
@@ -393,6 +397,7 @@ export function DashboardShell({
   initialLeagueList = null,
   initialUserRankPayload = null,
   initialCommissionerHealthSnapshots = null,
+  fantasyOsAccess = null,
 }: DashboardShellProps) {
   const { t } = useLanguage()
   const router = useRouter()
@@ -740,6 +745,11 @@ export function DashboardShell({
             <Link href={`/paid-restricted?state=${encodeURIComponent(geo.stateCode)}`} className="font-medium text-cyan-300 underline">
               {t('dashboard.shell.learnMore')}
             </Link>
+          </div>
+        ) : null}
+        {fantasyOsAccess?.allowed ? (
+          <div className="shrink-0 px-4 pt-3 md:px-6" data-testid="dashboard-fantasy-os-entry">
+            <FantasyOsLaunchCard reason={fantasyOsAccess.reason} />
           </div>
         ) : null}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">

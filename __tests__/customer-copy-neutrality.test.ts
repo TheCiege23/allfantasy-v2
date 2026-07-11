@@ -25,6 +25,8 @@ const CUSTOMER_SURFACES = [
   // customer-visible "Decision OS" string reached production /commissioner-hub via these surfaces.
   'components/redraft/CommissionerShowcasePanel.tsx',
   'lib/decision-os/league-pulse.ts',
+  // Fantasy OS enterprise workspace launch card (task_39ac1c17) — customer-facing dashboard surface.
+  'app/dashboard/components/FantasyOsLaunchCard.tsx',
 ]
 
 // Implementation terms that must never appear in customer-visible strings.
