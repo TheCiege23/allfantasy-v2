@@ -21,6 +21,10 @@ const CUSTOMER_SURFACES = [
   'components/decision-os/MissionControlCard.tsx',
   'components/decision-os/LeagueContextCard.tsx',
   'components/decision-os/ManagerCommandCenterSection.tsx',
+  // Commissioner Hub empty-state + League Pulse copy — added after the RC1 hotfix, where a
+  // customer-visible "Decision OS" string reached production /commissioner-hub via these surfaces.
+  'components/redraft/CommissionerShowcasePanel.tsx',
+  'lib/decision-os/league-pulse.ts',
 ]
 
 // Implementation terms that must never appear in customer-visible strings.

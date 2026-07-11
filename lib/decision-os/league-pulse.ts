@@ -141,11 +141,11 @@ function emptyPulse(now: Date, title: string, nextHref: string): LeaguePulseView
   return {
     id: 'league-pulse-empty',
     title,
-    eyebrow: 'Decision OS',
+    eyebrow: 'Fantasy OS',
     status: 'insufficient-data',
     statusLabel: 'Insufficient data',
     headline: 'League Pulse needs live league data.',
-    summary: 'Connect or open a league so Decision OS can summarize health, activity, and next actions.',
+    summary: 'Connect or open a league so Fantasy OS can summarize health, activity, and recommended next actions.',
     why: 'No supported league state was available for deterministic analysis.',
     confidence: 32,
     confidenceLabel: 'Low',
@@ -219,7 +219,7 @@ export function buildDashboardLeaguePulse({
   return {
     id: 'league-pulse-dashboard',
     title: 'League Pulse',
-    eyebrow: 'Decision OS',
+    eyebrow: 'Fantasy OS',
     ...status,
     headline:
       missingDraftDates.length > 0
@@ -228,7 +228,7 @@ export function buildDashboardLeaguePulse({
           ? 'Your league hub is ready for active monitoring.'
           : `${formatCount(connectedLeagues.length, 'league')} are ready for active monitoring.`,
     summary:
-      'Decision OS is grounding this dashboard in connected league state, commissioner ownership, and tracked activity.',
+      'Fantasy OS is grounding this dashboard in connected league state, commissioner ownership, and tracked activity.',
     why:
       missingDraftDates.length > 0
         ? 'Pre-draft leagues without draft dates reduce launch confidence.'
@@ -283,7 +283,7 @@ export function buildLeagueHomePulse({
       nextAction: {
         label: isCommissioner ? 'Review league setup' : 'Check league setup',
         href: league.id ? `/league/${league.id}/settings` : undefined,
-        detail: 'Team and roster state are required before Decision OS can summarize this league.',
+        detail: 'Team and roster state are required before Fantasy OS can summarize this league.',
       },
     }
   }
@@ -321,7 +321,7 @@ export function buildLeagueHomePulse({
   return {
     id: `league-pulse-${league.id}`,
     title: 'League Pulse',
-    eyebrow: 'Decision OS',
+    eyebrow: 'Fantasy OS',
     ...status,
     headline:
       orphanTeams.length > 0
@@ -420,14 +420,14 @@ export function buildCommissionerLeaguePulse({
   return {
     id: 'league-pulse-commissioner',
     title: 'League Pulse',
-    eyebrow: 'Decision OS for commissioners',
+    eyebrow: 'Fantasy OS for commissioners',
     ...status,
     headline:
       riskCount > 0
         ? `${formatCount(riskCount, 'commissioner signal')} need review.`
         : 'Your managed leagues are operating without urgent health alerts.',
     summary:
-      'Decision OS is aggregating commissioner health snapshots into a single action queue for the leagues you run.',
+      'Fantasy OS is aggregating commissioner health snapshots into a single action queue for the leagues you run.',
     why:
       riskCount > 0
         ? 'Inactive teams, missed lineups, and open alerts can weaken league trust if they are not handled quickly.'
