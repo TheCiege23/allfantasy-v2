@@ -40,6 +40,20 @@ type CertifiedPlayer = { canonicalPlayerId?: string; providerIds?: Record<string
 
 export type LineupScheduleEvidence = { contexts: LiveLineupSportsContext[]; runtimeContext: CertifiedSportsRuntimeContext; available: boolean }
 
+/** Evidence values that mean a player's game is already locked/started/final/postponed/suspended. Shared classifier — NOT lock policy (the existing lineupLockService remains the lock authority). */
+export const LOCKED_LINEUP_EVIDENCE = new Set(['at_or_after_start', 'final', 'postponed', 'suspended'])
+
+/** Informational (never-blocking) certified schedule description for a set of players. Exposes only what the certified plane supports; injuries/projections/availability are explicitly unavailable (never fabricated). */
+export type CertifiedScheduleDescription = {
+  available: boolean
+  freshnessStatus: string
+  identityStatus: string
+  snapshotVersion: string | null
+  players: Array<{ canonicalPlayerId: string; kickoff: string | null; gameStatus: string; lockEvidence: string; locked: boolean }>
+  /** Fields the certified schedule plane does not provide — surfaced explicitly rather than guessed. */
+  unsupported: { injuries: 'unavailable'; projections: 'unavailable'; availability: 'unavailable' }
+}
+
 export class CertifiedLineupIntegrationService {
   constructor(private store = new SportsRuntimeStore()) {}
 
@@ -102,8 +116,7 @@ export class CertifiedLineupIntegrationService {
       return { block: false, reason: 'certified schedule unavailable — existing lock authority remains final', freshnessStatus: 'unavailable', identityStatus: ev.runtimeContext.identityStatus, blockedPlayers: [], snapshotVersion: null }
     }
     const trustworthy = ev.runtimeContext.freshnessStatus === 'current'
-    const LOCKED_EVIDENCE = new Set(['at_or_after_start', 'final', 'postponed', 'suspended'])
-    const blocked = trustworthy ? ev.contexts.filter((c) => LOCKED_EVIDENCE.has(c.sportsDataLockEvidence)).map((c) => c.canonicalPlayerId) : []
+    const blocked = trustworthy ? ev.contexts.filter((c) => LOCKED_LINEUP_EVIDENCE.has(c.sportsDataLockEvidence)).map((c) => c.canonicalPlayerId) : []
     return {
       block: blocked.length > 0,
       reason: blocked.length > 0
@@ -113,6 +126,34 @@ export class CertifiedLineupIntegrationService {
       identityStatus: ev.runtimeContext.identityStatus,
       blockedPlayers: blocked,
       snapshotVersion: ev.runtimeContext.snapshotVersions[0] ?? null,
+    }
+  }
+
+  /**
+   * Informational certified schedule description (never blocks, never mutates) — used by read-only surfaces
+   * (Start/Sit, Today Lineup Actions) to expose kickoff time, game status, lock evidence, freshness and identity.
+   * Injuries/projections/availability are NOT provided by the certified schedule plane and are returned as
+   * explicitly `unavailable` rather than fabricated. Fails to `available:false` on any read/identity failure.
+   */
+  async describeScheduleForPlayers(input: { season: string; week: string | null; players: PlayerRef[]; now?: Date }): Promise<CertifiedScheduleDescription> {
+    const unsupported = { injuries: 'unavailable', projections: 'unavailable', availability: 'unavailable' } as const
+    const ev = await this.getScheduleEvidenceForPlayers({ season: input.season, week: input.week, players: input.players, now: input.now })
+    if (!ev.available) {
+      return { available: false, freshnessStatus: ev.runtimeContext.freshnessStatus, identityStatus: ev.runtimeContext.identityStatus, snapshotVersion: null, players: [], unsupported }
+    }
+    return {
+      available: true,
+      freshnessStatus: ev.runtimeContext.freshnessStatus,
+      identityStatus: ev.runtimeContext.identityStatus,
+      snapshotVersion: ev.runtimeContext.snapshotVersions[0] ?? null,
+      players: ev.contexts.map((c) => ({
+        canonicalPlayerId: c.canonicalPlayerId,
+        kickoff: c.scheduledStart ?? null,
+        gameStatus: c.gameStatus,
+        lockEvidence: c.sportsDataLockEvidence,
+        locked: LOCKED_LINEUP_EVIDENCE.has(c.sportsDataLockEvidence),
+      })),
+      unsupported,
     }
   }
 
