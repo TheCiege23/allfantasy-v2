@@ -155,7 +155,33 @@ export class SportsRuntimeStore {
     return inserted
   }
 
-  /** OS-consumer read: the latest certified snapshot's records (canonical, provider-neutral). */
+  /** Latest CERTIFIED snapshot metadata (never building/partial/rejected). Deterministic latest = newest generated_at. */
+  async getCertifiedSnapshotMeta(sport: string, capability: string): Promise<CertifiedSnapshotMeta | null> {
+    const pool = await getPool()
+    const snap = await pool.query(
+      `SELECT snapshot_id, version, checksum, provider, generated_at, source_updated_at, record_count, resolved_count, ambiguous_count, unresolved_count, rejected_count, limitations
+       FROM sports_data.sports_snapshot WHERE sport=$1 AND capability=$2 AND status='certified' ORDER BY generated_at DESC LIMIT 1`,
+      [sport, capability],
+    )
+    const r = snap.rows[0]
+    if (!r) return null
+    return {
+      snapshotId: String(r.snapshot_id),
+      version: String(r.version),
+      checksum: String(r.checksum),
+      provider: String(r.provider),
+      generatedAt: String(r.generated_at),
+      sourceUpdatedAt: r.source_updated_at ? String(r.source_updated_at) : null,
+      recordCount: Number(r.record_count),
+      resolvedCount: Number(r.resolved_count),
+      ambiguousCount: Number(r.ambiguous_count),
+      unresolvedCount: Number(r.unresolved_count),
+      rejectedCount: Number(r.rejected_count),
+      limitations: (r.limitations as string[] | null) ?? [],
+    }
+  }
+
+  /** OS-consumer read: the latest certified snapshot's records (canonical, provider-neutral), deterministically ordered. */
   async getCertifiedRecords(sport: string, capability: string): Promise<{ snapshotId: string | null; version: string | null; records: unknown[] }> {
     const pool = await getPool()
     const snap = await pool.query(
@@ -164,9 +190,24 @@ export class SportsRuntimeStore {
     )
     const id = snap.rows[0]?.snapshot_id ? String(snap.rows[0].snapshot_id) : null
     if (!id) return { snapshotId: null, version: null, records: [] }
-    const recs = await pool.query(`SELECT record FROM sports_data.sports_snapshot_record WHERE snapshot_id=$1`, [id])
+    const recs = await pool.query(`SELECT record FROM sports_data.sports_snapshot_record WHERE snapshot_id=$1 ORDER BY canonical_key ASC`, [id])
     return { snapshotId: id, version: snap.rows[0].version ? String(snap.rows[0].version) : null, records: recs.rows.map((r) => r.record) }
   }
+}
+
+export type CertifiedSnapshotMeta = {
+  snapshotId: string
+  version: string
+  checksum: string
+  provider: string
+  generatedAt: string
+  sourceUpdatedAt: string | null
+  recordCount: number
+  resolvedCount: number
+  ambiguousCount: number
+  unresolvedCount: number
+  rejectedCount: number
+  limitations: string[]
 }
 
 /** Adapt the store to the Phase 4 runner interfaces (so the existing runner drives it). */
