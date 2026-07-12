@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { requireAdmin } from '@/lib/adminAuth'
 import { isSportsDataEnabled, sportsDataGateDiagnostics } from '@/lib/fantasy-os/sports-runtime/gates'
 import { CertifiedIntelligenceIntegrationService } from '@/lib/fantasy-os/sports-runtime/intelligenceIntegration'
+import { describeEspnIdentityCoverage } from '@/lib/sports-data-gateway/runtime/espnIdentityPopulation'
 
 export const dynamic = 'force-dynamic'
 
@@ -27,12 +28,21 @@ export async function GET(request: Request) {
   const svc = new CertifiedIntelligenceIntegrationService()
   const platform = await svc.describePlatformSportsContext({ season, week })
 
+  // Phase 5F-c: safe ESPN identity-population coverage (counts only — never player rows, ids, or payloads).
+  let identityCoverage: { identityMapRows: number; withEspnId: number; withSleeperId: number } | { error: string } | undefined
+  try {
+    identityCoverage = await describeEspnIdentityCoverage()
+  } catch {
+    identityCoverage = { error: 'identity coverage unavailable' }
+  }
+
   return NextResponse.json({
     enabled: true,
     generatedAt: platform.generatedAt,
     providerHealth: platform.providerHealth, // provenance only — no env var names, no credentials
     snapshotFreshness: platform.snapshotFreshness,
     evidenceAvailability: platform.evidenceAvailability,
+    identityCoverage, // ESPN↔canonical mapping counts (Phase 5F-c) — counts only
     gateDiagnostics: sportsDataGateDiagnostics(), // gate names + booleans only
     unsupported: platform.unsupported,
   })

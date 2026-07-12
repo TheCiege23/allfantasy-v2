@@ -26,6 +26,35 @@ type RawSleeperPlayer = {
   injury_status?: string | null
   active?: boolean
   birth_date?: string | null
+  espn_id?: number | string | null
+}
+
+/**
+ * Deterministic ESPN↔Sleeper crosswalk row from Sleeper's OWN player directory (each player record carries both
+ * its `player_id` and an `espn_id`). This is a Tier-1 direct cross-reference — a single trusted provider record
+ * holds both ids, no name matching. Provider-shaped fields are transformed here and never leak past the adapter.
+ */
+export type SleeperEspnCrosswalkRow = { sleeperId: string; espnId: string; fullName: string; position: string | null; team: string | null; active: boolean }
+
+/** Fetch Sleeper's player directory and emit only rows that carry BOTH a sleeper id and an espn id (deterministic). */
+export async function fetchSleeperEspnCrosswalk(): Promise<{ rows: SleeperEspnCrosswalkRow[]; totalPlayers: number; withEspn: number } | { error: string }> {
+  const r = await getJson<Record<string, RawSleeperPlayer>>(`${BASE}/players/nfl`, 20000)
+  if (!r.ok) return { error: r.status ? `HTTP ${r.status}` : 'fetch error' }
+  const map = r.data
+  if (!map || typeof map !== 'object' || Array.isArray(map)) return { error: 'schema_mismatch: players payload not an object map' }
+  const entries = Object.entries(map)
+  if (entries.length === 0) return { error: 'schema_mismatch: players payload empty' }
+  const rows: SleeperEspnCrosswalkRow[] = []
+  for (const [id, raw] of entries) {
+    const sleeperId = String(raw.player_id ?? id ?? '').trim()
+    const espnRaw = raw.espn_id
+    const espnId = espnRaw == null ? '' : String(espnRaw).trim()
+    if (!sleeperId || !espnId) continue // only deterministic dual-id rows
+    const fullName = (raw.full_name ?? `${raw.first_name ?? ''} ${raw.last_name ?? ''}`.trim()).trim()
+    if (!fullName) continue
+    rows.push({ sleeperId, espnId, fullName, position: raw.position ?? null, team: raw.team ?? null, active: raw.active === true })
+  }
+  return { rows, totalPlayers: entries.length, withEspn: rows.length }
 }
 
 async function getJson<T>(url: string, timeoutMs = 9000): Promise<{ ok: true; data: T } | { ok: false; status?: number; err: unknown }> {
