@@ -103,6 +103,21 @@ export type SportsDataContext = {
   limitations: string[]
 }
 
+/** Canonical schedule/game (Phase 5D-b), independent of ESPN/RollingInsights/API-Sports shapes. */
+export type CanonicalGameStatus = 'scheduled' | 'delayed' | 'postponed' | 'suspended' | 'live' | 'final' | 'cancelled' | 'unknown'
+export type CanonicalGameSchedule = {
+  canonicalGameId: string
+  sport: string
+  season: string
+  weekOrRound: string | null
+  homeTeamId: string
+  awayTeamId: string
+  scheduledStart: string
+  status: CanonicalGameStatus
+  venue: string | null
+  source: SourceProvenance
+}
+
 /** Canonical event envelope for incremental OS reactions. Event ids are deterministic for dedup. */
 export type SportsDataEvent<T> = {
   eventId: string
