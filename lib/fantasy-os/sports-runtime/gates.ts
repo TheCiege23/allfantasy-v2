@@ -1,0 +1,30 @@
+import 'server-only'
+/**
+ * Fantasy OS Phase 5E — runtime feature gates (Stop-gate 2).
+ *
+ * Every live sports-data integration is reversible via a server-only env gate, DISABLED BY DEFAULT. There is
+ * no customer-controlled override and no fallback to fabricated data. The disabled path preserves existing
+ * behavior; the enabled path only ADDS certified context. Season/cadence state is NOT controlled here — the
+ * season resolver remains the source of truth.
+ */
+export type SportsDataSubsystem = 'lineup' | 'waiver' | 'trade' | 'draft' | 'matchup' | 'intelligence' | 'coach'
+
+const ENV_KEY: Record<SportsDataSubsystem, string> = {
+  lineup: 'FANTASY_OS_SPORTS_DATA_LINEUP_ENABLED',
+  waiver: 'FANTASY_OS_SPORTS_DATA_WAIVER_ENABLED',
+  trade: 'FANTASY_OS_SPORTS_DATA_TRADE_ENABLED',
+  draft: 'FANTASY_OS_SPORTS_DATA_DRAFT_ENABLED',
+  matchup: 'FANTASY_OS_SPORTS_DATA_MATCHUP_ENABLED',
+  intelligence: 'FANTASY_OS_SPORTS_DATA_INTELLIGENCE_ENABLED',
+  coach: 'FANTASY_OS_SPORTS_DATA_COACH_ENABLED',
+}
+
+/** True only when the subsystem gate is explicitly "true". Disabled (default) preserves existing behavior. */
+export function isSportsDataEnabled(subsystem: SportsDataSubsystem): boolean {
+  return process.env[ENV_KEY[subsystem]] === 'true'
+}
+
+/** Secret-safe diagnostics: gate names + enabled booleans only, never values. */
+export function sportsDataGateDiagnostics(): Array<{ subsystem: SportsDataSubsystem; envKey: string; enabled: boolean }> {
+  return (Object.keys(ENV_KEY) as SportsDataSubsystem[]).map((s) => ({ subsystem: s, envKey: ENV_KEY[s], enabled: isSportsDataEnabled(s) }))
+}
