@@ -7,7 +7,7 @@ import 'server-only'
  * behavior; the enabled path only ADDS certified context. Season/cadence state is NOT controlled here — the
  * season resolver remains the source of truth.
  */
-export type SportsDataSubsystem = 'lineup' | 'waiver' | 'trade' | 'draft' | 'matchup' | 'intelligence' | 'coach'
+export type SportsDataSubsystem = 'lineup' | 'waiver' | 'trade' | 'draft' | 'matchup' | 'scoring' | 'intelligence' | 'coach'
 
 const ENV_KEY: Record<SportsDataSubsystem, string> = {
   lineup: 'FANTASY_OS_SPORTS_DATA_LINEUP_ENABLED',
@@ -15,6 +15,8 @@ const ENV_KEY: Record<SportsDataSubsystem, string> = {
   trade: 'FANTASY_OS_SPORTS_DATA_TRADE_ENABLED',
   draft: 'FANTASY_OS_SPORTS_DATA_DRAFT_ENABLED',
   matchup: 'FANTASY_OS_SPORTS_DATA_MATCHUP_ENABLED',
+  // Phase 5E-g — Scoring is independently reversible from Matchup (added to the registry, disabled by default).
+  scoring: 'FANTASY_OS_SPORTS_DATA_SCORING_ENABLED',
   intelligence: 'FANTASY_OS_SPORTS_DATA_INTELLIGENCE_ENABLED',
   coach: 'FANTASY_OS_SPORTS_DATA_COACH_ENABLED',
 }

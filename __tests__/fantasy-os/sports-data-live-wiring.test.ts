@@ -47,7 +47,8 @@ describe('runtime feature gates (Stop-gate 2)', () => {
   it('diagnostics expose names + booleans only (no values)', async () => {
     const { sportsDataGateDiagnostics } = await import('@/lib/fantasy-os/sports-runtime/gates')
     const d = sportsDataGateDiagnostics()
-    expect(d).toHaveLength(7)
+    expect(d).toHaveLength(8) // 5E-g added the scoring gate
+    expect(d.some((x) => x.subsystem === 'scoring' && x.envKey === 'FANTASY_OS_SPORTS_DATA_SCORING_ENABLED')).toBe(true)
     expect(d.every((x) => typeof x.enabled === 'boolean' && x.envKey.startsWith('FANTASY_OS_SPORTS_DATA_'))).toBe(true)
   })
 })

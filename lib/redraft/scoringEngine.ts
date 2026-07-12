@@ -13,6 +13,8 @@ import type { ScoringCategory } from '@/lib/sportConfig/types'
 import { bridgeUiRulesToEngineCategoryPoints } from '@/lib/nfl-scoring/scoringKeyBridge'
 import { isNflRedraftScoringStarterSlot } from '@/lib/scoring-runtime'
 import type { StatCategoryRow } from './types'
+import { isSportsDataEnabled } from '@/lib/fantasy-os/sports-runtime/gates'
+import { CertifiedScoringIntegrationService } from '@/lib/fantasy-os/sports-runtime/scoringIntegration'
 
 export function calculateFantasyPoints(
   rawStats: Record<string, number>,
@@ -338,12 +340,34 @@ export async function updateMatchupScores(matchupId: string): Promise<MatchupSco
     home.scoredStarterCount === home.starterCount &&
     away.scoredStarterCount === away.starterCount
 
+  // Existing, authoritative finalization decision — driven entirely by the existing stat inputs' own
+  // per-player finalized flags. Certified game data NEVER supplies fantasy points and NEVER finalizes on its own.
+  const existingFinal = isComplete && home.allFinal && away.allFinal
+
+  // Gated (off by default), STRICTER-ONLY certified finality guard: if the existing engine would finalize but
+  // TRUSTWORTHY certified game evidence says not every game is final, withhold finalization (keep 'active') so a
+  // premature final can't lock in. It can only DELAY finalization, never cause it, never change scores. Fails
+  // open (unavailable/stale certified data → existing decision unchanged). Corrections still re-run this fn and
+  // re-finalize once conditions hold. Evidence emitted (console.info), not persisted (no migration).
+  let isFinal = existingFinal
+  if (existingFinal && isSportsDataEnabled('scoring') && String(season.sport ?? 'NFL').toUpperCase() === 'NFL') {
+    try {
+      const finality = await new CertifiedScoringIntegrationService().evaluateScoringFinalityEvidence({ season: String(seasonYear), week: String(week) })
+      if (finality.trustworthy && !finality.certifiedAllGamesFinal) {
+        isFinal = false
+        console.info('[scoring][sports-data] finalization withheld by certified evidence', { matchupId, week, unresolvedGames: finality.unresolvedGames, snapshot: finality.snapshotVersion, reason: finality.reason })
+      }
+    } catch {
+      isFinal = existingFinal // fail open — existing authority final
+    }
+  }
+
   await prisma.redraftMatchup.update({
     where: { id: matchupId },
     data: {
       homeScore: home.points,
       awayScore: away.points,
-      status: isComplete && home.allFinal && away.allFinal ? 'final' : 'active',
+      status: isFinal ? 'final' : 'active',
       lineupSnapshots: {
         redraftScoring: {
           scoredAt: new Date().toISOString(),
@@ -363,7 +387,6 @@ export async function updateMatchupScores(matchupId: string): Promise<MatchupSco
   //    wire now that the G15.3 relay drains the outbox.
   //  • score.updated (per-player) stays DEFERRED — per-player-per-sync volume would grow
   //    the permanent domain_events log unbounded; needs coalescing/retention (G15.4+).
-  const isFinal = isComplete && home.allFinal && away.allFinal
   const scoreChanged = home.points !== m.homeScore || away.points !== m.awayScore
   if (isFinal) {
     const winnerRosterId =
