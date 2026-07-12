@@ -89,6 +89,34 @@ export class CertifiedLineupIntegrationService {
   }
 
   /**
+   * Pre-persist certified safety for a manual lineup save (Part: persisting write path). Returns a SUPPLEMENTAL
+   * rejection only when it has TRUSTWORTHY (current) certified evidence that a STARTED player's game is already
+   * locked/started/final/postponed/suspended — a stricter catch the existing authority may miss. It NEVER
+   * approves and NEVER weakens the existing decision. On stale/unavailable certified context it does NOT block a
+   * human-confirmed manual save (the existing lineupLockService + roster legality remain final) — the limitation
+   * is recorded in the emitted evidence. (Automatic/unattended actions fail closed instead — see auto-sub.)
+   */
+  async evaluateLineupPersistSafety(input: { season: string; week: string | null; starterRefs: PlayerRef[]; now?: Date }): Promise<{ block: boolean; reason: string; freshnessStatus: string; identityStatus: string; blockedPlayers: string[]; snapshotVersion: string | null }> {
+    const ev = await this.getScheduleEvidenceForPlayers({ season: input.season, week: input.week, players: input.starterRefs, now: input.now })
+    if (!ev.available) {
+      return { block: false, reason: 'certified schedule unavailable — existing lock authority remains final', freshnessStatus: 'unavailable', identityStatus: ev.runtimeContext.identityStatus, blockedPlayers: [], snapshotVersion: null }
+    }
+    const trustworthy = ev.runtimeContext.freshnessStatus === 'current'
+    const LOCKED_EVIDENCE = new Set(['at_or_after_start', 'final', 'postponed', 'suspended'])
+    const blocked = trustworthy ? ev.contexts.filter((c) => LOCKED_EVIDENCE.has(c.sportsDataLockEvidence)).map((c) => c.canonicalPlayerId) : []
+    return {
+      block: blocked.length > 0,
+      reason: blocked.length > 0
+        ? `certified evidence: ${blocked.length} started player(s) are in a locked/started/final/postponed game`
+        : trustworthy ? 'no certified lock condition for started players' : `certified schedule ${ev.runtimeContext.freshnessStatus} — not used to block a manual save`,
+      freshnessStatus: ev.runtimeContext.freshnessStatus,
+      identityStatus: ev.runtimeContext.identityStatus,
+      blockedPlayers: blocked,
+      snapshotVersion: ev.runtimeContext.snapshotVersions[0] ?? null,
+    }
+  }
+
+  /**
    * Auto-switch safety for an outgoing→replacement move. `authorized`/`rosterLegal` come from the EXISTING
    * authority (never bypassed here). Fails closed when either player's schedule evidence is uncertain.
    */
