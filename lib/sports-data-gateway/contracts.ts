@@ -133,7 +133,12 @@ export type CanonicalPlayerGameStat = {
   gameStatus: CanonicalGameStatus
   position: string | null
   statCategories: Record<string, number>
-  identityResolution: 'resolved' | 'unresolved'
+  /**
+   * Phase 5F-b: identity classification. `resolved` = deterministic direct provider-id match (only these are
+   * eligible for future scoring migration). `ambiguous` = a non-deterministic (e.g. name) match exists but is
+   * not trusted; no canonical id is assigned. `unresolved` = no match. Never name-guessed into `resolved`.
+   */
+  identityResolution: 'resolved' | 'unresolved' | 'ambiguous'
   source: SourceProvenance
 }
 

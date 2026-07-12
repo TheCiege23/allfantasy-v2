@@ -45,10 +45,10 @@ describe('5F-a — statistics normalization + identity', () => {
     expect(Object.keys(s).sort()).toEqual(['canonicalGameId', 'canonicalPlayerId', 'gameStatus', 'identityResolution', 'opponentTeamId', 'position', 'season', 'source', 'statCategories', 'teamId', 'week'])
     expect(JSON.stringify(s)).not.toMatch(/athlete|displayName|providerAthleteId/)
   })
-  it('classifies player identity as unresolved without a resolver, resolved with one (canonical id resolution)', () => {
+  it('classifies player identity as unresolved without a resolver, resolved with a deterministic one', () => {
     expect(normalizeEspnStat(athlete('99', {}), ctx).identityResolution).toBe('unresolved')
     expect(normalizeEspnStat(athlete('99', {}), ctx).canonicalPlayerId).toBe('unresolved:espn:99')
-    const resolved = normalizeEspnStat(athlete('99', {}), ctx, () => 'canon:mahomes')
+    const resolved = normalizeEspnStat(athlete('99', {}), ctx, () => ({ canonicalPlayerId: 'canon:mahomes', state: 'resolved' }))
     expect(resolved.identityResolution).toBe('resolved')
     expect(resolved.canonicalPlayerId).toBe('canon:mahomes')
   })
