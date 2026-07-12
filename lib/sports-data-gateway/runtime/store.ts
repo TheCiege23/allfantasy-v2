@@ -100,11 +100,11 @@ export class SportsRuntimeStore {
 
   // ── Snapshot + event persistence ────────────────────────────────────────────
   /** Previous certified content hashes (canonicalKey → contentHash) for change detection. */
-  async previousCertifiedHashes(sport: string, capability: string): Promise<{ snapshotId: string | null; hashes: Map<string, string> }> {
+  async previousCertifiedHashes(sport: string, capability: string, scopeRef: string | null = null): Promise<{ snapshotId: string | null; hashes: Map<string, string> }> {
     const pool = await getPool()
     const snap = await pool.query(
-      `SELECT snapshot_id FROM sports_data.sports_snapshot WHERE sport=$1 AND capability=$2 AND status='certified' ORDER BY generated_at DESC LIMIT 1`,
-      [sport, capability],
+      `SELECT snapshot_id FROM sports_data.sports_snapshot WHERE sport=$1 AND capability=$2 AND scope_ref IS NOT DISTINCT FROM $3 AND status='certified' ORDER BY generated_at DESC LIMIT 1`,
+      [sport, capability, scopeRef],
     )
     const id = snap.rows[0]?.snapshot_id ? String(snap.rows[0].snapshot_id) : null
     const hashes = new Map<string, string>()
@@ -122,10 +122,10 @@ export class SportsRuntimeStore {
     const pool = await getPool()
     const counts = decision.counts
     await pool.query(
-      `INSERT INTO sports_data.sports_snapshot (snapshot_id, version, sport, capability, provider, status, generated_at, source_updated_at, record_count, resolved_count, ambiguous_count, unresolved_count, rejected_count, checksum, previous_snapshot_id, limitations)
-       VALUES ($1,$2,$3,$4,$5,'certified',$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::jsonb)
+      `INSERT INTO sports_data.sports_snapshot (snapshot_id, version, sport, capability, scope_ref, provider, status, generated_at, source_updated_at, record_count, resolved_count, ambiguous_count, unresolved_count, rejected_count, checksum, previous_snapshot_id, limitations)
+       VALUES ($1,$2,$3,$4,$5,$6,'certified',$7,$8,$9,$10,$11,$12,$13,$14,$15,$16::jsonb)
        ON CONFLICT (snapshot_id) DO NOTHING`,
-      [draft.snapshotId, draft.version, draft.sport, draft.capability, draft.provider, draft.generatedAt, draft.sourceUpdatedAt, counts.recordCount, counts.resolvedCount, counts.ambiguousCount, counts.unresolvedCount, counts.rejectedCount, decision.checksum, draft.previousSnapshotId, JSON.stringify(draft.limitations)],
+      [draft.snapshotId, draft.version, draft.sport, draft.capability, draft.scopeRef ?? null, draft.provider, draft.generatedAt, draft.sourceUpdatedAt, counts.recordCount, counts.resolvedCount, counts.ambiguousCount, counts.unresolvedCount, counts.rejectedCount, decision.checksum, draft.previousSnapshotId, JSON.stringify(draft.limitations)],
     )
     for (const r of draft.records) {
       const stored = { ...(r.record as Record<string, unknown>), __contentHash: r.contentHash }
@@ -156,12 +156,12 @@ export class SportsRuntimeStore {
   }
 
   /** Latest CERTIFIED snapshot metadata (never building/partial/rejected). Deterministic latest = newest generated_at. */
-  async getCertifiedSnapshotMeta(sport: string, capability: string): Promise<CertifiedSnapshotMeta | null> {
+  async getCertifiedSnapshotMeta(sport: string, capability: string, scopeRef: string | null = null): Promise<CertifiedSnapshotMeta | null> {
     const pool = await getPool()
     const snap = await pool.query(
       `SELECT snapshot_id, version, checksum, provider, generated_at, source_updated_at, record_count, resolved_count, ambiguous_count, unresolved_count, rejected_count, limitations
-       FROM sports_data.sports_snapshot WHERE sport=$1 AND capability=$2 AND status='certified' ORDER BY generated_at DESC LIMIT 1`,
-      [sport, capability],
+       FROM sports_data.sports_snapshot WHERE sport=$1 AND capability=$2 AND scope_ref IS NOT DISTINCT FROM $3 AND status='certified' ORDER BY generated_at DESC LIMIT 1`,
+      [sport, capability, scopeRef],
     )
     const r = snap.rows[0]
     if (!r) return null
@@ -182,11 +182,11 @@ export class SportsRuntimeStore {
   }
 
   /** OS-consumer read: the latest certified snapshot's records (canonical, provider-neutral), deterministically ordered. */
-  async getCertifiedRecords(sport: string, capability: string): Promise<{ snapshotId: string | null; version: string | null; records: unknown[] }> {
+  async getCertifiedRecords(sport: string, capability: string, scopeRef: string | null = null): Promise<{ snapshotId: string | null; version: string | null; records: unknown[] }> {
     const pool = await getPool()
     const snap = await pool.query(
-      `SELECT snapshot_id, version FROM sports_data.sports_snapshot WHERE sport=$1 AND capability=$2 AND status='certified' ORDER BY generated_at DESC LIMIT 1`,
-      [sport, capability],
+      `SELECT snapshot_id, version FROM sports_data.sports_snapshot WHERE sport=$1 AND capability=$2 AND scope_ref IS NOT DISTINCT FROM $3 AND status='certified' ORDER BY generated_at DESC LIMIT 1`,
+      [sport, capability, scopeRef],
     )
     const id = snap.rows[0]?.snapshot_id ? String(snap.rows[0].snapshot_id) : null
     if (!id) return { snapshotId: null, version: null, records: [] }

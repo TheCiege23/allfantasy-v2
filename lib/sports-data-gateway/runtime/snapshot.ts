@@ -31,6 +31,8 @@ export type SnapshotDraft = {
   scopeComplete: boolean
   previousSnapshotId: string | null
   limitations: string[]
+  /** League/entity dimension for league-scoped capabilities (rosters/transactions/draft). null = global. */
+  scopeRef?: string | null
 }
 
 export type CertificationDecision = { certifiable: true; checksum: string; counts: SnapshotCounts } | { certifiable: false; reasons: string[] }
