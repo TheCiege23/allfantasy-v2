@@ -18,6 +18,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
+import { isSportsDataEnabled } from '@/lib/fantasy-os/sports-runtime/gates'
+import { CertifiedIntelligenceIntegrationService } from '@/lib/fantasy-os/sports-runtime/intelligenceIntegration'
 import { resolveManagerCommandCenterSnapshot } from '@/lib/decision-os/managerCommandCenter'
 
 export const dynamic = 'force-dynamic'
@@ -66,5 +68,16 @@ export async function GET() {
     countDraftsApproaching(leagueIds, now),
   ])
 
-  return NextResponse.json({ ...snapshot, draftsApproachingCount })
+  // Gated, informational certified factual grounding (freshness/game context/evidence availability). It never
+  // changes the snapshot, recommendations, or any manager reasoning. Wrapped so it can never fail the route.
+  let sportsContext
+  if (isSportsDataEnabled('intelligence')) {
+    try {
+      sportsContext = await new CertifiedIntelligenceIntegrationService().describeManagerSportsContext({ season: String(now.getFullYear()), week: '1' })
+    } catch {
+      sportsContext = undefined
+    }
+  }
+
+  return NextResponse.json({ ...snapshot, draftsApproachingCount, ...(sportsContext ? { sportsContext } : {}) })
 }

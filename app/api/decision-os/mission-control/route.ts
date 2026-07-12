@@ -3,6 +3,8 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { resolveMissionControlSnapshot } from '@/lib/decision-os/missionControl'
 import { authorizeLeagueRead } from '@/lib/decision-os/leagueReadAuthorization'
+import { isSportsDataEnabled } from '@/lib/fantasy-os/sports-runtime/gates'
+import { CertifiedIntelligenceIntegrationService } from '@/lib/fantasy-os/sports-runtime/intelligenceIntegration'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,5 +42,17 @@ export async function GET(request: Request) {
   }
 
   const snapshot = await resolveMissionControlSnapshot(leagueId)
-  return NextResponse.json(snapshot)
+
+  // Gated, informational certified grounding for commissioner intelligence: provider health, schedule freshness,
+  // evidence coverage, delayed snapshots. It never alters commissioner recommendations or governance scoring.
+  let sportsContext
+  if (isSportsDataEnabled('intelligence')) {
+    try {
+      sportsContext = await new CertifiedIntelligenceIntegrationService().describeCommissionerSportsContext({ season: String(new Date().getFullYear()), week: '1' })
+    } catch {
+      sportsContext = undefined
+    }
+  }
+
+  return NextResponse.json(sportsContext ? { ...snapshot, sportsContext } : snapshot)
 }

@@ -7,7 +7,7 @@ import 'server-only'
  * behavior; the enabled path only ADDS certified context. Season/cadence state is NOT controlled here — the
  * season resolver remains the source of truth.
  */
-export type SportsDataSubsystem = 'lineup' | 'waiver' | 'trade' | 'draft' | 'matchup' | 'scoring' | 'intelligence' | 'coach'
+export type SportsDataSubsystem = 'lineup' | 'waiver' | 'trade' | 'draft' | 'matchup' | 'scoring' | 'intelligence' | 'coach' | 'observability'
 
 const ENV_KEY: Record<SportsDataSubsystem, string> = {
   lineup: 'FANTASY_OS_SPORTS_DATA_LINEUP_ENABLED',
@@ -19,6 +19,8 @@ const ENV_KEY: Record<SportsDataSubsystem, string> = {
   scoring: 'FANTASY_OS_SPORTS_DATA_SCORING_ENABLED',
   intelligence: 'FANTASY_OS_SPORTS_DATA_INTELLIGENCE_ENABLED',
   coach: 'FANTASY_OS_SPORTS_DATA_COACH_ENABLED',
+  // Phase 5E-h — operator observability surface, independently reversible from customer intelligence.
+  observability: 'FANTASY_OS_SPORTS_DATA_OBSERVABILITY_ENABLED',
 }
 
 /** True only when the subsystem gate is explicitly "true". Disabled (default) preserves existing behavior. */
