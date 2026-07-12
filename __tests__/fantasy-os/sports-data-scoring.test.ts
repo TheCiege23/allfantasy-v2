@@ -20,16 +20,16 @@ const GATES = 'lib/fantasy-os/sports-runtime/gates.ts'
 const noProvider = (src: string) => /(from ['"]@\/lib\/sleeper|from ['"]@\/lib\/espn|sleeper-client|espn-client|api\.sleeper\.app|site\.api\.espn\.com)/.test(src)
 
 describe('5E-g Scoring — honest capability + finality evidence', () => {
-  it('reports certified player statistics as NOT implemented (never fabricates a stat service)', () => {
+  it('5F-a: certified player statistics now exist but are NOT a scoring input (existing inputs stay authoritative)', () => {
     const avail = scoringSvc([], null).describeStatSourceAvailability()
-    expect(avail.certifiedPlayerStatistics).toBe('not-certified')
+    expect(avail.certifiedPlayerStatistics).toBe('certified-not-scoring-input')
     expect(avail.authoritativeStatInputs).toContain('PlayerWeeklyScore')
     expect(avail.authoritativeStatInputs).toContain('PlayerGameLogCache')
   })
-  it('schedule data does not become player-stat data (game context only)', () => {
+  it('certified statistics are not yet wired as a scoring input (scoring still uses existing inputs)', () => {
     const avail = scoringSvc([], null).describeStatSourceAvailability()
     expect(avail.certifiedGameContext).toBe('available')
-    expect(avail.certifiedPlayerStatistics).not.toBe('available')
+    expect(avail.certifiedPlayerStatistics).not.toBe('scoring-input')
   })
   it('consumes certified game-state evidence for the scoring week', async () => {
     const ctx = await scoringSvc([game('g1', 'final')], meta(5)).describeScoringGameContext({ season: '2026', week: '1' })

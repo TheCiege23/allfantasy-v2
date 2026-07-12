@@ -14,11 +14,14 @@ import { buildCertifiedFreshness } from '@/lib/sports-data-gateway/runtime/fresh
 import { PROVIDER_INVENTORY } from '@/lib/sports-data-gateway/inventory'
 import { CertifiedMatchupIntegrationService, type CertifiedMatchupContext } from './matchupIntegration'
 
-/** Facts the certified plane does NOT provide to the intelligence layer — always explicitly unavailable, never inferred. */
+/**
+ * Facts the certified plane does NOT provide to the intelligence layer — always explicitly unavailable, never
+ * inferred. (Phase 5F-a: certified player `statistics` now EXIST as a data capability but are not yet a wired
+ * intelligence display input; injuries/projections/availability remain genuinely absent.)
+ */
 export const INTELLIGENCE_UNSUPPORTED = {
   injuries: 'unavailable',
   projections: 'unavailable',
-  statistics: 'unavailable',
   playerAvailability: 'unavailable',
   rankings: 'unavailable',
   predictions: 'unavailable',
@@ -27,10 +30,15 @@ export const INTELLIGENCE_UNSUPPORTED = {
   retentionLikelihood: 'unavailable',
 } as const
 
-/** Capabilities that are actually implemented as certified snapshots vs listed-but-not-certified. Honest truth. */
+/**
+ * Capabilities that are actually implemented as certified snapshots vs listed-but-not-certified. Honest truth.
+ * Phase 5F-a: `statistics` (certified player-game box scores from ESPN) is now a real certified capability —
+ * player identities within it may be `unresolved` (no cross-provider athlete map yet), and it is NOT yet a
+ * scoring input (the scoring engine still uses PlayerWeeklyScore / PlayerGameLogCache).
+ */
 export const CERTIFIED_CAPABILITY_TRUTH = {
-  certified: ['players', 'rosters', 'transactions', 'games', 'draft_data'],
-  notCertified: ['statistics', 'injuries', 'projections', 'live_scores', 'play_by_play', 'depth_charts', 'news', 'weather'],
+  certified: ['players', 'rosters', 'transactions', 'games', 'draft_data', 'statistics'],
+  notCertified: ['injuries', 'projections', 'live_scores', 'play_by_play', 'depth_charts', 'news', 'weather'],
 } as const
 
 export type SnapshotFreshnessEntry = { capability: string; available: boolean; freshnessStatus: string; snapshotVersion: string | null; provider: string | null; generatedAt: string | null }

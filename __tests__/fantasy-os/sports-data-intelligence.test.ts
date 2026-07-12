@@ -30,8 +30,8 @@ describe('5E-h Intelligence — service (facts only, honest capability)', () => 
     expect(ctx.snapshotFreshness.length).toBeGreaterThan(0)
     expect(ctx.evidenceAvailability.certifiedCapabilities).toContain('games')
   })
-  it('unsupported fields (injuries/projections/statistics/rankings/predictions/psychology/intent/retention) remain unavailable', () => {
-    for (const k of ['injuries', 'projections', 'statistics', 'rankings', 'predictions', 'managerPsychology', 'commissionerIntent', 'retentionLikelihood'] as const) {
+  it('unsupported fields (injuries/projections/rankings/predictions/psychology/intent/retention) remain unavailable', () => {
+    for (const k of ['injuries', 'projections', 'rankings', 'predictions', 'managerPsychology', 'commissionerIntent', 'retentionLikelihood'] as const) {
       expect(INTELLIGENCE_UNSUPPORTED[k]).toBe('unavailable')
     }
   })
@@ -49,10 +49,12 @@ describe('5E-h Intelligence — service (facts only, honest capability)', () => 
     expect(games?.available).toBe(true)
     expect(games?.freshnessStatus).toBe('delayed')
   })
-  it('evidence availability reports certified vs not-certified honestly (no player stats/injuries/projections)', () => {
+  it('evidence availability reports certified vs not-certified honestly (5F-a: statistics now certified; injuries/projections still not)', () => {
     const ev = svc().describeEvidenceAvailability()
     expect(ev.certifiedCapabilities).toContain('games')
-    expect(ev.notCertifiedCapabilities).toEqual(expect.arrayContaining(['statistics', 'injuries', 'projections']))
+    expect(ev.certifiedCapabilities).toContain('statistics')
+    expect(ev.notCertifiedCapabilities).toEqual(expect.arrayContaining(['injuries', 'projections']))
+    expect(ev.notCertifiedCapabilities).not.toContain('statistics')
   })
   it('platform context includes provider health + no game context leakage of unsupported facts', async () => {
     const p = await svc().describePlatformSportsContext({ season: '2026', week: '1' })

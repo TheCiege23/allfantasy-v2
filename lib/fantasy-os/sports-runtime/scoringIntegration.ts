@@ -17,8 +17,12 @@ import 'server-only'
 import { CertifiedMatchupIntegrationService, type CertifiedMatchupContext, type MatchupFinalityEvidence } from './matchupIntegration'
 
 export type StatSourceAvailability = {
-  /** Honest capability report — certified player statistics are NOT implemented in the gateway. */
-  certifiedPlayerStatistics: 'not-certified'
+  /**
+   * Honest capability report. Phase 5F-a: certified player-game statistics now EXIST as a certified data
+   * capability (`certified-not-scoring-input`) but are deliberately NOT yet a scoring input — the scoring engine
+   * still computes fantasy points from its existing inputs. Switching scoring to certified stats is a later phase.
+   */
+  certifiedPlayerStatistics: 'certified-not-scoring-input'
   certifiedGameContext: 'available'
   /** The existing, authoritative fantasy-point inputs (unchanged by this service). */
   authoritativeStatInputs: string[]
@@ -47,10 +51,10 @@ export class CertifiedScoringIntegrationService {
   /** Honest report: certified player statistics are NOT implemented; existing stat inputs remain authoritative. */
   describeStatSourceAvailability(): StatSourceAvailability {
     return {
-      certifiedPlayerStatistics: 'not-certified',
+      certifiedPlayerStatistics: 'certified-not-scoring-input',
       certifiedGameContext: 'available',
       authoritativeStatInputs: ['PlayerGameLogCache', 'PlayerWeeklyScore', 'provider-normalized stat tables'],
-      note: 'The certified sports-data plane supplies schedules/games only. Fantasy points are computed solely by the existing scoring engine from its existing stat inputs; no certified player statistics exist to consume.',
+      note: 'Certified player-game statistics now exist (ESPN box scores, append-only certified snapshots) but are NOT yet a scoring input. Fantasy points are still computed solely by the existing scoring engine from its existing stat inputs; switching scoring to certified statistics is a later certification phase.',
     }
   }
 

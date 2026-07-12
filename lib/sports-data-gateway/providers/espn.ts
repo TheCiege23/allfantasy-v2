@@ -10,6 +10,66 @@ import { BaseProviderAdapter, type ProviderHealth } from '../adapter'
 
 const BASE = 'https://site.api.espn.com/apis/site/v2/sports/football/nfl' // db-first-exception: gateway schedule provider (server-side)
 
+/** Raw, provider-shaped box-score athlete row. Provider fields are transformed by the normalizer and never leak. */
+export type EspnBoxScoreAthlete = { providerAthleteId: string; name: string; teamAbbrev: string; position: string | null; stats: Record<string, number> }
+export type EspnBoxScoreFetch = { eventId: string; season: string; week: string | null; statusName: string | null; homeAbbrev: string | null; awayAbbrev: string | null; athletes: EspnBoxScoreAthlete[] }
+
+/** Parse only stat values that are genuinely numeric (ESPN reports strings like "12/18", "85", "-"). Non-numeric → skipped. */
+function toNumericStats(labels: string[], values: string[]): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (let i = 0; i < labels.length && i < values.length; i++) {
+    const raw = values[i]
+    if (typeof raw !== 'string' && typeof raw !== 'number') continue
+    const n = Number(raw)
+    if (Number.isFinite(n)) out[String(labels[i])] = n
+  }
+  return out
+}
+
+/**
+ * Real ESPN box-score fetch for one game (public summary endpoint — same source lib/espn-data.ts already uses).
+ * Returns provider-shaped athlete rows; canonicalization happens in the statistics runtime, not here.
+ */
+export async function fetchEspnBoxScore(eventId: string): Promise<EspnBoxScoreFetch | { error: string }> {
+  const url = `${BASE}/summary?event=${encodeURIComponent(eventId)}`
+  const c = new AbortController()
+  const t = setTimeout(() => c.abort(), 15000)
+  let data: Record<string, unknown> | null = null
+  try {
+    const res = await fetch(url, { signal: c.signal, headers: { 'user-agent': 'fantasy-os-gateway' } })
+    clearTimeout(t)
+    if (!res.ok) return { error: `HTTP ${res.status}` }
+    data = await res.json()
+  } catch (e) {
+    clearTimeout(t)
+    return { error: e instanceof Error ? e.message : 'fetch error' }
+  }
+  if (!data || typeof data !== 'object') return { error: 'schema_mismatch: summary not an object' }
+  const header = (data.header as { competitions?: Array<Record<string, unknown>>; season?: { year?: number }; week?: number } | undefined)
+  const comp = header?.competitions?.[0] as { competitors?: Array<{ homeAway?: string; team?: { abbreviation?: string }; score?: string }>; status?: { type?: { name?: string } } } | undefined
+  const competitors = comp?.competitors ?? []
+  const homeAbbrev = competitors.find((x) => x.homeAway === 'home')?.team?.abbreviation ?? null
+  const awayAbbrev = competitors.find((x) => x.homeAway === 'away')?.team?.abbreviation ?? null
+  const statusName = comp?.status?.type?.name ?? null
+  const season = header?.season?.year != null ? String(header.season.year) : 'unknown'
+  const week = header?.week != null ? String(header.week) : null
+
+  const athletes: EspnBoxScoreAthlete[] = []
+  const boxscore = data.boxscore as { players?: Array<{ team?: { abbreviation?: string }; statistics?: Array<{ name?: string; labels?: string[]; athletes?: Array<{ athlete?: { id?: string; displayName?: string }; stats?: string[] }> }> }> } | undefined
+  for (const teamBox of boxscore?.players ?? []) {
+    const teamAbbrev = teamBox.team?.abbreviation ?? ''
+    for (const group of teamBox.statistics ?? []) {
+      const labels = group.labels ?? []
+      for (const a of group.athletes ?? []) {
+        const id = String(a.athlete?.id ?? '')
+        if (!id) continue
+        athletes.push({ providerAthleteId: id, name: a.athlete?.displayName ?? '', teamAbbrev, position: group.name ?? null, stats: toNumericStats(labels, a.stats ?? []) })
+      }
+    }
+  }
+  return { eventId, season, week, statusName, homeAbbrev, awayAbbrev, athletes }
+}
+
 type EspnEvent = {
   id?: string
   date?: string
@@ -101,9 +161,9 @@ export class EspnAdapter extends BaseProviderAdapter {
     return {
       provider: 'espn',
       sports: ['NFL'],
-      capabilities: ['schedules', 'games', 'team_branding'],
-      refreshSupport: { schedules: 'scheduled', games: 'live', team_branding: 'static' },
-      limitations: ['Public API — undocumented rate limits.', 'Scoreboard does not expose player injuries/availability.'],
+      capabilities: ['schedules', 'games', 'team_branding', 'statistics'],
+      refreshSupport: { schedules: 'scheduled', games: 'live', team_branding: 'static', statistics: 'live' },
+      limitations: ['Public API — undocumented rate limits.', 'Scoreboard does not expose player injuries/availability.', 'Box-score athlete ids are ESPN-native; canonical player identity resolution across providers is not yet built (Phase 5F-a certifies stats with unresolved player identities disclosed).'],
     }
   }
   async healthCheck(): Promise<ProviderHealth> {

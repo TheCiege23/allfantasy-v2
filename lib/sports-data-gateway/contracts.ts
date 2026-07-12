@@ -118,6 +118,25 @@ export type CanonicalGameSchedule = {
   source: SourceProvenance
 }
 
+/**
+ * Canonical player-game statistics (Phase 5F-a), provider-neutral. Real observed stats only — NO derived
+ * fantasy points and NO projections. `statCategories` holds normalized numeric stat lines exactly as reported.
+ * `identityResolution` records whether the provider athlete resolved to a canonical player id.
+ */
+export type CanonicalPlayerGameStat = {
+  canonicalPlayerId: string
+  canonicalGameId: string
+  teamId: string
+  opponentTeamId: string | null
+  season: string
+  week: string | null
+  gameStatus: CanonicalGameStatus
+  position: string | null
+  statCategories: Record<string, number>
+  identityResolution: 'resolved' | 'unresolved'
+  source: SourceProvenance
+}
+
 /** Canonical event envelope for incremental OS reactions. Event ids are deterministic for dedup. */
 export type SportsDataEvent<T> = {
   eventId: string
