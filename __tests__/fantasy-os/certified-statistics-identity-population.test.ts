@@ -80,7 +80,9 @@ describe('5F-c — provider boundary + no name matching', () => {
   const src = fs.readFileSync(path.join(process.cwd(), 'lib/sports-data-gateway/runtime/espnIdentityPopulation.ts'), 'utf8')
   it('population reaches ESPN/Sleeper ONLY through the adapter (no direct provider URL/fetch)', () => {
     expect(src).toMatch(/from '\.\.\/providers\/sleeper'/)
-    expect(src).not.toMatch(/site\.api\.espn\.com|api\.sleeper\.app|fetch\(/)
+    // no provider URL and no BARE global fetch (delegated `src.fetch()` method calls are allowed)
+    expect(src).not.toMatch(/site\.api\.espn\.com|api\.sleeper\.app/)
+    expect(src).not.toMatch(/(?<![.\w])fetch\(/)
   })
   it('uses no fuzzy/name matching to create a mapping — mappings come only from Sleeper dual-id rows', () => {
     // name is never used as a MATCH key (no name lookup / no similarity). Conflict detection keys on ids only.
