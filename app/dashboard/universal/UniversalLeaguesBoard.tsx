@@ -26,6 +26,7 @@ import {
 } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
 import { PriorityByPlatform } from './components/PriorityByPlatform'
+import { DynastyPlanetSearch } from './components/DynastyPlanetSearch'
 import { PortfolioAnalytics } from './components/PortfolioAnalytics'
 import { LeagueCards } from './components/LeagueCards'
 
@@ -247,6 +248,9 @@ export function UniversalLeaguesBoard({ leagues }: { leagues: BoardLeague[] }) {
         ) : (
           <>
             <PriorityByPlatform leagues={leagues} rosterIssues={rosterIssues} />
+            <div className="mt-8">
+              <DynastyPlanetSearch leagues={leagues} />
+            </div>
             <div className="mt-8">
               <PortfolioAnalytics leagues={leagues} />
             </div>

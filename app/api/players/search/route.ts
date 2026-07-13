@@ -27,7 +27,7 @@ export async function GET(req: Request) {
         { position: { contains: q, mode: 'insensitive' } },
       ],
     },
-    select: { id: true, name: true, position: true, team: true },
+    select: { id: true, name: true, position: true, team: true, imageUrl: true, sleeperId: true, age: true, number: true, college: true },
     take: limit,
     orderBy: { name: 'asc' },
   });

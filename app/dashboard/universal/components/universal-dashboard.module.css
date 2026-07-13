@@ -1092,3 +1092,280 @@
   text-decoration: none;
   color: var(--muted);
 }
+
+/* ---------- Dynasty Planet player search ---------- */
+
+.dpCard {
+  border: 1px solid var(--border-2);
+  border-radius: 18px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--blue) 8%, var(--panel)), color-mix(in srgb, var(--cyan) 4%, var(--panel)));
+  padding: 16px;
+}
+
+.dpSearch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--bg);
+  border: 1px solid var(--border-2);
+}
+
+.dpSearch input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 13px;
+  outline: none;
+}
+
+.dpGo {
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: var(--cyan);
+  color: #04212a;
+  font-size: 12px;
+  font-weight: 800;
+  border: none;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dpSuggestions {
+  position: relative;
+}
+
+.dpSuggestList {
+  position: absolute;
+  top: 4px;
+  left: 0;
+  right: 0;
+  z-index: 10;
+  border: 1px solid var(--border-2);
+  border-radius: 12px;
+  background: var(--panel);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.dpSuggestItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 14px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.dpSuggestItem:hover {
+  background: var(--panel-2);
+}
+
+.dpResult {
+  margin-top: 14px;
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 18px;
+}
+
+@media (max-width: 1000px) {
+  .dpResult {
+    grid-template-columns: 1fr;
+  }
+}
+
+.dpHero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.dpShot {
+  position: relative;
+  height: 74px;
+  width: 74px;
+  border-radius: 16px;
+  background: linear-gradient(135deg, var(--blue), var(--purple));
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  font-weight: 800;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.dpShot img {
+  height: 100%;
+  width: 100%;
+  object-fit: cover;
+}
+
+.dpTeamLogo {
+  position: absolute;
+  bottom: -4px;
+  right: -4px;
+  height: 26px;
+  width: 26px;
+  border-radius: 999px;
+  border: 2px solid var(--panel);
+  background: var(--bg);
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dpTeamLogo img {
+  height: 100%;
+  width: 100%;
+  object-fit: contain;
+}
+
+.dpName {
+  font-size: 19px;
+  font-weight: 800;
+}
+
+.dpMeta {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.dpChips {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+  flex-wrap: wrap;
+}
+
+.dpChip {
+  padding: 2px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 800;
+  background: color-mix(in srgb, var(--cyan) 16%, transparent);
+  color: var(--cyan);
+}
+
+.dpSeason {
+  margin-top: 14px;
+  display: inline-flex;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-2);
+  background: var(--panel-2);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.dpStatGrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 8px;
+}
+
+.dpStat {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 6px;
+  text-align: center;
+}
+
+.dpStatLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.dpStatVal {
+  font-size: 15px;
+  font-weight: 800;
+  margin-top: 2px;
+}
+
+.dpExposure {
+  border-left: 1px solid var(--border);
+  padding-left: 18px;
+}
+
+@media (max-width: 1000px) {
+  .dpExposure {
+    border-left: none;
+    padding-left: 0;
+    border-top: 1px solid var(--border);
+    padding-top: 14px;
+  }
+}
+
+.dpExposureHead {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.dpExposureHead b {
+  color: var(--text);
+}
+
+.platExp {
+  margin-top: 12px;
+}
+
+.platExpRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11.5px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.expBar {
+  height: 6px;
+  border-radius: 999px;
+  background: var(--border-2);
+  overflow: hidden;
+}
+
+.expBarFill {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  border-radius: 999px;
+}
+
+.expLeagues {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.expLeagueChip {
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  color: var(--muted);
+}
+
+.expLeagueChipNone {
+  color: var(--faint);
+  background: transparent;
+  border-style: dashed;
+}
