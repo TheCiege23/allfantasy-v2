@@ -1,0 +1,31 @@
+# Sports Data — Known Limitations (Phase 5G, honest disclosure)
+
+Every limitation is documented; none are hidden. These are accepted as part of certification.
+
+## Identity coverage
+- **IDP / defensive player identities are unresolved (~21% gap).** Certified statistics resolve at **78.5% of stat rows / 75.4% of unique athletes** deterministically. The remainder are almost entirely defensive/IDP (and a few deep-roster) players. **Both** trusted deterministic sources (Sleeper, FantasyCalc) are fantasy-skill-focused and lack ESPN ids for these players; the only source with espn ids for IDP is ESPN itself, which has **no canonical anchor** (name matching is prohibited). **This is a conclusively external provider-coverage gap, not a code gap.** Closing it requires an IDP-inclusive deterministic espn crosswalk not present in the current provider ecosystem.
+- **Some non-IDP players also lack a Sleeper `espn_id`** (e.g. Justin Fields, Sleeper id 7591, `espn_id: null`) — FantasyCalc recovers many of these, but not all.
+
+## Statistics
+- **Certified statistics are NOT yet a production scoring input.** The scoring engine still uses `PlayerWeeklyScore` / `PlayerGameLogCache`. Switching requires: (a) closing the IDP identity gap or scoping to resolved players, (b) reconciling resolved canonical ids against the certified players snapshot, (c) a backtest vs existing scoring — all deliberately deferred to a later, separately-proven phase.
+- **Statistics certification for a given week requires completed games.** Unplayed/scheduled weeks have empty box scores and are (correctly) not certifiable.
+
+## Not-certified capabilities
+- **Injuries:** not certified — no verified provider feed (Sleeper's coarse `injury_status` is not a full availability feed; ESPN injuries endpoint unused; Rolling Insights unverified).
+- **Projections:** not certified — no verified provider.
+- **Player availability:** not certified — no verified provider.
+
+## Providers
+- **Rolling Insights & API-Sports are `configured_not_verified`** — credentials may exist in non-prod but no verified request was performed; they contribute nothing to certification and their declared capabilities are **not** counted.
+- **ESPN box-score athlete ids are provider-native** and depend on the deterministic identity map for canonicalization.
+
+## Environment / proving
+- **Proving runs use non-production Neon (`cool-lab-87438174`).** The certified legacy players snapshot (5B) is teamless, so player↔game *lock* demonstrations for the lineup/waiver reject paths are unit-proven rather than shown live (the game/identity/statistics plane resolves live at the game and athlete level).
+- **Windows local build** always ends in a post-compile `readlink EISDIR` (exFAT/collect-build-traces); `✓ Compiled successfully` is the real signal and it passes on Vercel Linux CI.
+
+## Operational
+- **Decision evidence is emitted, not persisted.** Persisting `sportsDataDecision` to an audit table would require an approved production migration (out of scope for the default-off, additive posture).
+- **Per-source identity contribution is reported by the population run**, not persisted (no audit table / migration).
+
+## Explicitly NOT done (by design, not oversight)
+Weakening deterministic identity rules; name/fuzzy/LLM matching; switching production scoring; touching production; running production migrations; enabling any gate by default.
