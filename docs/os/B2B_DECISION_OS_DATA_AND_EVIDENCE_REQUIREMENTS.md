@@ -65,12 +65,13 @@ Every signal must be able to report `unsupported`, `not_measured`, `insufficient
 rather than fabricating a number. A league with `stale`/`unresolved`/`placeholder` inputs surfaces reduced
 confidence, never a confident-looking fabricated metric.
 
-## 9. Future persistence requirements (REQ-MIGRATION — not built here)
-- Decision Evidence table (deferred since Phase 5E)
-- B2B Activity Event table (tenant-scoped, versioned, privacy-tagged, retention-policied)
-- League Health snapshot table + Retention/Activity rollups
-- Certified `PlayerValue` + `PlayerImage` tables (see Gap & Migration Plan)
-Each is authorization-gated and reviewed independently; none is created in this phase.
+## 9. Persistence status (Phase 5H-e — created + proven in NON-PROD)
+The following were **physically created and proven** in the approved non-production Neon plane (`sports_data`) in Phase 5H-e (see `B2B_EVENT_AND_LEAGUE_HEALTH_SCHEMA.md` + `SPORTS_DATA_NONPROD_MIGRATION_EVIDENCE_5HE.md`) — **production rollout NOT authorized**:
+- ✅ Decision Evidence table (`decision_evidence`) — tenant/league-scoped, factual inputs + versions + explanations only, no chain-of-thought/secrets.
+- ✅ B2B Activity Event table (`b2b_activity_event`) — versioned, idempotency-keyed, privacy/retention/aggregation tagged.
+- ✅ League Health Snapshot table (`league_health_snapshot`) — observed vs derived vs risk separated; deterministic calculator; no invented signals.
+- ✅ Canonical `PlayerValue` (`canonical_player_value`) + `PlayerImage` (`canonical_entity_image`) — boundary-separated / precedence-governed.
+Each remains **default-off** (gated), additive, and non-destructive; legacy paths stay authoritative. Production migration is a separate authorization.
 
 ## 10. Future client reporting requirements (define only — no visuals)
 The eventual client reporting layer must be able to answer, per tenant and per league/format/sport:

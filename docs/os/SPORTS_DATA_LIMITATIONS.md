@@ -34,5 +34,12 @@ Every limitation is documented; none are hidden. These are accepted as part of c
 - **NCAAF↔NFL identity continuity is NOT assumed** — a governed college→pro transition mapping is required before CFBD players are linked to NFL identities; name matches alone are rejected.
 - **Only ESPN + Sleeper feed the certified plane.** All other verified providers are canonical-ready but not yet persisted certified.
 
+## Canonical persistence limits (Phase 5H-e)
+- The 5 canonical tables exist in **non-production only** — production rollout is unauthorized; do not describe them as production-backed.
+- **No legacy table was removed or altered**; legacy image/value/stat paths remain the production authority (default-on).
+- **No consumer was switched to canonical reads** — all domain gates are default-off; only shadow comparison + minimum proving rows were exercised.
+- **No bulk backfill** was run — only the required proving minimum (2 images, 1 value, 1 evidence, 3 events, 1 health).
+- Player-table and statistics-table consolidation remain **DESIGN-ONLY** (not authorized).
+
 ## Explicitly NOT done (by design, not oversight)
-Weakening deterministic identity rules; name/fuzzy/LLM matching; switching production scoring; touching production; running production migrations; enabling any gate by default; presenting a provider as connected without a real successful request.
+Weakening deterministic identity rules; name/fuzzy/LLM matching; switching production scoring; touching production; running production migrations; removing legacy tables; enabling any gate by default; presenting a provider as connected without a real successful request.

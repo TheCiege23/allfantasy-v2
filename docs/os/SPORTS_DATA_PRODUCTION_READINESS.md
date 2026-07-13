@@ -49,5 +49,8 @@
 - **Provider isolation & credential isolation:** no provider client in product runtime; observability exposes counts/provenance only (no env-var names, connection strings, or raw payloads). ✅
 - **No raw payload exposure:** canonical contracts carry normalized fields only; decision evidence is field-restricted. ✅
 
+## Canonical persistence (Phase 5H-e — NON-PROD only)
+5 canonical domains created + proven in the approved non-production plane behind default-off gates (`FANTASY_OS_CANONICAL_*_ENABLED`), guarded by a fail-closed `nonprodSafetyGuard` (refuses any non-approved project). Additive, versioned, idempotent, reversible (is_active/deactivate), tenant/privacy-tagged. **NOT production-ready** — production migration is a separate authorization; legacy paths remain authoritative and default-on; no consumer switched on. Shadow comparison is the parity-planning tool for a later, evidence-gated consumer migration.
+
 ## Provider observability (Phase 5H-d)
 `lib/sports-data-gateway/providers/certificationStatus.ts` is the operator-safe backend contract for provider status: per-provider `{status, credentialPresent (boolean — never a secret), lastVerifiedAt, sportsVerified, capabilitiesVerified, canonicalRoute, persistence, blockedReason}` + `summarizeProviderCertification()` / `isProviderConnectable()`. It gates "connected" claims on real-request evidence (test-locked). Live 5H-d status: CERTIFIED ×3 (ESPN/Sleeper/FantasyCalc), VERIFIED ×3 (TheSportsDB/CFBD/API-Sports), BLOCKED ×1 (ClearSports), REQUIRES_WIRING ×1 (Rolling Insights). No dashboard UI was built — backend contract + tests only.

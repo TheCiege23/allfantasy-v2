@@ -9,6 +9,12 @@ Maps the **real** database structures used for sports data. **Finding: data is f
 | snapshot records | `sports_data.sports_snapshot_record` | " | ✅ resolved/ambiguous/unresolved classification |
 | deterministic events | `sports_data.sports_event` (events runtime) | diff runtimes | ✅ |
 | capabilities: players, rosters, transactions, games/schedules, draft_data, **statistics** | (as snapshots) | ESPN/Sleeper adapters | ✅ CERTIFIED |
+| **canonical entity images** (5H-e) | `sports_data.canonical_entity_image` | canonicalImage refs | ✅ created + proven (NON-PROD only; additive; is_active/version history) |
+| **canonical player values** (5H-e) | `sports_data.canonical_player_value` | canonicalValue refs | ✅ created + proven (NON-PROD; boundary-separated value/ranking/adp) |
+| **decision evidence** (5H-e) | `sports_data.decision_evidence` | Decision OS | ✅ created + proven (NON-PROD; tenant/league-scoped; no chain-of-thought/secrets) |
+| **B2B activity events** (5H-e) | `sports_data.b2b_activity_event` | OS surfaces | ✅ created + proven (NON-PROD; versioned, idempotency-keyed, privacy-tagged) |
+| **league health snapshots** (5H-e) | `sports_data.league_health_snapshot` | League Intelligence | ✅ created + proven (NON-PROD; observed vs derived vs risk separated) |
+| non-prod safety marker | `sports_data.nonprod_safety_marker` | guard | fail-closed anchor for migration executors |
 
 ## Plane B — Legacy Prisma tables (production-authoritative today)
 | Concept | Model(s) | Notes |
@@ -65,7 +71,7 @@ these must migrate onto (REQ-WIRING); certified persistence is REQ-MIGRATION. **
 4. Certified `PlayerValue` (FantasyCalc) + `Projection` value tables separated from stats (**REQ-MIGRATION** if not reusing `FantasyProjection`).
 5. Availability + depth-chart tables (**REQ-MIGRATION**).
 6. A decision-evidence audit table (**REQ-MIGRATION** — deferred since Phase 5E).
-7. `PlayerImage` + `TeamImage` tables (source/precedence/validation/freshness) to persist `CanonicalImageReference` (**REQ-MIGRATION**, Phase 5H-c).
-8. B2B Activity Event + League Health snapshot tables (tenant-scoped, versioned, privacy-tagged) (**REQ-MIGRATION**, see `B2B_DECISION_OS_DATA_AND_EVIDENCE_REQUIREMENTS.md`).
+7. ✅ **Phase 5H-e (NON-PROD, authorized):** canonical entity-image, canonical player-value, decision-evidence, B2B activity-event, and league-health-snapshot tables **created + physically proven** in `sports_data` (non-prod only). Production rollout = REQ-MIGRATION (not authorized). See `SPORTS_DATA_NONPROD_MIGRATION_EVIDENCE_5HE.md`.
+8. Player-table + statistics-table consolidation remain **DESIGN-ONLY** (not authorized) — HIGH risk, 5+4 legacy tables; legacy retirement not authorized until canonical parity proven via shadow comparison.
 
 **No migration was created or run in this phase.** All above are documented for authorization.

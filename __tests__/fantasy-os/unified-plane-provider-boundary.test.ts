@@ -165,6 +165,30 @@ describe('5H-c — canonical image + value governance', () => {
     }
   })
 
+  it('the canonical persistence domains exist with a fail-closed non-prod guard + default-off gates', () => {
+    const guard = path.join(root, 'lib/sports-data-gateway/persistence/nonprodSafetyGuard.ts')
+    const persist = path.join(root, 'lib/sports-data-gateway/persistence/canonicalPersistence.ts')
+    expect(fs.existsSync(guard) && fs.existsSync(persist), 'persistence modules missing').toBe(true)
+    const g = fs.readFileSync(guard, 'utf8')
+    // the guard must be fail-closed: assert the approved non-prod project id/name + marker are required
+    expect(g.includes('cool-lab-87438174') && g.includes('assertApprovedNonProdTarget'), 'guard not anchored to approved non-prod project').toBe(true)
+    const p = fs.readFileSync(persist, 'utf8')
+    // all five domain gates declared, default-off (no gate is read as enabled unless === "true")
+    for (const env of ['FANTASY_OS_CANONICAL_IMAGES_ENABLED', 'FANTASY_OS_CANONICAL_VALUES_ENABLED', 'FANTASY_OS_DECISION_EVIDENCE_ENABLED', 'FANTASY_OS_B2B_ACTIVITY_EVENTS_ENABLED', 'FANTASY_OS_LEAGUE_HEALTH_SNAPSHOTS_ENABLED']) {
+      expect(p.includes(env), `missing gate ${env}`).toBe(true)
+    }
+    // the migration executors must not target production — no production project id may appear in the migration dir
+    const migDir = path.join(root, 'lib/sports-data-gateway/migrations')
+    if (fs.existsSync(migDir)) {
+      for (const f of fs.readdirSync(migDir)) {
+        const src = fs.readFileSync(path.join(migDir, f), 'utf8')
+        // the ONLY project id allowed in a migration file is the approved non-prod one
+        const ids = src.match(/[a-z]+-[a-z]+-\d{6,}/g) ?? []
+        for (const id of ids) expect(id, `migration ${f} references a non-approved project id`).toBe('cool-lab-87438174')
+      }
+    }
+  })
+
   it('Decision OS does not import a FantasyCalc VALUE client directly (values flow through the canonical contract)', () => {
     // FantasyCalc value egress lives in lib/fantasycalc(.ts|-db.ts); FORBIDDEN_IMPORT now matches both. Decision OS
     // must not import them directly — value must arrive as governed evidence.
