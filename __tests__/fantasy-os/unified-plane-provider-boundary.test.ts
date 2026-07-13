@@ -172,3 +172,18 @@ describe('5H-c — canonical image + value governance', () => {
     expect(v, `Decision OS FantasyCalc/provider bypass(es): ${JSON.stringify(v, null, 2)}`).toEqual([])
   })
 })
+
+describe('5H-d — provider certification is evidence-gated (no "connected" without a real request)', () => {
+  it('the provider certification ledger exists and exposes the connectable gate', () => {
+    const f = path.join(root, 'lib/sports-data-gateway/providers/certificationStatus.ts')
+    expect(fs.existsSync(f), 'certificationStatus.ts missing').toBe(true)
+    const src = fs.readFileSync(f, 'utf8')
+    for (const sym of ['PROVIDER_CERTIFICATION', 'summarizeProviderCertification', 'isProviderConnectable']) {
+      expect(src.includes(`export function ${sym}`) || src.includes(`export const ${sym}`), `ledger missing ${sym}`).toBe(true)
+    }
+    // the ledger is pure data — it must not fetch a real provider URL or import a provider client (it may NAME
+    // providers as identifiers, so check for actual URLs / import statements, not bare provider-name tokens).
+    expect(/https?:\/\//.test(src), 'certification ledger must not contain a real URL').toBe(false)
+    expect(/^\s*import\s/m.test(src), 'certification ledger must be dependency-free data (no imports)').toBe(false)
+  })
+})

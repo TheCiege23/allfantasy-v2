@@ -38,6 +38,9 @@ Client platforms receive governed **images** (via `canonicalImage.ts`: a `source
 official sports truth). Provider-specific fields never leak past these contracts. An image shown as "official" must have
 a verified-official source; missing imagery is disclosed honestly (placeholder), not faked.
 
+## Provider-connection honesty (Phase 5H-d)
+A provider may be described to a client as "connected/available" ONLY when it has real-request evidence (CERTIFIED or VERIFIED in `providers/certificationStatus.ts`). As of 2026-07-13: ESPN/Sleeper/FantasyCalc (certified), TheSportsDB/CFBD/API-Sports (verified) are connectable; ClearSports (blocked) and Rolling Insights (requires wiring) are **not** and must not be advertised as connected. This is test-enforced.
+
 ## Status
-- **Architecture stance:** DOCUMENTED. The provider abstraction is real for the certified plane (ESPN/Sleeper/FantasyCalc are AllFantasy-operated; no customer keys). Image + value governance contracts exist (5H-c); consumer adoption is a reviewed migration.
+- **Architecture stance:** DOCUMENTED. The provider abstraction is real for the certified plane (ESPN/Sleeper/FantasyCalc are AllFantasy-operated; no customer keys). Image + value governance contracts exist (5H-c); consumer adoption is a reviewed migration. Provider connection claims are evidence-gated (5H-d).
 - **Final customer copy:** REQUIRES legal + privacy + provider-branding review before use (part of the RC1 privacy/customer-language review).

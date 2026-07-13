@@ -20,5 +20,13 @@ Honest certification status per provider. `connected` = a real request has been 
 - **Unverified (excluded from certification):** Rolling Insights, API-Sports — credentials may exist but no verified request was performed; **capabilities are not inflated**.
 - **Import-only (out of scope for the certified data plane):** Yahoo, MFL, Fantrax, Fleaflicker.
 
+## Phase 5H-d LIVE certification update (2026-07-13, non-prod — supersedes the "unverified" line above for the attempted providers)
+Real requests were performed (see `SPORTS_DATA_PROVIDER_CERTIFICATION_5HD.md`; code `providers/certificationStatus.ts`, test-locked):
+- **CERTIFIED (re-affirmed):** ESPN, Sleeper, FantasyCalc (value).
+- **VERIFIED (real request + canonical route; persistence REQ-MIGRATION):** **TheSportsDB** (headshot→canonical image), **CFBD** (NCAAF roster→canonical position), **API-Sports** (soccer teams — soccer canonical contract REQ-NORMALIZE).
+- **BLOCKED:** ClearSports (provider HTTP 500).
+- **REQUIRES_WIRING:** Rolling Insights (DB-coupled client; dedicated gateway adapter needed before a live probe).
+No provider is presented as connected without real-request evidence; credential presence alone is never sufficient.
+
 ## Deterministic identity provenance
 ESPN↔canonical mappings are sourced **only** from provider records that carry both ids in one trusted record: Sleeper (`espn_id`) and FantasyCalc (`sleeperId`+`espnId`). No name/fuzzy/LLM matching is used anywhere. The remaining unresolved (IDP/defensive) players have **no** trusted deterministic espn cross-reference in any available provider — a conclusively external gap.

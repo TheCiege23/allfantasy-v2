@@ -48,3 +48,6 @@
 - **Informational-only:** matchup/intelligence/coach/chimmy/draft-read — never mutate. ✅
 - **Provider isolation & credential isolation:** no provider client in product runtime; observability exposes counts/provenance only (no env-var names, connection strings, or raw payloads). ✅
 - **No raw payload exposure:** canonical contracts carry normalized fields only; decision evidence is field-restricted. ✅
+
+## Provider observability (Phase 5H-d)
+`lib/sports-data-gateway/providers/certificationStatus.ts` is the operator-safe backend contract for provider status: per-provider `{status, credentialPresent (boolean — never a secret), lastVerifiedAt, sportsVerified, capabilitiesVerified, canonicalRoute, persistence, blockedReason}` + `summarizeProviderCertification()` / `isProviderConnectable()`. It gates "connected" claims on real-request evidence (test-locked). Live 5H-d status: CERTIFIED ×3 (ESPN/Sleeper/FantasyCalc), VERIFIED ×3 (TheSportsDB/CFBD/API-Sports), BLOCKED ×1 (ClearSports), REQUIRES_WIRING ×1 (Rolling Insights). No dashboard UI was built — backend contract + tests only.

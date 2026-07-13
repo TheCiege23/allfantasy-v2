@@ -26,3 +26,7 @@ Status of every certified capability. `implemented` = code exists; `tested` = un
 **Integration services (8):** `lineupIntegration`, `waiverIntegration`, `tradeIntegration` (+`tradeSettlementGuard`), `draftIntegration`, `matchupIntegration`, `scoringIntegration`, `intelligenceIntegration`, `context`/`gates`.
 
 **Gateway runtime modules (18):** `store`, `snapshot`, `checksum`, `events`, `freshnessPure`, `scheduleRuntime`, `rosterRuntime`, `transactionRuntime`, `draftRuntime`, `sleeperRuntime`, `statisticsRuntime`, `statisticsIdentityResolver`, `espnIdentityPopulation`, `playerGameResolution`, `lineupSafety`, `lock`, `certifiedReads`, `observability`.
+
+**Governed canonical contracts (Phase 5H-b/c):** `canonical/canonicalPosition`, `canonical/canonicalImage`, `canonical/canonicalValue`.
+
+**Provider certification (Phase 5H-d, 2026-07-13 live):** `providers/certificationStatus` — CERTIFIED: ESPN (schedules/games/statistics), Sleeper (players/identity/rosters/transactions/draft), FantasyCalc (valuation/ranking/adp). VERIFIED (request+canonical, persistence REQ-MIGRATION): TheSportsDB (headshots), CFBD (NCAAF rosters/positions), API-Sports (soccer teams). BLOCKED: ClearSports. REQUIRES_WIRING: Rolling Insights. Certified `sports_data` plane = ESPN + Sleeper only.

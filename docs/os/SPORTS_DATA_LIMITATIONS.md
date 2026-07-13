@@ -27,5 +27,12 @@ Every limitation is documented; none are hidden. These are accepted as part of c
 - **Decision evidence is emitted, not persisted.** Persisting `sportsDataDecision` to an audit table would require an approved production migration (out of scope for the default-off, additive posture).
 - **Per-source identity contribution is reported by the population run**, not persisted (no audit table / migration).
 
+## Provider certification limits (Phase 5H-d, 2026-07-13)
+- **ClearSports is BLOCKED** — the `api-keys/me` auth probe returns HTTP 500 (provider-side); capabilities are unproven and it must not be presented as connected.
+- **Rolling Insights is REQUIRES_WIRING** — its legacy client is DB-coupled and cannot be probed cleanly; a dedicated `providers/rolling-insights.ts` gateway adapter is required before any capability can be verified.
+- **TheSportsDB / CFBD / API-Sports are VERIFIED at the request+canonical-normalization level only** — they do NOT yet write certified `sports_data` snapshots (they write legacy Prisma tables), and certified persistence for each is REQ-MIGRATION. Soccer (API-Sports) has no canonical contract yet (REQ-NORMALIZE).
+- **NCAAF↔NFL identity continuity is NOT assumed** — a governed college→pro transition mapping is required before CFBD players are linked to NFL identities; name matches alone are rejected.
+- **Only ESPN + Sleeper feed the certified plane.** All other verified providers are canonical-ready but not yet persisted certified.
+
 ## Explicitly NOT done (by design, not oversight)
-Weakening deterministic identity rules; name/fuzzy/LLM matching; switching production scoring; touching production; running production migrations; enabling any gate by default.
+Weakening deterministic identity rules; name/fuzzy/LLM matching; switching production scoring; touching production; running production migrations; enabling any gate by default; presenting a provider as connected without a real successful request.

@@ -12,6 +12,14 @@ Source-of-truth audit of every configured provider. A provider is **VERIFIED** o
 | **ESPN** | partial→verified | schedules, games, box-score statistics, team identity | `providers/espn.ts` | ✅ CERTIFIED | athlete ids need identity map; undocumented rate limits |
 | **FantasyCalc** | verified | identity crosswalk (sleeperId+espnId), player values | `providers/fantasycalc.ts` (identity only) | ✅ CERTIFIED (identity) | values VERIFIED (5H-c live proving: real records → governed `canonicalValue.ts` contract, boundary-separated) but VALUE egress still lives in `lib/fantasycalc.ts`/`fantasycalc-db.ts` (NOT `providers/`); a real gateway value adapter + certified `PlayerValue` table are REQ-WIRING/REQ-MIGRATION |
 
+## Phase 5H-d live certification (real requests, 2026-07-13, non-prod) — see `SPORTS_DATA_PROVIDER_CERTIFICATION_5HD.md`
+Credential presence alone is never "connected". Real-request verdicts:
+- **CERTIFIED (re-affirmed, keyless, end-to-end canonical):** ESPN (16 games + box score), Sleeper (12,200 players + 6,736 crosswalk), FantasyCalc (463 values → boundary-separated CanonicalPlayerValue).
+- **VERIFIED (keyed, real request + canonical route; persistence REQ-MIGRATION):** TheSportsDB (real headshot → CanonicalImageReference), CFBD (133 NCAAF roster rows → canonicalPosition, detail preserved), API-Sports (20 EPL soccer teams; soccer outside NFL/NCAAF canonical scope → REQ-NORMALIZE).
+- **BLOCKED:** ClearSports (`api-keys/me` HTTP 500, provider-side).
+- **REQUIRES_WIRING:** Rolling Insights (client DB-coupled; needs a dedicated `providers/rolling-insights.ts` adapter to probe).
+Certified `sports_data` snapshots are fed by **ESPN + Sleeper only**; RI/API-Sports/ClearSports/CFBD/TheSportsDB write legacy Prisma tables (not the certified plane) and have **no gateway adapter yet**. Code source of truth: `lib/sports-data-gateway/providers/certificationStatus.ts` (test-locked).
+
 ## Configured-but-unverified providers (legacy direct clients; NOT on the certified plane)
 | Provider | Status | Declared capabilities | Legacy client | Certified? | Gap |
 |---|---|---|---|---|---|
