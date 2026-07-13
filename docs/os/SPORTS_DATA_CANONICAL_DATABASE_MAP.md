@@ -15,6 +15,13 @@ Maps the **real** database structures used for sports data. **Finding: data is f
 | **B2B activity events** (5H-e) | `sports_data.b2b_activity_event` | OS surfaces | ✅ created + proven (NON-PROD; versioned, idempotency-keyed, privacy-tagged) |
 | **league health snapshots** (5H-e) | `sports_data.league_health_snapshot` | League Intelligence | ✅ created + proven (NON-PROD; observed vs derived vs risk separated) |
 | non-prod safety marker | `sports_data.nonprod_safety_marker` | guard | fail-closed anchor for migration executors |
+| **injuries** (5H-f) | `sports_data.canonical_injury` | API-Sports | ✅ created + **PROVIDER-VERIFIED** (NON-PROD; append-only, correction lineage proven) |
+| **availability** (5H-f) | `sports_data.canonical_availability` | derived | ✅ created + fixture-proven (NON-PROD; separate from injury; observed vs derived labeled) |
+| **depth charts** (5H-f) | `sports_data.canonical_depth_chart` | RI (REQUIRES_WIRING) | ✅ created + fixture-proven (NON-PROD; provider vs derived labeled) |
+| **projections** (5H-f) | `sports_data.canonical_projection` | FantasyProjection (unpopulated) | ✅ created + fixture-proven (NON-PROD; evidence only, never scoring) |
+| **corrections** (5H-f) | `sports_data.canonical_correction` | cross-domain | ✅ created + proven (NON-PROD; append-only lineage, as-of) |
+| **player-team history** (5H-f) | `sports_data.canonical_player_team_history` | sleeper | ✅ created + proven (NON-PROD; effective-dated; fills dead-writer gap) |
+| **player-position history** (5H-f) | `sports_data.canonical_player_position_history` | sleeper | ✅ created + proven (NON-PROD; detail preserved; new domain) |
 
 ## Plane B — Legacy Prisma tables (production-authoritative today)
 | Concept | Model(s) | Notes |

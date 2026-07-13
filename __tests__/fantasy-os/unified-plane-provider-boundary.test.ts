@@ -189,6 +189,19 @@ describe('5H-c — canonical image + value governance', () => {
     }
   })
 
+  it('the factual domains + scoring boundary modules exist with default-off gates', () => {
+    const factual = path.join(root, 'lib/sports-data-gateway/persistence/factualDomains.ts')
+    const scoring = path.join(root, 'lib/sports-data-gateway/scoring/scoringAuthorityBoundary.ts')
+    expect(fs.existsSync(factual) && fs.existsSync(scoring), 'factual/scoring modules missing').toBe(true)
+    const f = fs.readFileSync(factual, 'utf8')
+    for (const env of ['FANTASY_OS_CANONICAL_INJURIES_ENABLED', 'FANTASY_OS_CANONICAL_AVAILABILITY_ENABLED', 'FANTASY_OS_CANONICAL_DEPTH_CHARTS_ENABLED', 'FANTASY_OS_CANONICAL_PROJECTIONS_ENABLED', 'FANTASY_OS_CANONICAL_HISTORY_ENABLED', 'FANTASY_OS_CANONICAL_CORRECTIONS_ENABLED']) {
+      expect(f.includes(env), `missing factual gate ${env}`).toBe(true)
+    }
+    // scoring boundary declares authority unchanged
+    const s = fs.readFileSync(scoring, 'utf8')
+    expect(s.includes('scoringAuthorityChangedInPhase5Hf') && s.includes('false'), 'scoring boundary must declare authority unchanged').toBe(true)
+  })
+
   it('Decision OS does not import a FantasyCalc VALUE client directly (values flow through the canonical contract)', () => {
     // FantasyCalc value egress lives in lib/fantasycalc(.ts|-db.ts); FORBIDDEN_IMPORT now matches both. Decision OS
     // must not import them directly — value must arrive as governed evidence.

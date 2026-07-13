@@ -28,6 +28,9 @@ So Decision OS is **provider-agnostic** but **not yet exclusively on the certifi
 ## Target
 Decision OS should receive, per fact: `canonical entity id`, `verified fact`, `history`, `freshness`, `provenance`, `coverage`, `truth classification`, `unsupported-capability markers` — all from a single canonical port layer (Plane A). Today it receives a mix of legacy-table facts + certified grounding. Converging is **REQ-WIRING** (and, for full history/values, **REQ-MIGRATION**).
 
+## Factual inputs (Phase 5H-f)
+Canonical injury/availability/depth-chart/projection/correction/history contracts + ports now exist (non-prod tables). Decision OS + connected OS must consume them via ports (never repositories), receiving labeled facts with freshness/coverage/unsupported/correction state — injuries are facts, availability is observed-or-derived (labeled), projections are evidence (never authority). **Not yet wired** (gates default-off); wiring order: Manager Intelligence → Waiver → Trade → Matchup → Commissioner league-health. Scoring authority is untouched.
+
 ## Image + value inputs (Phase 5H-c)
 Decision OS + connected OS (Trade/Draft/Waiver/Matchup/Manager/League/Commissioner/Platform Intelligence, Coach, Chimmy)
 consume **images** via ~9 legacy inline resolvers and **values** via `canonicalPlayerValuations` (the deprecated

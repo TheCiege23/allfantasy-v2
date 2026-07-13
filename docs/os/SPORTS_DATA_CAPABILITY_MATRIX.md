@@ -29,4 +29,6 @@ Status of every certified capability. `implemented` = code exists; `tested` = un
 
 **Governed canonical contracts (Phase 5H-b/c):** `canonical/canonicalPosition`, `canonical/canonicalImage`, `canonical/canonicalValue`.
 
+**Factual domains (Phase 5H-f, non-prod):** `persistence/factualDomains` + 7 tables — injury (PROVIDER-VERIFIED, API-Sports), availability/depth-chart/projection (fixture-only), correction, player-team + player-position history. Scoring boundary `scoring/scoringAuthorityBoundary` (authority unchanged; certified stats observational-only, enforced).
+
 **Provider certification (Phase 5H-d, 2026-07-13 live):** `providers/certificationStatus` — CERTIFIED: ESPN (schedules/games/statistics), Sleeper (players/identity/rosters/transactions/draft), FantasyCalc (valuation/ranking/adp). VERIFIED (request+canonical, persistence REQ-MIGRATION): TheSportsDB (headshots), CFBD (NCAAF rosters/positions), API-Sports (soccer teams). BLOCKED: ClearSports. REQUIRES_WIRING: Rolling Insights. Certified `sports_data` plane = ESPN + Sleeper only.

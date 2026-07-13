@@ -24,9 +24,11 @@ Honest per-item status. **No migration was created or run.** Anything marked REQ
 | images (canonical precedence) | governed service BUILT (5H-c) + enforcement-locked; adoption REQ-NORMALIZE (visual-safe, deferred) (+REQ-MIGRATION for `PlayerImage`/`TeamImage`) | ~9 inline resolvers not yet routed through `canonicalImage.ts` |
 | valuations (certified table) | governed contract BUILT (5H-c, boundary-separated) + live-proven; adoption REQ-WIRING (+REQ-MIGRATION for certified `PlayerValue`) | 5 parallel value systems + merge offenders; FantasyCalc value egress outside `providers/` |
 | projections | model exists (`FantasyProjection`); population UNVERIFIED — keep UNAVAILABLE until proven | provider/model verification |
-| injuries | ❌ not certified | no verified feed (RI blocked) |
-| availability | ❌ missing | REQ-MIGRATION + provider |
-| depth charts | ❌ missing | REQ-MIGRATION + provider (RI blocked) |
+| injuries | ✅ 5H-f: canonical contract + table (NON-PROD) + **PROVIDER-VERIFIED** (API-Sports live) | production persistence REQ-MIGRATION; identity resolution (api-sports ids → canonical) REQ-WIRING |
+| availability | 5H-f: canonical contract + table (NON-PROD, fixture-proven) | separates the legacy merged token; migrating legacy `SportsPlayer.status`/`PlayerStatusEvent` onto it = REQ-WIRING |
+| depth charts | 5H-f: canonical contract + table (NON-PROD, fixture-proven) | real RI depth chart exists but RI REQUIRES_WIRING → no gateway cert; certification blocked on the RI adapter |
+| projections | 5H-f: canonical contract + table (NON-PROD, fixture-proven); `FantasyProjection` UNPOPULATED, live = heuristic | provider projection source unverified; evidence-only, never scoring |
+| corrections + history | ✅ 5H-f: canonical correction + player-team + player-position history tables (NON-PROD, proven) | legacy `PlayerTeamHistory` dead-writer/empty; no legacy position history — new domains |
 | decision-evidence audit table | REQ-MIGRATION (deferred since 5E) | authorization |
 
 ## Player/statistics table consolidation

@@ -73,6 +73,9 @@ The following were **physically created and proven** in the approved non-product
 - ✅ Canonical `PlayerValue` (`canonical_player_value`) + `PlayerImage` (`canonical_entity_image`) — boundary-separated / precedence-governed.
 Each remains **default-off** (gated), additive, and non-destructive; legacy paths stay authoritative. Production migration is a separate authorization.
 
+## 9b. Factual evidence substrate (Phase 5H-f — NON-PROD)
+The factual domains that ground "which decisions lack coverage" and "which leagues are affected by injury/availability/sync gaps" now have canonical contracts + non-prod tables: injury (provider-verified), availability, depth chart, projection (evidence), corrections + history. These feed the data-quality / provider-health signals in §6 (a recommendation grounded on a stale/unresolved/unavailable factual input is a measurable data-quality event). Production persistence + OS wiring = REQ-MIGRATION / REQ-WIRING. Scoring authority is unchanged.
+
 ## 10. Future client reporting requirements (define only — no visuals)
 The eventual client reporting layer must be able to answer, per tenant and per league/format/sport:
 what makes the fantasy product work · what reduces engagement · which formats retain users · which commissioner

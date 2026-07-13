@@ -49,6 +49,9 @@
 - **Provider isolation & credential isolation:** no provider client in product runtime; observability exposes counts/provenance only (no env-var names, connection strings, or raw payloads). ✅
 - **No raw payload exposure:** canonical contracts carry normalized fields only; decision evidence is field-restricted. ✅
 
+## Factual domains + scoring boundary (Phase 5H-f — NON-PROD only)
+7 factual-domain tables created + proven in non-prod (injuries PROVIDER-VERIFIED; availability/depth/projection fixture-only; correction lineage + history). All default-off gated, effective-dated, non-destructive. **Production scoring authority UNCHANGED** — certified facts never become scoring inputs (test-locked). Not production-ready; production persistence is a separate authorization.
+
 ## Canonical persistence (Phase 5H-e — NON-PROD only)
 5 canonical domains created + proven in the approved non-production plane behind default-off gates (`FANTASY_OS_CANONICAL_*_ENABLED`), guarded by a fail-closed `nonprodSafetyGuard` (refuses any non-approved project). Additive, versioned, idempotent, reversible (is_active/deactivate), tenant/privacy-tagged. **NOT production-ready** — production migration is a separate authorization; legacy paths remain authoritative and default-on; no consumer switched on. Shadow comparison is the parity-planning tool for a later, evidence-gated consumer migration.
 

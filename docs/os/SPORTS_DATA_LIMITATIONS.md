@@ -41,5 +41,12 @@ Every limitation is documented; none are hidden. These are accepted as part of c
 - **No bulk backfill** was run — only the required proving minimum (2 images, 1 value, 1 evidence, 3 events, 1 health).
 - Player-table and statistics-table consolidation remain **DESIGN-ONLY** (not authorized).
 
+## Factual-domain limits (Phase 5H-f)
+- **Injuries are PROVIDER-VERIFIED (API-Sports)** but api-sports player ids are not yet canonical (identity `unresolved`); production persistence is REQ-MIGRATION.
+- **Availability, depth charts, projections are FIXTURE-ONLY** in non-prod — no gateway-certified provider source exists (availability is a merged legacy token; RI depth charts REQUIRES_WIRING; `FantasyProjection` UNPOPULATED, live projections are heuristic/ADP-derived). The database model or a legacy provider path existing does NOT constitute certification.
+- **History gaps filled additively:** legacy `PlayerTeamHistory` has a dead writer (unpopulated) and there is no legacy position-history table — the canonical history tables are new (non-prod).
+- **Scoring authority UNCHANGED** — certified statistics/projections/values/injuries/availability never change fantasy points; the future scoring-authority migration is design-only with unmet target thresholds.
+- Pre-existing caveat (not introduced here): three `PlayerWeeklyScore` writers disagree on `isFinalized` authority.
+
 ## Explicitly NOT done (by design, not oversight)
-Weakening deterministic identity rules; name/fuzzy/LLM matching; switching production scoring; touching production; running production migrations; removing legacy tables; enabling any gate by default; presenting a provider as connected without a real successful request.
+Weakening deterministic identity rules; name/fuzzy/LLM matching; switching production scoring; changing scoring authority; touching production; running production migrations; removing legacy tables; enabling any gate by default; presenting a provider as connected without a real successful request; inferring an injury from inactivity; fabricating provider facts to satisfy minimum counts.
