@@ -764,3 +764,331 @@
 .toggleOn .toggleKnob {
   transform: translateX(16px);
 }
+
+/* ---------- Priority by Platform ---------- */
+
+.prio {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 1000px) {
+  .prio {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.prioCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  padding: 14px;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.prioHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.prioCount {
+  font-size: 11px;
+  color: var(--faint);
+  font-weight: 600;
+}
+
+.prioNeed {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.prioNeedAtt {
+  color: var(--amber);
+}
+
+.prioNeedInfo {
+  color: var(--blue);
+}
+
+.prioNeedGood {
+  color: var(--green);
+}
+
+.prioSub {
+  font-size: 11px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.prioCta {
+  margin-top: auto;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--cyan);
+}
+
+.platBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  border: 1px solid var(--border-2);
+  background: var(--panel-2);
+  color: var(--text);
+  width: fit-content;
+}
+
+/* ---------- Portfolio Analytics ---------- */
+
+.analytics {
+  display: grid;
+  grid-template-columns: 1.7fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 1000px) {
+  .analytics {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chartCard,
+.mini {
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+  padding: 16px;
+}
+
+.chartCard h3,
+.mh {
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.chartCard .sub {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--faint);
+  line-height: 1.4;
+}
+
+.miniStack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.wpRow {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  font-weight: 700;
+  margin: 10px 0 5px;
+}
+
+.wpBar {
+  display: flex;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--border-2);
+}
+
+.wpWin {
+  background: var(--green);
+}
+
+.wpLose {
+  background: var(--red);
+  opacity: 0.55;
+}
+
+.wpTeams {
+  margin-top: 6px;
+  display: flex;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--faint);
+}
+
+/* ---------- League cards ---------- */
+
+.leagues {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+
+@media (max-width: 1000px) {
+  .leagues {
+    grid-template-columns: 1fr;
+  }
+}
+
+.lcard {
+  display: flex;
+  flex-direction: column;
+  border-radius: 18px;
+  border: 1px solid var(--border);
+  background: var(--panel);
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--text);
+}
+
+.lcardHead {
+  position: relative;
+  padding: 14px 15px 12px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--blue) 16%, transparent), transparent);
+}
+
+.lcardHeadAf {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--cyan) 20%, transparent), color-mix(in srgb, var(--purple) 10%, transparent));
+}
+
+.statusChip {
+  position: absolute;
+  top: 12px;
+  right: 14px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--green) 18%, var(--panel));
+  color: var(--green);
+}
+
+.lcTop {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.lcLogo {
+  height: 36px;
+  width: 36px;
+  border-radius: 11px;
+  border: 1px solid var(--border-2);
+  background: var(--panel-2);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.lcName {
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1.25;
+}
+
+.lcMeta {
+  font-size: 11px;
+  color: var(--faint);
+  margin-top: 1px;
+}
+
+.lcBody {
+  padding: 12px 15px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.lcStat3 {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.lcStat3 div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.lcStatLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.lcStatVal {
+  font-size: 12.5px;
+  font-weight: 800;
+}
+
+.signal {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  width: fit-content;
+}
+
+.signalAtt {
+  color: var(--amber);
+  background: color-mix(in srgb, var(--amber) 14%, transparent);
+}
+
+.signalGood {
+  color: var(--green);
+  background: color-mix(in srgb, var(--green) 14%, transparent);
+}
+
+.signalInfo {
+  color: var(--blue);
+  background: color-mix(in srgb, var(--blue) 14%, transparent);
+}
+
+.goLeague {
+  display: block;
+  text-align: center;
+  padding: 9px;
+  border-radius: 10px;
+  background: var(--panel-2);
+  border: 1px solid var(--border-2);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.lcard:hover .goLeague {
+  border-color: var(--cyan);
+  color: var(--cyan);
+}
+
+.emptyLcard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 30px 16px;
+  border: 1px dashed var(--border-2);
+  border-radius: 18px;
+  text-align: center;
+  text-decoration: none;
+  color: var(--muted);
+}

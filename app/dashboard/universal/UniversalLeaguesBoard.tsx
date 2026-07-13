@@ -20,12 +20,14 @@ import {
   Trophy,
   ShieldCheck,
   AlertTriangle,
-  CalendarClock,
   Layers,
   Globe2,
   Plus,
 } from 'lucide-react'
 import type { UserLeague } from '@/app/dashboard/types'
+import { PriorityByPlatform } from './components/PriorityByPlatform'
+import { PortfolioAnalytics } from './components/PortfolioAnalytics'
+import { LeagueCards } from './components/LeagueCards'
 
 type BoardLeague = UserLeague & { navigationLeagueId?: string | null }
 
@@ -54,29 +56,6 @@ const PLATFORM_LABELS: Record<string, string> = {
 function platformLabel(platform: string | undefined): string {
   const key = String(platform ?? '').toLowerCase()
   return PLATFORM_LABELS[key] ?? (platform ? String(platform) : 'Other')
-}
-
-function platformAccent(platform: string | undefined): string {
-  switch (String(platform ?? '').toLowerCase()) {
-    case 'sleeper':
-      return 'bg-orange-500/15 text-orange-200 border-orange-400/25'
-    case 'espn':
-      return 'bg-red-500/15 text-red-200 border-red-400/25'
-    case 'yahoo':
-      return 'bg-purple-500/15 text-purple-200 border-purple-400/25'
-    case 'cbs':
-      return 'bg-blue-500/15 text-blue-200 border-blue-400/25'
-    case 'fantrax':
-      return 'bg-emerald-500/15 text-emerald-200 border-emerald-400/25'
-    case 'mfl':
-      return 'bg-sky-500/15 text-sky-200 border-sky-400/25'
-    case 'allfantasy':
-    case 'af':
-    case 'manual':
-      return 'bg-cyan-500/15 text-cyan-200 border-cyan-400/25'
-    default:
-      return 'bg-white/10 text-white/70 border-white/15'
-  }
 }
 
 function sportLabel(sport: string | undefined): string {
@@ -167,12 +146,6 @@ function formatDate(iso: string | null | undefined): string | null {
   } catch {
     return null
   }
-}
-
-const TONE_STYLES: Record<SignalTone, string> = {
-  attention: 'bg-amber-500/15 text-amber-200 border-amber-400/25',
-  info: 'bg-white/[0.06] text-white/60 border-white/10',
-  good: 'bg-emerald-500/15 text-emerald-200 border-emerald-400/25',
 }
 
 // ---------------------------------------------------------------------------
@@ -273,6 +246,11 @@ export function UniversalLeaguesBoard({ leagues }: { leagues: BoardLeague[] }) {
           <EmptyState />
         ) : (
           <>
+            <PriorityByPlatform leagues={leagues} rosterIssues={rosterIssues} />
+            <div className="mt-8">
+              <PortfolioAnalytics leagues={leagues} />
+            </div>
+
             {/* Controls */}
             <section className="mb-5 space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -362,15 +340,7 @@ export function UniversalLeaguesBoard({ leagues }: { leagues: BoardLeague[] }) {
                         </span>
                       </div>
                     )}
-                    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                      {group.items.map((league) => (
-                        <LeagueCard
-                          key={league.id}
-                          league={league}
-                          rosterIssues={rosterIssues[league.id] ?? 0}
-                        />
-                      ))}
-                    </div>
+                    <LeagueCards leagues={group.items} rosterIssues={rosterIssues} />
                   </section>
                 ))}
               </div>
@@ -478,88 +448,6 @@ function FilterChip({
     >
       {label}
     </button>
-  )
-}
-
-function LeagueCard({ league, rosterIssues }: { league: BoardLeague; rosterIssues: number }) {
-  const signal = deriveSignal(league, rosterIssues)
-  const href = `/league/${encodeURIComponent(league.navigationLeagueId ?? league.id)}`
-  const logo = league.logoUrl || league.avatarUrl || null
-  const scoring = league.scoring ? String(league.scoring) : null
-  const format = league.format || league.leagueType || null
-  const entryFee = typeof league.entryFee === 'number' && league.entryFee > 0 ? league.entryFee : null
-
-  return (
-    <Link
-      href={href}
-      className="group flex flex-col rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 transition hover:border-cyan-400/30 hover:bg-white/[0.05]"
-    >
-      <div className="flex items-start gap-3">
-        <div className="shrink-0">
-          {logo ? (
-            <img
-              src={logo}
-              alt=""
-              className="h-10 w-10 rounded-xl border border-white/10 object-cover"
-            />
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm font-bold text-white/40">
-              {(league.name || '?')[0]?.toUpperCase()}
-            </div>
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-[14px] font-bold text-white group-hover:text-cyan-100">
-            {league.name || 'Untitled league'}
-          </p>
-          <div className="mt-1 flex flex-wrap items-center gap-1">
-            <span
-              className={`rounded-md border px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide ${platformAccent(
-                league.platform,
-              )}`}
-            >
-              {platformLabel(league.platform)}
-            </span>
-            <span className="rounded-md border border-white/10 bg-white/[0.05] px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-white/60">
-              {sportLabel(league.sport)}
-            </span>
-            {league.isDynasty ? (
-              <span className="rounded-md border border-violet-400/25 bg-violet-500/15 px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-200">
-                Dynasty
-              </span>
-            ) : null}
-          </div>
-        </div>
-      </div>
-
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-white/45">
-        {typeof league.teamCount === 'number' && league.teamCount > 0 ? (
-          <span>{league.teamCount} teams</span>
-        ) : null}
-        {format ? <span className="capitalize">{String(format).replace(/_/g, ' ')}</span> : null}
-        {scoring ? <span>{scoring}</span> : null}
-        {entryFee ? <span className="text-emerald-300/80">${entryFee} buy-in</span> : null}
-      </div>
-
-      <div className="mt-3 flex items-center justify-between gap-2 border-t border-white/[0.06] pt-3">
-        <span
-          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold ${TONE_STYLES[signal.tone]}`}
-        >
-          {signal.tone === 'attention' ? (
-            <AlertTriangle className="h-3 w-3" aria-hidden />
-          ) : (
-            <CalendarClock className="h-3 w-3" aria-hidden />
-          )}
-          {signal.label}
-        </span>
-        {league.isCommissioner || league.userRole === 'commissioner' ? (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wide text-amber-300/80">
-            <ShieldCheck className="h-3 w-3" aria-hidden />
-            Commish
-          </span>
-        ) : null}
-      </div>
-    </Link>
   )
 }
 
