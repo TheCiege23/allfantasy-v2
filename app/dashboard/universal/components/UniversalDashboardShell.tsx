@@ -24,31 +24,39 @@ type ShellLeague = UserLeague & { navigationLeagueId?: string | null }
 export function UniversalDashboardShell({
   leagues,
   children,
+  guestMode = false,
+  guestDisplayName = null,
 }: {
   leagues: ShellLeague[]
   children: ReactNode
+  /** True for the no-login Legacy-import preview (signed guest cookie, no AppUser). */
+  guestMode?: boolean
+  guestDisplayName?: string | null
 }) {
   const isCommissionerAnywhere = leagues.some((l) => l.isCommissioner || l.userRole === 'commissioner')
   const { profile } = useSettingsProfile()
-  const firstName = (profile?.displayName || profile?.username || '').split(/\s+/)[0]
+  const firstName = guestMode
+    ? guestDisplayName
+    : (profile?.displayName || profile?.username || '').split(/\s+/)[0]
 
   return (
     <>
-      <DashboardHeader isCommissionerAnywhere={isCommissionerAnywhere} />
+      <DashboardHeader isCommissionerAnywhere={isCommissionerAnywhere} guestMode={guestMode} guestDisplayName={guestDisplayName} />
       <div className={styles.shell}>
         <Sidebar waiverCount={null} dmCount={null} />
         <main className={styles.main}>
-          <div className={styles.hello}>{firstName ? `Welcome back, ${firstName}! 👋` : 'Welcome back! 👋'}</div>
+          <div className={styles.hello}>{firstName ? `Welcome, ${firstName}! 👋` : 'Welcome! 👋'}</div>
           <p className={styles.subhello}>
-            Every league across every platform — powered by your Operating Systems underneath, surfaced only when
-            you need it.
+            {guestMode
+              ? 'A free preview of your Legacy — sign up to connect leagues and unlock the full board.'
+              : 'Every league across every platform — powered by your Operating Systems underneath, surfaced only when you need it.'}
           </p>
           <OsLauncherStrip />
           {children}
         </main>
         <RightRail />
       </div>
-      <FloatingChat leagues={leagues} />
+      {!guestMode && <FloatingChat leagues={leagues} />}
     </>
   )
 }

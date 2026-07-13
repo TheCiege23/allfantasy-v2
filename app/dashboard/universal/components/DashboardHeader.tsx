@@ -15,12 +15,20 @@ import { useSettingsProfile } from '@/hooks/useSettingsProfile'
 import { SettingsMenu } from './SettingsMenu'
 import styles from './universal-dashboard.module.css'
 
-export function DashboardHeader({ isCommissionerAnywhere }: { isCommissionerAnywhere: boolean }) {
+export function DashboardHeader({
+  isCommissionerAnywhere,
+  guestMode = false,
+  guestDisplayName = null,
+}: {
+  isCommissionerAnywhere: boolean
+  guestMode?: boolean
+  guestDisplayName?: string | null
+}) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { profile } = useSettingsProfile()
 
-  const displayName = profile?.displayName || profile?.username || 'Your account'
-  const role = isCommissionerAnywhere ? 'Commissioner' : 'Manager'
+  const displayName = guestMode ? guestDisplayName || 'Guest' : profile?.displayName || profile?.username || 'Your account'
+  const role = guestMode ? 'Guest preview' : isCommissionerAnywhere ? 'Commissioner' : 'Manager'
 
   return (
     <>
@@ -45,27 +53,36 @@ export function DashboardHeader({ isCommissionerAnywhere }: { isCommissionerAnyw
         <Link href="/app/notifications" className={styles.iconBtn} aria-label="Notifications">
           🔔
         </Link>
-        <button
-          type="button"
-          className={styles.userChip}
-          onClick={() => setSettingsOpen((v) => !v)}
-          aria-expanded={settingsOpen}
-        >
-          <div className={styles.avatar}>
-            <IdentityImageRenderer
-              avatarUrl={profile?.profileImageUrl}
-              avatarPreset={profile?.avatarPreset}
-              displayName={profile?.displayName}
-              username={profile?.username}
-              size="sm"
-            />
-          </div>
-          <div className={styles.userText}>
-            <div className={styles.userName}>{displayName}</div>
-            <div className={styles.userRole}>{role}</div>
-          </div>
-          <span className={styles.caret}>▾</span>
-        </button>
+        {guestMode ? (
+          <Link href="/signup?next=%2Fdashboard%2Funiversal" className={styles.userChip}>
+            <div className={styles.userText}>
+              <div className={styles.userName}>{displayName}</div>
+              <div className={styles.userRole}>{role} · Sign up to save</div>
+            </div>
+          </Link>
+        ) : (
+          <button
+            type="button"
+            className={styles.userChip}
+            onClick={() => setSettingsOpen((v) => !v)}
+            aria-expanded={settingsOpen}
+          >
+            <div className={styles.avatar}>
+              <IdentityImageRenderer
+                avatarUrl={profile?.profileImageUrl}
+                avatarPreset={profile?.avatarPreset}
+                displayName={profile?.displayName}
+                username={profile?.username}
+                size="sm"
+              />
+            </div>
+            <div className={styles.userText}>
+              <div className={styles.userName}>{displayName}</div>
+              <div className={styles.userRole}>{role}</div>
+            </div>
+            <span className={styles.caret}>▾</span>
+          </button>
+        )}
       </div>
 
       <div className={styles.toolbar}>

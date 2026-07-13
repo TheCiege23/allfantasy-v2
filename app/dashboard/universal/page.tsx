@@ -1,9 +1,12 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
 import type { UserLeague } from '@/app/dashboard/types'
+import { GUEST_SESSION_COOKIE_NAME, verifyGuestSessionToken } from '@/lib/guest-mode/guestSessionToken'
 import { UniversalLeaguesBoard } from './UniversalLeaguesBoard'
 import { UniversalDashboardShell } from './components/UniversalDashboardShell'
 
@@ -32,8 +35,28 @@ export default async function UniversalDashboardPage() {
     user?: { id?: string }
   } | null
   const userId = typeof session?.user?.id === 'string' ? session.user.id.trim() : ''
+
   if (!userId) {
-    redirect('/login?callbackUrl=/dashboard/universal')
+    const guestCookie = (await cookies()).get(GUEST_SESSION_COOKIE_NAME)?.value
+    const guest = await verifyGuestSessionToken(guestCookie)
+    if (!guest) {
+      redirect('/login?callbackUrl=/dashboard/universal')
+    }
+
+    const legacyUser = await prisma.legacyUser
+      .findUnique({ where: { id: guest.legacyUserId }, select: { sleeperUsername: true, displayName: true } })
+      .catch(() => null)
+
+    // Cookie verified but the LegacyUser row is gone (e.g. deleted) — treat as no guest session.
+    if (!legacyUser) {
+      redirect('/login?callbackUrl=/dashboard/universal')
+    }
+
+    return (
+      <UniversalDashboardShell leagues={[]} guestMode guestDisplayName={legacyUser.displayName || legacyUser.sleeperUsername}>
+        <UniversalLeaguesBoard leagues={[]} guestSleeperUsername={legacyUser.sleeperUsername} />
+      </UniversalDashboardShell>
+    )
   }
 
   const payload = await getDashboardLeagueListForUser(userId).catch(() => null)

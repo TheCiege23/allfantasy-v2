@@ -49,10 +49,18 @@ type ComparisonResult = {
   head_to_head_breakdown?: { redraft_winner?: string; dynasty_winner?: string; specialty_winner?: string }
 }
 
-export function LegacyModules({ leagues }: { leagues: BoardLeague[] }) {
+export function LegacyModules({
+  leagues,
+  guestSleeperUsername = null,
+}: {
+  leagues: BoardLeague[]
+  /** Guest preview: sourced from the signed guest-session cookie instead of a real AppUser profile. */
+  guestSleeperUsername?: string | null
+}) {
   const [tab, setTab] = useState<LegacyTab>('overview')
   const { profile } = useSettingsProfile()
   const primaryLeague = leagues[0] ?? null
+  const effectiveUsername = guestSleeperUsername ?? profile?.sleeperUsername ?? null
 
   return (
     <>
@@ -78,9 +86,9 @@ export function LegacyModules({ leagues }: { leagues: BoardLeague[] }) {
           ))}
         </div>
         <div className={styles.legacyBody}>
-          {tab === 'overview' && <LegacyOverviewModule sleeperUsername={profile?.sleeperUsername ?? null} />}
-          {tab === 'rankings' && <LegacyRankingsModule league={primaryLeague} username={profile?.sleeperUsername ?? undefined} />}
-          {tab === 'compare' && <LegacyCompareModule defaultUsername={profile?.sleeperUsername ?? ''} />}
+          {tab === 'overview' && <LegacyOverviewModule sleeperUsername={effectiveUsername} />}
+          {tab === 'rankings' && <LegacyRankingsModule league={primaryLeague} username={effectiveUsername ?? undefined} />}
+          {tab === 'compare' && <LegacyCompareModule defaultUsername={effectiveUsername ?? ''} />}
         </div>
       </div>
     </>

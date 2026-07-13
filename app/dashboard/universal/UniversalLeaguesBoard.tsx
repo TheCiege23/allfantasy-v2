@@ -155,7 +155,13 @@ function formatDate(iso: string | null | undefined): string | null {
 // Component
 // ---------------------------------------------------------------------------
 
-export function UniversalLeaguesBoard({ leagues }: { leagues: BoardLeague[] }) {
+export function UniversalLeaguesBoard({
+  leagues,
+  guestSleeperUsername = null,
+}: {
+  leagues: BoardLeague[]
+  guestSleeperUsername?: string | null
+}) {
   const [search, setSearch] = useState('')
   const [sportFilter, setSportFilter] = useState<string | null>(null)
   const [platformFilter, setPlatformFilter] = useState<string | null>(null)
@@ -246,7 +252,7 @@ export function UniversalLeaguesBoard({ leagues }: { leagues: BoardLeague[] }) {
         </section>
 
         {leagues.length === 0 ? (
-          <EmptyState />
+          <EmptyState guestMode={Boolean(guestSleeperUsername)} />
         ) : (
           <>
             <PriorityByPlatform leagues={leagues} rosterIssues={rosterIssues} />
@@ -355,7 +361,7 @@ export function UniversalLeaguesBoard({ leagues }: { leagues: BoardLeague[] }) {
         )}
 
         <div className="mt-8">
-          <LegacyModules leagues={leagues} />
+          <LegacyModules leagues={leagues} guestSleeperUsername={guestSleeperUsername} />
         </div>
         <div className="mt-8">
           <WarRoomPreview />
@@ -464,7 +470,27 @@ function FilterChip({
   )
 }
 
-function EmptyState() {
+function EmptyState({ guestMode }: { guestMode: boolean }) {
+  if (guestMode) {
+    return (
+      <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-6 py-14 text-center">
+        <Trophy className="mx-auto h-8 w-8 text-white/25" aria-hidden />
+        <h2 className="mt-3 text-[16px] font-bold text-white">Your league board unlocks with a free account</h2>
+        <p className="mx-auto mt-1 max-w-sm text-[13px] text-white/45">
+          Your Legacy Score below is real — pulled from your Sleeper history. Sign up free to connect your
+          leagues from Sleeper, ESPN, Yahoo, and more and see them all here with health and next-action insight.
+        </p>
+        <div className="mt-5 flex flex-wrap justify-center gap-2">
+          <Link
+            href="/signup?next=%2Fdashboard%2Funiversal"
+            className="rounded-xl bg-cyan-500/90 px-4 py-2 text-[13px] font-bold text-[#04121a] hover:bg-cyan-400"
+          >
+            Sign up free
+          </Link>
+        </div>
+      </div>
+    )
+  }
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-6 py-14 text-center">
       <Trophy className="mx-auto h-8 w-8 text-white/25" aria-hidden />
