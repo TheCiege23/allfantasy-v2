@@ -20,7 +20,7 @@ Honest per-item status. **No migration was created or run.** Anything marked REQ
 |---|---|---|
 | player statistics (certified) | ✅ CERTIFIED (ESPN) | read-only; not a scoring input yet |
 | player identity | ✅ 78.5% rows / 75.4% athletes | IDP gap (external); REQ additional source |
-| positions (canonical) | REQ-NORMALIZE | scattered; build governed module |
+| positions (canonical) | governed module BUILT + sport-isolated + enforcement-locked (5H-b/5H-b2); adoption REQ-NORMALIZE | ~40 `team-abbrev` legality callers + valuation callers (→5H-c) still on legacy collapse; 0 migrated, each documented |
 | images (canonical precedence) | REQ-NORMALIZE (+REQ-MIGRATION for `PlayerImage`) | fragmented; TheSportsDB blocked |
 | valuations (certified table) | REQ-WIRING/REQ-MIGRATION | FantasyCalc verified, not persisted canonically |
 | projections | model exists (`FantasyProjection`); population UNVERIFIED — keep UNAVAILABLE until proven | provider/model verification |
@@ -35,7 +35,7 @@ Honest per-item status. **No migration was created or run.** Anything marked REQ
 ## Prioritized safe (no-migration) work — this and future increments
 1. ✅ **DONE (5H):** enforce "no provider bypass in Decision OS / integration services / product routes" (`unified-plane-provider-boundary.test.ts`).
 2. ✅ **DONE (5H-b):** move Sleeper roster/txn/draft fetch into `providers/sleeper.ts` (adapter purity) — zero provider URLs remain in gateway runtime; boundary test strengthened to enforce it.
-3. ✅ **DONE (5H-b):** single governed canonical position module `canonical/canonicalPosition.ts` (detailed + league-rule-derived eligibility, IDP-aware, effective-dated). **REMAINING:** route the 5 scattered production callers (`api-football`, `devy-classification`, `idp-kicker-values`, `dynasty-tiers`, `fantrax-parser`) through it — deferred as a separate safe increment (production refactor, regression-sensitive).
+3. ✅ **DONE (5H-b):** single governed canonical position module `canonical/canonicalPosition.ts` (detailed + league-rule-derived eligibility, IDP-aware, effective-dated). ✅ **DONE (5H-b2):** sport-isolation hardening (`SUPPORTED_POSITION_SPORTS`/`isSupportedPositionSport` — no cross-sport fallback) + repo-enforcement test (`unified-plane-provider-boundary.test.ts` fails on any NEW competing collapse map outside a documented allowlist) + governance contract tests. **RE-AUDIT (5H-b2) found 24+ competing maps; 0 were safely migratable this increment** — each retained with a documented reason (see `SPORTS_DATA_IMAGE_AND_POSITION_POLICY.md` ledger): `api-football`=SOCCER (sport isolation), `fantrax-parser`=verbatim CSV parse (nothing to normalize), `idp-kicker-values`/`dynasty-tiers`=valuation grouping (**→ Phase 5H-c**), `devy-classification`=NCAAF identity-matching heuristic, `team-abbrev.POSITION_CANONICAL`=shared collapsing normalizer ~40 roster-legality callers depend on (**governed per-caller migration**). **REMAINING:** (a) route valuation collapsing through 5H-c; (b) governed migration of the `team-abbrev` legality-collapse callers.
 4. REQ-NORMALIZE: unify image resolution behind one precedence resolver — mostly safe (code); dedicated `PlayerImage` table is REQ-MIGRATION.
 5. Provider verification increments (Rolling Insights → CFBD → API-Sports → TheSportsDB → ClearSports), each: real request → schema → normalize → canonical persist → certify → idempotency. **One provider per stacked PR.**
 6. REQ-WIRING: canonical port layer + Decision OS/OS convergence off legacy tables.

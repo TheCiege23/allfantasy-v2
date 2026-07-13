@@ -81,3 +81,58 @@ describe('5H-b — provider access is confined to gateway adapters (adapter puri
     }
   })
 })
+
+describe('5H-b2 — canonical position governance (no NEW competing broad-collapse map)', () => {
+  // The governed source (canonical/canonicalPosition.ts) PRESERVES detailed positions and derives broad
+  // fantasy buckets only from league rules. A broad-collapse signature — mapping a detailed IDP abbreviation
+  // directly to a broad bucket string, e.g. `DE: 'DL'`, `CB: 'DB'`, `OLB: 'LB'` — is the anti-pattern the
+  // service replaces. These already exist in a KNOWN, documented set of legacy files (each retained for a
+  // concrete reason in SPORTS_DATA_IMAGE_AND_POSITION_POLICY.md). This test fails if a NEW file introduces the
+  // signature, so competing normalization truth cannot silently spread while the governed migration proceeds.
+  const COLLAPSE_SIGNATURE = /\b(DE|DT|NT):\s*'DL'|\b(CB|S|SS|FS):\s*'DB'|\b(OLB|ILB|MLB):\s*'LB'/
+
+  // Legacy holders of the abbreviation-collapse signature (audited 5H-b2). Each is deliberately NOT migrated:
+  //  - team-abbrev.ts            : de-facto shared normalizer ~40 roster-legality callers depend on (governed future migration)
+  //  - idp-kicker-values.ts      : IDP VALUATION grouping → Phase 5H-c (valuation services)
+  //  - idp/types.ts              : league-config IDP split↔group slot families (league-rule logic)
+  //  - SportPlayerPoolResolver.ts: sport-scoped player-pool filter grouping (draft/waiver pool)
+  const ALLOWLIST = new Set([
+    'lib/team-abbrev.ts',
+    'lib/idp-kicker-values.ts',
+    'lib/idp/types.ts',
+    'lib/sport-teams/SportPlayerPoolResolver.ts',
+  ].map((p) => p.split('/').join(path.sep)))
+
+  it('no NEW file outside the documented allowlist collapses detailed IDP positions to broad buckets', () => {
+    // Scan source under lib/ + app/, skipping build/generated/hidden output dirs. (No git dependency, so this is
+    // deterministic inside a test worker.) The governed service keeps buckets as arrays (`DL: ['DE',...]`), never
+    // `DE: 'DL'`, so it is exempt by design; the allowlist holds the documented legacy collapse maps.
+    const SKIP_DIR = /^(node_modules|\.next.*|\.turbo|dist|build|coverage|\.git|out|\.cache)$/
+    const srcWalk = (dir: string): string[] => {
+      const out: string[] = []
+      if (!fs.existsSync(dir)) return out
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) { if (!SKIP_DIR.test(entry.name)) out.push(...srcWalk(path.join(dir, entry.name))) }
+        else if (/\.(ts|tsx)$/.test(entry.name) && !/\.test\./.test(entry.name)) out.push(path.join(dir, entry.name))
+      }
+      return out
+    }
+    const offenders: string[] = []
+    for (const dir of ['lib', 'app']) {
+      for (const file of srcWalk(path.join(root, dir))) {
+        const rel = path.relative(root, file).split(path.sep).join('/')
+        if (rel.startsWith('lib/sports-data-gateway/canonical/')) continue
+        if (ALLOWLIST.has(rel.split('/').join(path.sep))) continue
+        if (COLLAPSE_SIGNATURE.test(fs.readFileSync(file, 'utf8'))) offenders.push(rel)
+      }
+    }
+    expect(offenders, `NEW competing position-collapse map(s) — route through canonical/canonicalPosition.ts or add a documented allowlist reason: ${offenders.join(', ')}`).toEqual([])
+  })
+
+  it('the governed canonical position service exists and exposes the sport-isolation guard', () => {
+    const src = fs.readFileSync(path.join(root, 'lib/sports-data-gateway/canonical/canonicalPosition.ts'), 'utf8')
+    for (const sym of ['normalizeProviderPosition', 'deriveFantasyEligibility', 'resolveCanonicalPosition', 'isSupportedPositionSport', 'SUPPORTED_POSITION_SPORTS']) {
+      expect(src.includes(`export function ${sym}`) || src.includes(`export const ${sym}`), `canonical service missing ${sym}`).toBe(true)
+    }
+  })
+})

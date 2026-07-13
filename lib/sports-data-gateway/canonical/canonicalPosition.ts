@@ -8,6 +8,20 @@
  */
 export type CanonicalSport = 'NFL' | 'NCAAF'
 
+/**
+ * The ONLY sports this governed position service understands. Position abbreviations are sport-specific
+ * (an NFL `DE` and a soccer/basketball code are not the same domain), so normalization is confined to the
+ * football sports the canonical map was built for. Any other sport is isolated — its positions are NEVER
+ * interpreted through the football map (no cross-sport fallback), preventing a soccer/NBA/MLB/NHL code from
+ * silently resolving to a plausible NFL position. Callers for other sports keep their own sport-scoped logic.
+ */
+export const SUPPORTED_POSITION_SPORTS = ['NFL', 'NCAAF'] as const
+
+/** True only for the football sports this service governs. Use to gate cross-sport misuse before normalizing. */
+export function isSupportedPositionSport(sport: string | null | undefined): sport is CanonicalSport {
+  return sport != null && (SUPPORTED_POSITION_SPORTS as readonly string[]).includes(String(sport).toUpperCase())
+}
+
 /** Detailed canonical position kept verbatim (e.g. DE/DT/NT/EDGE, CB/S/FS/SS, OLB/ILB/MLB). */
 export type CanonicalPositionRecord = {
   providerPosition: string
@@ -35,7 +49,9 @@ const PROVIDER_TO_CANONICAL: Record<string, string> = {
 /** Normalize one provider position to a detailed canonical record. Unknown providers → `UNKNOWN` (never inferred). */
 export function normalizeProviderPosition(providerPosition: string | null | undefined, sport: CanonicalSport, opts: { source?: string; effectiveDate?: string | null } = {}): CanonicalPositionRecord {
   const raw = String(providerPosition ?? '').trim().toUpperCase()
-  const canonical = PROVIDER_TO_CANONICAL[raw] ?? (raw ? 'UNKNOWN' : 'UNKNOWN')
+  // Sport isolation: only the football sports are interpreted through the canonical map. Any other sport is
+  // deterministically UNKNOWN — never a plausible football position (no cross-sport fallback).
+  const canonical = isSupportedPositionSport(sport) ? (PROVIDER_TO_CANONICAL[raw] ?? 'UNKNOWN') : 'UNKNOWN'
   const isUnknown = canonical === 'UNKNOWN'
   return {
     providerPosition: String(providerPosition ?? ''),
