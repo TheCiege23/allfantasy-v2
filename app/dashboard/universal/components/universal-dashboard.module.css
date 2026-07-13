@@ -1369,3 +1369,133 @@
   background: transparent;
   border-style: dashed;
 }
+
+/* ---------- Legacy modules ---------- */
+
+.legacyCard {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.legacyTabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+}
+
+.legacyTab {
+  flex: 1;
+  padding: 12px 10px;
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+}
+
+.legacyTabActive {
+  color: var(--cyan);
+  border-bottom-color: var(--cyan);
+  background: color-mix(in srgb, var(--cyan) 6%, transparent);
+}
+
+.legacyBody {
+  padding: 18px;
+}
+
+.legacyEmpty {
+  padding: 30px 18px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.legacyEmpty a {
+  color: var(--cyan);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.compareRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.compareField {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-width: 160px;
+}
+
+.compareField label {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.compareField input {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-2);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 13px;
+}
+
+.compareBtn {
+  padding: 9px 18px;
+  border-radius: 10px;
+  border: none;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  color: #fff;
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.compareResult {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+
+.compareWinner {
+  font-size: 15px;
+  font-weight: 800;
+}
+
+.compareGrid {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 8px;
+}
+
+.compareStat {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px 10px;
+}
+
+.compareStatLabel {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.compareStatVal {
+  font-size: 13px;
+  font-weight: 700;
+  margin-top: 2px;
+}

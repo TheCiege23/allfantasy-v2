@@ -29,6 +29,7 @@ import { PriorityByPlatform } from './components/PriorityByPlatform'
 import { DynastyPlanetSearch } from './components/DynastyPlanetSearch'
 import { PortfolioAnalytics } from './components/PortfolioAnalytics'
 import { LeagueCards } from './components/LeagueCards'
+import { LegacyModules } from './components/LegacyModules'
 
 type BoardLeague = UserLeague & { navigationLeagueId?: string | null }
 
@@ -351,6 +352,10 @@ export function UniversalLeaguesBoard({ leagues }: { leagues: BoardLeague[] }) {
             )}
           </>
         )}
+
+        <div className="mt-8">
+          <LegacyModules leagues={leagues} />
+        </div>
 
         {/* Connect strip */}
         <section className="mt-10 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
