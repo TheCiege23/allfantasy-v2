@@ -5,6 +5,7 @@ import Link from 'next/link'
 import type { LandingCopy } from './copy'
 import { GradientWord } from './shared/GradientWord'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
+import { GuestLegacyImportForm } from './GuestLegacyImportForm'
 
 type Hrefs = {
   signupHref: string
@@ -102,10 +103,12 @@ export function ArrivalSection({
           </Link>
         ) : (
           <div className="flex flex-col items-center gap-1">
+            <GuestLegacyImportForm />
+
             <Link
               href={signupHref}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
-              style={{ backgroundImage: 'linear-gradient(90deg, var(--accent-cyan), color-mix(in srgb, var(--accent-cyan-strong) 72%, #3b82f6))', color: 'var(--on-accent-bg)' }}
+              className="mt-1 inline-flex w-full items-center justify-center gap-2 rounded-xl border px-7 py-3.5 text-sm font-semibold transition hover:-translate-y-0.5 hover:opacity-90 sm:w-auto"
+              style={{ borderColor: 'color-mix(in srgb, var(--border) 100%, transparent)', color: 'var(--muted)', background: 'transparent' }}
               data-testid="landing-hero-sign-up"
               onClick={() => trackLandingCtaClick({ cta_label: copy.hero.primary, cta_destination: signupHref, cta_type: 'primary', source: 'hero' })}
             >

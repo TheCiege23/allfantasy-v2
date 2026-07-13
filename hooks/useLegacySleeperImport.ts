@@ -28,7 +28,9 @@ function normalizeJobPayload(data: unknown): LegacyImportStatusPayload | null {
   }
 }
 
-export function useLegacySleeperImport() {
+export function useLegacySleeperImport(options?: { importEndpoint?: string; extraBody?: Record<string, unknown> }) {
+  const importEndpoint = options?.importEndpoint ?? '/api/legacy/import'
+  const extraBody = options?.extraBody
   const [username, setUsername] = useState('')
   const [phase, setPhase] = useState<LegacySleeperImportPhase>('idle')
   const [progress, setProgress] = useState(0)
@@ -68,10 +70,10 @@ export function useLegacySleeperImport() {
       setBootLoading(true)
 
       try {
-        const res = await fetch('/api/legacy/import', {
+        const res = await fetch(importEndpoint, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ sleeper_username: clean.toLowerCase() }),
+          body: JSON.stringify({ sleeper_username: clean.toLowerCase(), ...extraBody }),
         })
         const data = (await res.json()) as Record<string, unknown>
         if (!res.ok) {
@@ -98,7 +100,7 @@ export function useLegacySleeperImport() {
         setBootLoading(false)
       }
     },
-    []
+    [importEndpoint, extraBody]
   )
 
   useEffect(() => {
