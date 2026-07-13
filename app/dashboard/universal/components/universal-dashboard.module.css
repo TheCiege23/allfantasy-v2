@@ -1499,3 +1499,63 @@
   font-weight: 700;
   margin-top: 2px;
 }
+
+/* ---------- Floating tabbed chat (DMs / Huddle / Chimmy) ---------- */
+
+.fabWrap {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 12px;
+}
+
+.fabPreview {
+  width: 380px;
+  max-width: calc(100vw - 24px);
+  height: 560px;
+  max-height: calc(100vh - 120px);
+  border-radius: 18px;
+  border: 1px solid var(--border-2);
+  background: var(--panel);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.35);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.fabBtn {
+  position: relative;
+  height: 56px;
+  width: 56px;
+  border-radius: 999px;
+  border: 2px solid var(--bg);
+  background: linear-gradient(135deg, var(--blue), var(--cyan));
+  color: #fff;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 12px 30px -6px color-mix(in srgb, var(--blue) 55%, transparent);
+}
+
+.fabBtnBadge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--red);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

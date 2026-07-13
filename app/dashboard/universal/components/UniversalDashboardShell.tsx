@@ -16,6 +16,7 @@ import { DashboardHeader } from './DashboardHeader'
 import { Sidebar } from './Sidebar'
 import { RightRail } from './RightRail'
 import { OsLauncherStrip } from './OsLauncherStrip'
+import { FloatingChat } from './FloatingChat'
 import styles from './universal-dashboard.module.css'
 
 type ShellLeague = UserLeague & { navigationLeagueId?: string | null }
@@ -47,6 +48,7 @@ export function UniversalDashboardShell({
         </main>
         <RightRail />
       </div>
+      <FloatingChat leagues={leagues} />
     </>
   )
 }

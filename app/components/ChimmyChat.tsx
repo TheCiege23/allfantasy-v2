@@ -103,6 +103,17 @@ type ChimmyChatProps = {
   footerSlot?: ReactNode
   /** Active league name for suggested chips (truncated inside getDefaultChimmyChips) */
   chipContextLeagueName?: string | null
+  /**
+   * Real league-grounding context (Cross-League Player/Chimmy seam) — when set,
+   * threaded into `sendChimmyMessage`'s `context` so Chimmy uses this league's
+   * scoring/SF/TEP/IDP/roster/waiver/trade rules instead of staying general.
+   * Previously only `chipContextLeagueName` (chip labels) was forwarded; the
+   * actual API call never received the league id, so grounding never activated.
+   */
+  activeLeagueId?: string | null
+  activeLeagueSport?: string | null
+  activeLeagueScoring?: string | null
+  activeLeagueFormat?: string | null
   /** Fill parent flex column (left panel Chimmy tab): no outer border/radius, flex-1 */
   panelFill?: boolean
   /** ElevenLabs voice id for TTS (optional; otherwise reads `chimmy_voice_id` from localStorage) */
@@ -114,6 +125,10 @@ export default function ChimmyChat({
   parentControlsNew = false,
   footerSlot,
   chipContextLeagueName = null,
+  activeLeagueId = null,
+  activeLeagueSport = null,
+  activeLeagueScoring = null,
+  activeLeagueFormat = null,
   panelFill = false,
   ttsVoiceId: ttsVoiceIdProp,
 }: ChimmyChatProps) {
@@ -458,6 +473,15 @@ export default function ChimmyChat({
         })),
         context: {
           sessionId,
+          ...(activeLeagueId
+            ? {
+                leagueId: activeLeagueId,
+                leagueName: chipContextLeagueName ?? undefined,
+                sport: activeLeagueSport ?? undefined,
+                scoring: activeLeagueScoring ?? undefined,
+                leagueFormat: activeLeagueFormat ?? undefined,
+              }
+            : {}),
         },
         confirmTokenSpend: false,
         onChunk: (text) => {
