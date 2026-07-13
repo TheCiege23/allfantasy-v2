@@ -33,7 +33,7 @@ function computeUserRole(
 ): 'commissioner' | 'member' | 'imported' {
   const p = String(platform || '').toLowerCase()
   if (isCommissioner) return 'commissioner'
-  if (p !== 'allfantasy' && p !== 'af' && p !== 'manual') return 'imported'
+  if (p !== 'allfantasy' && p !== 'af' && p !== 'manual' && p !== 'native') return 'imported'
   return 'member'
 }
 
@@ -52,7 +52,7 @@ export function resolveViewerLeagueCommissioner(params: {
   if (params.membershipRole === 'COMMISSIONER') return true
   if (
     isRowOwner &&
-    (params.leagueIsCommissionerFlag || p === 'manual' || p === 'allfantasy' || p === 'af')
+    (params.leagueIsCommissionerFlag || p === 'manual' || p === 'allfantasy' || p === 'af' || p === 'native')
   ) {
     return true
   }

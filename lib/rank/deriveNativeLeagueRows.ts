@@ -29,7 +29,7 @@ export type NativeRankRow = {
 }
 
 /** Platform tags used for native AllFantasy leagues (see computeUserRole in get-dashboard-league-list). */
-const NATIVE_PLATFORMS = ['allfantasy', 'af', 'manual']
+const NATIVE_PLATFORMS = ['allfantasy', 'af', 'manual', 'native']
 
 export async function getNativeLeagueRankRows(userId: string): Promise<NativeRankRow[]> {
   const seasons = await prisma.franchiseSeason
