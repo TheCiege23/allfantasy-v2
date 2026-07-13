@@ -13,8 +13,7 @@ import { resolveIdentity, type MappingSource } from '../resolution'
 import { SportsRuntimeStore } from './store'
 import { deterministicEventId } from './events'
 import { canCertify, type SnapshotDraft, type SnapshotRecordDraft } from './snapshot'
-
-const BASE = 'https://api.sleeper.app/v1' // db-first-exception: gateway transaction scope (server-side)
+import { fetchSleeperLeagueTransactions, type SleeperRawTxn } from '../providers/sleeper'
 
 export type CanonicalTransactionType = 'trade' | 'waiver' | 'free_agent' | 'commissioner' | 'roster_adjustment' | 'unknown'
 export type CanonicalTransactionStatus = 'pending' | 'complete' | 'failed' | 'cancelled' | 'unknown'
@@ -33,18 +32,6 @@ export type CanonicalLeagueTransaction = {
   draftPickTransfers: Array<{ season: string; round: number; originalRosterId: string | null; previousOwnerRosterId: string | null; newOwnerRosterId: string | null }>
   unresolvedPlayerCount: number
   source: SourceProvenance
-}
-
-type RawTxn = {
-  transaction_id?: string
-  type?: string
-  status?: string
-  status_updated?: number
-  roster_ids?: number[]
-  adds?: Record<string, number> | null
-  drops?: Record<string, number> | null
-  waiver_budget?: Array<{ sender?: number; receiver?: number; amount?: number }>
-  draft_picks?: Array<{ season?: string; round?: number; roster_id?: number; previous_owner_id?: number; owner_id?: number }>
 }
 
 export function normalizeTxnType(raw: string | undefined): CanonicalTransactionType {
@@ -68,7 +55,7 @@ export function normalizeTxnStatus(raw: string | undefined): CanonicalTransactio
 }
 
 /** Pure Sleeper transaction → canonical (the seam). Type/status classified separately; identity resolved. */
-export function normalizeSleeperTransaction(raw: RawTxn, leagueId: string, source: MappingSource): CanonicalLeagueTransaction {
+export function normalizeSleeperTransaction(raw: SleeperRawTxn, leagueId: string, source: MappingSource): CanonicalLeagueTransaction {
   let unresolved = 0
   const resolve = (pid: string): string => {
     const r = resolveIdentity({ provider: 'sleeper', providerId: pid, sport: 'NFL' }, source)
@@ -109,20 +96,6 @@ const TYPE_EVENT: Record<CanonicalTransactionType, string> = {
   commissioner: 'commissioner_adjustment_observed', roster_adjustment: 'commissioner_adjustment_observed', unknown: 'transaction_status_changed',
 }
 
-async function getJson<T>(url: string): Promise<T | null> {
-  const c = new AbortController()
-  const t = setTimeout(() => c.abort(), 9000)
-  try {
-    const res = await fetch(url, { signal: c.signal, headers: { 'user-agent': 'fantasy-os-gateway' } })
-    clearTimeout(t)
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    clearTimeout(t)
-    return null
-  }
-}
-
 export type TransactionSyncResult = { certified: boolean; leagueId: string; season: string; snapshotId: string | null; txnCount: number; byType: Record<string, number>; unresolvedPlayers: number; eventsInserted: number; reason?: string; checkpoint: { lastWindow: string | null } }
 
 /** Sync a bounded week window (overlap-safe via deterministic ids). Default weeks 1..maxWeeks. */
@@ -131,13 +104,13 @@ export async function runSleeperTransactionSync(input: { leagueId: string; seaso
   const store = input.store ?? new SportsRuntimeStore()
   const maxWeeks = input.maxWeeks ?? 4
   const weeks = Array.from({ length: maxWeeks }, (_, i) => i + 1)
-  const rawAll: RawTxn[] = []
+  const rawAll: SleeperRawTxn[] = []
   for (const w of weeks) {
-    const wk = await getJson<RawTxn[]>(`${BASE}/league/${leagueId}/transactions/${w}`)
+    const wk = await fetchSleeperLeagueTransactions(leagueId, w)
     if (Array.isArray(wk)) rawAll.push(...wk)
   }
   // Dedup provider transactions by transaction_id (overlap-safe).
-  const byId = new Map<string, RawTxn>()
+  const byId = new Map<string, SleeperRawTxn>()
   for (const t of rawAll) if (t.transaction_id && !byId.has(t.transaction_id)) byId.set(t.transaction_id, t)
   const txns = [...byId.values()].map((t) => normalizeSleeperTransaction(t, leagueId, input.mappingSource))
 

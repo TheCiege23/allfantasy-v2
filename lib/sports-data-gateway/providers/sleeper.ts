@@ -71,6 +71,47 @@ async function getJson<T>(url: string, timeoutMs = 9000): Promise<{ ok: true; da
   }
 }
 
+// ── Phase 5H-b: league-scoped Sleeper fetchers ─────────────────────────────────────────────────────────────
+// Adapter purity — provider URLs + fetch for rosters/transactions/drafts live HERE, not in runtime modules.
+// The runtime consumes these typed provider shapes and normalizes them into canonical contracts (the seam).
+// Behavior is identical to the prior inline runtime fetches (9s timeout, null on any non-OK/error).
+
+export type SleeperRawRoster = { roster_id: number; owner_id: string | null; players?: string[] | null; starters?: string[] | null; reserve?: string[] | null; taxi?: string[] | null }
+export type SleeperRawTxn = {
+  transaction_id?: string; type?: string; status?: string; status_updated?: number; roster_ids?: number[]
+  adds?: Record<string, number> | null; drops?: Record<string, number> | null
+  waiver_budget?: Array<{ sender?: number; receiver?: number; amount?: number }>
+  draft_picks?: Array<{ season?: string; round?: number; roster_id?: number; previous_owner_id?: number; owner_id?: number }>
+}
+export type SleeperRawDraft = { draft_id?: string; season?: string; status?: string; type?: string; settings?: { rounds?: number; teams?: number }; start_time?: number; metadata?: { scoring_type?: string; name?: string } }
+export type SleeperRawPick = { pick_no?: number; round?: number; roster_id?: number; player_id?: string; picked_by?: string; draft_slot?: number }
+
+/** Internal: fetch typed JSON or null on any non-OK/error (mirrors the runtime modules' prior local getJson). */
+async function fetchOrNull<T>(url: string, timeoutMs = 9000): Promise<T | null> {
+  const r = await getJson<T>(url, timeoutMs)
+  return r.ok ? r.data : null
+}
+
+/** League rosters (Sleeper `/league/:id/rosters`). Provider access confined to the adapter. */
+export function fetchSleeperRosters(leagueId: string): Promise<SleeperRawRoster[] | null> {
+  return fetchOrNull<SleeperRawRoster[]>(`${BASE}/league/${leagueId}/rosters`)
+}
+
+/** League transactions for one week (Sleeper `/league/:id/transactions/:week`). */
+export function fetchSleeperLeagueTransactions(leagueId: string, week: number): Promise<SleeperRawTxn[] | null> {
+  return fetchOrNull<SleeperRawTxn[]>(`${BASE}/league/${leagueId}/transactions/${week}`)
+}
+
+/** League drafts (Sleeper `/league/:id/drafts`). */
+export function fetchSleeperLeagueDrafts(leagueId: string): Promise<SleeperRawDraft[] | null> {
+  return fetchOrNull<SleeperRawDraft[]>(`${BASE}/league/${leagueId}/drafts`)
+}
+
+/** Draft picks (Sleeper `/draft/:id/picks`). */
+export function fetchSleeperDraftPicks(draftId: string): Promise<SleeperRawPick[] | null> {
+  return fetchOrNull<SleeperRawPick[]>(`${BASE}/draft/${draftId}/picks`)
+}
+
 export class SleeperAdapter extends BaseProviderAdapter {
   provider = 'sleeper'
 

@@ -17,7 +17,7 @@ Maps the **real** database structures used for sports data. **Finding: data is f
 | provider identities | `PlayerIdentityMap` (sleeper/espn/mfl/fantasyCalc/rollingInsights/apiSports/fleaflicker/clearSports ids), `PlatformIdentity` | espnId populated in 5F-c/d (7,642 rows) |
 | canonical teams | `SportsTeam`, `TeamSeasonStats` | |
 | player-team history | `PlayerTeamHistory` | effective-dated ✅ |
-| positions | (no single model — scattered in code) | **REQ-NORMALIZE** |
+| positions | governed canonical service `lib/sports-data-gateway/canonical/canonicalPosition.ts` (Phase 5H-b); production callers not yet routed through it | service DONE; **REQ-NORMALIZE** (route the 5 scattered callers) |
 | headshots | `SportsPlayer.imageUrl`, resolved via `player-assets/resolvePlayerHeadshot.ts` | fragmented |
 | team logos | `TeamAsset.logoUrl` | |
 | schedules/games | `SportsGame`, `FantasyScheduleGame` | two tables |

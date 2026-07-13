@@ -8,7 +8,7 @@ Source-of-truth audit of every configured provider. A provider is **VERIFIED** o
 ## Certified plane providers (gateway → `sports_data` schema)
 | Provider | Status | Verified capabilities | Adapter | Certified? | Notes |
 |---|---|---|---|---|---|
-| **Sleeper** | production_connected | players (adapter); rosters/transactions/draft (runtime `db-first-exception`); espn_id crosswalk | `providers/sleeper.ts` + `runtime/{roster,transaction,draft}Runtime.ts` | ✅ CERTIFIED | roster/txn/draft fetch lives in runtime modules (marked exceptions), not the adapter — REQ-NORMALIZE (move into adapter) |
+| **Sleeper** | production_connected | players + rosters + transactions + draft + espn_id crosswalk (ALL via adapter) | `providers/sleeper.ts` (fetchers) + `runtime/{roster,transaction,draft}Runtime.ts` (normalize) | ✅ CERTIFIED | **Phase 5H-b: adapter purity ACHIEVED** — roster/txn/draft fetchers moved INTO `providers/sleeper.ts`; runtime modules hold zero provider URLs |
 | **ESPN** | partial→verified | schedules, games, box-score statistics, team identity | `providers/espn.ts` | ✅ CERTIFIED | athlete ids need identity map; undocumented rate limits |
 | **FantasyCalc** | verified | identity crosswalk (sleeperId+espnId), player values | `providers/fantasycalc.ts` | ✅ CERTIFIED (identity) | values are VERIFIED but not yet persisted to a certified values table — REQ-WIRING |
 

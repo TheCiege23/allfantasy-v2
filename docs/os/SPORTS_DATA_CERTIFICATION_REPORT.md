@@ -72,3 +72,5 @@ Distinguishes the honest status of every provider/capability (detail in [Provide
 - **REQUIRES MIGRATION (authorization-gated, not run):** player/stat table consolidation, `PlayerImage`, `PlayerValue`, availability, depth-chart, decision-evidence audit tables.
 
 **Boundary invariant CERTIFIED (5H):** Decision OS + certified integration services + wired product routes never call a provider directly (0 bypasses), enforced by `__tests__/fantasy-os/unified-plane-provider-boundary.test.ts`.
+
+**Adapter purity ACHIEVED (5H-b):** the last 3 gateway-runtime provider exceptions (Sleeper roster/transaction/draft) were removed — their fetchers now live in `providers/sleeper.ts`, and **zero provider URLs remain in any gateway runtime module** (test-enforced). A governed **canonical position service** (`canonical/canonicalPosition.ts`) now exists (detailed position preserved; broad fantasy eligibility derived from league rules; IDP-aware; effective-dated); routing the 5 scattered production position callers through it is a documented next safe increment.

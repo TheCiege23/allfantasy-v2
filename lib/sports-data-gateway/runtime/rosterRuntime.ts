@@ -12,8 +12,7 @@ import { resolveIdentity, type MappingSource } from '../resolution'
 import { SportsRuntimeStore } from './store'
 import { deterministicEventId } from './events'
 import { canCertify, type SnapshotDraft, type SnapshotRecordDraft } from './snapshot'
-
-const BASE = 'https://api.sleeper.app/v1' // db-first-exception: gateway roster scope (server-side sports data)
+import { fetchSleeperRosters, type SleeperRawRoster } from '../providers/sleeper'
 
 export type CanonicalRosterSnapshot = {
   canonicalLeagueId: string
@@ -30,10 +29,8 @@ export type CanonicalRosterSnapshot = {
   sourceUpdatedAt: string | null
 }
 
-type RawRoster = { roster_id: number; owner_id: string | null; players?: string[] | null; starters?: string[] | null; reserve?: string[] | null; taxi?: string[] | null }
-
 /** Pure Sleeper roster → canonical (the seam). Resolves player ids; unresolved kept as quarantined refs. */
-export function normalizeSleeperRoster(raw: RawRoster, leagueId: string, season: string, source: MappingSource): CanonicalRosterSnapshot {
+export function normalizeSleeperRoster(raw: SleeperRawRoster, leagueId: string, season: string, source: MappingSource): CanonicalRosterSnapshot {
   const players = (raw.players ?? []).filter((p) => p && p !== '0')
   const starters = (raw.starters ?? []).filter((p) => p && p !== '0')
   const ir = (raw.reserve ?? []).filter(Boolean)
@@ -98,27 +95,13 @@ function mk(eventType: RosterEvent['eventType'], rosterId: string, playerId: str
   return { eventId: deterministicEventId(eventType, `${rosterId}|${playerId}`, snapshotVersion, playerId), eventType, entityId: playerId, rosterId, playerId }
 }
 
-async function getJson<T>(url: string): Promise<T | null> {
-  const c = new AbortController()
-  const t = setTimeout(() => c.abort(), 9000)
-  try {
-    const res = await fetch(url, { signal: c.signal, headers: { 'user-agent': 'fantasy-os-gateway' } })
-    clearTimeout(t)
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    clearTimeout(t)
-    return null
-  }
-}
-
 export type RosterSyncResult = { certified: boolean; leagueId: string; snapshotId: string | null; rosterCount: number; unresolvedCount: number; addedEvents: number; removedEvents: number; movedEvents: number; eventsInserted: number; reason?: string }
 
 /** Run one league's roster sync: fetch → normalize → resolve → certify → per-player events. */
 export async function runSleeperRosterSync(input: { leagueId: string; season: string; mappingSource: MappingSource; store?: SportsRuntimeStore }): Promise<RosterSyncResult> {
   const { leagueId, season } = input
   const store = input.store ?? new SportsRuntimeStore()
-  const raw = await getJson<RawRoster[]>(`${BASE}/league/${leagueId}/rosters`)
+  const raw = await fetchSleeperRosters(leagueId)
   if (!raw || !Array.isArray(raw) || raw.length === 0) return { certified: false, leagueId, snapshotId: null, rosterCount: 0, unresolvedCount: 0, addedEvents: 0, removedEvents: 0, movedEvents: 0, eventsInserted: 0, reason: 'no rosters returned' }
 
   const rosters = raw.map((r) => normalizeSleeperRoster(r, leagueId, season, input.mappingSource))

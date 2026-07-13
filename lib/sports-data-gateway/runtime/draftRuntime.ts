@@ -12,8 +12,7 @@ import { resolveIdentity, type MappingSource } from '../resolution'
 import { SportsRuntimeStore } from './store'
 import { deterministicEventId } from './events'
 import { canCertify, type SnapshotDraft, type SnapshotRecordDraft } from './snapshot'
-
-const BASE = 'https://api.sleeper.app/v1' // db-first-exception: gateway draft scope (server-side)
+import { fetchSleeperLeagueDrafts, fetchSleeperDraftPicks, type SleeperRawDraft, type SleeperRawPick } from '../providers/sleeper'
 
 export type CanonicalDraft = {
   canonicalDraftId: string; canonicalLeagueId: string; providerDraftId: string; season: string
@@ -29,8 +28,6 @@ export type CanonicalDraftPick = {
   pickedAt: string | null; identityStatus: 'resolved' | 'ambiguous' | 'unresolved' | 'conflicting'; source: SourceProvenance
 }
 
-type RawDraft = { draft_id?: string; season?: string; status?: string; type?: string; settings?: { rounds?: number; teams?: number }; start_time?: number; metadata?: { scoring_type?: string; name?: string } }
-type RawPick = { pick_no?: number; round?: number; roster_id?: number; player_id?: string; picked_by?: string; draft_slot?: number }
 
 export function normalizeDraftStatus(s: string | undefined): CanonicalDraft['status'] {
   switch ((s ?? '').toLowerCase()) {
@@ -42,7 +39,7 @@ export function normalizeDraftStatus(s: string | undefined): CanonicalDraft['sta
   }
 }
 
-export function normalizeDraft(raw: RawDraft, leagueId: string, fetchedAt: string, version: string): CanonicalDraft {
+export function normalizeDraft(raw: SleeperRawDraft, leagueId: string, fetchedAt: string, version: string): CanonicalDraft {
   return {
     canonicalDraftId: `sleeper:${leagueId}:${raw.draft_id}`,
     canonicalLeagueId: `sleeper:${leagueId}`,
@@ -58,7 +55,7 @@ export function normalizeDraft(raw: RawDraft, leagueId: string, fetchedAt: strin
   }
 }
 
-export function normalizeDraftPick(raw: RawPick, draftId: string, leagueId: string, source: MappingSource, fetchedAt: string, version: string): CanonicalDraftPick {
+export function normalizeDraftPick(raw: SleeperRawPick, draftId: string, leagueId: string, source: MappingSource, fetchedAt: string, version: string): CanonicalDraftPick {
   let identityStatus: CanonicalDraftPick['identityStatus'] = 'unresolved'
   let canonicalPlayerId: string | null = null
   if (raw.player_id) {
@@ -100,17 +97,13 @@ export function reconcilePickOwnership(input: { canonicalDraftPickId: string; dr
 }
 
 function contentHash(o: unknown): string { return crypto.createHash('sha256').update(JSON.stringify(o)).digest('hex') }
-async function getJson<T>(url: string): Promise<T | null> {
-  const c = new AbortController(); const t = setTimeout(() => c.abort(), 9000)
-  try { const res = await fetch(url, { signal: c.signal, headers: { 'user-agent': 'fantasy-os-gateway' } }); clearTimeout(t); return res.ok ? ((await res.json()) as T) : null } catch { clearTimeout(t); return null }
-}
 
 export type DraftSyncResult = { certified: boolean; leagueId: string; draftCount: number; pickCount: number; resolvedPicks: number; unresolvedPicks: number; eventsInserted: number; immutableReused: number; reason?: string }
 
 export async function runSleeperDraftSync(input: { leagueId: string; mappingSource: MappingSource; store?: SportsRuntimeStore }): Promise<DraftSyncResult> {
   const { leagueId } = input
   const store = input.store ?? new SportsRuntimeStore()
-  const rawDrafts = await getJson<RawDraft[]>(`${BASE}/league/${leagueId}/drafts`)
+  const rawDrafts = await fetchSleeperLeagueDrafts(leagueId)
   if (!rawDrafts || rawDrafts.length === 0) return { certified: false, leagueId, draftCount: 0, pickCount: 0, resolvedPicks: 0, unresolvedPicks: 0, eventsInserted: 0, immutableReused: 0, reason: 'no drafts' }
 
   const now = new Date().toISOString()
@@ -130,7 +123,7 @@ export async function runSleeperDraftSync(input: { leagueId: string; mappingSour
     const priorDraftHash = prevHashes.get(draft.canonicalDraftId)
     if (draft.status === 'complete' && priorDraftHash === contentHash({ s: draft.status, r: draft.rounds, t: draft.teams })) { immutableReused++; continue }
 
-    const rawPicks = (await getJson<RawPick[]>(`${BASE}/draft/${rd.draft_id}/picks`)) ?? []
+    const rawPicks = (await fetchSleeperDraftPicks(String(rd.draft_id))) ?? []
     for (const rp of rawPicks) {
       const pick = normalizeDraftPick(rp, String(rd.draft_id), leagueId, input.mappingSource, now, version)
       records.push({ canonicalKey: pick.canonicalDraftPickId, resolutionStatus: pick.identityStatus === 'resolved' ? 'resolved' : pick.identityStatus, contentHash: contentHash(pick), record: pick, schemaValid: true })

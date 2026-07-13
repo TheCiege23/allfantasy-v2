@@ -33,9 +33,9 @@ Honest per-item status. **No migration was created or run.** Anything marked REQ
 `SportsPlayer` / `Player` / `FantasyPlayer` / `DevyPlayer` and `PlayerGameLogCache` / `PlayerSeasonStats` / `FantasyStatLine` are fragmented (Plane B) and run in parallel to the certified plane (Plane A). Unifying is **REQ-MIGRATION** — documented, not executed.
 
 ## Prioritized safe (no-migration) work — this and future increments
-1. ✅ **DONE (this phase):** enforce "no provider bypass in Decision OS / integration services / product routes" (`unified-plane-provider-boundary.test.ts`).
-2. REQ-NORMALIZE: move Sleeper roster/txn/draft fetch into `providers/sleeper.ts` (adapter purity) — safe refactor, no migration.
-3. REQ-NORMALIZE: single governed canonical position module (detailed + league-rule-derived eligibility) — safe (code), no migration.
+1. ✅ **DONE (5H):** enforce "no provider bypass in Decision OS / integration services / product routes" (`unified-plane-provider-boundary.test.ts`).
+2. ✅ **DONE (5H-b):** move Sleeper roster/txn/draft fetch into `providers/sleeper.ts` (adapter purity) — zero provider URLs remain in gateway runtime; boundary test strengthened to enforce it.
+3. ✅ **DONE (5H-b):** single governed canonical position module `canonical/canonicalPosition.ts` (detailed + league-rule-derived eligibility, IDP-aware, effective-dated). **REMAINING:** route the 5 scattered production callers (`api-football`, `devy-classification`, `idp-kicker-values`, `dynasty-tiers`, `fantrax-parser`) through it — deferred as a separate safe increment (production refactor, regression-sensitive).
 4. REQ-NORMALIZE: unify image resolution behind one precedence resolver — mostly safe (code); dedicated `PlayerImage` table is REQ-MIGRATION.
 5. Provider verification increments (Rolling Insights → CFBD → API-Sports → TheSportsDB → ClearSports), each: real request → schema → normalize → canonical persist → certify → idempotency. **One provider per stacked PR.**
 6. REQ-WIRING: canonical port layer + Decision OS/OS convergence off legacy tables.

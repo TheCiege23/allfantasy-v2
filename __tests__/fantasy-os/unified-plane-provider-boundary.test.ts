@@ -59,20 +59,25 @@ describe('5H — certified sports-runtime integration services are provider-agno
   })
 })
 
-describe('5H — gateway provider access is intentional and confined to the data plane', () => {
-  // Audited exceptions: 3 Sleeper ingestion runtimes fetch directly, each marked `db-first-exception`. Any
-  // provider access inside a gateway runtime module MUST carry that marker (intentional) — an unmarked fetch
-  // would be an accidental bypass. Product/Decision-OS runtime remains provider-agnostic (asserted above).
-  it('any provider URL in a gateway runtime module is an explicit, marked db-first-exception (no accidental fetch)', () => {
+describe('5H-b — provider access is confined to gateway adapters (adapter purity achieved)', () => {
+  // Phase 5H-b removed the last 3 gateway-runtime provider exceptions (Sleeper roster/txn/draft). Provider URLs
+  // now live ONLY in lib/sports-data-gateway/providers/*. A runtime module hitting a provider URL is a bypass.
+  it('NO gateway runtime module contains a provider URL — all provider access is in providers/*', () => {
+    const offenders: string[] = []
     for (const file of walk(path.join(root, 'lib/sports-data-gateway/runtime'))) {
-      const src = fs.readFileSync(file, 'utf8')
-      if (!FORBIDDEN_URL.test(src)) continue
-      expect(/db-first-exception/.test(src), `${path.relative(root, file)} hits a provider URL WITHOUT a db-first-exception marker`).toBe(true)
+      if (FORBIDDEN_URL.test(fs.readFileSync(file, 'utf8'))) offenders.push(path.relative(root, file))
     }
+    expect(offenders, `runtime modules with a provider URL: ${offenders.join(', ')}`).toEqual([])
   })
-  it('the three certified provider adapters exist (ESPN, Sleeper, FantasyCalc)', () => {
+  it('the three certified provider adapters exist and hold the provider URLs', () => {
     for (const p of ['espn', 'sleeper', 'fantasycalc']) {
-      expect(fs.existsSync(path.join(root, `lib/sports-data-gateway/providers/${p}.ts`)), `${p} adapter missing`).toBe(true)
+      const f = path.join(root, `lib/sports-data-gateway/providers/${p}.ts`)
+      expect(fs.existsSync(f), `${p} adapter missing`).toBe(true)
+    }
+    // the Sleeper adapter now owns the roster/transaction/draft fetchers (moved out of runtime)
+    const sleeper = fs.readFileSync(path.join(root, 'lib/sports-data-gateway/providers/sleeper.ts'), 'utf8')
+    for (const fn of ['fetchSleeperRosters', 'fetchSleeperLeagueTransactions', 'fetchSleeperLeagueDrafts', 'fetchSleeperDraftPicks']) {
+      expect(sleeper.includes(fn), `Sleeper adapter missing ${fn}`).toBe(true)
     }
   })
 })
