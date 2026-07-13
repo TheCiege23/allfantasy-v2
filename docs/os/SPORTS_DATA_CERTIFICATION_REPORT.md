@@ -56,3 +56,19 @@ IDP/defensive identity gap (~21%, external); certified statistics not yet a scor
 2. Release checklist + deployment plan + operational runbooks.
 3. Rollback validation (per-gate enable/disable drills).
 4. (Deferred, non-blocking) IDP identity source; certified-stats scoring migration; injuries/projections certification; decision-evidence audit table (needs approved migration).
+
+---
+
+## Phase 5H classification (unified-plane audit)
+Distinguishes the honest status of every provider/capability (detail in [Provider Ingestion Matrix](SPORTS_DATA_PROVIDER_INGESTION_MATRIX.md), [Gap & Migration Plan](SPORTS_DATA_GAP_AND_MIGRATION_PLAN.md)):
+
+- **CURRENTLY CERTIFIED (verified + canonical + runtime-consumed):** ESPN (schedules/games/statistics), Sleeper (players/rosters/transactions/draft/identity), FantasyCalc (identity).
+- **CONFIGURED BUT UNVERIFIED (must NOT be presented as connected):** Rolling Insights, CFBD, TheSportsDB, API-Sports, ClearSports, OpenWeatherMap, NewsAPI.
+- **IMPORT-ONLY (out of sports-data scope):** Yahoo, MFL, Fantrax, Fleaflicker.
+- **MISSING (no certified capability):** injuries, availability, depth charts.
+- **BLOCKED (credential/provider capability):** Rolling Insights & unverified providers pending a verified request; TheSportsDB imagery.
+- **REQUIRES NORMALIZATION:** canonical position system; unified image precedence; Sleeper roster/txn/draft adapter purity.
+- **REQUIRES RUNTIME WIRING:** canonical port layer + Decision OS/OS convergence off legacy Prisma tables; certified `PlayerValue` for FantasyCalc.
+- **REQUIRES MIGRATION (authorization-gated, not run):** player/stat table consolidation, `PlayerImage`, `PlayerValue`, availability, depth-chart, decision-evidence audit tables.
+
+**Boundary invariant CERTIFIED (5H):** Decision OS + certified integration services + wired product routes never call a provider directly (0 bypasses), enforced by `__tests__/fantasy-os/unified-plane-provider-boundary.test.ts`.
