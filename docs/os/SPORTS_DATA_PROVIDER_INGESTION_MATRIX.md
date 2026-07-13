@@ -10,7 +10,7 @@ Source-of-truth audit of every configured provider. A provider is **VERIFIED** o
 |---|---|---|---|---|---|
 | **Sleeper** | production_connected | players + rosters + transactions + draft + espn_id crosswalk (ALL via adapter) | `providers/sleeper.ts` (fetchers) + `runtime/{roster,transaction,draft}Runtime.ts` (normalize) | ✅ CERTIFIED | **Phase 5H-b: adapter purity ACHIEVED** — roster/txn/draft fetchers moved INTO `providers/sleeper.ts`; runtime modules hold zero provider URLs |
 | **ESPN** | partial→verified | schedules, games, box-score statistics, team identity | `providers/espn.ts` | ✅ CERTIFIED | athlete ids need identity map; undocumented rate limits |
-| **FantasyCalc** | verified | identity crosswalk (sleeperId+espnId), player values | `providers/fantasycalc.ts` | ✅ CERTIFIED (identity) | values are VERIFIED but not yet persisted to a certified values table — REQ-WIRING |
+| **FantasyCalc** | verified | identity crosswalk (sleeperId+espnId), player values | `providers/fantasycalc.ts` (identity only) | ✅ CERTIFIED (identity) | values VERIFIED (5H-c live proving: real records → governed `canonicalValue.ts` contract, boundary-separated) but VALUE egress still lives in `lib/fantasycalc.ts`/`fantasycalc-db.ts` (NOT `providers/`); a real gateway value adapter + certified `PlayerValue` table are REQ-WIRING/REQ-MIGRATION |
 
 ## Configured-but-unverified providers (legacy direct clients; NOT on the certified plane)
 | Provider | Status | Declared capabilities | Legacy client | Certified? | Gap |

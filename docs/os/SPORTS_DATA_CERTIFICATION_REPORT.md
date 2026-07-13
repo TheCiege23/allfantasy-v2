@@ -75,4 +75,20 @@ Distinguishes the honest status of every provider/capability (detail in [Provide
 
 **Adapter purity ACHIEVED (5H-b):** the last 3 gateway-runtime provider exceptions (Sleeper roster/transaction/draft) were removed — their fetchers now live in `providers/sleeper.ts`, and **zero provider URLs remain in any gateway runtime module** (test-enforced). A governed **canonical position service** (`canonical/canonicalPosition.ts`) now exists (detailed position preserved; broad fantasy eligibility derived from league rules; IDP-aware; effective-dated).
 
+**Canonical IMAGE + VALUE services BUILT + LOCKED (5H-c):** two governed pure modules now exist —
+`canonical/canonicalImage.ts` (4-tier precedence verified_official→secondary→approved_fallback→placeholder; URL
+validation rejecting empty/invalid/`data:`/known-broken; entity + sport + imageType isolation; honest `url:null`
+placeholder) and `canonical/canonicalValue.ts` (distinct `valueType` boundaries — observed_statistic / derived_fantasy_
+points / provider_projection / allfantasy_projection / provider_valuation / allfantasy_valuation / ranking / adp — with
+explicit league-format + scoring, canonical-position governance preserving detail, and FantasyCalc treated as
+provider_valuation). 28 contract tests + 3 governance/enforcement tests (module existence, purity, Decision-OS
+FantasyCalc-value-bypass = 0). **Live proving:** real (public, keyless) FantasyCalc records normalized into the
+boundary-separated contract with resolved identity, deterministic rerun; image precedence + validation + cross-sport
+isolation held; no DB, no production data. **Adoption deferred (escape hatch):** the ~9 inline image resolvers (visual
+change forbidden this phase) and the 5 parallel value systems + merge offenders (`SportsPlayerRecord` /
+`FantasyValueSnapshotService` / `sports-db-valuation`) are documented CALLER_TO_MIGRATE / REQ-WIRING; certified
+`PlayerImage`/`TeamImage`/`PlayerValue` tables are REQ-MIGRATION. B2B evidence/event requirements defined in
+`B2B_DECISION_OS_DATA_AND_EVIDENCE_REQUIREMENTS.md` (no visuals). See `SPORTS_DATA_IMAGE_AND_POSITION_POLICY.md` +
+`SPORTS_DATA_CANONICAL_DATABASE_MAP.md`.
+
 **Position governance HARDENED + LOCKED (5H-b2):** the canonical service is now **sport-isolated** (`SUPPORTED_POSITION_SPORTS = ['NFL','NCAAF']`, `isSupportedPositionSport` — a non-football code can never resolve to a plausible football position; no cross-sport fallback), and a repo-enforcement test fails if any **new** competing position-collapse map is added outside a documented allowlist. A full re-audit found **24+ competing position maps**; **0 were safely migratable in one increment** — each retained with a concrete reason (soccer/sport-isolation, verbatim CSV parse, valuation→5H-c, NCAAF identity-matching, or the shared `team-abbrev` collapse that ~40 roster-legality callers depend on). Position normalization is therefore **not yet fully centralized**: the governed source exists and is enforcement-locked, but adoption is a reviewed per-caller migration (valuation → 5H-c; `team-abbrev` legality collapse → dedicated governed migration). No historical position table exists (REQ-MIGRATION). See `SPORTS_DATA_IMAGE_AND_POSITION_POLICY.md` for the full ledger.

@@ -28,6 +28,16 @@ So Decision OS is **provider-agnostic** but **not yet exclusively on the certifi
 ## Target
 Decision OS should receive, per fact: `canonical entity id`, `verified fact`, `history`, `freshness`, `provenance`, `coverage`, `truth classification`, `unsupported-capability markers` — all from a single canonical port layer (Plane A). Today it receives a mix of legacy-table facts + certified grounding. Converging is **REQ-WIRING** (and, for full history/values, **REQ-MIGRATION**).
 
+## Image + value inputs (Phase 5H-c)
+Decision OS + connected OS (Trade/Draft/Waiver/Matchup/Manager/League/Commissioner/Platform Intelligence, Coach, Chimmy)
+consume **images** via ~9 legacy inline resolvers and **values** via `canonicalPlayerValuations` (the deprecated
+FantasyCalc alias, 56 importers) + 4 other value systems. Governed contracts now exist — `canonicalImage.ts` (precedence/
+validation/isolation) and `canonicalValue.ts` (boundary-separated value/ranking/adp/projection/stat, format + position
+governed) — but consumers are **not yet routed through them** (image = visual-safe migration deferred; value = REQ-WIRING).
+Enforcement: no Decision OS file imports a FantasyCalc value client (`lib/fantasycalc`/`fantasycalc-db`) — test-locked.
+Decision OS must treat provider values as **evidence** carrying league context + format + freshness + coverage +
+provenance, never silently converting them into authoritative recommendations.
+
 ## Verdict
-- **No provider bypass in Decision OS** — CERTIFIED ✅ (enforced by test).
-- **Full canonical-port consumption** — NOT YET (legacy tables still authoritative) — REQ-WIRING (multi-increment).
+- **No provider bypass in Decision OS** — CERTIFIED ✅ (enforced by test; now also covers FantasyCalc value clients).
+- **Full canonical-port consumption (position/image/value)** — NOT YET (legacy resolvers + value systems still authoritative) — REQ-WIRING (multi-increment).

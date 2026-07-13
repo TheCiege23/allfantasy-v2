@@ -30,6 +30,14 @@ Purpose of connecting an account is described as: **league synchronization · ro
 - Provider credentials for AllFantasy's sports-data infrastructure are server-side, never customer-visible, never in copy, never in observability output (counts/provenance only).
 - Customer-facing disclosures must match the **actual** privacy, consent, and retention policies — this doc is an architecture statement, not final approved copy.
 
+## Image + value abstraction (Phase 5H-c)
+Client platforms receive governed **images** (via `canonicalImage.ts`: a `source` label + `fallbackRank` +
+`validationStatus`, never a raw broken provider URL, never a cross-sport image) and governed **values** (via
+`canonicalValue.ts`: a `valueType` + `source` + `leagueFormat`/`scoringFormat` + `freshnessStatus` + `coverageStatus` +
+`provenance`, never an ambiguous merged number, with FantasyCalc disclosed as a **provider valuation source** — not
+official sports truth). Provider-specific fields never leak past these contracts. An image shown as "official" must have
+a verified-official source; missing imagery is disclosed honestly (placeholder), not faked.
+
 ## Status
-- **Architecture stance:** DOCUMENTED. The provider abstraction is real for the certified plane (ESPN/Sleeper/FantasyCalc are AllFantasy-operated; no customer keys).
+- **Architecture stance:** DOCUMENTED. The provider abstraction is real for the certified plane (ESPN/Sleeper/FantasyCalc are AllFantasy-operated; no customer keys). Image + value governance contracts exist (5H-c); consumer adoption is a reviewed migration.
 - **Final customer copy:** REQUIRES legal + privacy + provider-branding review before use (part of the RC1 privacy/customer-language review).

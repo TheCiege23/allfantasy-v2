@@ -47,22 +47,49 @@ OLB / ILB → LB only where league rules permit
 ```
 Broad buckets are **derived at read time from league config**, never stored destructively over the detailed position.
 
-## Player & team imagery — status: EXISTS-BUT-FRAGMENTED (REQ-NORMALIZE)
-Image resolution exists in `lib/player-assets/resolvePlayerHeadshot.ts`, `lib/player-media-urls.ts`, `lib/player-media.ts`; team logos in `TeamAsset.logoUrl`. There is **no single precedence model** across them.
+## Player & team imagery — status: GOVERNED SERVICE BUILT (5H-c); adoption is a per-caller migration (visual-safe, deferred)
+The single governed image policy is **`lib/sports-data-gateway/canonical/canonicalImage.ts`** (Phase 5H-c) — a PURE
+precedence + validation + isolation module (no fetch, no DB). It implements the tiers and rules below and returns a
+governed `CanonicalImageReference` or an honest placeholder (`url:null`).
 
-### Governed image precedence (target)
-```
-1. verified official provider image
-2. verified secondary sports provider (e.g. TheSportsDB)
-3. approved fallback
-4. placeholder
-```
-Each canonical image record should store: `canonicalEntityId`, `imageUrl`/managed-asset ref, `source`, `retrievalTimestamp`, `status`, `fallbackRank`, `contentValidationResult` (where available).
+### Canonical image contract (implemented)
+`CanonicalImageReference { entityType, canonicalEntityId, sport, imageType, source, sourceEntityId, url|null,
+retrievedAt, effectiveAt, validationStatus, freshnessStatus, fallbackRank, width, height, provenance, isPlaceholder,
+unsupportedReason }`. A managed-asset ref / `PlayerImage`/`TeamImage` table to persist it fully is **REQ-MIGRATION**.
 
-Rules:
-- **Never overwrite a higher-confidence image with a weaker fallback** without explicit precedence.
-- **Never present a broken/empty provider URL as a real image** — fall through to the next tier or placeholder.
-- Images carry `source` + `retrievalTime` + `freshness/validation` for provenance.
+### Governed image precedence (implemented in canonicalImage.ts)
+```
+1. verified_official   (highest-authority provider image)
+2. verified_secondary  (verified secondary sports provider)
+3. approved_fallback   (approved existing asset / managed fallback)
+4. placeholder         (honest "no real image", url:null)
+```
+Rules (all test-enforced): a valid **stronger** source is never overwritten by a weaker one; empty / invalid /
+`data:` / known-broken URLs are rejected (with a rejection reason); a failed higher tier falls through to a validated
+lower tier; **entity + sport + imageType isolation** (no player/team cross-use, no NFL fallback for an NCAAF/NBA/MLB/
+NHL/soccer entity); missing imagery is represented honestly.
+
+### Adoption status (5H-c) — audited competing image truth, NOT migrated (visual-safe deferral)
+A repo audit found **~9 independent inline precedence sources** plus the NFL orchestrator + client onError chain:
+| Source | Class | Disposition |
+|---|---|---|
+| `canonical/canonicalImage.ts` | **CANONICAL_SOURCE** | governed target (built 5H-c; not yet wired into render paths) |
+| `lib/nfl-provider/nflRedraftProviderOrchestrator.ts` + `...ProductionProviderWiring.ts` | CALLER_TO_MIGRATE | authoritative NFL headshot/logo precedence (thesportsdb→api_sports→rolling_insights→default) |
+| `lib/players/buildPlayerMap.ts` (F7) | DISPLAY_ONLY / CALLER_TO_MIGRATE | client onError CDN chain (8 sports) — the main render authority |
+| `lib/player-media.ts` (F5), `lib/player-data/getPlayerDataForSurface.ts` (F3) | CALLER_TO_MIGRATE | DB-first precedence + own provider-rank scoring |
+| `lib/draft-sports-models/player-asset-resolver.ts` (F2) | CALLER_TO_MIGRATE | hardcoded `data:` SVG placeholders (rejected downstream) — needs the honest placeholder contract |
+| `lib/players/teamLogos.ts` (F4), `lib/sport-teams/TeamLogoResolver.ts` | CALLER_TO_MIGRATE | inline team-logo CDN precedence |
+| `lib/media-url.ts` (F6), `lib/player-media-urls.ts` | PROVIDER_RAW_INPUT / DISPLAY_ONLY | pure template URL builders (retain) |
+| `LeagueAvatar` / `resolve-dashboard-avatar` (F8), `lib/avatar/*` | OUT_OF_SCOPE | league/user avatars, not sports imagery |
+
+**0 render paths were rewired this increment** — the phase forbids visual changes, and image-contract migration risks
+visual regressions. Each caller is retained with a documented reason; routing them through `canonicalImage.ts` is a
+reviewed, visual-safe **CALLER_TO_MIGRATE** follow-on. The governed policy exists and is enforcement-locked.
+
+### Legacy resolvers (retained inputs)
+`lib/player-assets/resolvePlayerHeadshot.ts` (already validates + labels source + sport-aware), `lib/player-media-urls.ts`,
+`lib/player-media.ts`, `TeamAsset.logoUrl` — these remain the production inputs; they FEED candidates that
+`canonicalImage.ts` will govern once callers are migrated.
 
 ## Honest classification
 - **Position system:** governed source BUILT (5H-b) + SPORT-ISOLATED + enforcement-locked (5H-b2); **adoption REQ-NORMALIZE** (per-caller migration of ~40 `team-abbrev` legality callers + valuation callers → 5H-c; 0 migrated so far, each documented above).

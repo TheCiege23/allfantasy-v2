@@ -12,7 +12,7 @@ import path from 'node:path'
 const root = process.cwd()
 
 // Legacy provider-client modules + raw provider URLs that product/Decision-OS runtime must never import/hit.
-const FORBIDDEN_IMPORT = /from ['"]@\/lib\/(espn-data|fantasycalc|upstream-apis|sleeper-sync|api-football|cfb-player-data|sports-live-scores-service|thesportsdb|clearsports|unified-player-service|players\/ri-players-server|legacy-ai-context|chat-data-enrichment|sports-router)['"]/
+const FORBIDDEN_IMPORT = /from ['"]@\/lib\/(espn-data|fantasycalc(-db)?|upstream-apis|sleeper-sync|api-football|cfb-player-data|sports-live-scores-service|thesportsdb|clearsports|unified-player-service|players\/ri-players-server|legacy-ai-context|chat-data-enrichment|sports-router)['"]/
 const FORBIDDEN_URL = /(api\.sleeper\.app|site\.api\.espn\.com|sports\.core\.api\.espn|api\.fantasycalc\.com|thesportsdb\.com|api-sports\.io|api-football|collegefootballdata\.com|rollinginsights|clearsports)/i
 
 function walk(dir: string): string[] {
@@ -134,5 +134,41 @@ describe('5H-b2 — canonical position governance (no NEW competing broad-collap
     for (const sym of ['normalizeProviderPosition', 'deriveFantasyEligibility', 'resolveCanonicalPosition', 'isSupportedPositionSport', 'SUPPORTED_POSITION_SPORTS']) {
       expect(src.includes(`export function ${sym}`) || src.includes(`export const ${sym}`), `canonical service missing ${sym}`).toBe(true)
     }
+  })
+})
+
+describe('5H-c — canonical image + value governance', () => {
+  it('the governed canonical IMAGE service exists with precedence + validation + isolation', () => {
+    const f = path.join(root, 'lib/sports-data-gateway/canonical/canonicalImage.ts')
+    expect(fs.existsSync(f), 'canonicalImage.ts missing').toBe(true)
+    const src = fs.readFileSync(f, 'utf8')
+    for (const sym of ['resolveCanonicalImage', 'isValidImageUrl', 'IMAGE_SOURCE_TIER_RANK']) {
+      expect(src.includes(`export function ${sym}`) || src.includes(`export const ${sym}`), `image service missing ${sym}`).toBe(true)
+    }
+    // the image service is PURE — it must not fetch or import a provider client (precedence policy only)
+    expect(FORBIDDEN_URL.test(src), 'image service hits a provider URL').toBe(false)
+    expect(src.includes('import '), 'image service should be dependency-free policy').toBe(false)
+  })
+
+  it('the governed canonical VALUE service exists with strict boundary separation', () => {
+    const f = path.join(root, 'lib/sports-data-gateway/canonical/canonicalValue.ts')
+    expect(fs.existsSync(f), 'canonicalValue.ts missing').toBe(true)
+    const src = fs.readFileSync(f, 'utf8')
+    for (const sym of ['normalizeFantasyCalcValue', 'deriveValuationGrouping', 'assertValueBoundary']) {
+      expect(src.includes(`export function ${sym}`), `value service missing ${sym}`).toBe(true)
+    }
+    // FantasyCalc is a provider valuation source — the pure contract must not fetch it or hit its URL.
+    expect(FORBIDDEN_URL.test(src), 'value service hits a provider URL').toBe(false)
+    // the distinct value boundaries must all be declared (no ambiguous shared field)
+    for (const boundary of ['observed_statistic', 'derived_fantasy_points', 'provider_projection', 'provider_valuation', 'ranking', 'adp']) {
+      expect(src.includes(`'${boundary}'`), `value service missing boundary ${boundary}`).toBe(true)
+    }
+  })
+
+  it('Decision OS does not import a FantasyCalc VALUE client directly (values flow through the canonical contract)', () => {
+    // FantasyCalc value egress lives in lib/fantasycalc(.ts|-db.ts); FORBIDDEN_IMPORT now matches both. Decision OS
+    // must not import them directly — value must arrive as governed evidence.
+    const v = scan('lib/decision-os')
+    expect(v, `Decision OS FantasyCalc/provider bypass(es): ${JSON.stringify(v, null, 2)}`).toEqual([])
   })
 })

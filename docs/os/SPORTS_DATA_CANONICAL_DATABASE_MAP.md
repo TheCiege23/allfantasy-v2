@@ -18,8 +18,9 @@ Maps the **real** database structures used for sports data. **Finding: data is f
 | canonical teams | `SportsTeam`, `TeamSeasonStats` | |
 | player-team history | `PlayerTeamHistory` | effective-dated ✅ |
 | positions | governed canonical service `lib/sports-data-gateway/canonical/canonicalPosition.ts` (Phase 5H-b; sport-isolated + enforcement-locked 5H-b2); production callers NOT yet routed through it | service DONE; **REQ-NORMALIZE** (5H-b2 re-audit: 24+ competing maps, 0 safely migratable this increment — each documented; valuation→5H-c, `team-abbrev` legality collapse→governed migration). **No historical `PlayerPosition` table (REQ-MIGRATION).** |
-| headshots | `SportsPlayer.imageUrl`, resolved via `player-assets/resolvePlayerHeadshot.ts` | fragmented |
-| team logos | `TeamAsset.logoUrl` | |
+| headshots | `SportsPlayer.imageUrl` / `SportsPlayerRecord.headshotUrl`, governed policy `lib/sports-data-gateway/canonical/canonicalImage.ts` (Phase 5H-c); ~9 inline resolvers not yet routed through it | **fragmented**; governed policy DONE, adoption REQ-NORMALIZE (visual-safe migration); dedicated `PlayerImage` table REQ-MIGRATION |
+| team logos | `TeamAsset.logoUrl`, `SportsTeam.logo`; governed via same `canonicalImage.ts` | fragmented; `TeamImage` table REQ-MIGRATION |
+| player values | `AllFantasyMarketPlayerValue` (AF-derived, persisted) + FantasyCalc (in-memory `SportsDataCache`) + Excel `data/historical-values/*` + hardcoded tier tables; governed contract `lib/sports-data-gateway/canonical/canonicalValue.ts` (Phase 5H-c) | **5 parallel value systems, NO canonical player-value field**; governed contract DONE (boundary-separated), adoption REQ-WIRING; certified `PlayerValue` table REQ-MIGRATION |
 | schedules/games | `SportsGame`, `FantasyScheduleGame` | two tables |
 | player statistics | `PlayerGameLogCache`, `PlayerSeasonStats`, `FantasyStatLine` | **production scoring inputs** |
 | player history | `PlayerSeasonStats`, `PlayerTeamHistory` | |
@@ -45,6 +46,18 @@ Single canonical entity model per concept (player, team, game, stat, value, proj
   → one canonical runtime port layer consumed by Decision OS + every OS
 ```
 
+## Value-plane fragmentation (Phase 5H-c audit)
+**Five independent value systems share the 0–10000 scale and are silently swapped with no provenance reaching most
+consumers:** (A) FantasyCalc provider values (`lib/fantasycalc.ts` + `fantasycalc-db.ts`, in-memory/cache), (B) Excel
+historical values (`lib/historical-values.ts`, filesystem JSON), (C) hardcoded tier tables (`lib/dynasty-tiers.ts`,
+stale/name-keyed), (D) T2 projection→value (`lib/trade-value/valueEngine.ts`), (E) AF-derived market value + ADP
+(`AllFantasyMarketPlayerValue`, `AllFantasyAdpSnapshot` — the best-isolated). **Merge offenders** collapse statistics,
+projections, ADP, and provider values into one ambiguous number: `SportsPlayerRecord` (stats+projections+adp+
+dynastyValue in one row), `lib/sports-os/FantasyValueSnapshotService.ts`, `lib/trade-value-console/sports-db-valuation.ts`,
+`lib/redraft-war-room/playerValue.ts`. The governed `canonicalValue.ts` (5H-c) defines the boundary-separated contract
+these must migrate onto (REQ-WIRING); certified persistence is REQ-MIGRATION. **FantasyCalc value egress lives in
+`lib/fantasycalc.ts`/`fantasycalc-db.ts`, NOT in `providers/`** — routing it through a real gateway value adapter is REQ-WIRING.
+
 ## Migration-required work (NOT run — needs explicit authorization)
 1. Consolidate player tables (`SportsPlayer`/`Player`/`FantasyPlayer`) behind one canonical player + provider-id map (**REQ-MIGRATION**).
 2. Canonical `PlayerPosition` table (detailed + eligibility) (**REQ-MIGRATION**).
@@ -52,5 +65,7 @@ Single canonical entity model per concept (player, team, game, stat, value, proj
 4. Certified `PlayerValue` (FantasyCalc) + `Projection` value tables separated from stats (**REQ-MIGRATION** if not reusing `FantasyProjection`).
 5. Availability + depth-chart tables (**REQ-MIGRATION**).
 6. A decision-evidence audit table (**REQ-MIGRATION** — deferred since Phase 5E).
+7. `PlayerImage` + `TeamImage` tables (source/precedence/validation/freshness) to persist `CanonicalImageReference` (**REQ-MIGRATION**, Phase 5H-c).
+8. B2B Activity Event + League Health snapshot tables (tenant-scoped, versioned, privacy-tagged) (**REQ-MIGRATION**, see `B2B_DECISION_OS_DATA_AND_EVIDENCE_REQUIREMENTS.md`).
 
 **No migration was created or run in this phase.** All above are documented for authorization.
