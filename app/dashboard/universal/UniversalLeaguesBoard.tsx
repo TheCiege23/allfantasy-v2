@@ -30,6 +30,7 @@ import { DynastyPlanetSearch } from './components/DynastyPlanetSearch'
 import { PortfolioAnalytics } from './components/PortfolioAnalytics'
 import { LeagueCards } from './components/LeagueCards'
 import { LegacyModules } from './components/LegacyModules'
+import { WarRoomPreview } from './components/WarRoomPreview'
 
 type BoardLeague = UserLeague & { navigationLeagueId?: string | null }
 
@@ -355,6 +356,9 @@ export function UniversalLeaguesBoard({ leagues }: { leagues: BoardLeague[] }) {
 
         <div className="mt-8">
           <LegacyModules leagues={leagues} />
+        </div>
+        <div className="mt-8">
+          <WarRoomPreview />
         </div>
 
         {/* Connect strip */}

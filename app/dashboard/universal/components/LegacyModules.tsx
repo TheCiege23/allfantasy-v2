@@ -30,6 +30,7 @@ import Link from 'next/link'
 import type { UserLeague } from '@/app/dashboard/types'
 import { useSettingsProfile } from '@/hooks/useSettingsProfile'
 import { computeCompositeProfile, type CompositeProfile, type LeagueRecord } from '@/lib/legacy/overview-scoring'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 import styles from './universal-dashboard.module.css'
 
 const OverviewReportCard = dynamic(() => import('@/app/af-legacy/components/OverviewReportCard'), { ssr: false })
@@ -150,7 +151,11 @@ function LegacyRankingsModule({ league, username }: { league: BoardLeague | null
     return <div className={styles.legacyEmpty}>Connect or create a league to see league rankings here.</div>
   }
   const leagueId = league.navigationLeagueId ?? league.id
-  return <LeagueRankingsV2Panel leagueId={leagueId} leagueName={league.name ?? undefined} username={username} />
+  return (
+    <FeatureGate featureId="league_rankings" featureNameOverride="League Rankings">
+      <LeagueRankingsV2Panel leagueId={leagueId} leagueName={league.name ?? undefined} username={username} />
+    </FeatureGate>
+  )
 }
 
 function LegacyCompareModule({ defaultUsername }: { defaultUsername: string }) {

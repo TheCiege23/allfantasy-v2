@@ -19,6 +19,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import type { UserLeague } from '@/app/dashboard/types'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 import styles from './universal-dashboard.module.css'
 
 type BoardLeague = UserLeague & { navigationLeagueId?: string | null }
@@ -99,37 +100,39 @@ export function PortfolioAnalytics({ leagues }: { leagues: BoardLeague[] }) {
         <div className={styles.miniStack}>
           <div className={styles.mini}>
             <div className={styles.mh}>This Week&apos;s Best Matchup</div>
-            {loading ? (
-              <p className={styles.sub} style={{ marginTop: 8 }}>
-                Checking your leagues…
-              </p>
-            ) : best ? (
-              <Link href={`/league/${encodeURIComponent(best.navId)}?tab=matchups`} style={{ textDecoration: 'none', color: 'inherit' }}>
-                <div className={styles.wpRow}>
-                  <span>{Math.round(best.payload.winProbabilityLeft ?? 50)}%</span>
-                  <span>{100 - Math.round(best.payload.winProbabilityLeft ?? 50)}%</span>
-                </div>
-                <div className={styles.wpBar}>
-                  <span className={styles.wpWin} style={{ width: `${best.payload.winProbabilityLeft ?? 50}%` }} />
-                  <span className={styles.wpLose} style={{ width: `${100 - (best.payload.winProbabilityLeft ?? 50)}%` }} />
-                </div>
-                <div className={styles.wpTeams}>
-                  <span>
-                    {best.payload.left.teamName} · {best.payload.left.totalPoints.toFixed(1)} pts
-                  </span>
-                  <span>
-                    {best.payload.right.teamName} · {best.payload.right.totalPoints.toFixed(1)} pts
-                  </span>
-                </div>
-                <div className={styles.sub} style={{ marginTop: 8 }}>
-                  {best.leagueName}
-                </div>
-              </Link>
-            ) : (
-              <p className={styles.sub} style={{ marginTop: 8 }}>
-                No live or upcoming matchups this week yet.
-              </p>
-            )}
+            <FeatureGate featureId="matchup_explanations" featureNameOverride="Matchup win-probability analysis">
+              {loading ? (
+                <p className={styles.sub} style={{ marginTop: 8 }}>
+                  Checking your leagues…
+                </p>
+              ) : best ? (
+                <Link href={`/league/${encodeURIComponent(best.navId)}?tab=matchups`} style={{ textDecoration: 'none', color: 'inherit' }}>
+                  <div className={styles.wpRow}>
+                    <span>{Math.round(best.payload.winProbabilityLeft ?? 50)}%</span>
+                    <span>{100 - Math.round(best.payload.winProbabilityLeft ?? 50)}%</span>
+                  </div>
+                  <div className={styles.wpBar}>
+                    <span className={styles.wpWin} style={{ width: `${best.payload.winProbabilityLeft ?? 50}%` }} />
+                    <span className={styles.wpLose} style={{ width: `${100 - (best.payload.winProbabilityLeft ?? 50)}%` }} />
+                  </div>
+                  <div className={styles.wpTeams}>
+                    <span>
+                      {best.payload.left.teamName} · {best.payload.left.totalPoints.toFixed(1)} pts
+                    </span>
+                    <span>
+                      {best.payload.right.teamName} · {best.payload.right.totalPoints.toFixed(1)} pts
+                    </span>
+                  </div>
+                  <div className={styles.sub} style={{ marginTop: 8 }}>
+                    {best.leagueName}
+                  </div>
+                </Link>
+              ) : (
+                <p className={styles.sub} style={{ marginTop: 8 }}>
+                  No live or upcoming matchups this week yet.
+                </p>
+              )}
+            </FeatureGate>
           </div>
         </div>
       </div>
