@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useLayoutEffect, useMemo, useCallback, typ
 import { Send, Volume2, VolumeX, Image as ImageIcon, Mic, MicOff, Loader2, Square } from 'lucide-react';
 import { toast } from 'sonner';
 import { getDefaultChimmyChips } from '@/lib/chimmy-interface';
+import { isSupportedSport } from '@/lib/sport-scope';
 import { isNoChargeChimmyIntent } from '@/lib/ai/chimmyIntentRouter';
 import { confirmTokenSpend } from '@/lib/tokens/client-confirm';
 import { sendChimmyMessage } from '@/lib/chimmy-chat/ChimmyChatService';
@@ -477,7 +478,7 @@ export default function ChimmyChat({
             ? {
                 leagueId: activeLeagueId,
                 leagueName: chipContextLeagueName ?? undefined,
-                sport: activeLeagueSport ?? undefined,
+                sport: isSupportedSport(activeLeagueSport) ? activeLeagueSport : undefined,
                 scoring: activeLeagueScoring ?? undefined,
                 leagueFormat: activeLeagueFormat ?? undefined,
               }
