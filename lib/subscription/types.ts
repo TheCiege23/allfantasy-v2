@@ -74,6 +74,14 @@ export type SubscriptionFeatureId =
   | 'league_ai_coaching'
   /** Commissioner-level AI waiver tools: settings health, suspicious behavior, collusion risk (AF Commissioner). */
   | 'commissioner_waiver_ai'
+  // /af-legacy deep-action gates (AF Legacy — war_room). Preview/description content on each
+  // tab stays open to everyone; only the actual analysis-trigger button requires this.
+  | 'legacy_trade_proposals'
+  | 'legacy_trade_finder'
+  | 'legacy_waiver_analysis'
+  | 'legacy_manager_compare'
+  | 'legacy_rankings_analysis'
+  | 'legacy_social_pulse'
 
 /** Plan slugs returned by entitlements API; used for hasAccess. */
 export type SubscriptionPlanId =

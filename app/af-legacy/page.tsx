@@ -27,6 +27,7 @@ import EnhancedRankingsPanel from "@/components/EnhancedRankingsPanel"
 import LeagueRankingsV2Panel from "@/components/LeagueRankingsV2Panel"
 import DraftRoom from "@/app/af-legacy/components/mock-draft/DraftRoom"
 import LegacyStrategyTab from '@/app/af-legacy/components/tabs/LegacyStrategyTab'
+import { FeatureGate } from '@/components/subscription/FeatureGate'
 import LegacyShopTab from '@/app/af-legacy/components/tabs/LegacyShopTab'
 import LegacyIdeasTab from '@/app/af-legacy/components/tabs/LegacyIdeasTab'
 import LegacyOverviewLaunchCard from '@/app/af-legacy/components/tabs/LegacyOverviewLaunchCard'
@@ -2877,8 +2878,10 @@ function AFLegacyContent() {
             setRankingsDynastyLeagues(data.leagues)
             const leagueExists = data.leagues.some((l: any) => l.league_id === sharedLeague)
             if (leagueExists) {
+              // Pre-select the shared league but don't auto-run — same reasoning as the
+              // dropdown fix above: this used to bypass the FeatureGate on the "Show My
+              // Rankings" button since it fires from a useEffect, not a gated click.
               setRankingsSelectedLeague(sharedLeague)
-              runRankingsAnalysis(sharedLeague)
             } else {
               setRankingsSelectedLeague(data.leagues[0]?.league_id || '')
               setRankingsError('The shared league was not found in your leagues. Showing your first league instead.')
@@ -11883,6 +11886,7 @@ function AFLegacyContent() {
                                 </div>
                               )}
 
+                              <FeatureGate featureId="legacy_trade_proposals" featureNameOverride="Trade Command Center">
                               <button
                                 onClick={generateTradeProposals}
                                 disabled={proposalLoading || proposalDesiredAssets.length === 0}
@@ -11900,6 +11904,7 @@ function AFLegacyContent() {
                                   </>
                                 )}
                               </button>
+                              </FeatureGate>
                             </div>
                           )
                         })()}
@@ -12834,6 +12839,7 @@ function AFLegacyContent() {
                           </div>
                         </div>
 
+                        <FeatureGate featureId="legacy_waiver_analysis" featureNameOverride="Waiver AI">
                         <button
                           onClick={runWaiverAnalysis}
                           disabled={waiverLoading || !waiverSelectedLeague}
@@ -12841,6 +12847,7 @@ function AFLegacyContent() {
                         >
                           {waiverLoading ? 'Analyzing Waivers...' : 'Analyze Free Agents'}
                         </button>
+                        </FeatureGate>
 
                         {waiverLoading && (
                           <div className="p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-emerald-500/10 border border-green-500/30">
@@ -13239,14 +13246,17 @@ function AFLegacyContent() {
                         <div>
                           <label className="block text-sm text-white/70 mb-2">Select Dynasty League</label>
                           {renderLeagueDropdown('rankings', rankingsDynastyLeagues, rankingsSelectedLeague, (newLeague) => {
+                            // Selecting a league only stages it — it no longer auto-runs the
+                            // analysis (that used to bypass the FeatureGate on the button below,
+                            // since this callback fired before the gated click ever happened).
+                            // Matches the waiver/trade/pulse/compare tabs' pattern: select, then
+                            // an explicit (now-gated) button click actually runs it.
                             setRankingsSelectedLeague(newLeague)
                             setRankingsData(null)
-                            if (newLeague && username) {
-                              runRankingsAnalysis(newLeague)
-                            }
                           })}
                         </div>
 
+                        <FeatureGate featureId="legacy_rankings_analysis" featureNameOverride="Team Direction">
                         <button
                           onClick={() => runRankingsAnalysis()}
                           disabled={rankingsLoading || !rankingsSelectedLeague}
@@ -13254,6 +13264,7 @@ function AFLegacyContent() {
                         >
                           {rankingsLoading ? 'Analyzing Rankings...' : '🏆 Show My Rankings'}
                         </button>
+                        </FeatureGate>
 
                         {rankingsSelectedLeague && username && (
                           <>
@@ -15072,7 +15083,8 @@ function AFLegacyContent() {
                           type="text"
                           value={pulsePlayerInput}
                           onChange={(e) => setPulsePlayerInput(e.target.value)}
-                          onKeyDown={(e) => e.key === 'Enter' && runSocialPulse()}
+                          // Enter-to-submit removed — it called runSocialPulse() directly,
+                          // bypassing the FeatureGate on the "Get Social Pulse" button below.
                           placeholder="e.g. Josh Allen, Keon Coleman, Buffalo Bills"
                           className="w-full px-4 py-3 rounded-xl bg-black/50 border border-white/20 text-white placeholder-white/40 focus:outline-none focus:border-purple-500/50"
                         />
@@ -15104,6 +15116,7 @@ function AFLegacyContent() {
                         </div>
                       </div>
 
+                      <FeatureGate featureId="legacy_social_pulse" featureNameOverride="Market Board">
                       <button
                         onClick={runSocialPulse}
                         disabled={pulseLoading || !pulsePlayerInput.trim()}
@@ -15111,6 +15124,7 @@ function AFLegacyContent() {
                       >
                         {pulseLoading ? 'Analyzing Sentiment...' : '📡 Get Social Pulse'}
                       </button>
+                      </FeatureGate>
 
                       {pulseLoading && (
                         <div className="space-y-2">
@@ -15263,6 +15277,7 @@ function AFLegacyContent() {
                       </div>
                     </div>
 
+                    <FeatureGate featureId="legacy_manager_compare" featureNameOverride="Opponent Behavior">
                     <button
                       onClick={runManagerComparison}
                       disabled={compareLoading || !compareOpponent.trim()}
@@ -15270,6 +15285,7 @@ function AFLegacyContent() {
                     >
                       {compareLoading ? 'Comparing Managers...' : '⚔️ Compare Managers'}
                     </button>
+                    </FeatureGate>
 
                     {compareLoading && (
                       <div className="mt-4 space-y-2">
