@@ -7,13 +7,41 @@
  * `.topbar`/`.toolbar` structure.
  */
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { IdentityImageRenderer } from '@/components/identity/IdentityImageRenderer'
 import { useSettingsProfile } from '@/hooks/useSettingsProfile'
 import { SettingsMenu } from './SettingsMenu'
 import styles from './universal-dashboard.module.css'
+
+type DataProviderHealth = 'checking' | 'connected' | 'degraded'
+
+/**
+ * Real backing for the "Live data connected" chip — previously hardcoded, unconditional
+ * markup with no check at all (AF_DATA_PROVENANCE_AUDIT.md demo risk #3). Queries
+ * /api/health/data-providers, which checks actual sports-data and weather cache freshness.
+ */
+function useDataProviderHealth(): DataProviderHealth {
+  const [status, setStatus] = useState<DataProviderHealth>('checking')
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/health/data-providers')
+      .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`status ${res.status}`))))
+      .then((data: { ok?: boolean }) => {
+        if (!cancelled) setStatus(data.ok ? 'connected' : 'degraded')
+      })
+      .catch(() => {
+        if (!cancelled) setStatus('degraded')
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  return status
+}
 
 export function DashboardHeader({
   isCommissionerAnywhere,
@@ -26,6 +54,7 @@ export function DashboardHeader({
 }) {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const { profile } = useSettingsProfile()
+  const dataHealth = useDataProviderHealth()
 
   const displayName = guestMode ? guestDisplayName || 'Guest' : profile?.displayName || profile?.username || 'Your account'
   const role = guestMode ? 'Guest preview' : isCommissionerAnywhere ? 'Commissioner' : 'Manager'
@@ -99,9 +128,17 @@ export function DashboardHeader({
         <div className={styles.tbRight}>
           <span
             className={styles.liveChip}
-            title="Sports · Weather · Injuries · News · Odds · GIF · Intelligence — all connected"
+            data-health={dataHealth}
+            title={
+              dataHealth === 'connected'
+                ? 'Sports data and weather caches synced within the last 24 hours'
+                : dataHealth === 'degraded'
+                  ? 'Sports data or weather cache hasn’t synced recently — checking again on next load'
+                  : 'Checking live data connection…'
+            }
           >
-            <span className={styles.liveDot} /> Live data connected
+            <span className={styles.liveDot} />
+            {dataHealth === 'connected' ? 'Live data connected' : dataHealth === 'degraded' ? 'Data sync delayed' : 'Checking…'}
           </span>
           <Link href="/dashboard/universal#os-strip" className={styles.osBtn}>
             ⊞ Operating Systems

@@ -285,6 +285,28 @@
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent);
 }
 
+.liveChip[data-health='degraded'] {
+  border-color: color-mix(in srgb, var(--amber) 35%, var(--border));
+  background: color-mix(in srgb, var(--amber) 12%, transparent);
+  color: var(--amber);
+}
+
+.liveChip[data-health='degraded'] .liveDot {
+  background: var(--amber);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--amber) 25%, transparent);
+}
+
+.liveChip[data-health='checking'] {
+  border-color: var(--border);
+  background: color-mix(in srgb, var(--muted) 12%, transparent);
+  color: var(--muted);
+}
+
+.liveChip[data-health='checking'] .liveDot {
+  background: var(--muted);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--muted) 20%, transparent);
+}
+
 .osBtn {
   display: inline-flex;
   align-items: center;
