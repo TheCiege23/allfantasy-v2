@@ -3,7 +3,8 @@ import type {
   SubscriptionFeatureId,
   SubscriptionPlanId,
 } from "@/lib/subscription/types"
-import type { SubscriptionPlanFamily } from "@/lib/monetization/catalog"
+import type { SubscriptionPlanFamily, MonetizationSubscriptionSku } from "@/lib/monetization/catalog"
+import { getMonetizationCatalogItemBySku } from "@/lib/monetization/catalog"
 import { ENTITLEMENTS } from "@/lib/monetization/entitlements"
 import {
   buildMonetizationUpgradePathForFeature,
@@ -91,6 +92,24 @@ export function getDisplayPlanName(planId: SubscriptionPlanId): string {
     case "enterprise":
       return "AF Enterprise"
   }
+}
+
+const PLAN_TO_MONTHLY_SKU: Partial<Record<SubscriptionPlanId, MonetizationSubscriptionSku>> = {
+  pro: "af_pro_monthly",
+  commissioner: "af_commissioner_monthly",
+  war_room: "af_war_room_monthly",
+  all_access: "af_all_access_monthly",
+  supreme: "af_supreme_monthly",
+}
+
+/** "AF Pro — $9.99/mo" — every gate that names a required tier should show the price too. */
+export function getDisplayPlanNameWithPrice(planId: SubscriptionPlanId): string {
+  const name = getDisplayPlanName(planId)
+  const sku = PLAN_TO_MONTHLY_SKU[planId]
+  if (!sku) return name
+  const item = getMonetizationCatalogItemBySku(sku)
+  if (!item) return name
+  return `${name} — $${item.amountUsd.toFixed(2)}/mo`
 }
 
 export function expandPlansWithBundle(plans: readonly SubscriptionPlanId[]): SubscriptionPlanId[] {
