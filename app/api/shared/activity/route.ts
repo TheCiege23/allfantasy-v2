@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from "next/server"
-import { getPlaceholderActivity } from "@/lib/activity/placeholder"
 
 /**
  * GET /api/shared/activity
  * Returns league activity (trades, waivers, lineups, messages, announcements).
  * Optional query: limit (default 50), leagueId (filter by league).
- * Placeholder implementation: returns placeholder data until real activity source is wired.
+ *
+ * No real cross-source activity aggregator (trades + waivers + chat + announcements)
+ * exists yet, and Legacy/Sleeper-imported leagues only carry point-in-time season
+ * snapshots (LegacyLeague/LegacyRoster), not a time-ordered event log — so there is no
+ * real "recent activity" to derive from them. This used to unconditionally return
+ * fabricated sample trades/waivers/messages; it now honestly returns no items, and the
+ * feed (LeagueActivityFeed / ActivityFeed) renders its real empty state instead.
+ * TODO: wire real events (AfLeagueTrade, waiver claims, league chat) once a cross-source
+ * aggregator exists.
  */
-export async function GET(req: NextRequest) {
-  const limit = Math.min(100, Math.max(1, Number(req.nextUrl.searchParams?.get("limit") || "50")))
-  const leagueId = req.nextUrl.searchParams?.get("leagueId") || undefined
-
-  // TODO: resolve user and fetch real activity from DB/events
-  const items = getPlaceholderActivity()
-  const filtered = leagueId ? items.filter((i) => i.leagueId === leagueId) : items
-  const sliced = filtered.slice(0, limit)
-
-  return NextResponse.json({ status: "ok", items: sliced })
+export async function GET(_req: NextRequest) {
+  return NextResponse.json({ status: "ok", items: [] })
 }
 

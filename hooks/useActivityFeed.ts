@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react"
 import type { ActivityFeedItem } from "@/lib/activity/placeholder"
-import { mergeWithPlaceholderActivity } from "@/lib/activity/placeholder"
 
 export function useActivityFeed(options?: { limit?: number; leagueId?: string }) {
   const limit = options?.limit ?? 50
@@ -18,11 +17,11 @@ export function useActivityFeed(options?: { limit?: number; leagueId?: string })
       const res = await fetch(`/api/shared/activity?${params}`, { cache: "no-store" })
       const json = await res.json().catch(() => ({}))
       const raw = Array.isArray(json?.items) ? json.items : []
-      setItems(mergeWithPlaceholderActivity(raw))
+      setItems(raw)
       setError(null)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load activity")
-      setItems(mergeWithPlaceholderActivity([]))
+      setItems([])
     } finally {
       setLoading(false)
     }
