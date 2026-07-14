@@ -28,6 +28,7 @@ import { emptyLineupActionSummary } from '@/lib/lineup-actions/emptySummary'
 import { useFantasyContext, type PrimaryContext } from '@/hooks/useFantasyContext'
 import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRefresh'
 import { LegacySnapshotCard } from './LegacySnapshotCard'
+import { LegacyToolsetGrid } from './LegacyToolsetGrid'
 import { CareerProgressionStrip } from './CareerProgressionStrip'
 import { Crown } from 'lucide-react'
 import { ActionCenter, countActionItems } from './warroom/ActionCenter'
@@ -691,6 +692,8 @@ export function DashboardOverview({
 
   const leagueBuzzSection = <LeagueActivityFeed key="leagueBuzz" />
 
+  const legacyToolsetSection = <LegacyToolsetGrid key="legacyToolset" />
+
   /** Phase 3.1 — Recommendation Timeline (Decision OS "Recommend + Explain" centerpiece). Surfaces
    *  the real AI lineup/start-sit/waiver/matchup signals with their confidence, expected gain, and
    *  inline reasoning. Self-gates when there are no recommendations. */
@@ -764,11 +767,11 @@ export function DashboardOverview({
   const layoutByContext: Record<PrimaryContext, { primary: ReactNode[]; secondary: ReactNode[] }> = {
     global: {
       primary: [platformPulseSection, recommendationsSection, todaysAgendaSection, weeklyGamePlanSection],
-      secondary: [myLeaguesSection, commissionerHubSection, rankingsLegacySection, leagueBuzzSection],
+      secondary: [myLeaguesSection, commissionerHubSection, rankingsLegacySection, legacyToolsetSection, leagueBuzzSection],
     },
     commissioner: {
       primary: [platformPulseSection, commissionerHQSection, todaysAgendaSection, weeklyGamePlanSection],
-      secondary: [myLeaguesSection, rankingsLegacySection, leagueBuzzSection],
+      secondary: [myLeaguesSection, rankingsLegacySection, legacyToolsetSection, leagueBuzzSection],
     },
     team: {
       primary: [
@@ -781,7 +784,7 @@ export function DashboardOverview({
         todaysAgendaSection,
         teamWaiverSection,
       ],
-      secondary: [teamSeasonJourneySection, rankingsLegacySection, leagueBuzzSection],
+      secondary: [teamSeasonJourneySection, rankingsLegacySection, legacyToolsetSection, leagueBuzzSection],
     },
   }
   const layout = layoutByContext[context]
