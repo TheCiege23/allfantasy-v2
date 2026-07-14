@@ -945,6 +945,98 @@
   color: var(--faint);
 }
 
+/* ---------- Portfolio Analytics — real bar charts (Leagues by Season / Platform) ---------- */
+
+.barChartVertical {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  height: 140px;
+  margin-top: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border-2);
+}
+
+.barChartVCol {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.barChartVTrack {
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.barChartVFill {
+  width: 60%;
+  min-width: 10px;
+  border-radius: 4px 4px 0 0;
+  transition: height 0.2s ease;
+}
+
+.barChartVValue {
+  margin-top: 4px;
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.barChartVLabel {
+  margin-top: 2px;
+  font-size: 9.5px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+.barChartHorizontal {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.barChartHRow {
+  display: grid;
+  grid-template-columns: 64px 1fr 24px;
+  align-items: center;
+  gap: 8px;
+}
+
+.barChartHLabel {
+  font-size: 10.5px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barChartHTrack {
+  height: 8px;
+  border-radius: 999px;
+  background: var(--border-2);
+  overflow: hidden;
+}
+
+.barChartHFill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.2s ease;
+}
+
+.barChartHValue {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--text);
+  text-align: right;
+}
+
 /* ---------- League cards ---------- */
 
 .leagues {
