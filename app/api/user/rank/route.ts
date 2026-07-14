@@ -674,11 +674,20 @@ export async function GET(request: Request) {
     }
 
     const d = denormCatchup
-    /** Sleeper `League.import_*` rows drive XP via `calculateAndSaveRank`; prefer profile XP over legacy cache. */
+    // Quarantine fix (audit finding: dormant secondary ranking engine): `calculateAndSaveRank`
+    // — the single canonical XP engine — merges Sleeper imports, legacy Sleeper history, AND
+    // native AF leagues, so `d.xpTotal` is the real total for ANY user it has run for, not
+    // just imported-league users. This used to gate on `importedLeagueRows.length > 0` first,
+    // which meant a legacy-only user (real canonical XP available, just no Sleeper import_*
+    // rows) still silently fell through to `legacyUserRankCache` — a dormant, differently-
+    // weighted engine (win=50/playoff=200/championship=500 vs the canonical win=10/
+    // playoff=30/championship=200) that can be 5-10x off. Canonical XP now wins whenever it
+    // exists; the legacy cache is a true last-resort only when calculateAndSaveRank has
+    // genuinely never run for this user.
     const careerXpBig =
-      importedLeagueRows.length > 0 && d?.xpTotal != null
+      d?.xpTotal != null
         ? BigInt(jsonSafeXp(d.xpTotal))
-        : rankCache.careerXp ?? 0n
+        : rankCache?.careerXp ?? 0n
     const xpTotalNum = Number(careerXpBig)
     const lv = getLevelFromXp(xpTotalNum)
     const tier = lv.tier
