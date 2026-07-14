@@ -30,7 +30,7 @@ const DIFFERENTIATION = [
     tone: 'border-amber-400/35 bg-amber-500/10 text-amber-100',
   },
   {
-    title: 'AF War Room',
+    title: 'AF Legacy',
     icon: Telescope,
     copy: 'Draft room and long-horizon build workflows.',
     tone: 'border-violet-400/35 bg-violet-500/10 text-violet-100',

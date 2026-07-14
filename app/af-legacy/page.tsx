@@ -4446,7 +4446,7 @@ function AFLegacyContent() {
     { id: 'pulse' as Tab, label: 'Market Board', icon: <Radio className="w-4 h-4" />, badge: 'Beta' },
     { id: 'compare' as Tab, label: 'Opponent Behavior', icon: <Swords className="w-4 h-4" /> },
     { id: 'chat' as Tab, label: 'AI Chat', icon: <MessageCircle className="w-4 h-4" />, badge: 'AI' },
-    { id: 'mock-draft' as Tab, label: 'Draft War Room', icon: <LayoutGrid className="w-4 h-4" />, badge: 'AI' },
+    { id: 'mock-draft' as Tab, label: 'AF Legacy Draft', icon: <LayoutGrid className="w-4 h-4" />, badge: 'AI' },
     { id: 'share' as Tab, label: 'League Fairness', icon: <Share2 className="w-4 h-4" /> },
     { id: 'transfer' as Tab, label: 'Imports', icon: <PackageOpen className="w-4 h-4" /> },
     { id: 'strategy' as Tab, label: 'Renegotiation', icon: <Target className="w-4 h-4" />, badge: 'AI' },
@@ -4483,7 +4483,7 @@ function AFLegacyContent() {
     alerts: [],
     profile: [
       { id: 'chat', label: 'AI', icon: <MessageCircle className="w-3.5 h-3.5" /> },
-      { id: 'mock-draft', label: 'War Room', icon: <LayoutGrid className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'mock-draft', label: 'AF Legacy', icon: <LayoutGrid className="w-3.5 h-3.5" />, badge: 'AI' },
       { id: 'share', label: 'Fairness', icon: <Share2 className="w-3.5 h-3.5" /> },
       { id: 'transfer', label: 'Imports', icon: <PackageOpen className="w-3.5 h-3.5" /> },
       { id: 'shop', label: 'History', icon: <ShoppingBag className="w-3.5 h-3.5" /> },

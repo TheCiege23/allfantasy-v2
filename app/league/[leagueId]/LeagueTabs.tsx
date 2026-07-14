@@ -14,6 +14,8 @@ export const NFL_REDRAFT_CORE_TAB_IDS = [
   'draft',
   'roster',
   'matchups',
+  'schedule',
+  'players',
   'waivers',
   'trades',
   'standings',
@@ -26,8 +28,10 @@ export type NflRedraftCoreTabId = (typeof NFL_REDRAFT_CORE_TAB_IDS)[number]
 const FOOTBALL_REDRAFT_COMPACT_TABS: TabDef[] = [
   { id: 'home', label: 'Home' },
   { id: 'draft', label: 'Draft' },
-  { id: 'roster', label: 'Roster' },
+  { id: 'roster', label: 'My Team' },
   { id: 'matchups', label: 'Matchups' },
+  { id: 'schedule', label: 'Schedule' },
+  { id: 'players', label: 'Players' },
   { id: 'waivers', label: 'Waivers' },
   { id: 'trades', label: 'Trades' },
   { id: 'standings', label: 'Standings' },
@@ -50,7 +54,7 @@ const BASKETBALL_LIKE_TABS: TabDef[] = [
   { id: 'trades', label: 'Trade Center' },
   { id: 'scores', label: 'Scores' },
   { id: 'finance', label: 'Finance' },
-  { id: 'war_room', label: 'War Room' },
+  { id: 'war_room', label: 'AF Legacy' },
   { id: 'ai_coaching', label: 'Manager Intelligence' },
   { id: 'history', label: 'History' },
 ]
@@ -66,7 +70,7 @@ const SOCCER_TABS: TabDef[] = [
   { id: 'transfers', label: 'Transfers' },
   { id: 'table', label: 'Table' },
   { id: 'finance', label: 'Finance' },
-  { id: 'war_room', label: 'War Room' },
+  { id: 'war_room', label: 'AF Legacy' },
   { id: 'ai_coaching', label: 'Manager Intelligence' },
   { id: 'history', label: 'History' },
 ]
@@ -80,7 +84,7 @@ const PGA_TABS: TabDef[] = [
   { id: 'waivers', label: 'Waivers' },
   { id: 'schedule', label: 'Schedule' },
   { id: 'finance', label: 'Finance' },
-  { id: 'war_room', label: 'War Room' },
+  { id: 'war_room', label: 'AF Legacy' },
   { id: 'ai_coaching', label: 'Manager Intelligence' },
   { id: 'history', label: 'History' },
 ]

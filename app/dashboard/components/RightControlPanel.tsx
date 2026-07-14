@@ -31,7 +31,7 @@ function resolvePlanChip(ents: ReturnType<typeof useEntitlements>): {
   if (ents.hasSupreme) return { label: 'AF Supreme', dotClass: 'bg-purple-400' }
   if (ents.hasAllAccess) return { label: 'AF All-Access', dotClass: 'bg-cyan-400' }
   if (ents.hasCommissioner) return { label: 'AF Commissioner', dotClass: 'bg-amber-400' }
-  if (ents.hasWarRoom) return { label: 'AF War Room', dotClass: 'bg-blue-400' }
+  if (ents.hasWarRoom) return { label: 'AF Legacy', dotClass: 'bg-blue-400' }
   if (ents.hasPro) return { label: 'AF Pro', dotClass: 'bg-cyan-400' }
   return { label: 'Free', dotClass: 'bg-white/30' }
 }

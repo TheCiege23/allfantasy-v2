@@ -141,7 +141,7 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
       },
       {
         title: 'Mock draft simulator',
-        description: 'Practice drafts with AI helpers and War Room context.',
+        description: 'Practice drafts with AI helpers and AF Legacy context.',
         href: '/mock-draft-simulator',
         icon: Wrench,
       },
@@ -178,7 +178,7 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
       {
         featureId: 'draft_strategy_build',
         title: 'Draft strategy builder',
-        description: 'Session-based draft strategy builds (War Room).',
+        description: 'Session-based draft strategy builds (AF Legacy).',
         href: '/mock-draft-simulator',
         cta: 'Open mock draft',
       },
@@ -194,7 +194,7 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
         title: 'Future-year planning',
         description: 'Multi-season roster and pick planning.',
         href: '/war-room',
-        cta: 'View War Room hub',
+        cta: 'View AF Legacy hub',
       },
       {
         featureId: 'multi_year_strategy',
@@ -213,7 +213,7 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
       {
         featureId: 'war_room_devy_rankings',
         title: 'Devy rankings',
-        description: 'Collegiate and devy asset rankings (War Room).',
+        description: 'Collegiate and devy asset rankings (AF Legacy).',
         href: '/app/dynasty-insights',
         cta: 'View devy context',
       },
@@ -227,7 +227,7 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
       {
         featureId: 'war_room_pipeline_analysis',
         title: 'Pipeline analysis',
-        description: 'Prospect and pipeline evaluation (War Room).',
+        description: 'Prospect and pipeline evaluation (AF Legacy).',
         href: '/trade-finder',
         cta: 'Analyze pipeline',
       },
@@ -247,7 +247,7 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
               <Telescope className="h-4 w-4 text-violet-200" strokeWidth={2} />
             </span>
             <div>
-              <h1 className="text-lg font-bold tracking-tight text-white md:text-xl">AF War Room</h1>
+              <h1 className="text-lg font-bold tracking-tight text-white md:text-xl">AF Legacy</h1>
               <p className="text-[12px] text-white/45">
                 Strategy, draft prep, and meta — scoped for{' '}
                 <span className="text-white/65">{league.name}</span> · {sportU}
@@ -329,7 +329,7 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
       <section className="space-y-2">
         <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/40">Always-on tools</h2>
         <p className="text-[11px] text-white/35">
-          Open meta, strategy, mock draft, and trade tools. Some flows may prompt for AF War Room or tokens where
+          Open meta, strategy, mock draft, and trade tools. Some flows may prompt for AF Legacy or tokens where
           policy requires.
         </p>
         <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
@@ -340,9 +340,9 @@ export function WarRoomTab({ league, sport, dashboardEmbed = false }: WarRoomTab
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/40">AF War Room premium</h2>
+        <h2 className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/40">AF Legacy premium</h2>
         <p className="text-[11px] text-white/35">
-          Gated capabilities — unlock with AF War Room or eligible token spend. Upgrade from the spotlight above.
+          Gated capabilities — unlock with AF Legacy or eligible token spend. Upgrade from the spotlight above.
         </p>
         <div className="grid gap-3 sm:grid-cols-2">
           {gatedTools.map((t) => (

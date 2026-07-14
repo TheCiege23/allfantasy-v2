@@ -34,7 +34,7 @@ type ShellState =
 
 const SERVICE_FALLBACK_LABELS: Record<NflRedraftPremiumServiceId, string> = {
   basic_runtime_facts: 'Basic Runtime Facts',
-  war_room: 'AF War Room',
+  war_room: 'AF Legacy',
   commissioner_digest: 'AF Commissioner Digest',
   manager_brief: 'AF Manager Brief',
   matchup_prep: 'Matchup Prep',
@@ -48,7 +48,7 @@ const TIER_LABELS: Record<NflRedraftPremiumTier, string> = {
   AF_PRO: 'AF Pro',
   AF_COMMISSIONER: 'AF Commissioner',
   AF_SUPREME: 'AF Supreme',
-  AF_WAR_ROOM: 'AF War Room',
+  AF_WAR_ROOM: 'AF Legacy',
 }
 
 function cx(...values: Array<string | false | null | undefined>): string {

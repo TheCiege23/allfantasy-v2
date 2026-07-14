@@ -44,7 +44,7 @@ export function BillingSettingsSection() {
                 )}
                 {!ents.hasAllAccess && ents.hasWarRoom && (
                   <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold text-amber-300">
-                    AF War Room
+                    AF Legacy
                   </span>
                 )}
               </div>

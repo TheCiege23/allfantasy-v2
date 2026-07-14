@@ -17,17 +17,17 @@ export function WarRoomPreview() {
     <>
       <div className={styles.sectionHead}>
         <div className={styles.sectionHeadLeft}>
-          <h2>🎯 War Room</h2>
+          <h2>🎯 AF Legacy</h2>
         </div>
       </div>
       <div className={styles.legacyCard}>
         <div className={styles.legacyBody}>
-          <FeatureGate featureId="future_planning" featureNameOverride="War Room draft strategy">
+          <FeatureGate featureId="future_planning" featureNameOverride="AF Legacy draft strategy">
             <p style={{ fontSize: 13, color: 'var(--muted)', lineHeight: 1.5 }}>
               Pick recommendations, tier-cliff alerts, and roster-build strategy for your next draft.
             </p>
             <Link href="/war-room" className={`${styles.cta}`} style={{ marginTop: 12, display: 'inline-block', width: 'fit-content', padding: '9px 18px' }}>
-              Open War Room →
+              Open AF Legacy →
             </Link>
           </FeatureGate>
         </div>

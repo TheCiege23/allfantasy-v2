@@ -84,7 +84,7 @@ export function getDisplayPlanName(planId: SubscriptionPlanId): string {
     case "commissioner":
       return "AF Commissioner"
     case "war_room":
-      return "AF War Room"
+      return "AF Legacy"
     case "all_access":
       return "AF All-Access Bundle"
     case "supreme":
