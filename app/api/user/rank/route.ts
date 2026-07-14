@@ -714,7 +714,12 @@ export async function GET(request: Request) {
       aiInsight,
       winRate: Math.round(winRateForDisplay * 10) / 10,
       playoffRate: Math.round(playoffRateForDisplay * 10) / 10,
-      championshipCount,
+      // Branch-aware, matching careerStats.championships used everywhere else in this file
+      // (lines 390/481) — this used to read the raw legacy-table-only `championshipCount`
+      // regardless of whether the user's real championship data actually came from Sleeper
+      // imports, so a user with both import and legacy history could see two different
+      // championship counts depending on which response branch/UI surface read them.
+      championshipCount: careerStats.championships,
       seasonsPlayed: careerStats.seasonsPlayed,
       totalWins: careerStats.totalWins,
       totalLosses: careerStats.totalLosses,
