@@ -7219,25 +7219,8 @@ function AFLegacyContent() {
                                   </div>
                                 </div>
 
-                                <div className="rounded-2xl bg-white/5 border border-white/10 p-3">
-                                  <div className="text-[11px] text-white/50">With AI (Low → Mid → High)</div>
-                                  <div className="mt-1 flex items-baseline gap-2 flex-wrap">
-                                    <span className="text-sm text-green-300">
-                                      {safeNum(rankingPreview?.yearly_projection?.ai_low_year_xp, 0).toLocaleString()}
-                                    </span>
-                                    <span className="text-white/30">→</span>
-                                    <span className="text-base font-bold text-cyan-200">
-                                      {safeNum(rankingPreview?.yearly_projection?.ai_mid_year_xp, 0).toLocaleString()}
-                                    </span>
-                                    <span className="text-white/30">→</span>
-                                    <span className="text-sm text-purple-200">
-                                      {safeNum(rankingPreview?.yearly_projection?.ai_high_year_xp, 0).toLocaleString()}
-                                    </span>
-                                  </div>
-                                </div>
-
                                 <div className="text-[11px] text-white/50">
-                                  * Projections are estimates from your imported history + difficulty multipliers.
+                                  * Estimate from your imported history + difficulty multipliers.
                                 </div>
                               </div>
 
