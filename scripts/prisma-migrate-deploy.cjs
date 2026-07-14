@@ -135,7 +135,19 @@ function normalizeDatabaseUrl(candidate, poolerUrl, sourceKey) {
   }
 }
 
-const envPath = path.join(process.cwd(), ".env");
+// --prod: explicit, deliberate production deploy. Loads .env.prod-deploy (git-ignored,
+// never auto-loaded by anything else) instead of the default .env, which as of 2026-07-14
+// points at the safe dev branch. Requires ALLOW_PROD_MIGRATION=1 as a second, independent
+// confirmation — `--prod` alone is not enough. See prisma-cli-env-override-danger memory.
+const targetsProd = process.argv.includes("--prod");
+if (targetsProd && process.env.ALLOW_PROD_MIGRATION !== "1") {
+  console.error(
+    "\n[db:migrate:deploy] REFUSING --prod without ALLOW_PROD_MIGRATION=1 set explicitly.\n" +
+      "Run: ALLOW_PROD_MIGRATION=1 npm run db:migrate:deploy:prod\n"
+  );
+  process.exit(1);
+}
+const envPath = path.join(process.cwd(), targetsProd ? ".env.prod-deploy" : ".env");
 const envKeys = [
   "DATABASE_URL",
   "DIRECT_URL",
@@ -146,9 +158,12 @@ const envKeys = [
 const fileEnv = Object.fromEntries(
   envKeys.map((key) => [key, readEnvFileValue(envPath, key)])
 );
-const runtimeEnv = Object.fromEntries(
-  envKeys.map((key) => [key, process.env[key] || null])
-);
+// In --prod mode, ignore ambient runtime env vars entirely so a stray local DATABASE_URL
+// (dev branch, from .env.local having been sourced into the shell) can't silently override
+// the deliberately-loaded prod file — .env.prod-deploy is the sole source of truth here.
+const runtimeEnv = targetsProd
+  ? Object.fromEntries(envKeys.map((key) => [key, null]))
+  : Object.fromEntries(envKeys.map((key) => [key, process.env[key] || null]));
 
 const { url: databaseUrl, reason } = selectDatabaseUrl(runtimeEnv, fileEnv);
 
