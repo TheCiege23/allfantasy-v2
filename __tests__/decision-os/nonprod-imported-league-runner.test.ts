@@ -28,7 +28,7 @@ describe('ADR-DOS-F0: both scripts gate the database the same way the conformanc
       expect(`${path}:hasDatabaseUrl`).toBe(`${path}:${src.includes('hasDatabaseUrl') ? 'hasDatabaseUrl' : 'MISSING'}`)
       expect(`${path}:SKIP`).toBe(`${path}:${/SKIPPED/.test(src) ? 'SKIP' : 'MISSING'}`)
       // Prod host hard-refusal.
-      expect(`${path}:prodmarker`).toBe(`${path}:${src.includes('ep-curly-block') ? 'prodmarker' : 'MISSING'}`)
+      expect(`${path}:prodmarker`).toBe(`${path}:${src.includes('ep-spring-tooth') ? 'prodmarker' : 'MISSING'}`)
       // The prisma singleton is imported dynamically AFTER the gate (so the skip/refuse path never
       // evaluates it): there must be no top-of-file static `import ... '@/lib/prisma'` / `'../lib/prisma'`.
       expect(`${path}:no-static-prisma`).toBe(
@@ -38,8 +38,8 @@ describe('ADR-DOS-F0: both scripts gate the database the same way the conformanc
   })
 
   it('the prod-host refusal regex actually catches a prod URL (positive control)', () => {
-    const refuse = (host: string) => host.includes('ep-curly-block')
-    expect(refuse('ep-curly-block-12345.us-east-2.aws.neon.tech')).toBe(true)
+    const refuse = (host: string) => host.includes('ep-spring-tooth')
+    expect(refuse('ep-spring-tooth-12345.us-east-2.aws.neon.tech')).toBe(true)
     expect(refuse('ep-winter-salad-67890.us-east-2.aws.neon.tech')).toBe(false)
   })
 })

@@ -14,7 +14,7 @@
  *     product writes on every real import.
  *   • NEVER writes Canonical World (lib/decision-os/world is a derived, storage-less, find*-only layer —
  *     this runner imports no world write surface because none exists; it only READS via resolveCanonicalWorld).
- *   • HARD-REFUSES the production DB host (ep-curly-block) and SKIPs cleanly without DATABASE_URL.
+ *   • HARD-REFUSES the production DB host (ep-spring-tooth) and SKIPs cleanly without DATABASE_URL.
  *   • Idempotent: re-runs short-circuit a completed ImportRun; `--force` re-imports over an existing league.
  *
  *     DATABASE_URL=<non-prod db> npx tsx scripts/decision-os-import-sleeper-nonprod.ts [options]
@@ -30,7 +30,7 @@
  */
 import { hasDatabaseUrl, resolveDatabaseUrl } from '../lib/env/database-url'
 
-const PROD_HOST_MARKER = 'ep-curly-block'
+const PROD_HOST_MARKER = 'ep-spring-tooth'
 
 function arg(name: string): string | undefined {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`))

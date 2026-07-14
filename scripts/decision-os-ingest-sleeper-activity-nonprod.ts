@@ -24,7 +24,7 @@
  *
  * Safety, mirroring every existing `scripts/decision-os-*-nonprod.ts` script exactly:
  *   - Skips cleanly without a DATABASE_URL.
- *   - Hard-refuses the production DB host (`ep-curly-block`).
+ *   - Hard-refuses the production DB host (`ep-spring-tooth`).
  *   - Requires an EXPLICIT, already-imported AF league id — no auto-discovery, no production
  *     league enumeration, ever.
  *   - Read-only against AF-native tables (`League`, `LeagueTeam`, `Roster`, `UserProfile`) — this
@@ -66,7 +66,7 @@ import {
   shouldWarnPossibleSilentFetchFailure,
 } from './decision-os-ingest-sleeper-activity-helpers'
 
-const PROD_HOST_MARKER = 'ep-curly-block'
+const PROD_HOST_MARKER = 'ep-spring-tooth'
 
 function arg(name: string): string | undefined {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`))

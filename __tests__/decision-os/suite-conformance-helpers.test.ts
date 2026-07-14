@@ -18,8 +18,8 @@ import {
 
 describe('hostOf / isProductionHost', () => {
   it('extracts the host from a postgres URL', () => {
-    expect(hostOf('postgresql://user:pass@ep-curly-block.us-east-1.aws.neon.tech/db')).toBe(
-      'ep-curly-block.us-east-1.aws.neon.tech',
+    expect(hostOf('postgresql://user:pass@ep-spring-tooth.us-east-1.aws.neon.tech/db')).toBe(
+      'ep-spring-tooth.us-east-1.aws.neon.tech',
     )
   })
 
@@ -29,7 +29,7 @@ describe('hostOf / isProductionHost', () => {
   })
 
   it('flags the production host marker', () => {
-    expect(isProductionHost('postgresql://user:pass@ep-curly-block.us-east-1.aws.neon.tech/db')).toBe(true)
+    expect(isProductionHost('postgresql://user:pass@ep-spring-tooth.us-east-1.aws.neon.tech/db')).toBe(true)
   })
 
   it('does not flag a non-production host', () => {
@@ -38,7 +38,7 @@ describe('hostOf / isProductionHost', () => {
   })
 
   it('the exported marker matches the existing scripts/decision-os-*-nonprod.ts convention', () => {
-    expect(PROD_HOST_MARKER).toBe('ep-curly-block')
+    expect(PROD_HOST_MARKER).toBe('ep-spring-tooth')
   })
 })
 

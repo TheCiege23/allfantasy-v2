@@ -16,7 +16,7 @@
  */
 import { hasDatabaseUrl, resolveDatabaseUrl } from '../lib/env/database-url'
 
-const PROD_HOST_MARKER = 'ep-curly-block'
+const PROD_HOST_MARKER = 'ep-spring-tooth'
 
 let failures = 0
 const check = (name: string, ok: boolean, detail = '') => {

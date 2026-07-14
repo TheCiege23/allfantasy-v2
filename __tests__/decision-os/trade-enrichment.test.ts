@@ -401,7 +401,7 @@ describe('E.5 (7)+(8) — validation script gating', () => {
 
   it('refuses the production database host before doing any work', () => {
     expect(src).toMatch(/refusing production DB/i)
-    expect(src).toContain('ep-curly-block')
+    expect(src).toContain('ep-spring-tooth')
     const refuseIdx = src.indexOf('refusing production DB')
     const prismaImportIdx = src.indexOf("await import('../lib/prisma')")
     expect(refuseIdx).toBeLessThan(prismaImportIdx) // refusal happens before prisma is pulled

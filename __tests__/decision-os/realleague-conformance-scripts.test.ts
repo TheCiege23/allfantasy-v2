@@ -24,7 +24,7 @@ describe('ADR-DOS-F1: each conformance script gates + refuses prod like the trad
       expect(src).toContain('hasDatabaseUrl')
       expect(src).toMatch(/SKIPPED \(no DATABASE_URL\)/)
       // Prod host hard-refusal.
-      expect(src).toContain('ep-curly-block')
+      expect(src).toContain('ep-spring-tooth')
       expect(src).toMatch(/refusing production DB host/i)
       // Prisma imported dynamically AFTER the gate — no top-level static prisma import.
       expect(/^import\s+[^\n]*\bprisma\b[^\n]*from\s+['"][^'"]*lib\/prisma['"]/m.test(src)).toBe(false)
@@ -43,8 +43,8 @@ describe('ADR-DOS-F1: each conformance script gates + refuses prod like the trad
   }
 
   it('the prod-host refusal regex actually catches a prod URL (positive control)', () => {
-    const refuse = (host: string) => host.includes('ep-curly-block')
-    expect(refuse('ep-curly-block-12345.aws.neon.tech')).toBe(true)
+    const refuse = (host: string) => host.includes('ep-spring-tooth')
+    expect(refuse('ep-spring-tooth-12345.aws.neon.tech')).toBe(true)
     expect(refuse('ep-winter-salad-67890.aws.neon.tech')).toBe(false)
   })
 })

@@ -51,7 +51,7 @@ function legacySummaryFor(leagueId: string): LineupActionSummaryPayload {
   const prisma = new PrismaClient()
   const host = (() => { try { return new URL((process.env.DATABASE_URL ?? '').replace(/^postgres(ql)?:\/\//, 'http://')).host } catch { return '?' } })()
   console.log(`Slice 1 staging parity — DB host: ${host}`)
-  if (host.includes('ep-curly-block')) { console.error('REFUSING to run against the production host.'); process.exit(2) }
+  if (host.includes('ep-spring-tooth')) { console.error('REFUSING to run against the production host.'); process.exit(2) }
 
   const events: { event: string; flags?: Record<string, unknown> }[] = []
   registerDecisionTelemetrySink((e) => events.push(e as never))

@@ -30,7 +30,10 @@
  */
 import { hasDatabaseUrl, resolveDatabaseUrl } from '../lib/env/database-url'
 
-const PROD_HOST_MARKER = 'ep-curly-block'
+// Verified against the live Neon console 2026-07-14: the "production" branch's
+// endpoint is ep-spring-tooth-adaoi9x1, NOT ep-curly-block (that's the
+// claude-dashboard-local-dev branch — a real but non-prod clone).
+const PROD_HOST_MARKER = 'ep-spring-tooth'
 
 function hostOf(url: string | null): string {
   if (!url) return '?'

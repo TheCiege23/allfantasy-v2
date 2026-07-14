@@ -37,7 +37,7 @@ const check = (name: string, ok: boolean, detail = '') => {
     }
   })()
   console.log(`Slice 2 staging parity — DB host: ${host}`)
-  if (host.includes('ep-curly-block')) {
+  if (host.includes('ep-spring-tooth')) {
     console.error('REFUSING to run against the production host.')
     process.exit(2)
   }
