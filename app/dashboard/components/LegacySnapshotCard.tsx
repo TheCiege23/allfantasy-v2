@@ -33,10 +33,16 @@ export function LegacySnapshotCard({ rankPayload }: LegacySnapshotCardProps) {
     return
   }, [])
 
-  const rank = rankPayload?.rank ?? rankPayload?.overallRank ?? null
-  const tier = rankPayload?.tier ?? rankPayload?.tierLabel ?? rankPayload?.tierName ?? null
+  // `/api/user/rank` has no top-level scalar `rank`/`overallRank` field — those never
+  // existed, so this tile always rendered "—" (or "[object Object]" once `rank` here
+  // shadowed the API's *nested* `rank` object). The real rank title lives at
+  // `levelName`/`tierName` (both `lv.name` from lib/rank/levels.ts, e.g. "Grizzled Vet"),
+  // with `rank.careerTierName` as a fallback for older cached payload shapes.
+  const rankObj = rankPayload?.rank as Record<string, unknown> | null | undefined
+  const rank = rankPayload?.levelName ?? rankPayload?.tierName ?? rankObj?.careerTierName ?? null
+  const tier = rankPayload?.tier ?? rankObj?.careerTier ?? null
   const archetype = rankPayload?.managerArchetype ?? rankPayload?.archetype ?? null
-  const xp = rankPayload?.xp ?? rankPayload?.totalXp ?? rankPayload?.xpTotal ?? null
+  const xp = rankPayload?.xpTotal ?? rankPayload?.xp ?? rankPayload?.totalXp ?? null
   const imported = Boolean(rankPayload?.imported)
 
   const hasAnyValue = rank != null || tier != null || archetype != null || xp != null
