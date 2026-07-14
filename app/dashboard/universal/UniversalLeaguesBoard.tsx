@@ -475,10 +475,10 @@ function EmptyState({ guestMode }: { guestMode: boolean }) {
     return (
       <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] px-6 py-14 text-center">
         <Trophy className="mx-auto h-8 w-8 text-white/25" aria-hidden />
-        <h2 className="mt-3 text-[16px] font-bold text-white">Your league board unlocks with a free account</h2>
+        <h2 className="mt-3 text-[16px] font-bold text-white">No Sleeper leagues found for that username</h2>
         <p className="mx-auto mt-1 max-w-sm text-[13px] text-white/45">
-          Your Legacy Score below is real — pulled from your Sleeper history. Sign up free to connect your
-          leagues from Sleeper, ESPN, Yahoo, and more and see them all here with health and next-action insight.
+          Your Legacy Score below is real — pulled from your Sleeper history. Sign up free to save this preview
+          and connect more leagues from ESPN, Yahoo, and more.
         </p>
         <div className="mt-5 flex flex-wrap justify-center gap-2">
           <Link

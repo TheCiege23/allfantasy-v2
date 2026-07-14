@@ -692,6 +692,7 @@ model LegacyLeague {
   isSF            Boolean              @default(false)
   isTEP           Boolean              @default(false)
   tepBonus        Float?
+  isCommissioner  Boolean              @default(false)
   user            LegacyUser           @relation(fields: [userId], references: [id], onDelete: Cascade)
   rosters         LegacyRoster[]
   seasonSummary   LegacySeasonSummary?

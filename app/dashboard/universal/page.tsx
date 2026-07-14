@@ -4,7 +4,7 @@ import { getServerSession } from 'next-auth'
 import type { Metadata } from 'next'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
+import { getDashboardLeagueListForUser, getLegacyLeagueBoardItems } from '@/lib/dashboard/get-dashboard-league-list'
 import type { UserLeague } from '@/app/dashboard/types'
 import { GUEST_SESSION_COOKIE_NAME, verifyGuestSessionToken } from '@/lib/guest-mode/guestSessionToken'
 import { UniversalLeaguesBoard } from './UniversalLeaguesBoard'
@@ -52,9 +52,11 @@ export default async function UniversalDashboardPage() {
       redirect('/login?callbackUrl=/dashboard/universal')
     }
 
+    const guestLeagues = (await getLegacyLeagueBoardItems(guest.legacyUserId).catch(() => [])) as UserLeague[]
+
     return (
-      <UniversalDashboardShell leagues={[]} guestMode guestDisplayName={legacyUser.displayName || legacyUser.sleeperUsername}>
-        <UniversalLeaguesBoard leagues={[]} guestSleeperUsername={legacyUser.sleeperUsername} />
+      <UniversalDashboardShell leagues={guestLeagues} guestMode guestDisplayName={legacyUser.displayName || legacyUser.sleeperUsername}>
+        <UniversalLeaguesBoard leagues={guestLeagues} guestSleeperUsername={legacyUser.sleeperUsername} />
       </UniversalDashboardShell>
     )
   }
