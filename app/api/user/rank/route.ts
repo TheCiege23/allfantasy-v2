@@ -752,8 +752,13 @@ export async function GET(request: Request) {
       careerLosses: d?.careerLosses ?? careerStats.totalLosses,
       careerChampionships: d?.careerChampionships ?? careerStats.championships,
       careerPlayoffAppearances: d?.careerPlayoffAppearances ?? careerStats.playoffAppearances,
-      careerSeasonsPlayed: d?.careerSeasonsPlayed ?? careerStats.seasonsPlayed,
-      careerLeaguesPlayed: d?.careerLeaguesPlayed ?? careerStats.leaguesPlayed,
+      // Same DB-to-API un-swap as careerStatsFromProfileDenorm above: `career_leagues_played`
+      // holds the distinct-season count, `career_seasons_played` holds the league-row count.
+      // This block used to read the raw (swapped) DB fields straight through, so these two
+      // top-level response keys — the ones CareerProgressionStrip actually renders — were
+      // inverted even though the corrected values already existed in `careerStats`/`stats`.
+      careerSeasonsPlayed: d?.careerLeaguesPlayed ?? careerStats.seasonsPlayed,
+      careerLeaguesPlayed: d?.careerSeasonsPlayed ?? careerStats.leaguesPlayed,
       rankCalculatedAt: d?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
     }
 
