@@ -29,6 +29,8 @@ type LinkSocialAccountInput = {
   providerAccountId: string;
   type?: string | null;
   email?: string | null;
+  /** True only when the provider itself asserts this email is verified. Never trust a bare email claim for account linking. */
+  emailVerified?: boolean;
   name?: string | null;
   image?: string | null;
   refreshToken?: string | null;
@@ -132,6 +134,7 @@ export async function linkSocialAccountToAppUser(
     typeof input.email === "string" && input.email.trim().includes("@")
       ? normalizeEmailAddress(input.email)
       : null;
+  const providerVerifiedEmail = input.emailVerified === true;
 
   const existingAccount = await prisma.authAccount.findFirst({
     where: {
@@ -159,7 +162,10 @@ export async function linkSocialAccountToAppUser(
         })
       : null;
 
-  if (!user && normalizedEmail) {
+  // Only link to an EXISTING AppUser by email match when the provider itself
+  // asserts the email is verified. An unverified email claim must never be
+  // trusted to take over someone else's account.
+  if (!user && normalizedEmail && providerVerifiedEmail) {
     user = await prisma.appUser.findFirst({
       where: {
         email: { equals: normalizedEmail, mode: "insensitive" },
@@ -206,7 +212,7 @@ export async function linkSocialAccountToAppUser(
             username,
             displayName: displayNameBase || username,
             avatarUrl: input.image?.trim() || null,
-            emailVerified: new Date(),
+            emailVerified: providerVerifiedEmail ? new Date() : null,
             passwordHash,
           },
           select,
@@ -214,6 +220,14 @@ export async function linkSocialAccountToAppUser(
       } catch (error) {
         if (!isUniqueConstraintError(error)) {
           throw error;
+        }
+
+        // The email is already taken by another AppUser. If the provider
+        // didn't verify this email, we cannot safely assume the OAuth user
+        // and the existing account owner are the same person — refuse
+        // rather than silently linking to a stranger's account.
+        if (!providerVerifiedEmail) {
+          throw new Error("SOCIAL_EMAIL_UNVERIFIED");
         }
 
         user = await prisma.appUser.findFirst({
@@ -238,7 +252,7 @@ export async function linkSocialAccountToAppUser(
     emailVerified?: Date;
   } = {};
 
-  if (user && normalizedEmail && user.email.toLowerCase() !== normalizedEmail) {
+  if (user && normalizedEmail && providerVerifiedEmail && user.email.toLowerCase() !== normalizedEmail) {
     const conflictingEmailOwner = await prisma.appUser.findFirst({
       where: {
         email: { equals: normalizedEmail, mode: "insensitive" },
@@ -252,7 +266,7 @@ export async function linkSocialAccountToAppUser(
     }
   }
 
-  if (user && !user.emailVerified && normalizedEmail) {
+  if (user && !user.emailVerified && normalizedEmail && providerVerifiedEmail) {
     userUpdates.emailVerified = new Date();
   }
 
