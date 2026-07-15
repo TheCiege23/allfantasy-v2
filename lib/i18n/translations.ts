@@ -1122,10 +1122,10 @@ export const translations: Record<string, Record<string, string>> = {
     "draftRoom.managerStrip.claiming": "Claiming…",
     "draftRoom.managerStrip.aria.claim": "Claim this open team",
 
-    "draftRoom.warRoom.leagueDraft.title": "League AF Legacy Draft",
+    "draftRoom.warRoom.leagueDraft.title": "AF Legacy Draft Room",
     "draftRoom.warRoom.leagueDraft.description":
-      "Open legacy war room planning tools for deeper draft decision support.",
-    "draftRoom.warRoom.mockDraft.title": "AF Legacy Mock Draft",
+      "Open the AF Legacy Draft Room for deeper draft decision support.",
+    "draftRoom.warRoom.mockDraft.title": "AF Legacy Mock Draft Room",
     "draftRoom.warRoom.mockDraft.description":
       "Open advanced draft planning with queue strategy and live board context.",
 

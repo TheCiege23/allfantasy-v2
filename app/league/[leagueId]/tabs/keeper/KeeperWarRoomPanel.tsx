@@ -140,14 +140,14 @@ export function KeeperWarRoomPanel({ leagueId }: { leagueId: string }) {
   if (loading) {
     return (
       <div className="flex items-center gap-2 rounded-xl border border-white/[0.08] bg-[#07071a] p-4 text-[12px] text-white/50" data-testid="keeper-war-room-loading">
-        <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> Loading Keeper AF Legacy…
+        <Loader2 className="h-4 w-4 animate-spin text-violet-300" /> Loading AF Legacy — Keeper…
       </div>
     )
   }
   if (error || !context) {
     return (
       <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[12px] text-amber-100/90" data-testid="keeper-war-room-error">
-        {error ?? 'Keeper AF Legacy is unavailable for this league.'}
+        {error ?? 'AF Legacy — Keeper is unavailable for this league.'}
       </div>
     )
   }
@@ -159,7 +159,7 @@ export function KeeperWarRoomPanel({ leagueId }: { leagueId: string }) {
     <section className="space-y-3 rounded-xl border border-violet-400/20 bg-[#0a0820] p-4" data-testid="keeper-war-room-panel">
       <div className="flex items-center gap-2">
         <Sparkles className="h-4 w-4 text-violet-300" />
-        <h2 className="text-sm font-bold text-white">Keeper AF Legacy</h2>
+        <h2 className="text-sm font-bold text-white">AF Legacy — Keeper</h2>
         <span className="rounded-full bg-violet-500/15 px-2 py-0.5 text-[10px] font-semibold text-violet-200">
           {context.sport} · {context.scoring.scoringPreset}
         </span>

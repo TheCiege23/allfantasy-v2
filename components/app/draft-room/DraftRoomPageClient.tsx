@@ -5071,7 +5071,7 @@ export function DraftRoomPageClient({
         the popup body now, so power users still have one-click access to
         starter balance / positional mix / AI guidance, but the layout reclaims
         that left column for the player table. */}
-    <WarRoomPopup hasNewIntel={warRoomHasNewIntel} triggerLabel="AF Legacy">
+    <WarRoomPopup hasNewIntel={warRoomHasNewIntel} triggerLabel="AF Legacy Draft Room">
       <DraftTeamPanel {...draftTeamPanelProps} redraftStarterHints={redraftStarterHints} />
     </WarRoomPopup>
     <DraftRoomSettingsModal
