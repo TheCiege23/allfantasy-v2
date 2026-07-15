@@ -57,6 +57,29 @@
   --color-decision-soft: rgba(124,58,237,0.10);
   --color-commissioner: #0f766e;
   --color-commissioner-soft: rgba(15,118,110,0.10);
+
+  /* Phase 2 mockup token bridge (_design-mocks/*.html) — reuses the existing brand palette above
+     rather than a second, parallel accent system. The mockups are dark-only; these light-mode
+     values are this reconciliation's own derivation, not pixel-matched against a light mockup
+     (none exists) — verify visually once real Phase 2 surfaces render. --panel-2/--border-2/--faint
+     are genuinely new (no existing app equivalent); --bg/--panel/--border/--text/--muted already
+     exist above unchanged. */
+  --panel-2: #F8FAFC;
+  --border-2: rgba(2,6,23,0.16);
+  --faint: rgba(2,6,23,0.38);
+  --purple: var(--color-secondary);
+  --purple-2: #6d28d9;
+  --cyan: var(--color-accent);
+  --blue: var(--color-primary);
+  --green: var(--color-success);
+  --red: var(--color-danger);
+  --amber: var(--color-warning);
+  --orange: #c2410c;
+  --s-cyan: #0e7490;
+  --s-purple: #6d28d9;
+  --s-amber: #92400e;
+  --s-green: #065f46;
+
   --shadow-card: 0 18px 56px -42px rgba(2,6,23,0.35);
   --shadow-popover: 0 24px 72px -40px rgba(2,6,23,0.40);
   --focus-ring: 0 0 0 3px color-mix(in srgb, var(--color-primary) 28%, transparent);
@@ -792,6 +815,25 @@ html[data-mode="dark"] {
   --muted: rgba(255,255,255,0.68);
   --muted2: rgba(255,255,255,0.48);
   --accent: #7C3AED;
+
+  /* Phase 2 mockup token bridge — real values from _design-mocks/*.html's own dark :root (the
+     mockups' only rendered mode). --bg/--panel/--border/--text/--muted above are the app's existing
+     tokens, unchanged; --panel-2/--border-2/--faint are genuinely new. */
+  --panel-2: rgba(255,255,255,0.05);
+  --border-2: rgba(255,255,255,0.12);
+  --faint: rgba(255,255,255,0.38);
+  --purple: #8b5cf6;
+  --purple-2: #7c3aed;
+  --cyan: #22d3ee;
+  --blue: #2b8fff;
+  --green: #34d399;
+  --red: #f87171;
+  --amber: #fbbf24;
+  --orange: #fb923c;
+  --s-cyan: #0891b2;
+  --s-purple: #8b5cf6;
+  --s-amber: #d97706;
+  --s-green: #059669;
 
   --surface-app: var(--bg);
   --surface-card: var(--panel);

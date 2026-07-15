@@ -43,7 +43,7 @@ function hostOf(url: string | null): string {
 
   const host = hostOf(resolveDatabaseUrl())
   console.log(`Phase D.2 world conformance — READ-ONLY (find* only) — DB host: ${host}`)
-  if (host.includes('ep-curly-block')) {
+  if (host.includes('ep-spring-tooth')) {
     console.log('⚠️  This is the PRODUCTION host. Proceeding because this script is strictly read-only (no writes).')
   }
 

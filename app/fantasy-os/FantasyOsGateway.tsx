@@ -9,7 +9,7 @@
  */
 import { useMemo, useState } from 'react'
 import Link from 'next/link'
-import { LayoutGrid, Shield, ArrowRight, Compass, Eye, Radio } from 'lucide-react'
+import { LayoutGrid, Shield, ArrowRight, Compass, Eye, Radio, BarChart3 } from 'lucide-react'
 import { resolveTenantBrand, tenantThemeStyle } from '@/lib/white-label'
 import DemoStateBadge from '@/components/fantasy-os/DemoStateBadge'
 
@@ -125,6 +125,25 @@ export default function FantasyOsGateway({
           Platform OS summarizes every league; open a single league for its League, Trade and roster
           systems.
         </p>
+      </section>
+
+      {/* ── Executive Intelligence entry — deterministic portfolio analytics ── */}
+      <section aria-label="Executive Intelligence" className="mt-5 card-premium p-5 sm:p-6">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-brand-primary" aria-hidden />
+          <h2 className="text-[13px] font-bold uppercase tracking-widest text-secondary">Executive Intelligence</h2>
+        </div>
+        <p className="mt-3 max-w-xl text-[13px] leading-relaxed text-secondary">
+          A deterministic, evidence-backed portfolio view across every connected league season — platform,
+          league, commissioner, trade, waiver, draft and manager intelligence, each labeled by data source.
+        </p>
+        <Link
+          href="/fantasy-os/executive"
+          className="focus-ring mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-primary/10 px-5 py-2.5 text-[14px] font-bold text-brand-primary transition hover:bg-brand-primary/15"
+        >
+          Open Executive Intelligence
+          <ArrowRight className="h-4 w-4" aria-hidden />
+        </Link>
       </section>
 
       {/* ── Demo mode entry — honest preview vs live distinction ── */}

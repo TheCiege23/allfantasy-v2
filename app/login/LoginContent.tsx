@@ -517,7 +517,9 @@ export default function LoginContent() {
                     ? "Social sign-in couldn't complete — your session may have expired or the browser blocked the sign-in cookie. Please try again."
                     : oauthErrorParam === "OAuthAccountNotLinked"
                       ? "This social account is already linked to a different AllFantasy account. Sign in with your original method and connect it from settings."
-                      : "Social sign-in failed. Please try again or use your email and password."}
+                      : oauthErrorParam === "SOCIAL_EMAIL_UNVERIFIED"
+                        ? "That sign-in method's email isn't verified, so we can't safely connect it to an existing account. Verify your email with that provider, or sign in with your original method first."
+                        : "Social sign-in failed. Please try again or use your email and password."}
                 </div>
               </div>
             </div>

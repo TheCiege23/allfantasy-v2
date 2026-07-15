@@ -5,7 +5,7 @@ import { buildSeoMeta } from "@/lib/seo";
 export const metadata: Metadata = buildSeoMeta({
   title: "Pricing & Plans — AllFantasy.ai | AI Fantasy Tools & Subscriptions",
   description:
-    "Compare AF Pro, Commissioner, War Room, and All-Access. AI tokens for Chimmy, trades, and waivers. Secure Stripe checkout. League dues and payouts are handled on FanCred.",
+    "Compare AF Pro, Commissioner, AF Legacy, and All-Access. AI tokens for Chimmy, trades, and waivers. Secure Stripe checkout. League dues and payouts are handled on FanCred.",
   canonicalPath: "/pricing",
   openGraphTitle: "AllFantasy Pricing — Unlock AI for your fantasy league",
   openGraphDescription:

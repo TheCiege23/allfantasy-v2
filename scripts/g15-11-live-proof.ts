@@ -27,7 +27,7 @@ function check(name: string, ok: boolean, detail = '') {
   const prisma = new PrismaClient()
   const host = (() => { try { return new URL((process.env.DATABASE_URL ?? '').replace(/^postgres(ql)?:\/\//, 'http://')).host } catch { return '?' } })()
   console.log(`G15.11 live proof — DB host: ${host}`)
-  if (host.includes('ep-curly-block')) { console.error('REFUSING to run the seeding proof against the production host.'); process.exit(2) }
+  if (host.includes('ep-spring-tooth')) { console.error('REFUSING to run the seeding proof against the production host.'); process.exit(2) }
 
   // before
   console.log(JSON.stringify({

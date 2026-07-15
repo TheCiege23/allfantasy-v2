@@ -12,11 +12,11 @@ export const PLAN_FAMILY_SHORT_TAGLINE: Record<PlanFamilyKey, string> = {
   af_commissioner:
     "Commissioner toolkit: governance, automations, and league operations — dues & payouts stay on FanCred.",
   af_all_access:
-    "Pro + Commissioner + War Room bundled — every AllFantasy AI feature and league tool at one price.",
+    "Pro + Commissioner + AF Legacy bundled — every AllFantasy AI feature and league tool at one price.",
   af_war_room:
     "Draft room plus dynasty & long-term planning for deep, year-round fantasy managers.",
   af_supreme:
-    "Pro + Commissioner + War Room in one tier, plus maximum token discounts and platform priority.",
+    "Pro + Commissioner + AF Legacy in one tier, plus maximum token discounts and platform priority.",
 }
 
 /** Bullets for pricing cards (short lines for narrow columns). */
@@ -42,7 +42,7 @@ export const PLAN_FAMILY_INCLUDES: Record<PlanFamilyKey, readonly string[]> = {
     "300 monthly tokens or 3,500 yearly tokens included",
   ],
   af_supreme: [
-    "AF Pro + Commissioner + War Room in one plan",
+    "AF Pro + Commissioner + AF Legacy in one plan",
     "1,000 monthly tokens or 15,000 yearly tokens included",
     "Best for commissioners and power users who live in the product",
   ],

@@ -7,6 +7,7 @@ import {
   getPlayoffBracket,
   getTradedDraftPicks,
   getLeagueDrafts,
+  getLeagueUsers,
   getScoringType,
   getLeagueType,
   SleeperLeague,
@@ -354,6 +355,16 @@ async function importLeague(
     tradedPicks = await getTradedDraftPicks(leagueId);
   } catch {}
 
+  // Sleeper's league-users endpoint marks the commissioner (league creator) with
+  // `is_owner: true` — not part of the typed SleeperUser shape, so read it off the raw response.
+  let isCommissioner = false;
+  try {
+    const leagueUsers = await getLeagueUsers(leagueId);
+    isCommissioner = leagueUsers.some(
+      (u) => String(u.user_id) === sleeperUserId && (u as unknown as { is_owner?: boolean }).is_owner === true
+    );
+  } catch {}
+
   let rosterToSlot: Record<number, number> = {};
   try {
     const drafts = await getLeagueDrafts(leagueId);
@@ -413,6 +424,7 @@ async function importLeague(
       isSF,
       isTEP,
       tepBonus,
+      isCommissioner,
       winnerRosterId: championRosterId,
       status: league.status,
       sport: league.sport || 'nfl',
@@ -433,6 +445,7 @@ async function importLeague(
       isSF,
       isTEP,
       tepBonus,
+      isCommissioner,
       scoringType: getScoringType(league.scoring_settings),
       teamCount: league.total_rosters,
       status: league.status,

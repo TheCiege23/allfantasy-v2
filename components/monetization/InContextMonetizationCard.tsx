@@ -16,7 +16,7 @@ import {
 function planLabel(plan: string): string {
   if (plan === 'all_access') return 'AF Supreme'
   if (plan === 'commissioner') return 'AF Commissioner'
-  if (plan === 'war_room') return 'AF War Room'
+  if (plan === 'war_room') return 'AF Legacy'
   if (plan === 'pro') return 'AF Pro'
   return plan || 'Free'
 }
@@ -24,7 +24,7 @@ function planLabel(plan: string): string {
 function resolveCurrentPlan(plans: string[]): string {
   if (plans.includes('all_access')) return 'AF Supreme'
   if (plans.includes('commissioner')) return 'AF Commissioner'
-  if (plans.includes('war_room')) return 'AF War Room'
+  if (plans.includes('war_room')) return 'AF Legacy'
   if (plans.includes('pro')) return 'AF Pro'
   return 'Free'
 }

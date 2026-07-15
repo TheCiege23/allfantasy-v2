@@ -2803,6 +2803,11 @@ export function DraftRoomPageClient({
     [queue, session?.picks, handleQueueSave],
   )
 
+  const handleClearQueue = useCallback(() => {
+    setQueue([])
+    void handleQueueSave([])
+  }, [handleQueueSave])
+
   const handleReorderQueue = useCallback(
     (fromIndex: number, toIndex: number) => {
       const drafted = new Set(session?.picks?.map((p) => normalizeDraftedPlayerName(p.playerName)) ?? [])
@@ -3152,7 +3157,7 @@ export function DraftRoomPageClient({
       const tip =
         warRoomData.strategyTip?.trim() ||
         warRoomData.reasoning?.[0]?.trim() ||
-        'Open the helper panel for full War Room context.'
+        'Open the helper panel for full AF Legacy context.'
       if (!base.some((m) => m.id === prepId) && !injected.some((m) => m.id === prepId)) {
         const poolRow = players.find(
           (p) =>
@@ -3435,7 +3440,7 @@ export function DraftRoomPageClient({
       let headline = 'Draft context'
       if (isTopRec) headline = 'Copilot recommendation'
       else if (altMatch) headline = 'Copilot alternative'
-      else if (wr?.bestPick && keyOf(wr.bestPick.name, wr.bestPick.position) === pk) headline = 'War Room focus'
+      else if (wr?.bestPick && keyOf(wr.bestPick.name, wr.bestPick.position) === pk) headline = 'AF Legacy focus'
 
       return { headline, bullets: filtered, stance }
     },
@@ -3814,7 +3819,7 @@ export function DraftRoomPageClient({
           >
             <span>
               <span className="block text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/80">Draft intelligence</span>
-              <span className="block text-[11px] text-white/72">Open Copilot, War Room, and AI context</span>
+              <span className="block text-[11px] text-white/72">Open Copilot, AF Legacy, and AI context</span>
             </span>
             {draftHelperBadgeCount > 0 ? (
               <span className="rounded-full border border-cyan-300/35 bg-cyan-500/15 px-2 py-0.5 text-[10px] font-semibold text-cyan-100">
@@ -3841,6 +3846,7 @@ export function DraftRoomPageClient({
           playerMetaById={queuePlayerMetaById}
           canDraft={canDraft}
           onRemove={handleRemoveFromQueue}
+          onClear={handleClearQueue}
           onReorder={handleReorderQueue}
           onDraftFromQueue={canDraft && queueFiltered.length > 0 ? handleDraftFromQueue : undefined}
           onAiReorder={handleAiReorderQueue}
@@ -3877,6 +3883,7 @@ export function DraftRoomPageClient({
       queueFiltered,
       draftHelperBadgeCount,
       handleRemoveFromQueue,
+      handleClearQueue,
       handleReorderQueue,
       handleDraftFromQueue,
       handleAiReorderQueue,
@@ -4564,7 +4571,7 @@ export function DraftRoomPageClient({
                         : 'text-white/55 hover:bg-white/5'
                     }`}
                   >
-                    War Room
+                    AF Legacy
                   </button>
                   {isCommissioner ? (
                     <button
@@ -4600,7 +4607,7 @@ export function DraftRoomPageClient({
                       }`}
                       data-testid="draft-bottom-ai-panel"
                     >
-                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-200/90">War Room</p>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-violet-200/90">AF Legacy</p>
                       {entitlements.loading ? (
                         <div className="mt-2 rounded-lg border border-white/12 bg-black/25 p-3">
                           <p className="text-white/55">Checking access…</p>
@@ -5064,7 +5071,7 @@ export function DraftRoomPageClient({
         the popup body now, so power users still have one-click access to
         starter balance / positional mix / AI guidance, but the layout reclaims
         that left column for the player table. */}
-    <WarRoomPopup hasNewIntel={warRoomHasNewIntel} triggerLabel="War Room">
+    <WarRoomPopup hasNewIntel={warRoomHasNewIntel} triggerLabel="AF Legacy Draft Room">
       <DraftTeamPanel {...draftTeamPanelProps} redraftStarterHints={redraftStarterHints} />
     </WarRoomPopup>
     <DraftRoomSettingsModal

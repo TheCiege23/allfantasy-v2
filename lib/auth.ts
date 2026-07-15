@@ -64,6 +64,43 @@ function resolveOAuthEmailFromCallback(
   return fromUser ?? fromProfile;
 }
 
+/**
+ * Whether the OAuth provider itself asserts this email is verified. This gates
+ * whether an OAuth sign-in is allowed to link to an EXISTING AppUser by email
+ * match — an unverified claim must never take over another account.
+ *
+ * Provider signal shapes differ:
+ * - Google: raw userinfo includes boolean `email_verified`.
+ * - Apple: the decoded id_token claim `email_verified` is often the STRING
+ *   "true"/"false" rather than a boolean.
+ * - Discord: raw `/users/@me` response includes boolean `verified`.
+ * - Spotify: the Web API exposes no verification flag at all. Spotify itself
+ *   requires a verified email before its own signup completes, so a returned
+ *   email is treated as verified-by-platform-design (this mirrors the
+ *   provider's existing explicit `allowDangerousEmailAccountLinking: true`).
+ * - Facebook: the Graph API only returns `email` once Facebook considers it
+ *   confirmed — presence of the field already implies verification.
+ */
+function resolveOAuthEmailVerifiedFromCallback(
+  provider: "google" | "apple" | "spotify" | "facebook" | "discord",
+  profile?: Profile | null
+): boolean {
+  const raw = profile as Record<string, unknown> | null | undefined;
+  switch (provider) {
+    case "google":
+      return raw?.email_verified === true;
+    case "apple":
+      return raw?.email_verified === true || raw?.email_verified === "true";
+    case "discord":
+      return raw?.verified === true;
+    case "spotify":
+    case "facebook":
+      return true;
+    default:
+      return false;
+  }
+}
+
 function getDevAuthProfile() {
   return {
     id: process.env.DEV_AUTH_BYPASS_USER_ID?.trim() || "local-dev-user",
@@ -483,6 +520,7 @@ export const authOptions: NextAuthOptions = {
             providerAccountId: account.providerAccountId,
             type: account.type,
             email: oauthEmail ?? user.email,
+            emailVerified: resolveOAuthEmailVerifiedFromCallback(provider, profile),
             name: user.name,
             image: user.image,
             refreshToken: account.refresh_token,
@@ -512,6 +550,13 @@ export const authOptions: NextAuthOptions = {
             return await runSocialLink();
           } catch (err) {
             console.error("[google-signin] FATAL:", err);
+            const errMsg = err instanceof Error ? err.message : "";
+            if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
+              return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
+            }
+            console.error(
+              `[social-link] SOCIAL_ACCOUNT_LINK_FAILED provider=google message=${errMsg || String(err)}`
+            );
             return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
           }
         }
@@ -535,6 +580,12 @@ export const authOptions: NextAuthOptions = {
             if (errMsg === "FACEBOOK_EMAIL_MISSING") {
               return "/auth/error?error=FACEBOOK_EMAIL_MISSING";
             }
+            if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
+              return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
+            }
+            console.error(
+              `[social-link] SOCIAL_ACCOUNT_LINK_FAILED provider=facebook message=${errMsg || String(err)}`
+            );
             return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
           }
         }
@@ -548,6 +599,12 @@ export const authOptions: NextAuthOptions = {
             if (errMsg === "DISCORD_EMAIL_MISSING") {
               return "/auth/error?error=DISCORD_EMAIL_MISSING";
             }
+            if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
+              return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
+            }
+            console.error(
+              `[social-link] SOCIAL_ACCOUNT_LINK_FAILED provider=discord message=${errMsg || String(err)}`
+            );
             return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
           }
         }
@@ -555,7 +612,7 @@ export const authOptions: NextAuthOptions = {
         try {
           return await runSocialLink();
         } catch (error) {
-          console.error("[auth] social account linking error:", error);
+          console.error(`[auth] social account linking error provider=${account.provider}:`, error);
           // linkSocialAccountToAppUser() already refuses to create a NEW AppUser
           // without an email (SOCIAL_PROVIDER_EMAIL_MISSING) — this only maps that
           // to a clearer message. It does NOT add a new early guard: Apple only
@@ -566,6 +623,12 @@ export const authOptions: NextAuthOptions = {
           if (errMsg === "SOCIAL_PROVIDER_EMAIL_MISSING") {
             return "/auth/error?error=SOCIAL_PROVIDER_EMAIL_MISSING";
           }
+          if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
+            return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
+          }
+          console.error(
+            `[social-link] SOCIAL_ACCOUNT_LINK_FAILED provider=${account.provider} message=${errMsg || String(error)}`
+          );
           return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
         }
       }

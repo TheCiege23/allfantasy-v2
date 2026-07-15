@@ -24,6 +24,8 @@ const ERROR_MESSAGES: Record<string, string> = {
     "Discord did not share a verified email address. Please verify your email on Discord, then try signing in again.",
   SOCIAL_PROVIDER_EMAIL_MISSING:
     "That sign-in method didn't share an email address, so we can't create a new AllFantasy account from it. If you already have an account, sign in with your email and password first, then connect this method from Settings.",
+  SOCIAL_EMAIL_UNVERIFIED:
+    "That sign-in method's email isn't verified, so we can't safely connect it to an existing AllFantasy account. Verify your email with that provider, or sign in with your original method first and connect this one from Settings.",
   Default: "An error occurred during sign in.",
 }
 

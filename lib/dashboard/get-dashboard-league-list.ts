@@ -33,7 +33,7 @@ function computeUserRole(
 ): 'commissioner' | 'member' | 'imported' {
   const p = String(platform || '').toLowerCase()
   if (isCommissioner) return 'commissioner'
-  if (p !== 'allfantasy' && p !== 'af' && p !== 'manual') return 'imported'
+  if (p !== 'allfantasy' && p !== 'af' && p !== 'manual' && p !== 'native') return 'imported'
   return 'member'
 }
 
@@ -52,7 +52,7 @@ export function resolveViewerLeagueCommissioner(params: {
   if (params.membershipRole === 'COMMISSIONER') return true
   if (
     isRowOwner &&
-    (params.leagueIsCommissionerFlag || p === 'manual' || p === 'allfantasy' || p === 'af')
+    (params.leagueIsCommissionerFlag || p === 'manual' || p === 'allfantasy' || p === 'af' || p === 'native')
   ) {
     return true
   }
@@ -64,15 +64,82 @@ export type DashboardLeagueListPayload = {
   sleeperUserId: string | null
 }
 
-export async function getDashboardLeagueListForUser(userId: string): Promise<DashboardLeagueListPayload> {
-  const profile = await prisma.userProfile
-    .findUnique({
-      where: { userId },
-      select: { sleeperUserId: true },
+/**
+ * Board entries sourced from `LegacyLeague` — where the guest/authenticated Sleeper career
+ * import writes (`lib/legacy-import.ts`), separate from the native `League` table this file
+ * otherwise reads. Excludes rows already migrated into a native `League` (via
+ * `LegacyLeague.activeLeague`) so an actively-imported league isn't shown twice.
+ */
+export async function getLegacyLeagueBoardItems(legacyUserId: string): Promise<unknown[]> {
+  const rows = await prisma.legacyLeague
+    .findMany({
+      where: { userId: legacyUserId, activeLeague: null },
+      orderBy: [{ season: 'desc' }, { name: 'asc' }],
+      select: {
+        id: true,
+        sleeperLeagueId: true,
+        name: true,
+        season: true,
+        sport: true,
+        leagueType: true,
+        scoringType: true,
+        teamCount: true,
+        status: true,
+        avatar: true,
+        isCommissioner: true,
+      },
     })
-    .catch(() => null)
+    .catch((err: unknown) => {
+      console.error('[League List] legacy leagues query failed', err)
+      return []
+    })
 
-  const [genericLeagues, sleeperLeagues, tournaments] = await Promise.all([
+  return rows
+    .map((lg) => ({
+      id: lg.id,
+      name: lg.name,
+      sport: (lg.sport || 'nfl').toUpperCase(),
+      sport_type: (lg.sport || 'nfl').toUpperCase(),
+      platform: 'sleeper',
+      platformLeagueId: lg.sleeperLeagueId,
+      leagueSize: lg.teamCount ?? 0,
+      teamCount: lg.teamCount ?? 0,
+      season: lg.season,
+      status: lg.status ?? null,
+      format: lg.leagueType || 'Redraft',
+      leagueType: lg.leagueType ?? null,
+      scoring: lg.scoringType ?? undefined,
+      isDynasty: lg.leagueType === 'Dynasty',
+      avatarUrl: lg.avatar,
+      sleeperLeagueId: lg.sleeperLeagueId,
+      navigationLeagueId: null,
+      unifiedLeagueId: null,
+      hasUnifiedRecord: false,
+      isCommissioner: lg.isCommissioner,
+      userRole: lg.isCommissioner ? 'commissioner' : 'imported',
+      isPaid: false,
+      entryFee: null,
+    }))
+    .filter(isRealLeague)
+}
+
+export async function getDashboardLeagueListForUser(userId: string): Promise<DashboardLeagueListPayload> {
+  const [profile, appUser] = await Promise.all([
+    prisma.userProfile
+      .findUnique({
+        where: { userId },
+        select: { sleeperUserId: true },
+      })
+      .catch(() => null),
+    prisma.appUser
+      .findUnique({
+        where: { id: userId },
+        select: { legacyUserId: true },
+      })
+      .catch(() => null),
+  ])
+
+  const [genericLeagues, sleeperLeagues, tournaments, legacyBoardItems] = await Promise.all([
     (prisma as any).league
       .findMany({
         where: {
@@ -209,6 +276,7 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
         console.error('[League List] tournament query failed', err)
         return []
       }),
+    appUser?.legacyUserId ? getLegacyLeagueBoardItems(appUser.legacyUserId) : Promise.resolve([]),
   ])
 
   const genericLeagueIds = (genericLeagues as { id: string }[]).map((lg) => lg.id).filter(Boolean)
@@ -414,7 +482,12 @@ export async function getDashboardLeagueListForUser(userId: string): Promise<Das
     })
   const normalizedSleeperFiltered = normalizedSleeper.filter(isRealLeague)
   const normalizedTournamentFiltered = normalizedTournaments.filter(isRealLeague)
-  const filtered = [...normalizedTournamentFiltered, ...normalizedGenericFiltered, ...normalizedSleeperFiltered]
+  const filtered = [
+    ...normalizedTournamentFiltered,
+    ...normalizedGenericFiltered,
+    ...normalizedSleeperFiltered,
+    ...legacyBoardItems,
+  ]
 
   const leaguesSorted = filtered.sort((a: any, b: any) => {
     const aDate = a.lastSyncedAt ? new Date(a.lastSyncedAt).getTime() : 0

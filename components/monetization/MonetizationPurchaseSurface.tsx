@@ -118,7 +118,7 @@ const PLAN_FAMILY_LABELS: Record<PlanFamily, string> = {
   af_pro: "AF Pro",
   af_commissioner: "AF Commissioner",
   af_all_access: "AF All-Access",
-  af_war_room: "AF War Room",
+  af_war_room: "AF Legacy",
   af_supreme: "AF Supreme",
 };
 
@@ -370,7 +370,7 @@ export default function MonetizationPurchaseSurface({
                   </li>
                   <li className="flex items-start gap-3">
                     <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/30 text-cyan-200"><Check className="h-4 w-4" /></span>
-                    <span><span className="font-semibold text-cyan-100">AF Supreme:</span> One subscription for the full Pro + Commissioner + War Room stack — best value for serious players.</span>
+                    <span><span className="font-semibold text-cyan-100">AF Supreme:</span> One subscription for the full Pro + Commissioner + AF Legacy stack — best value for serious players.</span>
                   </li>
                   <li className="flex items-start gap-3">
                     <span className="mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-cyan-500/30 text-cyan-200"><Check className="h-4 w-4" /></span>

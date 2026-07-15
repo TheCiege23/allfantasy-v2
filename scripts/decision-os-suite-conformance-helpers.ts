@@ -8,7 +8,7 @@
  */
 
 /** Matches the existing `scripts/decision-os-*-nonprod.ts` convention exactly — never touch this host. */
-export const PROD_HOST_MARKER = 'ep-curly-block'
+export const PROD_HOST_MARKER = 'ep-spring-tooth'
 
 export function hostOf(url: string | null): string {
   if (!url) return '?'

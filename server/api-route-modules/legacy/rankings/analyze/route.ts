@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { getOrCreateAiResult } from '@/lib/ai/ai-result-cache'
+import { fetchFantasyCalcValues } from '@/lib/fantasycalc'
 import { writeSnapshot } from '@/lib/trade-engine/snapshot-store'
 import { logUserEventByUsername } from '@/lib/user-events'
 import {
@@ -207,7 +208,7 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/rankings/analyze", too
       console.log('Could not fetch players data')
     }
 
-    const fantasyCalcValues = await getFantasyCalcValues()
+    const fantasyCalcValues = await getFantasyCalcValues(leagueData)
 
     const teamRankings: TeamRanking[] = rosters
       .filter((roster) => !!roster.owner_id)
@@ -537,8 +538,30 @@ function buildPreseasonFallbackResponse({
   })
 }
 
-async function getFantasyCalcValues(): Promise<Map<string, number>> {
-  return new Map<string, number>()
+async function getFantasyCalcValues(league: any): Promise<Map<string, number>> {
+  const rosterPositions: string[] = Array.isArray(league?.roster_positions) ? league.roster_positions : []
+  const isSF =
+    league?.settings?.superflex_enabled === 1 ||
+    rosterPositions.filter((p: string) => p === 'SUPER_FLEX' || p === 'QB').length >= 2
+  const numTeams = Number(league?.total_rosters) || 12
+
+  const values = new Map<string, number>()
+  try {
+    const fcPlayers = await fetchFantasyCalcValues({
+      isDynasty: true,
+      numQbs: isSF ? 2 : 1,
+      numTeams,
+      ppr: 1,
+    })
+    for (const fc of fcPlayers) {
+      const name = fc?.player?.name
+      if (!name || typeof fc.value !== 'number' || !Number.isFinite(fc.value)) continue
+      values.set(name.toLowerCase(), fc.value)
+    }
+  } catch (err) {
+    console.error('[legacy/rankings/analyze] FantasyCalc fetch failed, falling back to position+age valuation:', err)
+  }
+  return values
 }
 
 function calculatePositionalValuesWithPlayers(

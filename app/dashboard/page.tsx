@@ -16,6 +16,7 @@ import { fetchUserRankJsonForDashboardSSR } from '@/lib/dashboard/fetch-user-ran
 import { getCommissionerHubHealthForUser } from '@/lib/commissioner-hub/commissionerHubHealth'
 import type { UserLeague } from './types'
 import { DashboardShell } from './DashboardShell'
+import { resolveFantasyOsAccessView } from '@/lib/fantasy-os/access'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +39,7 @@ export default async function DashboardPage() {
       name?: string | null
       email?: string | null
       image?: string | null
+      role?: string | null
     }
   } | null
   try {
@@ -111,9 +113,18 @@ export default async function DashboardPage() {
         })
       : null
 
+    // Fantasy OS is an enterprise workspace; resolve access on the server (the authorization source
+    // of truth) and pass only a coarse view to the client shell for nav + launch-card visibility.
+    const fantasyOsAccess = await resolveFantasyOsAccessView({
+      userId,
+      email: sessionUser.email,
+      role: sessionUser.role ?? null,
+    }).catch(() => ({ allowed: false, reason: 'unauthorized' as const }))
+
     return (
       <DashboardShell
         userId={userId}
+        fantasyOsAccess={fantasyOsAccess}
         userName={userName}
         userImage={userImage}
         emailVerified={Boolean(dbUser?.emailVerified)}

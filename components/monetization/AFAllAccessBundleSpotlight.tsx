@@ -18,7 +18,7 @@ const INCLUDED_PLANS = [
     tone: 'border-amber-400/35 bg-amber-500/10 text-amber-100',
   },
   {
-    title: 'AF War Room',
+    title: 'AF Legacy',
     icon: Telescope,
     copy: 'Draft strategy, prep, and long-horizon roster construction workflows.',
     tone: 'border-violet-400/35 bg-violet-500/10 text-violet-100',
@@ -66,7 +66,7 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
       </div>
 
       <p className="mt-1 text-xs text-white/70">
-        Simplest premium option: AF Pro + AF Commissioner + AF War Room in one subscription.
+        Simplest premium option: AF Pro + AF Commissioner + AF Legacy in one subscription.
       </p>
 
       <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
@@ -165,7 +165,7 @@ export function AFAllAccessBundleSpotlight({ className = '' }: { className?: str
           className="rounded-full border border-violet-400/35 bg-violet-500/10 px-2 py-0.5 text-violet-100 hover:bg-violet-500/20"
           data-testid="af-all-access-switch-from-war-room"
         >
-          From AF War Room
+          From AF Legacy
         </Link>
       </div>
     </section>

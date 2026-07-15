@@ -12,7 +12,7 @@
  */
 import { hasDatabaseUrl, resolveDatabaseUrl } from '../lib/env/database-url'
 
-const PROD_HOST_MARKER = 'ep-curly-block'
+const PROD_HOST_MARKER = 'ep-spring-tooth'
 
 function hostOf(url: string | null): string {
   if (!url) return '?'

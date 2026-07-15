@@ -25,6 +25,8 @@ import {
 } from "@/lib/avatar/ProfileImageUploadStorageService"
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver"
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup"
+import { GUEST_SESSION_COOKIE_NAME, verifyGuestSessionToken } from "@/lib/guest-mode/guestSessionToken"
+import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy"
 import { detectUserState } from "@/lib/geo/detectUserState"
 import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 import { buildMetaEventPayload } from "@/lib/meta-events"
@@ -511,6 +513,44 @@ export async function POST(req: Request) {
       }
     }
 
+    // Guest-to-account claim: if this visitor already did a no-login Sleeper
+    // import (Phase 1), attach that LegacyUser to their new account now.
+    // Best-effort — never blocks registration; a 409 (that Sleeper account
+    // was already claimed by a different login) is swallowed, not surfaced.
+    if (!isE2ERequest) {
+      try {
+        const guestToken = cookieStore.get(GUEST_SESSION_COOKIE_NAME)?.value
+        const guest = await verifyGuestSessionToken(guestToken)
+        if (guest) {
+          const legacyUser = await prisma.legacyUser.findUnique({
+            where: { id: guest.legacyUserId },
+            select: {
+              id: true,
+              sleeperUsername: true,
+              sleeperUserId: true,
+              displayName: true,
+              avatar: true,
+              avatarUrl: true,
+            },
+          })
+          if (legacyUser) {
+            await linkAfUserToLegacy(user.id, {
+              id: legacyUser.id,
+              sleeperUsername: legacyUser.sleeperUsername,
+              sleeperUserId: legacyUser.sleeperUserId,
+              displayName: legacyUser.displayName,
+              avatar: legacyUser.avatar,
+              avatarUrl: legacyUser.avatarUrl,
+              isNew: false,
+              usernameChanged: false,
+            })
+          }
+        }
+      } catch (guestClaimErr) {
+        console.warn("[register] guest-to-account claim failed (non-blocking):", guestClaimErr)
+      }
+    }
+
     if (parsedAvatarUpload) {
       try {
         const { url } = await persistProfileImageBytes({
@@ -592,13 +632,15 @@ export async function POST(req: Request) {
     }
 
     if (method === "PHONE") {
-      return NextResponse.json({
+      const res = NextResponse.json({
         ok: true,
         userId: user.id,
         verificationMethod: "PHONE",
         message: "Account created. Please sign in and verify your phone number.",
         metaEvent: registrationMetaEvent,
       })
+      res.cookies.delete(GUEST_SESSION_COOKIE_NAME)
+      return res
     }
 
     let emailVerificationPrepared = false
@@ -643,7 +685,7 @@ export async function POST(req: Request) {
       }
     }
 
-    return NextResponse.json({
+    const res = NextResponse.json({
       ok: true,
       userId: user.id,
       verificationMethod: "EMAIL",
@@ -653,6 +695,8 @@ export async function POST(req: Request) {
       emailVerificationPrepared,
       metaEvent: registrationMetaEvent,
     })
+    res.cookies.delete(GUEST_SESSION_COOKIE_NAME)
+    return res
   } catch (err: any) {
     if (err instanceof Response) {
       return err

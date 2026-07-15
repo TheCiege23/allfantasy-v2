@@ -9,7 +9,7 @@ const prisma = new PrismaClient({ log: [] })
 void (async () => {
   const host = process.env.DATABASE_URL?.match(/@([^/]+)\//)?.[1] ?? 'unknown'
   console.log(`DB host: ${host}`)
-  if (host.includes('ep-curly-block')) { console.error('HARD REFUSE'); process.exit(1) }
+  if (host.includes('ep-spring-tooth')) { console.error('HARD REFUSE'); process.exit(1) }
 
   // SportsNews
   const snTotal = await prisma.sportsNews.count()

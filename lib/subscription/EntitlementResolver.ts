@@ -56,6 +56,8 @@ const PLAN_CODE_TO_ID: Record<string, SubscriptionPlanId> = {
   all_access: "all_access",
   af_supreme: "supreme",
   supreme: "supreme",
+  af_enterprise: "enterprise",
+  enterprise: "enterprise",
 }
 
 /** Valid tier strings for admin-granted subscriptions — mirrors SubscriptionPlanId. */
@@ -65,6 +67,8 @@ const GRANT_TIER_TO_PLAN_ID: Record<string, SubscriptionPlanId> = {
   war_room: "war_room",
   all_access: "all_access",
   supreme: "supreme",
+  // Owner/enterprise access is granted by assigning this tier (admin-grant path).
+  enterprise: "enterprise",
 }
 
 function mapSkuToPlanId(sku: string | null | undefined): SubscriptionPlanId | null {

@@ -674,11 +674,20 @@ export async function GET(request: Request) {
     }
 
     const d = denormCatchup
-    /** Sleeper `League.import_*` rows drive XP via `calculateAndSaveRank`; prefer profile XP over legacy cache. */
+    // Quarantine fix (audit finding: dormant secondary ranking engine): `calculateAndSaveRank`
+    // — the single canonical XP engine — merges Sleeper imports, legacy Sleeper history, AND
+    // native AF leagues, so `d.xpTotal` is the real total for ANY user it has run for, not
+    // just imported-league users. This used to gate on `importedLeagueRows.length > 0` first,
+    // which meant a legacy-only user (real canonical XP available, just no Sleeper import_*
+    // rows) still silently fell through to `legacyUserRankCache` — a dormant, differently-
+    // weighted engine (win=50/playoff=200/championship=500 vs the canonical win=10/
+    // playoff=30/championship=200) that can be 5-10x off. Canonical XP now wins whenever it
+    // exists; the legacy cache is a true last-resort only when calculateAndSaveRank has
+    // genuinely never run for this user.
     const careerXpBig =
-      importedLeagueRows.length > 0 && d?.xpTotal != null
+      d?.xpTotal != null
         ? BigInt(jsonSafeXp(d.xpTotal))
-        : rankCache.careerXp ?? 0n
+        : rankCache?.careerXp ?? 0n
     const xpTotalNum = Number(careerXpBig)
     const lv = getLevelFromXp(xpTotalNum)
     const tier = lv.tier
@@ -714,7 +723,12 @@ export async function GET(request: Request) {
       aiInsight,
       winRate: Math.round(winRateForDisplay * 10) / 10,
       playoffRate: Math.round(playoffRateForDisplay * 10) / 10,
-      championshipCount,
+      // Branch-aware, matching careerStats.championships used everywhere else in this file
+      // (lines 390/481) — this used to read the raw legacy-table-only `championshipCount`
+      // regardless of whether the user's real championship data actually came from Sleeper
+      // imports, so a user with both import and legacy history could see two different
+      // championship counts depending on which response branch/UI surface read them.
+      championshipCount: careerStats.championships,
       seasonsPlayed: careerStats.seasonsPlayed,
       totalWins: careerStats.totalWins,
       totalLosses: careerStats.totalLosses,
@@ -752,8 +766,13 @@ export async function GET(request: Request) {
       careerLosses: d?.careerLosses ?? careerStats.totalLosses,
       careerChampionships: d?.careerChampionships ?? careerStats.championships,
       careerPlayoffAppearances: d?.careerPlayoffAppearances ?? careerStats.playoffAppearances,
-      careerSeasonsPlayed: d?.careerSeasonsPlayed ?? careerStats.seasonsPlayed,
-      careerLeaguesPlayed: d?.careerLeaguesPlayed ?? careerStats.leaguesPlayed,
+      // Same DB-to-API un-swap as careerStatsFromProfileDenorm above: `career_leagues_played`
+      // holds the distinct-season count, `career_seasons_played` holds the league-row count.
+      // This block used to read the raw (swapped) DB fields straight through, so these two
+      // top-level response keys — the ones CareerProgressionStrip actually renders — were
+      // inverted even though the corrected values already existed in `careerStats`/`stats`.
+      careerSeasonsPlayed: d?.careerLeaguesPlayed ?? careerStats.seasonsPlayed,
+      careerLeaguesPlayed: d?.careerSeasonsPlayed ?? careerStats.leaguesPlayed,
       rankCalculatedAt: d?.rankCalculatedAt?.toISOString() ?? rankCalculatedAtIso,
     }
 

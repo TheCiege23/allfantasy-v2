@@ -8,7 +8,7 @@
  * only replaces the HTTP/session shell with a direct function call, the same discipline
  * `decision-os-import-sleeper-nonprod.ts` and `decision-os-suite-conformance.ts` already established.
  *
- * Read-only: makes zero writes. HARD-REFUSES the production DB host (ep-curly-block) and skips
+ * Read-only: makes zero writes. HARD-REFUSES the production DB host (ep-spring-tooth) and skips
  * cleanly without DATABASE_URL, matching every other `*-nonprod.ts` script's own boundary.
  *
  *     DATABASE_URL=<non-prod db> npx tsx scripts/decision-os-manager-os-live-validate-nonprod.ts --userId=<id>
@@ -18,7 +18,7 @@
  */
 import { hasDatabaseUrl, resolveDatabaseUrl } from '../lib/env/database-url'
 
-const PROD_HOST_MARKER = 'ep-curly-block'
+const PROD_HOST_MARKER = 'ep-spring-tooth'
 
 function arg(name: string): string | undefined {
   const hit = process.argv.slice(2).find((a) => a.startsWith(`--${name}=`))

@@ -34,6 +34,12 @@ export type NflRedraftProductionProviderRequest = {
   leagueImportId?: string | number | null
   cacheKey?: string | null
   cacheFreshness?: 'available' | 'missing' | 'stale' | 'unknown'
+  valuationSettings?: {
+    isDynasty: boolean
+    numQbs: 1 | 2
+    numTeams: number
+    ppr: 0 | 0.5 | 1
+  }
   configOverrides?: Partial<Record<NflRedraftProviderNodeId, Partial<NflRedraftProviderNodeConfig>>>
   policyOverrides?: Partial<Record<NflRedraftProviderOrchestratorCapability, Partial<NflRedraftProviderCapabilityPolicy>>>
 }
@@ -590,8 +596,17 @@ export function buildNflRedraftProductionProviderAdapters(): NflRedraftProductio
       fantasy_valuations: async (request) => {
         const { getFantasyCalcValuesDbFirst } = await import('@/lib/fantasycalc-db')
         const { findPlayerByName, findPlayerBySleeperId } = await import('@/lib/fantasycalc')
-        const settings = { isDynasty: false, numQbs: 1, numTeams: 12, ppr: 1 } as const
+        const settings = request.valuationSettings ?? { isDynasty: false, numQbs: 1, numTeams: 12, ppr: 1 } as const
         const players = await getFantasyCalcValuesDbFirst(settings)
+        if (!request.allFantasyPlayerId && !request.playerName) {
+          return makeResult({
+            providerId: 'fantasycalc',
+            capability: request.capability,
+            canonicalData: { valuationRecords: players },
+            fetchedAtIso: new Date().toISOString(),
+            integrationName: 'getFantasyCalcValuesDbFirst',
+          })
+        }
         const player = request.allFantasyPlayerId
           ? findPlayerBySleeperId(players, request.allFantasyPlayerId)
           : request.playerName

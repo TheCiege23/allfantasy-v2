@@ -9,6 +9,9 @@ import { AI_USAGE } from '@/lib/analytics/eventNames'
 import { recordProductEvent } from '@/lib/analytics/recordAnalyticsEvent'
 import { evaluateLegalityForPersistedRoster } from '@/lib/roster-legality/loadLegalityEvaluationContext'
 import { buildLeagueScoringContextForAi } from '@/lib/scoring-defaults/LeagueScoringConfigResolver'
+import { isSportsDataEnabled } from '@/lib/fantasy-os/sports-runtime/gates'
+import { CertifiedLineupIntegrationService, extractPlayerRefs, type CertifiedScheduleDescription } from '@/lib/fantasy-os/sports-runtime/lineupIntegration'
+import { weekFromLeagueSettingsForLineup } from '@/lib/roster/buildPersistedRosterDataFromRosterState'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -68,7 +71,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lea
 
   const league = await prisma.league.findFirst({
     where: { id: leagueId },
-    select: { sport: true },
+    select: { sport: true, season: true, settings: true },
   })
   const sport = String(body.sport ?? league?.sport ?? 'NFL').trim()
 
@@ -105,10 +108,25 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ lea
     }
   }
 
+  // Gated, informational certified SCHEDULE evidence only (kickoff/status/lock/freshness/identity). Never blocks
+  // the advice and never mutates. Injuries/projections/availability are NOT provided by the certified schedule
+  // plane and are surfaced as explicitly `unavailable` rather than fabricated. Wrapped so it can never fail the route.
+  let sportsSchedule: CertifiedScheduleDescription | undefined
+  if (isSportsDataEnabled('lineup') && sport.toUpperCase() === 'NFL') {
+    try {
+      const week = weekFromLeagueSettingsForLineup(league?.settings)
+      const season = league?.season ?? new Date().getFullYear()
+      const refs = extractPlayerRefs([playerA?.playerId, playerB?.playerId].filter(Boolean))
+      sportsSchedule = await new CertifiedLineupIntegrationService().describeScheduleForPlayers({ season: String(season), week: String(week), players: refs })
+    } catch {
+      sportsSchedule = undefined
+    }
+  }
+
   recordProductEvent(AI_USAGE.START_SIT, {
     userId: session.user.id,
     meta: { leagueId, sport },
   })
 
-  return NextResponse.json({ result, leagueId, rosterLegality: rosterLegalitySummary })
+  return NextResponse.json({ result, leagueId, rosterLegality: rosterLegalitySummary, ...(sportsSchedule ? { sportsSchedule } : {}) })
 }

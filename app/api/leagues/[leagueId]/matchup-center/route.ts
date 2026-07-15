@@ -6,6 +6,9 @@ import { assertValidMatchupPayload } from '@/lib/matchup-center/validateMatchupP
 import { dedupeLeagueRequest } from '@/lib/league-engine-performance/leagueRequestDedupe'
 import { withLeagueEngineTimedOperation } from '@/lib/league-engine-performance/jobRunner'
 import { DEFAULT_SLOW_ROUTE_MS } from '@/lib/league-engine-performance/observability'
+import { isSportsDataEnabled } from '@/lib/fantasy-os/sports-runtime/gates'
+import { CertifiedMatchupIntegrationService, type CertifiedMatchupContext } from '@/lib/fantasy-os/sports-runtime/matchupIntegration'
+import { prisma } from '@/lib/prisma'
 
 export const dynamic = 'force-dynamic'
 
@@ -54,5 +57,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ leag
     console.warn('[matchup-center] payload validation', v.errors)
   }
 
-  return NextResponse.json({ payload: out, validation: v })
+  // Gated, informational certified GAME context. Read-only: it never mutates the payload, scores, ownership,
+  // winner, or standings. NFL only; wrapped so it can never fail the read. No new persistence occurs.
+  let sportsContext: CertifiedMatchupContext | undefined
+  if (isSportsDataEnabled('matchup')) {
+    try {
+      const resolvedWeek = Number.isFinite(week!) ? week! : (out as { week?: number }).week
+      const resolvedSeason = Number.isFinite(season!) ? season! : (out as { season?: number }).season
+      const league = await prisma.league.findUnique({ where: { id: leagueId }, select: { sport: true } })
+      if (league && String(league.sport ?? 'NFL').toUpperCase() === 'NFL' && resolvedWeek != null) {
+        sportsContext = await new CertifiedMatchupIntegrationService().describeMatchupGameStates({
+          season: String(resolvedSeason ?? new Date().getFullYear()),
+          week: String(resolvedWeek),
+        })
+      }
+    } catch {
+      sportsContext = undefined
+    }
+  }
+
+  return NextResponse.json({ payload: out, validation: v, ...(sportsContext ? { sportsContext } : {}) })
 }
