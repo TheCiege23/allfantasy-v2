@@ -264,6 +264,35 @@ function throwMflApiFailure(status: number, message: string): never {
   throw new MflApiResponseError(status, message)
 }
 
+async function fetchMflEndpoint(args: {
+  season: number
+  leagueId: string
+  type: string
+  apiKey: string
+}): Promise<any> {
+  const response = await fetch(buildMflEndpointUrl(args), {
+    cache: 'no-store',
+    headers: {
+      Accept: 'application/json, text/xml;q=0.9, */*;q=0.8',
+      'User-Agent': 'Mozilla/5.0 (compatible; AllFantasy/1.0)',
+    },
+  })
+
+  const body = await response.text()
+  const parsed = parseMflApiBody(body)
+  const message = resolveMflErrorMessage(parsed, body)
+
+  if (!response.ok) {
+    throwMflApiFailure(response.status, message || body || response.statusText)
+  }
+
+  if (message) {
+    throwMflApiFailure(response.status, message)
+  }
+
+  return parsed
+}
+
 /**
  * Import Security Closure phase — real membership verification. MFL's real
  * `TYPE=myleagues` export (confirmed live via a direct, unauthenticated
@@ -302,35 +331,6 @@ export async function fetchMflUserLeagues(
       franchiseId: stringifyMflValue(entry, ['franchise_id', 'franchiseId']) || null,
     }))
     .filter((entry) => entry.leagueId)
-}
-
-async function fetchMflEndpoint(args: {
-  season: number
-  leagueId: string
-  type: string
-  apiKey: string
-}): Promise<any> {
-  const response = await fetch(buildMflEndpointUrl(args), {
-    cache: 'no-store',
-    headers: {
-      Accept: 'application/json, text/xml;q=0.9, */*;q=0.8',
-      'User-Agent': 'Mozilla/5.0 (compatible; AllFantasy/1.0)',
-    },
-  })
-
-  const body = await response.text()
-  const parsed = parseMflApiBody(body)
-  const message = resolveMflErrorMessage(parsed, body)
-
-  if (!response.ok) {
-    throwMflApiFailure(response.status, message || body || response.statusText)
-  }
-
-  if (message) {
-    throwMflApiFailure(response.status, message)
-  }
-
-  return parsed
 }
 
 async function discoverMflPreviousSeasons(args: {
