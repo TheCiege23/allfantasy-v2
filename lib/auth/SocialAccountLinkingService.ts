@@ -345,11 +345,29 @@ export async function linkSocialAccountToAppUser(
     }
   }
 
-  await ensureSharedAccountProfile({
-    userId: user.id,
-    displayName: user.displayName,
-  });
-  await ensureXpProfile(user.id);
+  // The account link above already succeeded — these are best-effort bootstrap
+  // steps that can be retried/created lazily later. A failure here must never
+  // mask a successful link as SOCIAL_ACCOUNT_LINK_FAILED.
+  try {
+    await ensureSharedAccountProfile({
+      userId: user.id,
+      displayName: user.displayName,
+    });
+  } catch (error) {
+    console.error(
+      `[social-link] ensureSharedAccountProfile failed (provider=${input.provider}, userId=${user.id}):`,
+      error
+    );
+  }
+
+  try {
+    await ensureXpProfile(user.id);
+  } catch (error) {
+    console.error(
+      `[social-link] ensureXpProfile failed (provider=${input.provider}, userId=${user.id}):`,
+      error
+    );
+  }
 
   return user;
 }

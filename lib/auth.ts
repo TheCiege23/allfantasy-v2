@@ -554,6 +554,9 @@ export const authOptions: NextAuthOptions = {
             if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
               return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
             }
+            console.error(
+              `[social-link] SOCIAL_ACCOUNT_LINK_FAILED provider=google message=${errMsg || String(err)}`
+            );
             return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
           }
         }
@@ -580,6 +583,9 @@ export const authOptions: NextAuthOptions = {
             if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
               return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
             }
+            console.error(
+              `[social-link] SOCIAL_ACCOUNT_LINK_FAILED provider=facebook message=${errMsg || String(err)}`
+            );
             return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
           }
         }
@@ -596,6 +602,9 @@ export const authOptions: NextAuthOptions = {
             if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
               return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
             }
+            console.error(
+              `[social-link] SOCIAL_ACCOUNT_LINK_FAILED provider=discord message=${errMsg || String(err)}`
+            );
             return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
           }
         }
@@ -603,7 +612,7 @@ export const authOptions: NextAuthOptions = {
         try {
           return await runSocialLink();
         } catch (error) {
-          console.error("[auth] social account linking error:", error);
+          console.error(`[auth] social account linking error provider=${account.provider}:`, error);
           // linkSocialAccountToAppUser() already refuses to create a NEW AppUser
           // without an email (SOCIAL_PROVIDER_EMAIL_MISSING) — this only maps that
           // to a clearer message. It does NOT add a new early guard: Apple only
@@ -617,6 +626,9 @@ export const authOptions: NextAuthOptions = {
           if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
             return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
           }
+          console.error(
+            `[social-link] SOCIAL_ACCOUNT_LINK_FAILED provider=${account.provider} message=${errMsg || String(error)}`
+          );
           return "/auth/error?error=SOCIAL_ACCOUNT_LINK_FAILED";
         }
       }
