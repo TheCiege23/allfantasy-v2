@@ -21,6 +21,8 @@ export const EVENT = {
   SEASON_ACTIVATED: 'lifecycle.season.activated',
   SEASON_COMPLETED: 'lifecycle.season.completed',
   SCHEDULE_GENERATED: 'lifecycle.schedule.generated',
+  SEASON_SNAPSHOT_CREATED: 'lifecycle.season.snapshot_created',
+  LEAGUE_ENTERED_OFFSEASON: 'lifecycle.league.entered_offseason',
   // Draft lifecycle + picks
   DRAFT_STARTED: 'draft.session.started',
   DRAFT_PAUSED: 'draft.session.paused',
@@ -81,6 +83,8 @@ export const EVENT_PAYLOAD_SCHEMAS = {
   [EVENT.SEASON_ACTIVATED]: z.object({ seasonId: id, season: z.number().int().optional() }),
   [EVENT.SEASON_COMPLETED]: z.object({ seasonId: id }),
   [EVENT.SCHEDULE_GENERATED]: z.object({ seasonId: id, regularSeasonWeeks: z.number().int().optional(), matchupCount: z.number().int().optional() }),
+  [EVENT.SEASON_SNAPSHOT_CREATED]: z.object({ seasonId: id, snapshotId: id }),
+  [EVENT.LEAGUE_ENTERED_OFFSEASON]: z.object({ seasonId: id, snapshotId: id }),
   // ── Draft ──
   [EVENT.DRAFT_STARTED]: z.object({ draftId: id }),
   [EVENT.DRAFT_PAUSED]: z.object({ draftId: id }),
