@@ -28,7 +28,7 @@ export type SettingsTabId =
   | 'referral'
   | 'legacy'
   | 'legal'
-  | 'ai'
+  | 'chimmy'
   | 'account'
 
 type NavDef = {
@@ -39,7 +39,7 @@ type NavDef = {
 const NAV_DEFS: NavDef[] = [
   { id: 'profile', icon: User },
   { id: 'preferences', icon: Sliders },
-  { id: 'ai', icon: Sparkles },
+  { id: 'chimmy', icon: Sparkles },
   { id: 'security', icon: Shield },
   { id: 'notifications', icon: Bell },
   { id: 'connected', icon: Link2 },
