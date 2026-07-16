@@ -141,7 +141,7 @@ export function DashboardHeader({
             {dataHealth === 'connected' ? 'Live data connected' : dataHealth === 'degraded' ? 'Data sync delayed' : 'Checking…'}
           </span>
           <Link href="/dashboard/universal#os-strip" className={styles.osBtn}>
-            ⊞ Operating Systems
+            ⊞ Quick nav
           </Link>
         </div>
       </div>

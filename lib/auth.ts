@@ -11,6 +11,8 @@ import { prisma } from "@/lib/prisma";
 import { resolveUnifiedAuthIdentity } from "@/lib/auth/AuthIdentityResolver";
 import { linkSocialAccountToAppUser } from "@/lib/auth/SocialAccountLinkingService";
 import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapService";
+import { GUEST_SESSION_COOKIE_NAME } from "@/lib/guest-mode/guestSessionToken";
+import { claimGuestTrialForUser } from "@/lib/legacy/claimGuestTrialForUser";
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup";
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
 import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret";
@@ -757,6 +759,23 @@ export const authOptions: NextAuthOptions = {
         });
       } catch (error) {
         console.error("[auth] signIn event error:", error);
+      }
+
+      // AF_GATE0 §3.5 — universal guest→account trial migration. Runs on EVERY
+      // sign-in path (OAuth/social AND credentials), so a visitor who did the
+      // no-login Sleeper import and then signs up with Google (not just email +
+      // password) keeps 100% of their imported leagues/history. Idempotent and
+      // best-effort — an absent guest cookie is the common no-op; never blocks login.
+      // `next/headers` is imported dynamically so this module never pulls it into
+      // any non-request server context that might import `authOptions`.
+      try {
+        const { cookies } = await import("next/headers");
+        const guestToken = (await cookies()).get(GUEST_SESSION_COOKIE_NAME)?.value;
+        if (guestToken) {
+          await claimGuestTrialForUser(user.id, guestToken);
+        }
+      } catch (claimErr) {
+        console.warn("[auth] guest trial claim (signIn event) failed (non-blocking):", claimErr);
       }
     },
   },

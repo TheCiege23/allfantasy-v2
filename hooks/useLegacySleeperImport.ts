@@ -5,6 +5,10 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 export type LegacySleeperImportPhase = 'idle' | 'importing' | 'complete' | 'failed'
 
 const POLL_MS = 2500
+// Ceiling on how long we poll a queued/running import before giving up on the UI.
+// Prevents a spinner-of-death (AF_GATE0 §3.1) if the worker stalls or never completes;
+// the job may still finish server-side, so the failure copy tells the user to refresh.
+const MAX_POLL_MS = 150_000
 
 type LegacyImportStatusPayload = {
   job_id?: string
@@ -107,9 +111,17 @@ export function useLegacySleeperImport(options?: { importEndpoint?: string; extr
     if (phase !== 'importing' || !username.trim()) return
 
     let cancelled = false
+    const startedAt = Date.now()
 
     const poll = async () => {
       if (cancelled) return
+      // Never poll forever — surface a clear, honest state instead of an endless spinner.
+      if (Date.now() - startedAt > MAX_POLL_MS) {
+        clearPollTimer()
+        setError('This is taking longer than expected. Your leagues may still be importing — refresh in a moment to see your board.')
+        setPhase('failed')
+        return
+      }
       clearPollTimer()
       try {
         const res = await fetch(

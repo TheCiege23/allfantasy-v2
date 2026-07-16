@@ -48,10 +48,10 @@ export function UniversalDashboardShell({
           <div className={styles.hello}>{firstName ? `Welcome, ${firstName}! 👋` : 'Welcome! 👋'}</div>
           <p className={styles.subhello}>
             {guestMode
-              ? 'A free preview of your Legacy — sign up to connect leagues and unlock the full board.'
-              : 'Every league across every platform — powered by your Operating Systems underneath, surfaced only when you need it.'}
+              ? 'A free preview — sign up to connect more platforms and unlock your full command center.'
+              : 'Every league across every platform, in one place — with what needs your attention surfaced first.'}
           </p>
-          <OsLauncherStrip />
+          {!guestMode && <OsLauncherStrip />}
           {children}
         </main>
         <RightRail />

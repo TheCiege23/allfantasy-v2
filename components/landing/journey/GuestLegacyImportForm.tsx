@@ -34,7 +34,7 @@ export function GuestLegacyImportForm() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!inputValue.trim() || busy) return
-    trackLandingCtaClick({ cta_label: 'Build My Legacy', cta_destination: '/dashboard/universal', cta_type: 'primary', source: 'hero-guest-import' })
+    trackLandingCtaClick({ cta_label: 'See my leagues', cta_destination: '/dashboard/universal', cta_type: 'primary', source: 'hero-guest-import' })
     void startImport(inputValue)
   }
 
@@ -80,13 +80,13 @@ export function GuestLegacyImportForm() {
             color: 'var(--on-accent-bg)',
           }}
         >
-          {phase === 'complete' ? 'Ready!' : busy ? 'Building…' : 'Build My Legacy'}
+          {phase === 'complete' ? 'Ready!' : busy ? 'Building…' : 'See my leagues'}
         </button>
       </div>
 
       {phase === 'importing' && (
         <p className="text-[11px]" style={{ color: 'var(--muted)' }}>
-          {statusMessage || 'Pulling your Sleeper history…'}
+          {statusMessage || 'Pulling in your leagues…'}
         </p>
       )}
       {phase === 'failed' && error && (
@@ -96,7 +96,7 @@ export function GuestLegacyImportForm() {
       )}
       {phase === 'complete' && (
         <p className="text-[11px]" style={{ color: 'var(--accent-emerald, #34d399)' }}>
-          Taking you to your Legacy…
+          Taking you to your board…
         </p>
       )}
       <p className="text-[11px]" style={{ color: 'var(--muted2)' }}>

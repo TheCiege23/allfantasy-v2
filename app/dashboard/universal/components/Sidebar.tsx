@@ -58,7 +58,7 @@ export function Sidebar({ waiverCount, dmCount }: { waiverCount: number | null; 
       </div>
       <div className={`${styles.promo} ${styles.promoPlus}`} style={{ marginTop: 12 }}>
         <h4>◆ ALLFANTASY+</h4>
-        <p>Unlock Decision OS: settings-aware recommendations &amp; deep insight.</p>
+        <p>Unlock deeper insight: settings-aware recommendations across every league you play.</p>
         <Link href="/pricing" className={styles.cta}>
           Upgrade Now
         </Link>

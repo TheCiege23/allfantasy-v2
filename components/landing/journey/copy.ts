@@ -13,10 +13,10 @@ export const LANDING_COPY = {
     },
     badge: '✦ Fantasy Sports Only · No Gambling · Free for Players',
     hero: {
-      titleTop: 'Run Your League.',
-      titleBottom: 'Win Your League.',
+      titleTop: 'Every League You Play.',
+      titleBottom: 'One Place.',
       subtitle:
-        'Commissioner-first. 100% fantasy sports — no sportsbook, no gambling. Import any league format and get every manager competing in minutes.',
+        'Bring Sleeper, ESPN, Yahoo and more into one command center that shows what needs your attention, who to start, and where to go. 100% fantasy sports — no sportsbook, no gambling.',
       primary: 'Get Started Free →',
       commissionerPrimary: 'Start a League',
       secondary: 'Sign In',
@@ -165,7 +165,7 @@ export const LANDING_COPY = {
         cta: 'Start Your Championship Run',
       },
       decisionOS: {
-        eyebrow: 'Decision OS',
+        eyebrow: 'Always-On Insight',
         title: 'Always Watching.\nNever In The Way.',
         subtitle: 'A quiet layer running behind every league — checking trade fairness, league health, and engagement so problems get caught before they start.',
         cards: [
@@ -364,7 +364,7 @@ export const LANDING_COPY = {
         cta: 'Empieza tu carrera al campeonato',
       },
       decisionOS: {
-        eyebrow: 'Decision OS',
+        eyebrow: 'Always-On Insight',
         title: 'Siempre vigilando.\nNunca en el camino.',
         subtitle: 'Una capa silenciosa que corre detrás de cada liga — revisando equidad en los trades, salud de la liga y participación para detectar problemas antes de que empiecen.',
         cards: [
@@ -563,7 +563,7 @@ export const LANDING_COPY = {
         cta: '开启你的争冠之路',
       },
       decisionOS: {
-        eyebrow: 'Decision OS',
+        eyebrow: 'Always-On Insight',
         title: '始终在关注。\n从不打扰。',
         subtitle: '一个在每个联赛背后安静运行的层级 — 检查交易公平性、联赛健康度和参与度，在问题发生前就将其发现。',
         cards: [
@@ -762,7 +762,7 @@ export const LANDING_COPY = {
         cta: 'Simulan ang Iyong Championship Run',
       },
       decisionOS: {
-        eyebrow: 'Decision OS',
+        eyebrow: 'Always-On Insight',
         title: 'Palaging Nagmamasid.\nHindi Kailanman Nakakaabala.',
         subtitle: 'Isang tahimik na layer na tumatakbo sa likod ng bawat liga — sinusuri ang trade fairness, kalusugan ng liga, at engagement para mahuli ang mga problema bago pa man ito magsimula.',
         cards: [
@@ -961,7 +961,7 @@ export const LANDING_COPY = {
         cta: 'Bắt Đầu Hành Trình Vô Địch Của Bạn',
       },
       decisionOS: {
-        eyebrow: 'Decision OS',
+        eyebrow: 'Always-On Insight',
         title: 'Luôn Dõi Theo.\nKhông Bao Giờ Cản Đường.',
         subtitle: 'Một lớp âm thầm chạy phía sau mọi giải đấu — kiểm tra công bằng giao dịch, sức khỏe giải đấu, và mức độ tham gia để phát hiện vấn đề trước khi chúng bắt đầu.',
         cards: [
