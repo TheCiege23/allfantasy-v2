@@ -153,7 +153,7 @@ export function RankingsCard({
   const xpToNext = nextRow ? Math.max(0, nextRow.minXp - xpTotal) : 0
 
   const chimmyWhyHref = getChimmyChatHrefWithPrompt(
-    `Explain my AF rank (level ${level}, ${levelName}) and AI grade ${aiGrade} using only my imported stats.`,
+    `Explain my AF rank (level ${level}, ${levelName}) and Chimmy grade ${aiGrade} using only my imported stats.`,
     { source: 'dashboard_rankings' },
   )
 

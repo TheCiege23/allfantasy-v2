@@ -615,11 +615,15 @@ export function DashboardOverview({
     </section>
   )
 
+  // Dashboard visual bug-fix pass (My Leagues width follow-up) — this grid is keyed to viewport
+  // breakpoints (sm/lg/xl), same as LegacyToolsetGrid.tsx, so it needs to render full-width rather
+  // than confined to the secondary column (~1/3 of viewport) the way AF Legacy Toolset did before
+  // its own fix. Rendered as its own full-width block below; column count widened to match.
   const myLeaguesSection = leaguesLoading ? (
     <section key="myLeagues" className="space-y-2.5">
       <SectionHeading accent={contextAccent} icon={Crown}>{t('dashboard.warroom.myLeagues.title')}</SectionHeading>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {[0, 1].map((i) => (
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        {[0, 1, 2, 3].map((i) => (
           <div key={i} className="warroom-card h-[168px] animate-pulse rounded-2xl border border-white/[0.06] bg-white/[0.02]" />
         ))}
       </div>
@@ -627,7 +631,7 @@ export function DashboardOverview({
   ) : myLeaguesList.length > 0 ? (
     <section key="myLeagues" className="space-y-2.5">
       <SectionHeading accent={contextAccent} icon={Crown}>{t('dashboard.warroom.myLeagues.title')}</SectionHeading>
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {myLeaguesList.map((l) => (
           <MyLeagueCard
             key={l.id}
@@ -767,11 +771,11 @@ export function DashboardOverview({
   const layoutByContext: Record<PrimaryContext, { primary: ReactNode[]; secondary: ReactNode[] }> = {
     global: {
       primary: [platformPulseSection, recommendationsSection, todaysAgendaSection, weeklyGamePlanSection],
-      secondary: [myLeaguesSection, commissionerHubSection, rankingsLegacySection],
+      secondary: [commissionerHubSection],
     },
     commissioner: {
       primary: [platformPulseSection, commissionerHQSection, todaysAgendaSection, weeklyGamePlanSection],
-      secondary: [myLeaguesSection, rankingsLegacySection],
+      secondary: [],
     },
     team: {
       primary: [
@@ -784,7 +788,7 @@ export function DashboardOverview({
         todaysAgendaSection,
         teamWaiverSection,
       ],
-      secondary: [teamSeasonJourneySection, rankingsLegacySection],
+      secondary: [teamSeasonJourneySection],
     },
   }
   const layout = layoutByContext[context]
@@ -829,6 +833,22 @@ export function DashboardOverview({
           <div className="space-y-5 xl:col-span-2">{layout.primary}</div>
           <div className="space-y-5">{layout.secondary}</div>
         </div>
+
+        {/* My Leagues — same fix as AF Legacy Toolset below: this grid's own internal columns
+            (sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4) are keyed to viewport breakpoints, so
+            confining it to the 1/3-width secondary column left ~170px per card, not enough room
+            for icon + name + status badge together. Full-width, and only shown in the contexts
+            that showed it in the secondary column before (not "team", which is already scoped to
+            one league). */}
+        {context !== 'team' ? <div className="space-y-5">{myLeaguesSection}</div> : null}
+
+        {/* Rankings & Legacy — full-width for a different reason than the grids above: this isn't
+            about needing more columns (it's exactly 2 cards, sm:grid-cols-2 is already right), it's
+            that RankingsCard's own internal sm:flex-row (level info beside the AIGradeRing) needs
+            real width to lay out side-by-side without clipping. Confined to the 1/3-width secondary
+            column, the ring and the 4-up stat row beneath it were being squeezed by a breakpoint
+            keyed to viewport width, not to the column's actual width. */}
+        <div className="space-y-5">{rankingsLegacySection}</div>
 
         {/* AF Legacy Toolset + League Buzz — full-width, below the primary/secondary grid rather
             than inside the 1/3-width secondary column. LegacyToolsetGrid's own internal grid
