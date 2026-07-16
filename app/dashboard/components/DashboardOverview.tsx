@@ -767,11 +767,11 @@ export function DashboardOverview({
   const layoutByContext: Record<PrimaryContext, { primary: ReactNode[]; secondary: ReactNode[] }> = {
     global: {
       primary: [platformPulseSection, recommendationsSection, todaysAgendaSection, weeklyGamePlanSection],
-      secondary: [myLeaguesSection, commissionerHubSection, rankingsLegacySection, legacyToolsetSection, leagueBuzzSection],
+      secondary: [myLeaguesSection, commissionerHubSection, rankingsLegacySection],
     },
     commissioner: {
       primary: [platformPulseSection, commissionerHQSection, todaysAgendaSection, weeklyGamePlanSection],
-      secondary: [myLeaguesSection, rankingsLegacySection, legacyToolsetSection, leagueBuzzSection],
+      secondary: [myLeaguesSection, rankingsLegacySection],
     },
     team: {
       primary: [
@@ -784,7 +784,7 @@ export function DashboardOverview({
         todaysAgendaSection,
         teamWaiverSection,
       ],
-      secondary: [teamSeasonJourneySection, rankingsLegacySection, legacyToolsetSection, leagueBuzzSection],
+      secondary: [teamSeasonJourneySection, rankingsLegacySection],
     },
   }
   const layout = layoutByContext[context]
@@ -828,6 +828,16 @@ export function DashboardOverview({
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 xl:items-start">
           <div className="space-y-5 xl:col-span-2">{layout.primary}</div>
           <div className="space-y-5">{layout.secondary}</div>
+        </div>
+
+        {/* AF Legacy Toolset + League Buzz — full-width, below the primary/secondary grid rather
+            than inside the 1/3-width secondary column. LegacyToolsetGrid's own internal grid
+            (sm:grid-cols-2 lg:grid-cols-3) is keyed to viewport breakpoints, so confining it to a
+            narrow column left it squeezed while xl:items-start (columns don't stretch to match
+            height) opened dead space to its left whenever the primary column ran shorter. */}
+        <div className="space-y-5">
+          {legacyToolsetSection}
+          {leagueBuzzSection}
         </div>
 
         {allDone ? (

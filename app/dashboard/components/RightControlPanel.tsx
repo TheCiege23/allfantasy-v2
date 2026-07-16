@@ -184,7 +184,16 @@ export function RightControlPanel({
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${chip.dotClass}`} />
                 <span className="truncate text-[9px] font-bold text-white/72">{chip.label}</span>
                 {hasTokens ? (
-                  <span className="text-[9px] text-white/35">· {tokenBalance.balance.toLocaleString()} tokens</span>
+                  tokenBalance.isAdminBypassAccount ? (
+                    <span
+                      className="text-[9px] text-white/35"
+                      title="Admin bypass — synthetic balance, no ledger history"
+                    >
+                      · Admin bypass
+                    </span>
+                  ) : (
+                    <span className="text-[9px] text-white/35">· {tokenBalance.balance.toLocaleString()} tokens</span>
+                  )
                 ) : null}
               </Link>
             )
