@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useState } from "react"
-import type { ActivityFeedItem } from "@/lib/activity/placeholder"
+import type { ActivityFeedItem } from "@/lib/activity/types"
 
 export function useActivityFeed(options?: { limit?: number; leagueId?: string }) {
   const limit = options?.limit ?? 50
