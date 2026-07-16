@@ -42,8 +42,6 @@ function planFamilyToSubscriptionPlanId(
       return "commissioner"
     case "af_war_room":
       return "war_room"
-    case "af_all_access":
-      return "all_access"
     case "af_supreme":
       return "supreme"
     default:
@@ -51,16 +49,11 @@ function planFamilyToSubscriptionPlanId(
   }
 }
 
-export const ALL_ACCESS_INCLUDED_PLAN_IDS: readonly SubscriptionPlanId[] = [
+/** The plans AF Supreme includes for entitlement checks — it inherits the full tier stack. */
+export const SUPREME_INCLUDED_PLAN_IDS: readonly SubscriptionPlanId[] = [
   "pro",
   "commissioner",
   "war_room",
-]
-
-/** Supreme tier includes the same product surface as All-Access for entitlement checks. */
-export const SUPREME_INCLUDED_PLAN_IDS: readonly SubscriptionPlanId[] = [
-  ...ALL_ACCESS_INCLUDED_PLAN_IDS,
-  "all_access",
 ]
 
 export function isActiveOrGraceStatus(status: EntitlementStatus): boolean {
@@ -85,8 +78,6 @@ export function getDisplayPlanName(planId: SubscriptionPlanId): string {
       return "AF Commissioner"
     case "war_room":
       return "AF Legacy"
-    case "all_access":
-      return "AF All-Access Bundle"
     case "supreme":
       return "AF Supreme"
     case "enterprise":
@@ -98,7 +89,6 @@ const PLAN_TO_MONTHLY_SKU: Partial<Record<SubscriptionPlanId, MonetizationSubscr
   pro: "af_pro_monthly",
   commissioner: "af_commissioner_monthly",
   war_room: "af_war_room_monthly",
-  all_access: "af_all_access_monthly",
   supreme: "af_supreme_monthly",
 }
 
@@ -114,11 +104,6 @@ export function getDisplayPlanNameWithPrice(planId: SubscriptionPlanId): string 
 
 export function expandPlansWithBundle(plans: readonly SubscriptionPlanId[]): SubscriptionPlanId[] {
   const expanded = new Set<SubscriptionPlanId>(plans)
-  if (expanded.has("all_access")) {
-    for (const includedPlan of ALL_ACCESS_INCLUDED_PLAN_IDS) {
-      expanded.add(includedPlan)
-    }
-  }
   if (expanded.has("supreme")) {
     for (const includedPlan of SUPREME_INCLUDED_PLAN_IDS) {
       expanded.add(includedPlan)
@@ -128,21 +113,14 @@ export function expandPlansWithBundle(plans: readonly SubscriptionPlanId[]): Sub
 }
 
 export function resolveBundleInheritance(plans: readonly SubscriptionPlanId[]): {
-  hasAllAccess: boolean
   hasSupreme: boolean
   inheritedPlanIds: SubscriptionPlanId[]
   effectivePlanIds: SubscriptionPlanId[]
 } {
-  const hasAllAccess = plans.includes("all_access")
   const hasSupreme = plans.includes("supreme")
   return {
-    hasAllAccess,
     hasSupreme,
-    inheritedPlanIds: hasSupreme
-      ? [...SUPREME_INCLUDED_PLAN_IDS]
-      : hasAllAccess
-        ? [...ALL_ACCESS_INCLUDED_PLAN_IDS]
-        : [],
+    inheritedPlanIds: hasSupreme ? [...SUPREME_INCLUDED_PLAN_IDS] : [],
     effectivePlanIds: expandPlansWithBundle(plans),
   }
 }
@@ -158,7 +136,6 @@ export function hasFeatureAccessForPlans(
   if (!required) return false
   return (
     expandedPlans.includes(required) ||
-    expandedPlans.includes("all_access") ||
     expandedPlans.includes("supreme")
   )
 }

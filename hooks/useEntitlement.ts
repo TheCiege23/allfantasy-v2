@@ -25,7 +25,7 @@ export interface EntitlementState {
   requiredPlan?: string | null
   upgradePath?: string
   bundleInheritance?: {
-    hasAllAccess: boolean
+    hasSupreme: boolean
     inheritedPlanIds: string[]
     effectivePlanIds: string[]
   } | null
@@ -45,7 +45,6 @@ const ALLOWED_PLAN_IDS = new Set<SubscriptionPlanId>([
   'pro',
   'commissioner',
   'war_room',
-  'all_access',
   'supreme',
 ])
 

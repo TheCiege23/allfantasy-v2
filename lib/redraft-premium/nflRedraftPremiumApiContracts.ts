@@ -287,10 +287,9 @@ export function resolveNflRedraftPremiumTierFromEntitlement(input: {
   const rawPlans = input.plans ?? []
   const expanded = expandPlansWithBundle(rawPlans)
   const hasSupreme = rawPlans.includes('supreme')
-  const hasAllAccess = rawPlans.includes('all_access')
 
   if (input.serviceId === 'war_room') {
-    return rawPlans.includes('war_room') || hasAllAccess ? 'AF_WAR_ROOM' : 'FREE'
+    return rawPlans.includes('war_room') ? 'AF_WAR_ROOM' : 'FREE'
   }
 
   if (input.variant === 'advanced') {

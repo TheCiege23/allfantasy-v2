@@ -103,7 +103,7 @@ export default function TokensPage() {
   const formatPlanLabel = useCallback(
     (plan: string | null): string => {
       if (!plan) return t('tokens.pricing.planAny')
-      if (plan === 'all_access') return t('tokens.pricing.planAllAccess')
+      if (plan === 'supreme') return 'AF Supreme'
       if (plan === 'war_room') return t('tokens.pricing.planWarRoom')
       if (plan === 'commissioner') return t('tokens.pricing.planCommissioner')
       if (plan === 'pro') return t('tokens.pricing.planPro')

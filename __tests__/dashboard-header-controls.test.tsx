@@ -26,7 +26,6 @@ vi.mock('@/hooks/useEntitlements', () => ({
     hasCommissioner: false,
     hasPro: false,
     hasWarRoom: false,
-    hasAllAccess: false,
     hasSupreme: false,
   }),
 }))

@@ -23,8 +23,7 @@ export type EntitlementsState = {
   hasCommissioner: boolean
   hasPro: boolean
   hasWarRoom: boolean
-  hasAllAccess: boolean
-  /** AF Supreme subscription (top tier; includes All-Access capability). */
+  /** AF Supreme subscription (top tier; inherits the full Pro + Commissioner + Legacy stack). */
   hasSupreme: boolean
   hasAnyPaid: boolean
 }
@@ -36,7 +35,6 @@ const INITIAL_STATE: EntitlementsState = {
   hasCommissioner: false,
   hasPro: false,
   hasWarRoom: false,
-  hasAllAccess: false,
   hasSupreme: false,
   hasAnyPaid: false,
 }
@@ -48,17 +46,9 @@ function computeFlags(snap: EntitlementSnapshot): Omit<EntitlementsState, "loadi
   return {
     snapshot: snap,
     hasCommissioner:
-      isActive &&
-      (expanded.includes("commissioner") ||
-        expanded.includes("all_access") ||
-        expanded.includes("supreme")),
-    hasPro:
-      isActive &&
-      (expanded.includes("pro") || expanded.includes("all_access") || expanded.includes("supreme")),
-    hasWarRoom:
-      isActive &&
-      (expanded.includes("war_room") || expanded.includes("all_access") || expanded.includes("supreme")),
-    hasAllAccess: isActive && (plans.includes("all_access") || plans.includes("supreme")),
+      isActive && (expanded.includes("commissioner") || expanded.includes("supreme")),
+    hasPro: isActive && (expanded.includes("pro") || expanded.includes("supreme")),
+    hasWarRoom: isActive && (expanded.includes("war_room") || expanded.includes("supreme")),
     hasSupreme: isActive && plans.includes("supreme"),
     hasAnyPaid: isActive && plans.length > 0,
   }

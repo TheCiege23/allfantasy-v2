@@ -5,8 +5,6 @@ export type MonetizationSubscriptionSku =
   | "af_commissioner_yearly"
   | "af_war_room_monthly"
   | "af_war_room_yearly"
-  | "af_all_access_monthly"
-  | "af_all_access_yearly"
   | "af_supreme_monthly"
   | "af_supreme_yearly"
 
@@ -17,11 +15,13 @@ export type MonetizationTokenPackSku =
 
 export type MonetizationSku = MonetizationSubscriptionSku | MonetizationTokenPackSku
 
+// NOTE: internal plan family "af_war_room" is retained as the stable key; the
+// customer-facing name for this tier is "Legacy" (top all-access). Never surface
+// "war_room" or "AI" to customers.
 export type SubscriptionPlanFamily =
   | "af_pro"
   | "af_commissioner"
   | "af_war_room"
-  | "af_all_access"
   | "af_supreme"
 
 export type MonetizationCatalogItem = {
@@ -42,7 +42,7 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_pro_monthly",
     type: "subscription",
     title: "AF Pro Monthly",
-    description: "Player-specific AI features for active fantasy managers.",
+    description: "Player tools for active fantasy managers — trades, waivers, lineups, and drafts.",
     amountUsd: 9.99,
     currency: "usd",
     interval: "month",
@@ -54,11 +54,11 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_pro_yearly",
     type: "subscription",
     title: "AF Pro Yearly",
-    description: "Player-specific AI features for active fantasy managers.",
+    description: "Player tools for active fantasy managers — trades, waivers, lineups, and drafts.",
     amountUsd: 99.99,
     currency: "usd",
     interval: "year",
-    tokenAmount: 3500,
+    tokenAmount: 3000,
     planFamily: "af_pro",
     stripePriceEnvVar: "STRIPE_PRICE_AF_PRO_YEARLY",
   },
@@ -66,11 +66,11 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_commissioner_monthly",
     type: "subscription",
     title: "AF Commissioner Monthly",
-    description: "League-specific commissioner tools and automation controls.",
-    amountUsd: 4.99,
+    description: "Everything in Pro plus the tools to run your leagues.",
+    amountUsd: 14.99,
     currency: "usd",
     interval: "month",
-    tokenAmount: 100,
+    tokenAmount: 500,
     planFamily: "af_commissioner",
     stripePriceEnvVar: "STRIPE_PRICE_AF_COMMISSIONER_MONTHLY",
   },
@@ -78,11 +78,11 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_commissioner_yearly",
     type: "subscription",
     title: "AF Commissioner Yearly",
-    description: "League-specific commissioner tools and automation controls.",
-    amountUsd: 49.99,
+    description: "Everything in Pro plus the tools to run your leagues.",
+    amountUsd: 149.99,
     currency: "usd",
     interval: "year",
-    tokenAmount: 1500,
+    tokenAmount: 6000,
     planFamily: "af_commissioner",
     stripePriceEnvVar: "STRIPE_PRICE_AF_COMMISSIONER_YEARLY",
   },
@@ -90,11 +90,11 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_war_room_monthly",
     type: "subscription",
     title: "AF Legacy Monthly",
-    description: "Draft strategy and long-term planning tools for one user.",
-    amountUsd: 9.99,
+    description: "Everything in Supreme plus the live draft room, dynasty tools, and priority access.",
+    amountUsd: 29.99,
     currency: "usd",
     interval: "month",
-    tokenAmount: 300,
+    tokenAmount: 3000,
     planFamily: "af_war_room",
     stripePriceEnvVar: "STRIPE_PRICE_AF_WAR_ROOM_MONTHLY",
   },
@@ -102,48 +102,24 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_war_room_yearly",
     type: "subscription",
     title: "AF Legacy Yearly",
-    description: "Draft strategy and long-term planning tools for one user.",
-    amountUsd: 99.99,
+    description: "Everything in Supreme plus the live draft room, dynasty tools, and priority access.",
+    amountUsd: 299.99,
     currency: "usd",
     interval: "year",
-    tokenAmount: 3500,
+    tokenAmount: 36000,
     planFamily: "af_war_room",
     stripePriceEnvVar: "STRIPE_PRICE_AF_WAR_ROOM_YEARLY",
-  },
-  {
-    sku: "af_all_access_monthly",
-    type: "subscription",
-    title: "AF All-Access Monthly",
-    description: "Pro + Commissioner + AF Legacy features bundled — every AllFantasy AI and league tool.",
-    amountUsd: 19.99,
-    currency: "usd",
-    interval: "month",
-    tokenAmount: 650,
-    planFamily: "af_all_access",
-    stripePriceEnvVar: "STRIPE_PRICE_AF_ALL_ACCESS_MONTHLY",
-  },
-  {
-    sku: "af_all_access_yearly",
-    type: "subscription",
-    title: "AF All-Access Yearly",
-    description: "Pro + Commissioner + AF Legacy features bundled — every AllFantasy AI and league tool.",
-    amountUsd: 199.99,
-    currency: "usd",
-    interval: "year",
-    tokenAmount: 8500,
-    planFamily: "af_all_access",
-    stripePriceEnvVar: "STRIPE_PRICE_AF_ALL_ACCESS_YEARLY",
   },
   {
     sku: "af_supreme_monthly",
     type: "subscription",
     title: "AF Supreme Monthly",
     description:
-      "Everything in All-Access plus the highest token allowances and platform-wide premium priority.",
+      "Everything in Commissioner plus projections, cross-league analytics, and higher token allowances.",
     amountUsd: 19.99,
     currency: "usd",
     interval: "month",
-    tokenAmount: 1000,
+    tokenAmount: 1500,
     planFamily: "af_supreme",
     stripePriceEnvVar: "STRIPE_PRICE_AF_SUPREME_MONTHLY",
   },
@@ -152,19 +128,19 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     type: "subscription",
     title: "AF Supreme Yearly",
     description:
-      "Everything in All-Access plus the highest token allowances and platform-wide premium priority.",
+      "Everything in Commissioner plus projections, cross-league analytics, and higher token allowances.",
     amountUsd: 199.99,
     currency: "usd",
     interval: "year",
-    tokenAmount: 15000,
+    tokenAmount: 18000,
     planFamily: "af_supreme",
     stripePriceEnvVar: "STRIPE_PRICE_AF_SUPREME_YEARLY",
   },
   {
     sku: "af_tokens_5",
     type: "token_pack",
-    title: "AllFantasy AI Tokens (250)",
-    description: "250 AI tokens for metered premium AI actions.",
+    title: "AllFantasy Starter Tokens (250)",
+    description: "250 tokens for premium one-off actions.",
     amountUsd: 4.99,
     currency: "usd",
     interval: null,
@@ -175,8 +151,8 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
   {
     sku: "af_tokens_10",
     type: "token_pack",
-    title: "AllFantasy AI Tokens (600)",
-    description: "600 AI tokens for metered premium AI actions.",
+    title: "AllFantasy Plus Tokens (600)",
+    description: "600 tokens for premium one-off actions.",
     amountUsd: 8.99,
     currency: "usd",
     interval: null,
@@ -187,8 +163,8 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
   {
     sku: "af_tokens_25",
     type: "token_pack",
-    title: "AllFantasy AI Tokens (1,500)",
-    description: "1,500 AI tokens for metered premium AI actions.",
+    title: "AllFantasy Pro Token Pack (1,500)",
+    description: "1,500 tokens for premium one-off actions.",
     amountUsd: 19.99,
     currency: "usd",
     interval: null,
