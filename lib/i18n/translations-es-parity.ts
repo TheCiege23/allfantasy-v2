@@ -1195,7 +1195,7 @@ export const translationsEsParity: Record<string, string> = {
   "tokens.pricing.tierHigh": "Costo alto",
   "tokens.pricing.noRulesInTier": "No hay reglas en este nivel.",
   "tokens.pricing.planAny": "Cualquier plan",
-  "tokens.pricing.planAllAccess": "AF Acceso Total",
+  "tokens.pricing.planSupreme": "AF Supreme",
   "tokens.pricing.planWarRoom": "AF Legacy",
   "tokens.pricing.planCommissioner": "AF Comisionado",
   "tokens.pricing.planPro": "AF Pro",

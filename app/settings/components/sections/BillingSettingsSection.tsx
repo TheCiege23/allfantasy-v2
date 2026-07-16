@@ -27,22 +27,22 @@ export function BillingSettingsSection() {
             <p className="mb-1 text-xs uppercase tracking-wider" style={{ color: "var(--muted2)" }}>{t("settings.billing.currentPlan")}</p>
             {hasAnySub ? (
               <div className="flex flex-wrap items-center gap-2">
-                {ents.hasAllAccess && (
-                  <span className="rounded-full border border-cyan-400/30 bg-cyan-500/10 px-2.5 py-0.5 text-xs font-bold text-cyan-300">
-                    AF All-Access
+                {ents.hasSupreme && (
+                  <span className="rounded-full border border-purple-400/30 bg-purple-500/10 px-2.5 py-0.5 text-xs font-bold text-purple-300">
+                    AF Supreme
                   </span>
                 )}
-                {!ents.hasAllAccess && ents.hasCommissioner && (
+                {!ents.hasSupreme && ents.hasCommissioner && (
                   <span className="rounded-full border border-violet-400/30 bg-violet-500/10 px-2.5 py-0.5 text-xs font-bold text-violet-300">
                     AF Commissioner
                   </span>
                 )}
-                {!ents.hasAllAccess && ents.hasPro && (
+                {!ents.hasSupreme && ents.hasPro && (
                   <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2.5 py-0.5 text-xs font-bold text-sky-300">
                     AF Pro
                   </span>
                 )}
-                {!ents.hasAllAccess && ents.hasWarRoom && (
+                {!ents.hasSupreme && ents.hasWarRoom && (
                   <span className="rounded-full border border-amber-400/30 bg-amber-500/10 px-2.5 py-0.5 text-xs font-bold text-amber-300">
                     AF Legacy
                   </span>

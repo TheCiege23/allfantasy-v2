@@ -97,6 +97,60 @@ function formatDraftCountdown(
   return t('dashboard.warroom.myLeagueCard.draftCountdownSoon')
 }
 
+type MatchupCellState =
+  | { kind: 'value'; text: string; tone: 'win' | 'loss' | 'neutral' }
+  | { kind: 'preseason' }
+  | { kind: 'pendingWeek1' }
+  | { kind: 'loading' }
+  | { kind: 'unavailable' }
+
+function resolveOpponentCell(
+  opponentName: string | undefined,
+  hasMatchups: boolean,
+  fetchAttempted: boolean,
+): MatchupCellState {
+  if (opponentName) return { kind: 'value', text: opponentName, tone: 'neutral' }
+  if (!hasMatchups) return { kind: 'preseason' }
+  if (!fetchAttempted) return { kind: 'loading' }
+  return { kind: 'unavailable' }
+}
+
+function resolveResultCell(
+  lastResult: { won: boolean; score: string } | null | undefined,
+  hasMatchups: boolean,
+  isFirstWeek: boolean,
+  fetchAttempted: boolean,
+): MatchupCellState {
+  if (lastResult) return { kind: 'value', text: `${lastResult.won ? 'W' : 'L'} ${lastResult.score}`, tone: lastResult.won ? 'win' : 'loss' }
+  if (!hasMatchups) return { kind: 'preseason' }
+  if (isFirstWeek) return { kind: 'pendingWeek1' }
+  if (!fetchAttempted) return { kind: 'loading' }
+  return { kind: 'unavailable' }
+}
+
+/** Renders a My Leagues card matchup cell (opponent/result) — one honest state per real cause,
+ *  never the same bare dash for "not started yet" and "should have data but doesn't". */
+function matchupCellDisplay(
+  state: MatchupCellState,
+  t: (key: string) => string,
+): { text: string; className: string } {
+  switch (state.kind) {
+    case 'value':
+      return {
+        text: state.text,
+        className: state.tone === 'win' ? 'text-emerald-300' : state.tone === 'loss' ? 'text-white/60' : 'text-white/85',
+      }
+    case 'preseason':
+      return { text: t('dashboard.warroom.myLeagueCard.preseasonNotice'), className: 'font-normal text-white/40' }
+    case 'pendingWeek1':
+      return { text: t('dashboard.warroom.myLeagueCard.resultPendingWeek1'), className: 'font-normal text-white/40' }
+    case 'loading':
+      return { text: t('dashboard.warroom.myLeagueCard.matchupLoading'), className: 'font-normal text-white/35' }
+    case 'unavailable':
+      return { text: t('dashboard.warroom.myLeagueCard.matchupUnavailable'), className: 'font-normal text-amber-300/70' }
+  }
+}
+
 function healthTone(status: HealthStatus): { color: string; labelKey: string } {
   switch (status) {
     case 'excellent':
@@ -128,6 +182,9 @@ export function MyLeagueCard({
   const [myTeam, setMyTeam] = useState<MyTeamSummary | null>(null)
   const [forecastRows, setForecastRows] = useState<ForecastRow[] | null>(null)
   const [matchupRows, setMatchupRows] = useState<MatchupRow[] | null>(null)
+  /** True once the matchups fetch has settled (success or failure) — distinguishes "still
+   *  loading" / "genuinely no data" from "haven't started fetching because preseason". */
+  const [matchupFetchAttempted, setMatchupFetchAttempted] = useState(false)
   const { items: activityItems } = useActivityFeed({ limit: 20, leagueId: league.id })
   const health = useLeagueHealth(league)
 
@@ -186,10 +243,13 @@ export function MyLeagueCard({
       void fetch(`/api/leagues/${encodeURIComponent(league.id)}/matchups`, { cache: 'no-store' })
         .then((r) => (r.ok ? r.json() : null))
         .then((data: { matchups?: MatchupRow[] } | null) => {
-          if (cancelled || !data?.matchups?.length) return
-          setMatchupRows(data.matchups)
+          if (cancelled) return
+          if (data?.matchups?.length) setMatchupRows(data.matchups)
+          setMatchupFetchAttempted(true)
         })
-        .catch(() => {})
+        .catch(() => {
+          if (!cancelled) setMatchupFetchAttempted(true)
+        })
     }
 
     return () => {
@@ -223,6 +283,20 @@ export function MyLeagueCard({
   const tone = health ? healthTone(health.status) : null
   const stage = stageKey(league)
   const accent = sportAccent(league.sport)
+  const hasMatchups = rawStage(league) === 'in_season' || rawStage(league) === 'playoffs'
+  const isFirstWeek = (league.currentWeek ?? 1) <= 1
+  const rankText =
+    typeof myTeam?.currentRank === 'number'
+      ? tInterpolate('dashboard.warroom.myLeagueCard.rankLabel', { rank: myTeam.currentRank })
+      : t('dashboard.warroom.myLeagueCard.rankPending')
+  const opponentCell = matchupCellDisplay(
+    resolveOpponentCell(matchupInfo?.opponentName, hasMatchups, matchupFetchAttempted),
+    t,
+  )
+  const resultCell = matchupCellDisplay(
+    resolveResultCell(matchupInfo?.lastResult, hasMatchups, isFirstWeek, matchupFetchAttempted),
+    t,
+  )
   const draftCountdown =
     rawStage(league) === 'pre_draft' && league.draftDate
       ? formatDraftCountdown(league.draftDate, t, tInterpolate)
@@ -270,9 +344,13 @@ export function MyLeagueCard({
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
             {league.isCommissioner ? <Crown className="h-3 w-3 shrink-0 text-amber-400" aria-hidden /> : null}
-            <Link href={`/league/${league.id}`} className="truncate text-[14px] font-bold text-white hover:text-cyan-200">
+            <Link
+              href={`/league/${league.id}`}
+              title={league.name}
+              className="min-w-0 flex-1 truncate text-[14px] font-bold text-white hover:text-cyan-200"
+            >
               {league.name}
             </Link>
           </div>
@@ -282,7 +360,7 @@ export function MyLeagueCard({
                 <span ref={winsCountUp.ref} className="text-[13px] font-bold text-white/80">
                   {winsCountUp.value}
                 </span>
-                {`-${myTeam?.losses}${myTeam?.ties ? `-${myTeam.ties}` : ''} · ${tInterpolate('dashboard.warroom.myLeagueCard.rankLabel', { rank: myTeam?.currentRank ?? '—' })}`}
+                {`-${myTeam?.losses}${myTeam?.ties ? `-${myTeam.ties}` : ''} · ${rankText}`}
               </span>
             ) : (
               <span>{league.sport}</span>
@@ -324,17 +402,11 @@ export function MyLeagueCard({
       <div className="mt-3.5 grid grid-cols-2 gap-2.5 text-[11px]">
         <div className="rounded-lg bg-white/[0.03] px-2.5 py-2">
           <p className="text-white/35">{t('dashboard.warroom.myLeagueCard.nextOpponent')}</p>
-          <p className="mt-0.5 truncate font-semibold text-white/85">{matchupInfo?.opponentName ?? '—'}</p>
+          <p className={`mt-0.5 truncate font-semibold ${opponentCell.className}`}>{opponentCell.text}</p>
         </div>
         <div className="rounded-lg bg-white/[0.03] px-2.5 py-2">
           <p className="text-white/35">{t('dashboard.warroom.myLeagueCard.lastResult')}</p>
-          <p
-            className={`mt-0.5 font-semibold ${
-              matchupInfo?.lastResult ? (matchupInfo.lastResult.won ? 'text-emerald-300' : 'text-white/60') : 'text-white/60'
-            }`}
-          >
-            {matchupInfo?.lastResult ? `${matchupInfo.lastResult.won ? 'W' : 'L'} ${matchupInfo.lastResult.score}` : '—'}
-          </p>
+          <p className={`mt-0.5 font-semibold ${resultCell.className}`}>{resultCell.text}</p>
         </div>
       </div>
 

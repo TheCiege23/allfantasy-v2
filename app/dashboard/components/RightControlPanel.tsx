@@ -29,7 +29,6 @@ function resolvePlanChip(ents: ReturnType<typeof useEntitlements>): {
 } | null {
   if (ents.loading) return null
   if (ents.hasSupreme) return { label: 'AF Supreme', dotClass: 'bg-purple-400' }
-  if (ents.hasAllAccess) return { label: 'AF All-Access', dotClass: 'bg-cyan-400' }
   if (ents.hasCommissioner) return { label: 'AF Commissioner', dotClass: 'bg-amber-400' }
   if (ents.hasWarRoom) return { label: 'AF Legacy', dotClass: 'bg-blue-400' }
   if (ents.hasPro) return { label: 'AF Pro', dotClass: 'bg-cyan-400' }
@@ -185,7 +184,16 @@ export function RightControlPanel({
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${chip.dotClass}`} />
                 <span className="truncate text-[9px] font-bold text-white/72">{chip.label}</span>
                 {hasTokens ? (
-                  <span className="text-[9px] text-white/35">· {tokenBalance.balance.toLocaleString()} tokens</span>
+                  tokenBalance.isAdminBypassAccount ? (
+                    <span
+                      className="text-[9px] text-white/35"
+                      title="Admin bypass — synthetic balance, no ledger history"
+                    >
+                      · Admin bypass
+                    </span>
+                  ) : (
+                    <span className="text-[9px] text-white/35">· {tokenBalance.balance.toLocaleString()} tokens</span>
+                  )
                 ) : null}
               </Link>
             )

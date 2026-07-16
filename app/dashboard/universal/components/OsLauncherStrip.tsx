@@ -10,25 +10,25 @@ import Link from 'next/link'
 import styles from './universal-dashboard.module.css'
 
 const OS_LINKS: { label: string; href: string }[] = [
-  { label: 'Decision OS', href: '/dashboard' },
-  { label: 'Draft OS', href: '/dashboard' },
-  { label: 'Trade OS', href: '/dashboard' },
-  { label: 'Waiver OS', href: '/dashboard' },
-  { label: 'Manager OS', href: '/af-legacy' },
-  { label: 'Commissioner OS', href: '/commissioner-os' },
-  { label: 'League OS', href: '/dashboard' },
+  { label: 'Dashboard', href: '/dashboard' },
+  { label: 'Draft', href: '/dashboard' },
+  { label: 'Trades', href: '/dashboard' },
+  { label: 'Waivers', href: '/dashboard' },
+  { label: 'Legacy', href: '/af-legacy' },
+  { label: 'Commissioner', href: '/commissioner-os' },
+  { label: 'Leagues', href: '/dashboard' },
 ]
 
 export function OsLauncherStrip() {
   return (
     <div className={styles.osStrip} id="os-strip">
-      <span className={styles.osLead}>⊞ Jump to an OS</span>
+      <span className={styles.osLead}>⊞ Jump to</span>
       {OS_LINKS.map((os) => (
         <Link key={os.label} href={os.href} className={styles.osChip}>
           {os.label}
         </Link>
       ))}
-      <span className={styles.osNote}>Always on · working behind every screen</span>
+      <span className={styles.osNote}>Everything you play, one place</span>
     </div>
   )
 }

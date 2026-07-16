@@ -496,7 +496,7 @@ export function DraftRoomPageClient({
   const entitlements = useEntitlements()
   const tokenBalance = useTokenBalance()
   const hasAiSubscription =
-    entitlements.hasPro || entitlements.hasSupreme || entitlements.hasCommissioner || entitlements.hasAllAccess
+    entitlements.hasPro || entitlements.hasSupreme || entitlements.hasCommissioner
   /**
    * Token-balance fallback: free-tier users who've bought AF token packs still
    * get to use AI features, spending one token per request. Gate is true when
@@ -4617,9 +4617,9 @@ export function DraftRoomPageClient({
                           className="mt-2 rounded-lg border border-amber-400/25 bg-amber-500/10 p-3"
                           data-testid="draft-bottom-ai-locked"
                         >
-                          <p className="text-sm font-semibold text-amber-100">AI recommendations locked</p>
+                          <p className="text-sm font-semibold text-amber-100">Recommendations locked</p>
                           <p className="mt-1 text-[11px] text-white/65">
-                            Subscribe (Pro, Commissioner, All-Access, or Supreme) for unlimited AI picks — or top up tokens to pay per-use.
+                            Subscribe (Pro, Commissioner, Supreme, or Legacy) for unlimited picks — or top up tokens to pay per-use.
                           </p>
                           <div className="mt-2 flex flex-wrap gap-2">
                             <a

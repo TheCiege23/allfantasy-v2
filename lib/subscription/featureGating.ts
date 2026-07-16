@@ -13,7 +13,6 @@ const PLAN_UPGRADE_URLS: Record<string, string> = {
   pro: "/pro",
   commissioner: "/commissioner-upgrade",
   war_room: "/war-room",
-  all_access: "/pricing",
   supreme: "/pricing",
 }
 

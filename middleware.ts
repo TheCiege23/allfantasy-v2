@@ -5,6 +5,21 @@ import { getToken } from "next-auth/jwt"
 import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 import { getPublicSiteHostname } from "@/lib/site-public-origin"
+import { GUEST_SESSION_COOKIE_NAME } from "@/lib/guest-mode/guestSessionToken"
+
+/**
+ * Once a visitor is authenticated, the no-login trial cookie (`af_guest_session`)
+ * has served its purpose: its `LegacyUser` is claimed on sign-in (AF_GATE0 §3.5),
+ * and the dashboard reads it only when there is NO authenticated user. Clear it on
+ * authenticated navigations so the trial token is invalidated (and a later logout
+ * doesn't resurrect the guest board). No-op when the cookie isn't present.
+ */
+function clearGuestTrialCookie(request: NextRequest, response: NextResponse): NextResponse {
+  if (request.cookies.get(GUEST_SESSION_COOKIE_NAME)) {
+    response.cookies.delete(GUEST_SESSION_COOKIE_NAME)
+  }
+  return response
+}
 
 /**
  * Redirect apex ↔ www for allfantasy.ai so document origin matches manifest `id` and SEO canonical.
@@ -310,7 +325,7 @@ export async function middleware(request: NextRequest) {
       if (token?.sub) {
         const url = request.nextUrl.clone()
         url.pathname = "/dashboard"
-        return NextResponse.redirect(url)
+        return clearGuestTrialCookie(request, NextResponse.redirect(url))
       }
     }
   }
@@ -341,7 +356,7 @@ export async function middleware(request: NextRequest) {
           "callbackUrl",
           pathname + (request.nextUrl.search || "")
         )
-        return NextResponse.redirect(dest)
+        return clearGuestTrialCookie(request, NextResponse.redirect(dest))
       }
     }
   }

@@ -25,7 +25,7 @@ const DIFFERENTIATION = [
   {
     title: 'AF Pro',
     icon: Crown,
-    copy: 'Player-specific AI tier for trades, waivers, matchups, and lineup decisions.',
+    copy: 'Player-specific tier for trades, waivers, matchups, and lineup decisions.',
     tone: 'border-cyan-400/35 bg-cyan-500/10 text-cyan-100',
   },
   {

@@ -190,7 +190,7 @@ function buildEspnActivityFilter(limit = 1000): string {
   })
 }
 
-function parseEspnSourceInput(sourceInput: string): { leagueId: string; season: number } {
+export function parseEspnSourceInput(sourceInput: string): { leagueId: string; season: number } {
   const trimmed = sourceInput.trim()
   if (!trimmed) {
     throw new EspnImportLeagueNotFoundError('ESPN league ID is required.')
@@ -327,11 +327,11 @@ async function loadEspnLeagueRaw(args: {
   if (lastError instanceof EspnApiResponseError && (lastError.status === 401 || lastError.status === 403)) {
     if (cookieHeader) {
       throw new EspnImportConnectionError(
-        'Your saved ESPN cookies no longer unlock this league. Reconnect ESPN in League Sync and try again.'
+        'Your saved ESPN cookies no longer unlock this league. Reconnect ESPN in Settings → Connected Accounts and try again.'
       )
     }
     throw new EspnImportConnectionError(
-      'This ESPN league is private. Connect ESPN in League Sync before importing it.'
+      'This ESPN league is private. Connect ESPN in Settings → Connected Accounts before importing it.'
     )
   }
 

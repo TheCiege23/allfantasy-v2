@@ -11,24 +11,18 @@ import {
   getPlayerName,
   type SleeperTransaction,
 } from "@/lib/sleeper-client"
-import type { ActivityFeedItem } from "@/lib/activity/placeholder"
+import type { ActivityFeedItem, ActivityLeagueEntry, ActivitySourceContext } from "@/lib/activity/types"
+import { mergeActivityItems } from "@/lib/activity/merge"
+import { collectNativeLeagueActivity } from "@/lib/activity/sources/nativeLeagueActivity"
+import { collectRosterInjuryActivity } from "@/lib/activity/sources/rosterInjuryActivity"
 
 export const dynamic = "force-dynamic"
 
 // Bounds how many of the viewer's Sleeper leagues get a live transactions call per request —
-// this endpoint is polled every 90s by useActivityFeed, so an unbounded per-league fetch
+// this endpoint is polled every ~90s by useActivityFeed, so an unbounded per-league fetch
 // fan-out isn't worth the real per-request cost for what's meant to be a lightweight feed.
 const MAX_LEAGUES_TO_CHECK = 6
 const WEEKS_TO_CHECK = 2
-
-type LeagueListEntry = {
-  id?: string
-  name?: string
-  platform?: string
-  platformLeagueId?: string | null
-  season?: number | string | null
-  status?: string | null
-}
 
 function describeTransaction(
   tx: SleeperTransaction,
@@ -62,49 +56,34 @@ function describeTransaction(
 }
 
 /**
- * GET /api/shared/activity
- * Real League Buzz (audit #7): aggregates actual recent Sleeper transactions (trades,
- * waiver claims, free agent adds/drops) for the viewer's connected Sleeper leagues via
- * Sleeper's real /league/{id}/transactions/{week} endpoint — the same client function
- * (getLeagueTransactions) already used elsewhere in this codebase, just not previously
- * wired into this feed. Sleeper-imported leagues only ever stored point-in-time season
- * snapshots (LegacyLeague/LegacyRoster), not a transaction log, so there was nothing to
- * aggregate from the DB — this fetches live instead. Falls back to an honest empty
- * response if the viewer has no session, no Sleeper leagues, or every live call fails —
- * never fabricates activity.
+ * Source 1 — live Sleeper transactions (trades, waiver claims, free-agent moves) for the
+ * viewer's connected Sleeper leagues, via Sleeper's real /league/{id}/transactions/{week}
+ * endpoint. Sleeper-imported leagues only ever stored point-in-time season snapshots
+ * (LegacyLeague/LegacyRoster), not a transaction log, so there was nothing to aggregate from
+ * the DB — this fetches live instead, bounded by MAX_LEAGUES_TO_CHECK / WEEKS_TO_CHECK. Returns
+ * [] (never throws) on any failure so one bad source can't sink the merged feed.
  */
-export async function GET(req: NextRequest) {
-  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") || "50"), 100)
-  const leagueIdFilter = req.nextUrl.searchParams.get("leagueId") || undefined
-
-  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
-  const userId = session?.user?.id
-  if (!userId) {
-    return NextResponse.json({ status: "ok", items: [] })
-  }
-
+async function collectSleeperActivity(ctx: ActivitySourceContext): Promise<ActivityFeedItem[]> {
   try {
-    const { leagues } = await getDashboardLeagueListForUser(userId)
-    let sleeperLeagues = (leagues as LeagueListEntry[]).filter(
+    let sleeperLeagues = ctx.leagues.filter(
       (l) => l.platform === "sleeper" && typeof l.platformLeagueId === "string" && l.platformLeagueId
     )
-    if (leagueIdFilter) {
-      sleeperLeagues = sleeperLeagues.filter((l) => l.id === leagueIdFilter || l.platformLeagueId === leagueIdFilter)
+    if (ctx.leagueIdFilter) {
+      sleeperLeagues = sleeperLeagues.filter(
+        (l) => l.id === ctx.leagueIdFilter || l.platformLeagueId === ctx.leagueIdFilter
+      )
     }
     // Prefer leagues that are actually in season — most likely to have real recent activity.
     sleeperLeagues.sort((a, b) => (b.status === "in_season" ? 1 : 0) - (a.status === "in_season" ? 1 : 0))
     sleeperLeagues = sleeperLeagues.slice(0, MAX_LEAGUES_TO_CHECK)
 
-    if (sleeperLeagues.length === 0) {
-      return NextResponse.json({ status: "ok", items: [] })
-    }
+    if (sleeperLeagues.length === 0) return []
 
     const nflState = await getNflState()
     const currentWeek = Math.max(1, Number(nflState?.week) || 1)
     const weeksToFetch = Array.from({ length: WEEKS_TO_CHECK }, (_, i) => currentWeek - i).filter((w) => w >= 1)
 
     const players = await getAllPlayers()
-
     const items: ActivityFeedItem[] = []
 
     await Promise.all(
@@ -123,7 +102,7 @@ export async function GET(req: NextRequest) {
         for (const tx of txs) {
           const { type, description } = describeTransaction(tx, rosterNames, players)
           items.push({
-            id: tx.transaction_id,
+            id: `sleeper:${tx.transaction_id}`,
             type,
             userId: "",
             userName: rosterNames.get(tx.roster_ids[0]) ?? "League",
@@ -132,16 +111,59 @@ export async function GET(req: NextRequest) {
             timestamp: new Date(tx.status_updated || tx.created).toISOString(),
             leagueId: league.id ?? leagueId,
             leagueName: league.name ?? null,
+            source: "sleeper",
           })
         }
       })
     )
 
-    items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
-
-    return NextResponse.json({ status: "ok", items: items.slice(0, limit) })
+    return items
   } catch (err) {
-    console.error("[api/shared/activity] live transaction fetch failed:", err)
+    console.error("[api/shared/activity] Sleeper source failed:", err)
+    return []
+  }
+}
+
+/**
+ * GET /api/shared/activity
+ * League Buzz — a real, cross-source activity feed. Resolves the viewer's leagues once, then
+ * fans out to independent sources (live Sleeper transactions + native AF league DB events +
+ * injuries on the viewer's rosters). Each source is isolated (Promise.allSettled) and returns
+ * only real events; a source with no real feed contributes nothing — nothing is ever fabricated.
+ * Falls back to an honest empty response when the viewer has no session or no activity.
+ */
+export async function GET(req: NextRequest) {
+  const limit = Math.min(Number(req.nextUrl.searchParams.get("limit") || "50"), 100)
+  const leagueIdFilter = req.nextUrl.searchParams.get("leagueId") || undefined
+
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) {
+    return NextResponse.json({ status: "ok", items: [] })
+  }
+
+  try {
+    const { leagues } = await getDashboardLeagueListForUser(userId)
+    const ctx: ActivitySourceContext = {
+      userId,
+      leagues: leagues as ActivityLeagueEntry[],
+      leagueIdFilter,
+      limit,
+    }
+
+    // Each source is independent: one failing (or empty) must never sink the others.
+    const results = await Promise.allSettled([
+      collectSleeperActivity(ctx),
+      collectNativeLeagueActivity(ctx),
+      collectRosterInjuryActivity(ctx),
+    ])
+
+    const perSource = results.map((r) => (r.status === "fulfilled" ? r.value : []))
+    const items = mergeActivityItems(perSource, limit)
+
+    return NextResponse.json({ status: "ok", items })
+  } catch (err) {
+    console.error("[api/shared/activity] aggregation failed:", err)
     return NextResponse.json({ status: "ok", items: [] })
   }
 }

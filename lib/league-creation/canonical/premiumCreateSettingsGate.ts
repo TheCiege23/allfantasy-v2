@@ -27,7 +27,6 @@ export function hasAfCommissionerCreateEntitlement(entitlement: EntitlementSnaps
   const expanded = expandPlansWithBundle(entitlement.plans as SubscriptionPlanId[])
   return (
     expanded.includes('commissioner') ||
-    expanded.includes('all_access') ||
     expanded.includes('supreme')
   )
 }

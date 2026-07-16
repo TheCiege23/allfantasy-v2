@@ -7,6 +7,7 @@ import { prisma } from '@/lib/prisma'
 import { getDashboardLeagueListForUser, getLegacyLeagueBoardItems } from '@/lib/dashboard/get-dashboard-league-list'
 import type { UserLeague } from '@/app/dashboard/types'
 import { GUEST_SESSION_COOKIE_NAME, verifyGuestSessionToken } from '@/lib/guest-mode/guestSessionToken'
+import { claimGuestTrialForUser } from '@/lib/legacy/claimGuestTrialForUser'
 import { UniversalLeaguesBoard } from './UniversalLeaguesBoard'
 import { UniversalDashboardShell } from './components/UniversalDashboardShell'
 
@@ -59,6 +60,16 @@ export default async function UniversalDashboardPage() {
         <UniversalLeaguesBoard leagues={guestLeagues} guestSleeperUsername={legacyUser.sleeperUsername} />
       </UniversalDashboardShell>
     )
+  }
+
+  // AF_GATE0 §3.5 — belt-and-suspenders trial claim on first authenticated load of the trial
+  // board. events.signIn already claims at sign-in; this covers any path where the guest cookie
+  // was still present when the user returns here (notably the OAuth-first signup). Idempotent and
+  // best-effort — a server component can READ the cookie and write the claim, but not clear it;
+  // middleware invalidates the cookie on authenticated navigations.
+  const guestClaimCookie = (await cookies()).get(GUEST_SESSION_COOKIE_NAME)?.value
+  if (guestClaimCookie) {
+    await claimGuestTrialForUser(userId, guestClaimCookie).catch(() => null)
   }
 
   const payload = await getDashboardLeagueListForUser(userId).catch(() => null)

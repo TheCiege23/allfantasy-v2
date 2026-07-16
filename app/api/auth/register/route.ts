@@ -25,8 +25,8 @@ import {
 } from "@/lib/avatar/ProfileImageUploadStorageService"
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver"
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup"
-import { GUEST_SESSION_COOKIE_NAME, verifyGuestSessionToken } from "@/lib/guest-mode/guestSessionToken"
-import { linkAfUserToLegacy } from "@/lib/legacy/linkAfUserToLegacy"
+import { GUEST_SESSION_COOKIE_NAME } from "@/lib/guest-mode/guestSessionToken"
+import { claimGuestTrialForUser } from "@/lib/legacy/claimGuestTrialForUser"
 import { detectUserState } from "@/lib/geo/detectUserState"
 import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 import { buildMetaEventPayload } from "@/lib/meta-events"
@@ -514,41 +514,13 @@ export async function POST(req: Request) {
     }
 
     // Guest-to-account claim: if this visitor already did a no-login Sleeper
-    // import (Phase 1), attach that LegacyUser to their new account now.
-    // Best-effort — never blocks registration; a 409 (that Sleeper account
-    // was already claimed by a different login) is swallowed, not surfaced.
+    // import, attach that LegacyUser (and all its imported leagues/history) to
+    // their new account now. Centralized in claimGuestTrialForUser so email and
+    // OAuth signup share one idempotent, best-effort path (AF_GATE0 §3.5). Never
+    // blocks registration; the guest cookie is cleared on the response below.
     if (!isE2ERequest) {
-      try {
-        const guestToken = cookieStore.get(GUEST_SESSION_COOKIE_NAME)?.value
-        const guest = await verifyGuestSessionToken(guestToken)
-        if (guest) {
-          const legacyUser = await prisma.legacyUser.findUnique({
-            where: { id: guest.legacyUserId },
-            select: {
-              id: true,
-              sleeperUsername: true,
-              sleeperUserId: true,
-              displayName: true,
-              avatar: true,
-              avatarUrl: true,
-            },
-          })
-          if (legacyUser) {
-            await linkAfUserToLegacy(user.id, {
-              id: legacyUser.id,
-              sleeperUsername: legacyUser.sleeperUsername,
-              sleeperUserId: legacyUser.sleeperUserId,
-              displayName: legacyUser.displayName,
-              avatar: legacyUser.avatar,
-              avatarUrl: legacyUser.avatarUrl,
-              isNew: false,
-              usernameChanged: false,
-            })
-          }
-        }
-      } catch (guestClaimErr) {
-        console.warn("[register] guest-to-account claim failed (non-blocking):", guestClaimErr)
-      }
+      const guestToken = cookieStore.get(GUEST_SESSION_COOKIE_NAME)?.value
+      await claimGuestTrialForUser(user.id, guestToken)
     }
 
     if (parsedAvatarUpload) {

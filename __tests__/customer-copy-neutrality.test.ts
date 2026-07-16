@@ -32,6 +32,13 @@ const CUSTOMER_SURFACES = [
   'components/fantasy-os/executive/primitives.tsx',
   'components/fantasy-os/executive/charts.tsx',
   'app/fantasy-os/executive/page.tsx',
+  // AF_GATE0 trial funnel — the universal dashboard is the logged-out "money moment" board;
+  // its chrome and copy must never leak the internal engine name (fixed in the Gate 0 build).
+  'app/dashboard/universal/UniversalLeaguesBoard.tsx',
+  'app/dashboard/universal/components/UniversalDashboardShell.tsx',
+  'app/dashboard/universal/components/DashboardHeader.tsx',
+  'app/dashboard/universal/components/OsLauncherStrip.tsx',
+  'app/dashboard/universal/components/Sidebar.tsx',
 ]
 
 // Implementation terms that must never appear in customer-visible strings.

@@ -30,7 +30,7 @@ import { DynastyPlanetSearch } from './components/DynastyPlanetSearch'
 import { PortfolioAnalytics } from './components/PortfolioAnalytics'
 import { LeagueCards } from './components/LeagueCards'
 import { LegacyModules } from './components/LegacyModules'
-import { WarRoomPreview } from './components/WarRoomPreview'
+import { PremiumToolsPreview } from './components/PremiumToolsPreview'
 
 type BoardLeague = UserLeague & { navigationLeagueId?: string | null }
 
@@ -363,9 +363,7 @@ export function UniversalLeaguesBoard({
         <div className="mt-8">
           <LegacyModules leagues={leagues} guestSleeperUsername={guestSleeperUsername} />
         </div>
-        <div className="mt-8">
-          <WarRoomPreview />
-        </div>
+        <PremiumToolsPreview />
 
         {/* Connect strip */}
         <section className="mt-10 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5">
@@ -414,8 +412,8 @@ export function UniversalLeaguesBoard({
         </section>
 
         <p className="mt-5 text-center text-[11px] text-white/30">
-          Insights shown are live status signals. Deeper Decision OS analysis — settings-aware
-          recommendations and manager-tendency history — layers on next.
+          Insights shown are live status signals from your real leagues. Deeper, settings-aware
+          recommendations and manager-tendency history layer on next.
         </p>
       </div>
     </div>

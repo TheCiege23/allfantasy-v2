@@ -111,7 +111,7 @@ function resolveServerTier(plans: readonly string[]): UserContext['tier'] {
 }
 
 function resolveCapTier(plans: readonly string[]): 'free' | 'pro' | 'admin' {
-  if (plans.includes('all_access') || plans.includes('supreme')) return 'admin'
+  if (plans.includes('supreme')) return 'admin'
   return plans.length > 0 ? 'pro' : 'free'
 }
 

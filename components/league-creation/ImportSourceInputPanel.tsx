@@ -29,7 +29,7 @@ const PROVIDER_INPUT_CONFIG: Record<
   espn: {
     label: 'ESPN League ID',
     placeholder: 'e.g. 12345678, 2025:12345678, or a full ESPN league URL',
-    help: 'Paste an ESPN league ID or full league URL. Public leagues work directly; private leagues require saved SWID and ESPN_S2 cookies in League Sync first.',
+    help: 'Paste an ESPN league ID or full league URL. Public leagues work directly; private leagues need SWID and espn_s2 cookies saved first — connect ESPN in Settings → Connected Accounts.',
   },
   yahoo: {
     label: 'Yahoo League Key',

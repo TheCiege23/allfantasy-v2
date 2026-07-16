@@ -121,7 +121,7 @@ export default function SettingsApp({
       {activeTab === "referral" && <ReferralSection />}
       {activeTab === "legacy" && <LegacyImportSettingsSection />}
       {activeTab === "legal" && <LegalSettingsSection profile={profile} />}
-      {activeTab === "ai" && <AISettingsSection />}
+      {activeTab === "chimmy" && <AISettingsSection />}
       {activeTab === "account" && (
         <AccountSettingsSection accountCreatedAt={accountCreatedAt} planLabel={planLabel} />
       )}

@@ -88,8 +88,7 @@ export type SubscriptionPlanId =
   | 'pro'
   | 'commissioner'
   | 'war_room'
-  | 'all_access'
-  /** Top tier: AF Supreme — includes All-Access stack + highest token allowances (see subscription policy). */
+  /** Top tier: AF Supreme — includes the full Pro + Commissioner + Legacy stack + highest token allowances. */
   | 'supreme'
   /** Enterprise workspace tier — grants the Fantasy OS executive workspace (`fantasy_os_workspace` feature). */
   | 'enterprise'
