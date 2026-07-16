@@ -771,11 +771,11 @@ export function DashboardOverview({
   const layoutByContext: Record<PrimaryContext, { primary: ReactNode[]; secondary: ReactNode[] }> = {
     global: {
       primary: [platformPulseSection, recommendationsSection, todaysAgendaSection, weeklyGamePlanSection],
-      secondary: [commissionerHubSection, rankingsLegacySection],
+      secondary: [commissionerHubSection],
     },
     commissioner: {
       primary: [platformPulseSection, commissionerHQSection, todaysAgendaSection, weeklyGamePlanSection],
-      secondary: [rankingsLegacySection],
+      secondary: [],
     },
     team: {
       primary: [
@@ -788,7 +788,7 @@ export function DashboardOverview({
         todaysAgendaSection,
         teamWaiverSection,
       ],
-      secondary: [teamSeasonJourneySection, rankingsLegacySection],
+      secondary: [teamSeasonJourneySection],
     },
   }
   const layout = layoutByContext[context]
@@ -841,6 +841,14 @@ export function DashboardOverview({
             that showed it in the secondary column before (not "team", which is already scoped to
             one league). */}
         {context !== 'team' ? <div className="space-y-5">{myLeaguesSection}</div> : null}
+
+        {/* Rankings & Legacy — full-width for a different reason than the grids above: this isn't
+            about needing more columns (it's exactly 2 cards, sm:grid-cols-2 is already right), it's
+            that RankingsCard's own internal sm:flex-row (level info beside the AIGradeRing) needs
+            real width to lay out side-by-side without clipping. Confined to the 1/3-width secondary
+            column, the ring and the 4-up stat row beneath it were being squeezed by a breakpoint
+            keyed to viewport width, not to the column's actual width. */}
+        <div className="space-y-5">{rankingsLegacySection}</div>
 
         {/* AF Legacy Toolset + League Buzz — full-width, below the primary/secondary grid rather
             than inside the 1/3-width secondary column. LegacyToolsetGrid's own internal grid

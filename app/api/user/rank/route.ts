@@ -384,7 +384,7 @@ export async function GET(request: Request) {
           ),
           aiReportGrade: 'B',
           aiScore: 70,
-          aiInsight: 'Import your leagues to generate your AI insight.',
+          aiInsight: 'Import your leagues to unlock your Chimmy insight.',
           winRate: 0,
           playoffRate: 0,
           championshipCount: careerStats.championships,
@@ -475,7 +475,7 @@ export async function GET(request: Request) {
           careerXp: String(jsonSafeXp(denorm?.legacyCareerXp ?? denorm?.xpTotal)),
           aiReportGrade: 'B',
           aiScore: 70,
-          aiInsight: 'Import your leagues to generate your AI insight.',
+          aiInsight: 'Import your leagues to unlock your Chimmy insight.',
           winRate: 0,
           playoffRate: 0,
           championshipCount: careerStats.championships,
@@ -649,7 +649,7 @@ export async function GET(request: Request) {
       firstInsightValue(aiReport?.insights) ||
       aiReport?.title?.trim() ||
       aiReport?.shareText?.trim() ||
-      'Import your leagues to generate your AI insight.'
+      'Import your leagues to unlock your Chimmy insight.'
 
     let careerStats: UserRankCareerStats
     if (importedLeagueRows.length > 0) {
