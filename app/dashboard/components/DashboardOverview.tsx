@@ -30,7 +30,7 @@ import { consumeDashboardRankRefreshPending } from '@/lib/import/dashboardRankRe
 import { LegacySnapshotCard } from './LegacySnapshotCard'
 import { LegacyToolsetGrid } from './LegacyToolsetGrid'
 import { CareerProgressionStrip } from './CareerProgressionStrip'
-import { Crown } from 'lucide-react'
+import { Crown, Plus } from 'lucide-react'
 import { ActionCenter, countActionItems } from './warroom/ActionCenter'
 import { TodayTimeline } from './warroom/TodayTimeline'
 import { MyLeagueCard, rawStage } from './warroom/MyLeagueCard'
@@ -637,7 +637,27 @@ export function DashboardOverview({
     </section>
   ) : myLeaguesList.length > 0 ? (
     <section key="myLeagues" className="space-y-2.5">
-      <SectionHeading accent={contextAccent} icon={Crown}>{t('dashboard.warroom.myLeagues.title')}</SectionHeading>
+      <SectionHeading
+        accent={contextAccent}
+        icon={Crown}
+        trailing={
+          // The only other openers of ConnectPlatformsModal live inside the Get Started checklist,
+          // which is replaced by a one-line "all set" once onboarding completes — so the platform
+          // picker became permanently unreachable for exactly the established multi-league manager
+          // most likely to want it. This entry point sits beside the league list and never expires.
+          <button
+            type="button"
+            onClick={() => setPlatformModalOpen(true)}
+            data-testid="my-leagues-import-platform"
+            className="warroom-pressable inline-flex items-center gap-1 rounded-lg border border-white/10 bg-white/[0.03] px-2 py-1 text-[10px] font-bold uppercase tracking-wide text-white/55 hover:border-white/20 hover:bg-white/[0.06] hover:text-white/80"
+          >
+            <Plus className="h-3 w-3" aria-hidden />
+            {t('dashboard.warroom.myLeagues.importPlatform')}
+          </button>
+        }
+      >
+        {t('dashboard.warroom.myLeagues.title')}
+      </SectionHeading>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {myLeaguesList.map((l) => (
           <MyLeagueCard

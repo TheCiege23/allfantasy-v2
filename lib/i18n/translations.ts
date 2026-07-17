@@ -2907,6 +2907,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "Just now",
 
     "dashboard.warroom.myLeagues.title": "My Leagues",
+    "dashboard.warroom.myLeagues.importPlatform": "Import platform",
     "dashboard.warroom.seasonJourney.title": "Season Journey",
     "dashboard.comms.open": "Open Communications",
     "dashboard.comms.title": "Communications",
@@ -4902,6 +4903,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "Ahora mismo",
 
     "dashboard.warroom.myLeagues.title": "Mis Ligas",
+    "dashboard.warroom.myLeagues.importPlatform": "Importar plataforma",
     "dashboard.warroom.seasonJourney.title": "Trayectoria de la Temporada",
     "dashboard.comms.open": "Abrir Comunicaciones",
     "dashboard.comms.title": "Comunicaciones",
@@ -5238,6 +5240,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "刚刚",
 
     "dashboard.warroom.myLeagues.title": "我的联盟",
+    "dashboard.warroom.myLeagues.importPlatform": "导入平台",
     "dashboard.warroom.seasonJourney.title": "赛季历程",
     "dashboard.comms.open": "打开沟通",
     "dashboard.comms.title": "沟通",
@@ -5568,6 +5571,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "Ngayon lang",
 
     "dashboard.warroom.myLeagues.title": "Aking mga Liga",
+    "dashboard.warroom.myLeagues.importPlatform": "Mag-import ng platform",
     "dashboard.warroom.seasonJourney.title": "Paglalakbay ng Season",
     "dashboard.comms.open": "Buksan ang Communications",
     "dashboard.comms.title": "Communications",
@@ -5898,6 +5902,7 @@ export const translations: Record<string, Record<string, string>> = {
     "dashboard.warroom.time.justNow": "Vừa xong",
 
     "dashboard.warroom.myLeagues.title": "Giải Đấu Của Tôi",
+    "dashboard.warroom.myLeagues.importPlatform": "Nhập nền tảng",
     "dashboard.warroom.seasonJourney.title": "Hành Trình Mùa Giải",
     "dashboard.comms.open": "Mở Liên Lạc",
     "dashboard.comms.title": "Liên Lạc",

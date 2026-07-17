@@ -7,6 +7,7 @@ import { LeagueAvatar } from '@/app/dashboard/components/LeagueAvatar'
 import { buildLeagueFormatLabel, buildStatusConfig } from '@/lib/leagues/leagueFormatLabel'
 import type { UserLeague } from '@/app/dashboard/types'
 import { getLeagueListDestinationHref } from '@/lib/dashboard/league-list-destination'
+import { importedPlatformLabel } from '@/lib/dashboard/platform-label'
 
 export type LeagueSidebarCardProps = {
   league: UserLeague
@@ -290,15 +291,15 @@ export function LeagueSidebarCard({
   )
 }
 
+/**
+ * The sidebar chip labels native leagues 'AF' on purpose (it's a badge, so it always shows
+ * something) — unlike the name suffix, which omits the platform entirely for native leagues.
+ * The platform spellings themselves come from the shared helper so there is one map, not two:
+ * this one silently returned 'AF' for any unlisted platform, which mislabelled Fleaflicker
+ * imports as AllFantasy.
+ */
 function getPlatformLabel(platform: string | undefined): string {
-  const p = (platform ?? 'allfantasy').toLowerCase()
-  if (p === 'sleeper') return 'Sleeper'
-  if (p === 'yahoo') return 'Yahoo'
-  if (p === 'espn') return 'ESPN'
-  if (p === 'cbs') return 'CBS'
-  if (p === 'mfl') return 'MFL'
-  if (p === 'fantrax') return 'Fantrax'
-  return 'AF'
+  return importedPlatformLabel(platform) ?? 'AF'
 }
 
 function getPlatformColor(platform: string | undefined): string {

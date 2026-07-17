@@ -2,9 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import Image from 'next/image'
 import { Clock, Crown, DollarSign, ShieldCheck } from 'lucide-react'
 import type { UserLeague } from '../../types'
+import { resolveLeagueLogoSrc, leagueInitials } from '@/lib/dashboard/league-logo-src'
+import { useImageLoadFailed } from '@/hooks/useImageLoadFailed'
 import { WarRoomCard } from './WarRoomCard'
 import { ChampionshipGauge } from './ChampionshipGauge'
 import { useActivityFeed } from '@/hooks/useActivityFeed'
@@ -283,6 +284,9 @@ export function MyLeagueCard({
   const tone = health ? healthTone(health.status) : null
   const stage = stageKey(league)
   const accent = sportAccent(league.sport)
+  const logoSrc = resolveLeagueLogoSrc(league.logoUrl, league.avatarUrl)
+  /** SSR-safe: a logo that 404s before hydration is caught too, not just one that fails after. */
+  const { ref: logoRef, failed: logoFailed, onError: onLogoError } = useImageLoadFailed(logoSrc)
   const hasMatchups = rawStage(league) === 'in_season' || rawStage(league) === 'playoffs'
   const isFirstWeek = (league.currentWeek ?? 1) <= 1
   const rankText =
@@ -331,16 +335,25 @@ export function MyLeagueCard({
           className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-white/[0.06]"
           style={{ boxShadow: `0 0 0 1px ${accent}40` }}
         >
-          {league.logoUrl || league.avatarUrl ? (
-            <Image
-              src={league.logoUrl || league.avatarUrl || ''}
-              alt={league.name}
+          {logoSrc && !logoFailed ? (
+            // Plain <img>, not next/image: logoUrl is unvalidated free text, and next/image throws
+            // (killing the card) on a malformed src or any host outside next.config.js's allowlist.
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              ref={logoRef}
+              src={logoSrc}
+              alt=""
               width={44}
               height={44}
               className="h-full w-full object-cover"
+              onError={onLogoError}
             />
           ) : (
-            <span className="text-[11px] font-bold text-white/40">{league.sport}</span>
+            // Initials identify the specific league; a sport badge reads identically for every
+            // league in that sport. Also covers a logo that 404s, which the old markup could not.
+            <span className="text-[13px] font-bold" style={{ color: accent }} aria-hidden>
+              {leagueInitials(league.name)}
+            </span>
           )}
         </div>
         <div className="min-w-0 flex-1">
