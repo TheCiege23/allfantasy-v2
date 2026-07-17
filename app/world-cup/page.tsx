@@ -122,7 +122,7 @@ const upgradeCards = [
   {
     id: "af-commissioner",
     title: "AF Commissioner",
-    price: "$4.99/mo",
+    price: "$14.99/mo",
     bestFor: "Best for pool creators",
     icon: Crown,
     body: "Custom scoring, bigger pools, pool announcements, invite tools, leaderboard exports, and AI commissioner recaps.",
