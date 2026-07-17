@@ -181,6 +181,77 @@ but sees zero leagues; seeing data currently requires logging in as `rwr_runtime
 composed seed should attach both a commissioner league and a non-commissioner membership to
 `local-dev-user`.
 
+## 7b. D1 deep-dive — the migration history is not the source of truth
+
+**Investigated on request. The headline changed: D1 is not "one column missing a migration."**
+
+### The column itself
+`prisma/schema.prisma:5087` — `chimmyTtsVoiceId String? @map("chimmy_tts_voice_id")`.
+Nullable `TEXT`, no default, on `user_profiles`.
+
+### How it got in without a migration
+Commit `bbf01264f` (2026-04-06, *"feat: Chimmy voice sync, chat UX, pricing hero, dashboard
+onboarding"*) edited `prisma/schema.prisma` (+3 lines) and shipped **zero migration files** — verified:
+that commit touches no path under `prisma/migrations/`. So the schema was changed and the database
+was reconciled out-of-band (`db push` or equivalent), never through migration history.
+
+### Is it dead code? **No — and this is the decisive answer to the "maybe just remove it" option.**
+It is a **live, reachable feature**:
+- `app/api/user/profile/route.ts:101,124,199-203` — reads and writes it.
+- `hooks/useChimmyTtsVoiceSync.ts:39` — syncs it.
+- `components/settings/ChimmyVoiceSettingsCard.tsx` — a real settings card, **rendered** by
+  `app/settings/components/sections/PreferencesSettingsSection.tsx:207`, i.e. reachable at `/settings`.
+
+**So "remove the column" is the wrong fix. It backs a shipped feature.**
+
+> **Master-plan item #44 ("Voice interaction — UNKNOWN, NEEDS AUDIT") — partial answer:** a Chimmy
+> **TTS voice-selection** feature exists and is live in Settings (user picks Chimmy's voice; persisted
+> on `user_profiles.chimmy_tts_voice_id`). That is *not* the full "spoken Q&A / read-aloud briefs /
+> draft-room voice assistance" the blueprint describes — only voice **output preference**. Item #44
+> should read "partial: TTS voice selection shipped; conversational voice I/O still unaudited."
+
+### What actually breaks today — worse than "only a fresh DB"
+This is precisely what blocked login all session. `ensureDevAuthUser()` → `ensureSharedAccountProfile()`
+→ `prisma.userProfile.upsert()` selects every mapped column, including `chimmy_tts_voice_id`. On a
+database built from migration history the column is absent, Prisma throws, `authorize()` throws, and
+NextAuth returns **401**. So the blast radius is *"authentication is broken on any migration-built
+database"*, not merely "a fresh DB lacks a column."
+
+### Scope — the part that changes the recommendation
+`chimmy_tts_voice_id` is **not** an isolated slip:
+- Precise check of `user_profiles`: **21 of 22** mapped columns are covered by migration history;
+  exactly **1** (`chimmy_tts_voice_id`) is not. Narrow *for this table*.
+- Repo-wide, the picture is systemic. A scan of every model's mapped names against the full migration
+  corpus flags **66 models**. Spot-verified concretely: **the `fantasy_players` table appears in no
+  migration file at all**, yet exists in the live database — i.e. `db push` created it. Whole tables,
+  not just columns, have no migration backing.
+- *Caveat on the number:* the scan's regex also catches `@@map` table names alongside `@map` column
+  names, so the raw count (288) mixes both and should be treated as an indicator of shape, not a
+  precise column tally. The `user_profiles` figure (1 of 22) and the `fantasy_players` spot-check were
+  both verified individually and are exact.
+
+**Conclusion: `prisma migrate deploy` alone cannot build a working AllFantasy database.** The
+migration history is materially incomplete; the real schema is whatever `db push` last reconciled.
+Production presumably works because it was `db push`-ed at some point — meaning production's schema is
+not reproducible from source control.
+
+### Proposed minimal fix (NOT applied — needs an explicit decision)
+Two genuinely different options, and the choice is a policy call, not a code call:
+
+1. **Narrow / unblock-only.** Add one migration for the auth-critical column:
+   `ALTER TABLE "user_profiles" ADD COLUMN IF NOT EXISTS "chimmy_tts_voice_id" TEXT;`
+   `IF NOT EXISTS` is essential — it makes the migration a **no-op on production** (where the column
+   already exists via `db push`) while repairing any migration-built database. Low risk, ~5 minutes,
+   fixes login-on-fresh-DB. **Does not** fix the other 65 models.
+2. **Reconcile properly.** Generate a baseline/squash migration from the current schema
+   (`prisma migrate diff --from-migrations --to-schema-datamodel`, applied against a scratch shadow
+   DB) so migration history once again reproduces the real schema. Larger, needs a clean shadow
+   database, and must be verified not to attempt destructive changes against production — but it is
+   the only option that makes the schema reproducible from source control.
+
+**Recommendation:** do (1) now to unblock any fresh environment, and treat (2) as its own scoped piece
+of work. Do **not** do (2) as a drive-by — it rewrites how this project deploys schema.
+
 ## 8. Recommended next steps (no destructive action taken)
 
 1. **Compose one `seed:dev` entrypoint** from the existing pieces (`redraft-war-room-runtime` +
