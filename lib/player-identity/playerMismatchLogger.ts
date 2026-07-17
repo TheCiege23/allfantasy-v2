@@ -320,13 +320,18 @@ async function persistChunk(chunk: MismatchBucket[]): Promise<void> {
     VALUES ${Prisma.join(values)}
     ON CONFLICT ("fingerprint") DO UPDATE SET
       "occurrences" = "player_identity_mismatch_stats"."occurrences" + EXCLUDED."occurrences",
-      "last_pool_player_id" = EXCLUDED."last_pool_player_id",
-      "last_pool_external_id" = EXCLUDED."last_pool_external_id",
-      "last_sports_player_record_id" = EXCLUDED."last_sports_player_record_id",
-      "last_attempted_match_type" = EXCLUDED."last_attempted_match_type",
-      "last_confidence" = EXCLUDED."last_confidence",
-      "last_details" = EXCLUDED."last_details",
-      "last_seen_at" = EXCLUDED."last_seen_at"
+      -- COALESCE, not a bare assignment: a sighting that omits one of these must not erase a
+      -- real earlier observation. Today every code path recording a given fingerprint populates
+      -- the same fields, so this cannot fire -- it exists so that a future caller which reports
+      -- less detail degrades to "last KNOWN value" instead of silently nulling the diagnostics.
+      -- Same rule the historical backfill follows by omitting these columns entirely.
+      "last_pool_player_id" = COALESCE(EXCLUDED."last_pool_player_id", "player_identity_mismatch_stats"."last_pool_player_id"),
+      "last_pool_external_id" = COALESCE(EXCLUDED."last_pool_external_id", "player_identity_mismatch_stats"."last_pool_external_id"),
+      "last_sports_player_record_id" = COALESCE(EXCLUDED."last_sports_player_record_id", "player_identity_mismatch_stats"."last_sports_player_record_id"),
+      "last_attempted_match_type" = COALESCE(EXCLUDED."last_attempted_match_type", "player_identity_mismatch_stats"."last_attempted_match_type"),
+      "last_confidence" = COALESCE(EXCLUDED."last_confidence", "player_identity_mismatch_stats"."last_confidence"),
+      "last_details" = COALESCE(EXCLUDED."last_details", "player_identity_mismatch_stats"."last_details"),
+      "last_seen_at" = GREATEST("player_identity_mismatch_stats"."last_seen_at", EXCLUDED."last_seen_at")
   `
 }
 

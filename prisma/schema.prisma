@@ -313,8 +313,9 @@ model PlayerIdentityMismatchLog {
 /// Bounded rollup of draft enrichment identity failures / low-confidence joins.
 /// One row per distinct (league, sport, reason, player, position, team); repeat sightings bump
 /// `occurrences` instead of appending a row, so size tracks the number of real data problems
-/// rather than draft-room traffic. `last_*` columns hold the most recent observation of fields
-/// that vary per sighting and are not part of the key.
+/// rather than draft-room traffic. `last_*` columns hold the most recent KNOWN (non-null)
+/// observation of fields that vary per sighting and are not part of the key — a later sighting
+/// that omits one keeps the previous value rather than erasing it.
 /// Does not affect draft mechanics — diagnostics only.
 model PlayerIdentityMismatchStat {
   /// sha256 of the key tuple — see mismatchFingerprint() in lib/player-identity/playerMismatchLogger.ts.

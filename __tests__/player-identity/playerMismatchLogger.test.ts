@@ -213,6 +213,33 @@ describe('PlayerMismatchCollector.flush', () => {
     expect(executeRawMock).toHaveBeenCalledTimes(3)
   })
 
+  /**
+   * Guards a behaviour these tests cannot otherwise reach: $executeRaw is mocked, so the SQL's
+   * semantics are only observable against a real database. Verified there — a sparse sighting
+   * following a rich one keeps last_confidence=0.8765 rather than nulling it. A bare
+   * `= EXCLUDED.x` would silently erase real diagnostics, so assert the COALESCE stays.
+   */
+  it('merges last_* observations without letting a sparser sighting null them out', async () => {
+    const collector = new PlayerMismatchCollector()
+    collector.record({ sport: 'NFL', reason: 'NO_SPORT_PLAYER_RECORD_MATCH', playerName: 'A' })
+    await collector.flush()
+
+    const sql = (executeRawMock.mock.calls[0]?.[0] as string[]).join('?')
+    for (const column of [
+      'last_pool_player_id',
+      'last_pool_external_id',
+      'last_sports_player_record_id',
+      'last_attempted_match_type',
+      'last_confidence',
+      'last_details',
+    ]) {
+      expect(sql).toContain(`"${column}" = COALESCE(EXCLUDED."${column}"`)
+    }
+    // Counters accumulate; the clock only moves forward.
+    expect(sql).toContain('"occurrences" = "player_identity_mismatch_stats"."occurrences" + EXCLUDED."occurrences"')
+    expect(sql).toContain('"last_seen_at" = GREATEST(')
+  })
+
   it('resets after flushing so a reused collector cannot double-count', async () => {
     const collector = new PlayerMismatchCollector()
     collector.record({ sport: 'NFL', reason: 'NO_SPORT_PLAYER_RECORD_MATCH', playerName: 'A' })
