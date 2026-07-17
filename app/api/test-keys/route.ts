@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getProviderStatus } from "@/lib/provider-config";
 import { runClearSportsHealthCheck } from "@/lib/clear-sports/client";
 import { getTwilioRuntimeStatus, verifyTwilioAuth } from "@/lib/twilio-client";
+import { requireAdminOrBearer } from "@/lib/adminAuth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -290,7 +291,17 @@ async function testPayPal(): Promise<ServiceResult> {
   };
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(request: NextRequest) {
+  // Admin-gated. This endpoint enumerates every configured provider, reports which are broken, and
+  // returns masked key previews (incl. the live Stripe secret's prefix + last 4) — a free map of the
+  // stack for anyone who asks. It was reachable unauthenticated on production.
+  //
+  // The gate must stay ABOVE the probes, not just hide the response: testTwilio() now makes a real
+  // Twilio API call, so an open endpoint is also an unauthenticated way to drive load and cost onto
+  // our provider accounts, not merely an information leak.
+  const gate = await requireAdminOrBearer(request)
+  if (!gate.ok) return gate.res
+
   try {
     const [
       openai,
