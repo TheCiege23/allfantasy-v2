@@ -109,20 +109,12 @@ function isBareTextLine(line: string): boolean {
  */
 const ALLOWLIST: Record<string, string[]> = {
   // "Waiver AI" and "AI Trade Analyzer" are used consistently as peer feature names (see
-  // DashboardContent.tsx: "Use Chimmy, Trade Analyzer, Waiver AI, or Season Strategy."; and
   // app/trade-evaluator/page.tsx's own "AI Trade Analyzer" badge next to its "Trade Hub" heading)
   // — these read like established feature names, not a generic AI label that clearly should say
   // Chimmy instead. Open product-naming question, not fixed in this pass; allowlisted rather than
   // guessed at.
   'app/dashboard/components/AIToolsModal.tsx': ['Pick a league for waiver AI targets.', 'Open AI Trade Analyzer'],
   'app/dashboard/components/LegacyToolsetGrid.tsx': ['Waiver AI'],
-  'app/dashboard/DashboardContent.tsx': [
-    'Run your first AI analysis',
-    'Use Chimmy, Trade Analyzer, Waiver AI, or Season Strategy.',
-    'Open AI',
-    'AI and strategy shortcuts',
-    'Waiver AI',
-  ],
 }
 
 function isAllowlisted(file: string, quoted: string): boolean {
