@@ -138,6 +138,8 @@ export function DashboardOverview({
   const [lineupModalOpen, setLineupModalOpen] = useState(false)
   const [quickCreateOpen, setQuickCreateOpen] = useState(false)
   const [lineupData, setLineupData] = useState<LineupCheckPayload | null>(null)
+  /** Decision OS Slice 1 (manager.lineup.set) Stage 1 LIVE enrichment, when active — null otherwise. */
+  const [lineupDecisionOs, setLineupDecisionOs] = useState<TodayActionsEngineResponse['decisionOs']>(null)
   /** First `/api/lineup-check` bootstrap finished (avoids misleading preview counts). */
   const [lineupReady, setLineupReady] = useState(false)
   const [lineupLoading, setLineupLoading] = useState(false)
@@ -205,6 +207,7 @@ export function DashboardOverview({
         if (cancelled) return
         if (data) {
           setLineupData(data.lineup)
+          setLineupDecisionOs(data.decisionOs ?? null)
           setWaiverData(data.waivers)
           setTradeData(data.trades)
           setTodayCounts(data.counts)
@@ -216,6 +219,7 @@ export function DashboardOverview({
           stripFetchedAt.current = Date.now()
         } else {
           setLineupData(emptyLineupActionSummary())
+          setLineupDecisionOs(null)
           setWaiverData({ totalLeagues: 0, recommendations: [] })
           setTradeData({ totalPending: 0, trades: [] })
           setTodayCounts(null)
@@ -231,6 +235,7 @@ export function DashboardOverview({
       .catch(() => {
         if (cancelled) return
         setLineupData(emptyLineupActionSummary())
+        setLineupDecisionOs(null)
         setWaiverData({ totalLeagues: 0, recommendations: [] })
         setTradeData({ totalPending: 0, trades: [] })
         setTodayCounts(null)
@@ -414,6 +419,7 @@ export function DashboardOverview({
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('today-actions'))))
       .then((data: TodayActionsEngineResponse) => {
         setLineupData(data.lineup)
+        setLineupDecisionOs(data.decisionOs ?? null)
         setWaiverData(data.waivers)
         setTradeData(data.trades)
         setTodayCounts(data.counts)
@@ -603,6 +609,7 @@ export function DashboardOverview({
         onWaiverClick={handleWaiverClick}
         onTradesClick={handleTradeClick}
         onWarRoomClick={handleWarRoomToolClick}
+        decisionOsLineup={lineupDecisionOs}
       />
       <TodayTimeline
         lineupActions={lineupData?.actions ?? []}
