@@ -112,7 +112,7 @@ function LegacyToolCard({
   } else if (accessTier.isGuest) {
     cta = { href: `/signup?next=${encodeURIComponent(toolHref)}`, label: 'Sign up free to try', tone: 'signup' }
   } else {
-    cta = { href: '/pricing', label: 'Unlock with AF Legacy — $9.99/mo', tone: 'upgrade' }
+    cta = { href: '/pricing', label: 'Unlock with AF Legacy — $29.99/mo', tone: 'upgrade' }
   }
 
   return (
