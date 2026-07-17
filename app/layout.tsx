@@ -35,15 +35,15 @@ const railwayRuntimeEnvKeys = [
 
 export const metadata: Metadata = {
   ...buildSeoMeta({
-    title: 'AllFantasy – AI Powered Fantasy Sports Tools',
+    title: 'AllFantasy – Fantasy Sports Tools Powered by Chimmy',
     description:
-      'AllFantasy combines fantasy sports leagues, bracket challenges, and AI-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
+      'AllFantasy combines fantasy sports leagues, bracket challenges, and Chimmy-powered tools to help players draft smarter, analyze trades, and dominate their leagues.',
     canonical: 'https://allfantasy.ai/',
     keywords: [
       'fantasy sports',
       'fantasy football tools',
       'fantasy trade analyzer',
-      'AI fantasy sports',
+      'fantasy sports assistant',
       'fantasy bracket challenge',
     ],
   }),
