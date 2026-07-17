@@ -15,7 +15,7 @@ const LEGACY_TABS = [
   { href: "/af-legacy?tab=waiver", label: "Waiver Engine" },
   { href: "/af-legacy?tab=compare", label: "Opponent Behavior" },
   { href: "/af-legacy?tab=share", label: "League Fairness" },
-  { href: "/af-legacy?tab=chat", label: "AI Chat" },
+  { href: "/af-legacy?tab=chat", label: "Chimmy Chat" },
 ] as const
 
 export default function AFLegacyLayout({ children }: { children: ReactNode }) {
