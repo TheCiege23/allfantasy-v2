@@ -312,6 +312,12 @@ if (isDevAuthBypassEnabled()) {
           id: user.id,
           email: user.email,
           name: user.displayName || user.username || user.email,
+          // Must be returned for the jwt callback to stamp `token.username` (it reads
+          // `user.username` off this object). Without it the username gate in middleware.ts
+          // sees a null username and redirects every dev-bypass session to /choose-username,
+          // making the bypass unable to reach any gated page. Mirrors the `credentials`
+          // provider, which has always returned this field.
+          username: user.username,
           image: user.avatarUrl,
         };
       },
