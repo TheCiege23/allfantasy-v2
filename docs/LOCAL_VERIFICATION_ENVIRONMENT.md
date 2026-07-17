@@ -183,6 +183,27 @@ composed seed should attach both a commissioner league and a non-commissioner me
 
 ## 7b. D1 deep-dive — the migration history is not the source of truth
 
+> ### ✅ NARROW FIX SHIPPED (2026-07-17)
+> `prisma/migrations/20260717070000_backfill_missing_schema_objects/migration.sql` — approved and
+> applied as option (1) below. It backfills **only** the two objects confirmed missing by direct
+> verification: `user_profiles.chimmy_tts_voice_id` and the `fantasy_players` table. Every statement
+> is `IF NOT EXISTS`. Column types, defaults, nullability and all 6 indexes were read out of a live
+> database's `information_schema`/`pg_indexes` — not inferred from the Prisma model.
+>
+> **Verified in both directions, empirically:**
+> - **No-op on a database that already has both** (production's state): applied it to the fully-synced
+>   dev DB; fingerprints identical before/after — `fantasy_players` 18 cols, `user_profiles` 74 cols,
+>   6 indexes → unchanged. Nothing added, nothing dropped, no data rewritten.
+> - **Creates both on a migration-built database**: dropped both objects to simulate that state
+>   (verified `0 | 0`), applied the migration, got back exactly `18 | 74 | 6`.
+> - **Shape is exact, not approximate**: `prisma db push` afterwards reports *"The database is already
+>   in sync with the Prisma schema"* — Prisma itself sees zero drift from the recreated objects.
+> - **End-to-end regression**: dev-bypass signin `200`, `/dashboard` `200`, and `/api/user/profile`
+>   returns `chimmyTtsVoiceId` — i.e. this closes the exact gap that caused the morning's login bug.
+>
+> **Scope held deliberately narrow.** The broader "regenerate the full migration history" project
+> (66 flagged models) remains separate and unscoped. Do not widen that migration file.
+
 **Investigated on request. The headline changed: D1 is not "one column missing a migration."**
 
 ### The column itself
