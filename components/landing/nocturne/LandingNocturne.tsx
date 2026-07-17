@@ -36,6 +36,7 @@ import {
 import { loginUrlWithIntent, signupUrlWithIntent } from '@/lib/auth/auth-intent-resolver'
 import { trackLandingCtaClick } from '@/lib/landing-analytics'
 import { NOCTURNE_COPY as C } from './copy'
+import { NocturneImport } from './NocturneImport'
 import './nocturne.css'
 
 type LandingNocturneProps = {
@@ -177,6 +178,8 @@ export default function LandingNocturne(_props: LandingNocturneProps) {
               </a>
             </div>
             <p style={{ fontSize: 13.5, color: 'var(--color-neutral-600)', margin: 0 }}>{C.hero.finePrint}</p>
+            {/* No-signup preview mini-bar (real Sleeper import; others → signup) */}
+            <NocturneImport variant="mini" />
           </div>
 
           {/* Dashboard mockup */}
@@ -256,6 +259,41 @@ export default function LandingNocturne(_props: LandingNocturneProps) {
                     {C.hero.mockup.lockedTag}
                   </span>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══ IMPORT / PREVIEW ═══ */}
+      <div className="afwrap" style={{ paddingTop: 8, paddingBottom: 72 }}>
+        <div className="n-import-grid">
+          <div>
+            <span className="kick">{C.importFlow.kicker}</span>
+            <h2 style={{ fontSize: 34, lineHeight: 1.15, margin: '0 0 14px', maxWidth: '18ch' }}>{C.importFlow.title}</h2>
+            <p style={{ fontSize: 16, lineHeight: 1.6, color: 'var(--color-neutral-400)', maxWidth: '48ch', margin: '0 0 26px' }}>
+              {C.importFlow.body}
+            </p>
+            <NocturneImport variant="full" />
+          </div>
+          {/* Decorative teaser — blurred sample rows behind an eye icon (not real data) */}
+          <div className="n-import-teaser" aria-hidden="true">
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 9, filter: 'blur(3px)', opacity: 0.6, pointerEvents: 'none' }}>
+              {[['Your Team', '92.4'], ['Their Team', '81.0'], ['Your Team', '75.6']].map(([name, score], i) => (
+                <div className="afrow" key={i}>
+                  <span className="afsrc" style={{ background: 'var(--color-neutral-800)' }}>?</span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: 600, fontSize: 14 }}>{name}</div>
+                    <div style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>League · Format</div>
+                  </div>
+                  <span style={{ fontSize: 13 }}>{score}</span>
+                </div>
+              ))}
+            </div>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'color-mix(in srgb, var(--color-surface) 40%, transparent)' }}>
+              <div style={{ textAlign: 'center', padding: '0 20px' }}>
+                <Eye size={26} style={{ color: 'var(--color-accent-400)', margin: '0 auto' }} />
+                <div style={{ fontSize: 13, color: 'var(--color-neutral-300)', marginTop: 8, fontWeight: 600 }}>{C.importFlow.teaserCaption}</div>
               </div>
             </div>
           </div>

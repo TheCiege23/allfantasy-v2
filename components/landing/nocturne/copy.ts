@@ -178,6 +178,21 @@ export const NOCTURNE_COPY = {
     secondary: 'Start a league',
   },
 
+  importFlow: {
+    kicker: 'See it before you sign up',
+    title: 'Preview your leagues in 10 seconds.',
+    // Honest framing: Sleeper is a real no-auth lookup; the others need one
+    // step after signup (no anonymous league lookup exists for them).
+    body: 'Pick your platform and drop in your username or league ID — no account, no password. Sleeper pulls your real team names and matchups instantly; the rest take one quick step after you create a free account.',
+    submitFull: 'Preview my leagues',
+    submitMini: 'Preview',
+    miniLabel: 'Preview your leagues',
+    importing: 'Building your preview…',
+    teaserCaption: 'Your real leagues appear here',
+    // {label} interpolated in the component.
+    nonSleeperNote: 'Create a free account to finish connecting {label} — no password, ever.',
+  },
+
   footer: {
     copyright: '© 2026 AllFantasy.ai',
     privacy: 'Privacy',
