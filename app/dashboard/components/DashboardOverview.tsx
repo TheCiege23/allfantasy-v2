@@ -48,6 +48,7 @@ import { InjuryImpactPanel } from './warroom/InjuryImpactPanel'
 import { PlatformPulseCard } from './warroom/PlatformPulseCard'
 import { SectionHeading, CONTEXT_ACCENT } from './warroom/SectionHeading'
 import { buildPlatformPulse } from '@/lib/platform-pulse'
+import { scopeBySelectedLeague } from '@/lib/dashboard/scope-by-selected-league'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 
 const ONBOARDING_KEY = 'af-onboarding-v1'
@@ -545,6 +546,19 @@ export function DashboardOverview({
 
   const pendingTradeChipCount = tradeData?.totalPending ?? 0
 
+  /** D7 fix — `lineupData.actions` and `tradeData.trades` each span every league; Team/Commissioner
+   *  Focus must scope them to the selected league before feeding them to any per-league surface
+   *  (Recommendations, Today's Agenda, Weekly Game Plan, the hero urgent count). Global Command
+   *  Center passes selectedLeague=null, so it still sees every league's items unchanged. */
+  const leagueScopedLineupActions = useMemo(
+    () => scopeBySelectedLeague(lineupData?.actions ?? [], selectedLeague?.id ?? null),
+    [lineupData, selectedLeague],
+  )
+  const leagueScopedPendingTrades = useMemo(
+    () => scopeBySelectedLeague(tradeData?.trades ?? [], selectedLeague?.id ?? null),
+    [tradeData, selectedLeague],
+  )
+
   /** Leagues in pre_draft with a real, future draftDate — purely client-side, no new fetch. */
   const upcomingDrafts = useMemo(() => {
     const now = Date.now()
@@ -554,8 +568,8 @@ export function DashboardOverview({
   }, [leagues])
 
   const urgentTodayCount = useMemo(
-    () => countActionItems(lineupData?.actions ?? [], waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview),
-    [lineupData, waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview],
+    () => countActionItems(leagueScopedLineupActions, waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview),
+    [leagueScopedLineupActions, waiverChipCount, pendingTradeChipCount, warRoomDecisionsToReview],
   )
 
   /** Dashboard V2 Phase 3.6 — Platform Pulse. A pure aggregation over intelligence already in
@@ -601,7 +615,7 @@ export function DashboardOverview({
     <section key="agenda" className="space-y-3">
       <SectionHeading accent={contextAccent}>{t('dashboard.warroom.today.title')}</SectionHeading>
       <ActionCenter
-        lineupActions={lineupData?.actions ?? []}
+        lineupActions={leagueScopedLineupActions}
         waiverPickupSuggestions={waiverChipCount}
         pendingTradeCount={pendingTradeChipCount}
         warRoomDecisionsToReview={warRoomDecisionsToReview}
@@ -612,7 +626,7 @@ export function DashboardOverview({
         decisionOsLineup={lineupDecisionOs}
       />
       <TodayTimeline
-        lineupActions={lineupData?.actions ?? []}
+        lineupActions={leagueScopedLineupActions}
         waiverTiming={todayWaiverTiming}
         autoSwapsLast24h={todayAutoProtection?.autoSwapsLast24h ?? 0}
         pendingTradeCount={pendingTradeChipCount}
@@ -690,7 +704,7 @@ export function DashboardOverview({
     ) : null
 
   const weeklyGamePlanSection = (
-    <CoachNotes key="weeklyGamePlan" lineupActions={lineupData?.actions ?? []} pendingTrades={tradeData?.trades ?? []} />
+    <CoachNotes key="weeklyGamePlan" lineupActions={leagueScopedLineupActions} pendingTrades={leagueScopedPendingTrades} />
   )
 
   const rankingsLegacySection = (
@@ -729,7 +743,7 @@ export function DashboardOverview({
    *  the real AI lineup/start-sit/waiver/matchup signals with their confidence, expected gain, and
    *  inline reasoning. Self-gates when there are no recommendations. */
   const recommendationsSection = (
-    <RecommendationTimeline key="recommendations" actions={lineupData?.actions ?? []} />
+    <RecommendationTimeline key="recommendations" actions={leagueScopedLineupActions} />
   )
 
   /** Phase 3.6 — Platform Pulse: the cross-context intelligence briefing, placed first in every
@@ -839,9 +853,7 @@ export function DashboardOverview({
           commissionerHealth={
             selectedLeague ? initialCommissionerHealthSnapshots?.find((s) => s.leagueId === selectedLeague.id) ?? null : null
           }
-          teamLineupDecisions={
-            selectedLeague ? (lineupData?.actions ?? []).filter((a) => a.leagueId === selectedLeague.id).length : 0
-          }
+          teamLineupDecisions={selectedLeague ? leagueScopedLineupActions.length : 0}
           waiverPriority={
             selectedLeague && waiverData
               ? waiverData.recommendations
