@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth"
-import { getDashboardLeagueListForUser } from "@/lib/dashboard/get-dashboard-league-list"
+import { getActivityLeaguesForUser } from "@/lib/dashboard/get-dashboard-league-list"
 import {
   getAllPlayers,
   getLeagueRosters,
@@ -11,7 +11,7 @@ import {
   getPlayerName,
   type SleeperTransaction,
 } from "@/lib/sleeper-client"
-import type { ActivityFeedItem, ActivityLeagueEntry, ActivitySourceContext } from "@/lib/activity/types"
+import type { ActivityFeedItem, ActivitySourceContext } from "@/lib/activity/types"
 import { mergeActivityItems } from "@/lib/activity/merge"
 import { collectNativeLeagueActivity } from "@/lib/activity/sources/nativeLeagueActivity"
 import { collectRosterInjuryActivity } from "@/lib/activity/sources/rosterInjuryActivity"
@@ -143,10 +143,13 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { leagues } = await getDashboardLeagueListForUser(userId)
+    // Lean resolver: only the native + real Sleeper leagues the activity sources can produce events
+    // for — NOT the full dashboard list. Skips the AF Legacy board + season-max groupBy that made
+    // this ~90s-polled endpoint a primary contributor to the 53200 OOM. See getActivityLeaguesForUser.
+    const leagues = await getActivityLeaguesForUser(userId)
     const ctx: ActivitySourceContext = {
       userId,
-      leagues: leagues as ActivityLeagueEntry[],
+      leagues,
       leagueIdFilter,
       limit,
     }
