@@ -55,7 +55,7 @@ import {
   loadSportsPlayerRecordMapsForDraftPool,
   lookupSportsPlayerRecordAugmentDetailed,
 } from '@/lib/draft-room/sportsPlayerRecordDraftEnrichment'
-import { logPlayerMismatchEventVoid } from '@/lib/player-identity/playerMismatchLogger'
+import { PlayerMismatchCollector } from '@/lib/player-identity/playerMismatchLogger'
 import { isFreeAgentTeam as isNormalizedFreeAgentTeam } from '@/lib/player-identity/playerIdentityResolution'
 
 const DEFAULT_LIMIT = 300
@@ -1433,6 +1433,9 @@ export async function getResolvedDraftPoolForLeague(
     perfRookie()
   }
 
+  /** Accumulates identity mismatches in memory for one batched write below — never per player. */
+  const mismatchCollector = new PlayerMismatchCollector()
+
   const perfSprMaps = perfStart('11b. sportsPlayerRecord maps (cross-sport stats/images)')
   const sprRecordMaps = await loadSportsPlayerRecordMapsForDraftPool(
     leagueId,
@@ -1442,6 +1445,7 @@ export async function getResolvedDraftPoolForLeague(
       position: String(r.position ?? r.pos ?? ''),
       team: r.team ?? r.teamAbbr ?? null,
     })),
+    mismatchCollector,
   )
   perfSprMaps()
 
@@ -1488,7 +1492,7 @@ export async function getResolvedDraftPoolForLeague(
       String(row.playerId ?? row.id ?? row.sleeperId ?? '').trim() || null
 
     if (!sprAug) {
-      logPlayerMismatchEventVoid({
+      mismatchCollector.record({
         leagueId,
         sport: String(sport),
         poolPlayerId: poolPlayerIdForLog,
@@ -1508,7 +1512,7 @@ export async function getResolvedDraftPoolForLeague(
       })
     } else {
       if (sprMeta.strictHitAfterIdMiss) {
-        logPlayerMismatchEventVoid({
+        mismatchCollector.record({
           leagueId,
           sport: String(sport),
           poolPlayerId: poolPlayerIdForLog,
@@ -1532,7 +1536,7 @@ export async function getResolvedDraftPoolForLeague(
         String(team).trim() !== '' &&
         !isNormalizedFreeAgentTeam(team)
       ) {
-        logPlayerMismatchEventVoid({
+        mismatchCollector.record({
           leagueId,
           sport: String(sport),
           poolPlayerId: poolPlayerIdForLog,
@@ -1827,6 +1831,16 @@ export async function getResolvedDraftPoolForLeague(
           : {}),
     } as unknown as RawRow
   })
+
+  /**
+   * One batched write for every mismatch seen above. Previously this path issued one un-awaited
+   * `create()` per player from inside the map — a single league produced 512,840 inserts in a day.
+   * `flush()` never throws (diagnostics must not fail a draft resolve) and logs its own failures,
+   * so the result is intentionally unused here.
+   */
+  const perfMismatchFlush = perfStart('11c. player identity mismatch rollup')
+  await mismatchCollector.flush()
+  perfMismatchFlush()
 
   resolveConflictingExternalIds(enrichedList as DraftPoolRawRow[])
 
