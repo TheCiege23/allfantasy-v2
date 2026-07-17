@@ -284,8 +284,11 @@ model SportsPlayerRecord {
   @@map("sports_players")
 }
 
-/// Audit trail for draft enrichment identity failures / low-confidence joins (AI & admin review).
-/// Does not affect draft mechanics — logging only.
+/// DEPRECATED — superseded by PlayerIdentityMismatchStat; nothing writes this model anymore.
+/// Retained only so scripts/backfill-player-mismatch-stats.ts can fold the historical rows into
+/// the rollup. Drop the model and the table together once that backfill has run.
+/// Why it was replaced: it reached 2,126,004 rows / 787 MB in production (73% of the database)
+/// with zero readers, because ~97% of its rows re-logged facts already recorded.
 model PlayerIdentityMismatchLog {
   id                   String   @id @default(cuid())
   leagueId             String?  @map("league_id")
@@ -305,6 +308,40 @@ model PlayerIdentityMismatchLog {
   @@index([sport, createdAt])
   @@index([leagueId])
   @@map("player_identity_mismatch_logs")
+}
+
+/// Bounded rollup of draft enrichment identity failures / low-confidence joins.
+/// One row per distinct (league, sport, reason, player, position, team); repeat sightings bump
+/// `occurrences` instead of appending a row, so size tracks the number of real data problems
+/// rather than draft-room traffic. `last_*` columns hold the most recent KNOWN (non-null)
+/// observation of fields that vary per sighting and are not part of the key — a later sighting
+/// that omits one keeps the previous value rather than erasing it.
+/// Does not affect draft mechanics — diagnostics only.
+model PlayerIdentityMismatchStat {
+  /// sha256 of the key tuple — see mismatchFingerprint() in lib/player-identity/playerMismatchLogger.ts.
+  /// Used directly as the PK: it is the natural key, and Postgres treats NULLs in a UNIQUE
+  /// constraint as distinct, which would defeat deduping on nullable columns.
+  fingerprint              String   @id @db.VarChar(64)
+  leagueId                 String?  @map("league_id")
+  sport                    String   @db.VarChar(16)
+  reason                   String   @db.VarChar(64)
+  playerName               String?  @map("player_name") @db.VarChar(256)
+  position                 String?  @db.VarChar(64)
+  team                     String?  @db.VarChar(64)
+  occurrences              Int      @default(1)
+  lastPoolPlayerId         String?  @map("last_pool_player_id") @db.VarChar(128)
+  lastPoolExternalId       String?  @map("last_pool_external_id") @db.VarChar(128)
+  lastSportsPlayerRecordId String?  @map("last_sports_player_record_id") @db.VarChar(128)
+  lastAttemptedMatchType   String?  @map("last_attempted_match_type") @db.VarChar(32)
+  lastConfidence           Decimal? @map("last_confidence") @db.Decimal(5, 4)
+  lastDetails              Json?    @map("last_details")
+  firstSeenAt              DateTime @default(now()) @map("first_seen_at")
+  lastSeenAt               DateTime @default(now()) @map("last_seen_at")
+
+  @@index([sport, reason])
+  @@index([leagueId])
+  @@index([lastSeenAt])
+  @@map("player_identity_mismatch_stats")
 }
 
 model TeamAsset {
