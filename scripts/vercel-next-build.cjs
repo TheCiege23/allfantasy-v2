@@ -620,13 +620,28 @@ async function run() {
     NEXT_TELEMETRY_DISABLED: process.env.NEXT_TELEMETRY_DISABLED || '1',
     DISABLE_INSTRUMENTATION_DURING_BUILD:
       process.env.DISABLE_INSTRUMENTATION_DURING_BUILD || '1',
+    /**
+     * 6144, not 4096: the build outgrew a 4 GB heap on 2026-07-17 and started dying with
+     * `FatalProcessOutOfMemory` → SIGABRT during `next build`. It is not any one commit — the SAME
+     * commit (e769afff) built READY at 13:20 and ERROR at 13:43, and every branch failed after that,
+     * production `main` included. The build had simply grown to sit right on the 4 GB line, so which
+     * side it landed on was luck.
+     *
+     * Vercel's build machine here is 4 cores / 8 GB (see build logs), so 4096 was leaving half the
+     * box unused while V8 thrashed. 6144 takes the headroom and still leaves ~2 GB for the OS and
+     * the rest of the pipeline — deliberately not 8192, which would race the container limit and
+     * trade a V8 OOM for a harder-to-read kill.
+     *
+     * Still overridable: an explicit NODE_OPTIONS --max-old-space-size wins, so this can be tuned
+     * from Vercel env vars without a deploy.
+     */
     NODE_OPTIONS: process.env.NODE_OPTIONS?.includes('--max-old-space-size=')
       ? process.env.NODE_OPTIONS
-      : [process.env.NODE_OPTIONS, '--max-old-space-size=4096'].filter(Boolean).join(' '),
+      : [process.env.NODE_OPTIONS, '--max-old-space-size=6144'].filter(Boolean).join(' '),
   }
 
   console.log(
-    `[vercel-next-build] Build distDir=${childEnv.AF_NEXT_DIST_DIR} telemetryDisabled=${childEnv.NEXT_TELEMETRY_DISABLED}`,
+    `[vercel-next-build] Build distDir=${childEnv.AF_NEXT_DIST_DIR} telemetryDisabled=${childEnv.NEXT_TELEMETRY_DISABLED} nodeOptions=${childEnv.NODE_OPTIONS}`,
   )
 
   try {
