@@ -739,7 +739,7 @@ function LeagueHistoryAccordion({
                                           onClick={(e) => { e.stopPropagation(); navigateToChat?.(`Tell me about my "${league.name}" league (${league.season}). I went ${league.record} in a ${league.team_count}-team ${league.scoring} ${league.type} league. What should I focus on?`, league.league_id) }}
                                           className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 text-[11px] font-medium hover:bg-cyan-500/20 transition"
                                         >
-                                          💬 Ask AI about this league
+                                          💬 Ask Chimmy about this league
                                         </button>
                                       </div>
                                     )}
@@ -1506,20 +1506,20 @@ function AFLegacyContent() {
   // Dynamic SEO titles based on active tab
   useEffect(() => {
     const seoTitles: Record<Tab, string> = {
-      'overview': 'AI Fantasy Football Career Profile & Report Card | AllFantasy',
-      'trade': 'AI Fantasy Football Trade Analyzer (Dynasty & Redraft) | AllFantasy',
-      'finder': 'Fantasy Football Trade Finder Tool | Discover Winning Trades with AI',
-      'player-finder': 'Fantasy Football Player Finder & Value Tool | AllFantasy AI',
+      'overview': 'Fantasy Football Career Profile & Report Card | AllFantasy',
+      'trade': 'Fantasy Football Trade Analyzer (Dynasty & Redraft) | AllFantasy',
+      'finder': 'Fantasy Football Trade Finder Tool | Discover Winning Trades with Chimmy',
+      'player-finder': 'Fantasy Football Player Finder & Value Tool | AllFantasy',
       'waiver': 'Fantasy Football Waiver Wire AI | Best Pickup Suggestions',
       'rankings': 'Fantasy Football League Rankings & Power Rankings | AllFantasy',
-      'pulse': 'Fantasy Football Market Pulse & Player Sentiment | AllFantasy AI',
-      'compare': 'Fantasy Football Player Comparison Tool | Start or Sit with AI',
-      'chat': 'AI Fantasy Football Coach | Personalized Advice & Strategy',
+      'pulse': 'Fantasy Football Market Pulse & Player Sentiment | AllFantasy',
+      'compare': 'Fantasy Football Player Comparison Tool | Start or Sit with Chimmy',
+      'chat': 'Chimmy, Your Fantasy Football Coach | Personalized Advice & Strategy',
       'share': 'Share Your Fantasy Football Career Report Card | AllFantasy',
       'transfer': 'Transfer Fantasy Football Leagues from Sleeper, Yahoo & More',
-      'strategy': 'Season Strategy Planner | AI-Powered Fantasy Football Roadmap',
+      'strategy': 'Season Strategy Planner | Chimmy-Powered Fantasy Football Roadmap',
       'shop': 'Official AllFantasy Merch | Shop AF Gear on Etsy',
-      'mock-draft': 'AI Mock Draft Simulator & Predict Board | AllFantasy',
+      'mock-draft': 'Chimmy-Powered Mock Draft Simulator & Predict Board | AllFantasy',
       'ideas': 'Submit League Ideas | AllFantasy Community',
     }
     document.title = seoTitles[activeTab] || 'AF Legacy | AllFantasy'
@@ -3275,7 +3275,7 @@ function AFLegacyContent() {
 
   const prepareRankingsSharePost = async () => {
     if (rankingsDynastyLeagues.length === 0) {
-      setShareText('Run a Rankings analysis first so AI has league context to post.')
+      setShareText('Run a Rankings analysis first so Chimmy has league context to post.')
       setActiveTab('share')
       return
     }
@@ -3507,7 +3507,7 @@ function AFLegacyContent() {
         } else if (data.status === 'complete' && data.tradesLoaded > 0) {
           setTradeHistoryNotification({
             leagueId,
-            message: `AI learned from ${data.tradesLoaded} of your past trades!`,
+            message: `Chimmy learned from ${data.tradesLoaded} of your past trades!`,
           })
           setTimeout(() => setTradeHistoryNotification(null), 4000)
         }
@@ -3816,7 +3816,7 @@ function AFLegacyContent() {
       }
 
       if (!res.ok) {
-        setAiCoachError(data.error || 'AI coach request failed')
+        setAiCoachError(data.error || 'Chimmy coach request failed')
         return
       }
 
@@ -4441,18 +4441,18 @@ function AFLegacyContent() {
 
   const tabs: Array<{ id: Tab; label: string; icon: React.ReactNode; badge?: string }> = [
     { id: 'overview' as Tab, label: 'Overview', icon: <BarChart3 className="w-4 h-4" /> },
-    { id: 'trade' as Tab, label: 'Trade Command Center', icon: <ArrowLeftRight className="w-4 h-4" />, badge: 'AI' },
-    { id: 'finder' as Tab, label: 'Trade Review', icon: <Search className="w-4 h-4" />, badge: 'AI' },
+    { id: 'trade' as Tab, label: 'Trade Command Center', icon: <ArrowLeftRight className="w-4 h-4" />, badge: 'Chimmy' },
+    { id: 'finder' as Tab, label: 'Trade Review', icon: <Search className="w-4 h-4" />, badge: 'Chimmy' },
     { id: 'player-finder' as Tab, label: 'Team Scan', icon: <Search className="w-4 h-4" /> },
-    { id: 'waiver' as Tab, label: 'Waiver Engine', icon: <TrendingUp className="w-4 h-4" />, badge: 'AI' },
+    { id: 'waiver' as Tab, label: 'Waiver Engine', icon: <TrendingUp className="w-4 h-4" />, badge: 'Chimmy' },
     { id: 'rankings' as Tab, label: 'Team Direction', icon: <Trophy className="w-4 h-4" /> },
     { id: 'pulse' as Tab, label: 'Market Board', icon: <Radio className="w-4 h-4" />, badge: 'Beta' },
     { id: 'compare' as Tab, label: 'Opponent Behavior', icon: <Swords className="w-4 h-4" /> },
-    { id: 'chat' as Tab, label: 'AI Chat', icon: <MessageCircle className="w-4 h-4" />, badge: 'AI' },
-    { id: 'mock-draft' as Tab, label: 'AF Legacy Draft', icon: <LayoutGrid className="w-4 h-4" />, badge: 'AI' },
+    { id: 'chat' as Tab, label: 'Chimmy Chat', icon: <MessageCircle className="w-4 h-4" />, badge: 'Chimmy' },
+    { id: 'mock-draft' as Tab, label: 'AF Legacy Draft', icon: <LayoutGrid className="w-4 h-4" />, badge: 'Chimmy' },
     { id: 'share' as Tab, label: 'League Fairness', icon: <Share2 className="w-4 h-4" /> },
     { id: 'transfer' as Tab, label: 'Imports', icon: <PackageOpen className="w-4 h-4" /> },
-    { id: 'strategy' as Tab, label: 'Renegotiation', icon: <Target className="w-4 h-4" />, badge: 'AI' },
+    { id: 'strategy' as Tab, label: 'Renegotiation', icon: <Target className="w-4 h-4" />, badge: 'Chimmy' },
     { id: 'shop' as Tab, label: 'History Analysis', icon: <ShoppingBag className="w-4 h-4" /> },
     { id: 'ideas' as Tab, label: 'Action Plan', icon: <Lightbulb className="w-4 h-4" /> },
   ]
@@ -4472,21 +4472,21 @@ function AFLegacyContent() {
   const subTabConfigs: Record<MainTab, Array<{ id: string; label: string; icon?: React.ReactNode; badge?: string }>> = {
     home: [],
     trade: [
-      { id: 'trade', label: 'Trade Cmd', icon: <ArrowLeftRight className="w-3.5 h-3.5" />, badge: 'AI' },
-      { id: 'finder', label: 'Review', icon: <Search className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'trade', label: 'Trade Cmd', icon: <ArrowLeftRight className="w-3.5 h-3.5" />, badge: 'Chimmy' },
+      { id: 'finder', label: 'Review', icon: <Search className="w-3.5 h-3.5" />, badge: 'Chimmy' },
       { id: 'player-finder', label: 'Team Scan', icon: <Search className="w-3.5 h-3.5" /> },
-      { id: 'waiver', label: 'Waiver', icon: <TrendingUp className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'waiver', label: 'Waiver', icon: <TrendingUp className="w-3.5 h-3.5" />, badge: 'Chimmy' },
     ],
     strategy: [
-      { id: 'strategy', label: 'Renegotiate', icon: <Target className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'strategy', label: 'Renegotiate', icon: <Target className="w-3.5 h-3.5" />, badge: 'Chimmy' },
       { id: 'rankings', label: 'Direction', icon: <Trophy className="w-3.5 h-3.5" /> },
       { id: 'pulse', label: 'Market', icon: <Radio className="w-3.5 h-3.5" /> },
       { id: 'compare', label: 'Opponents', icon: <Swords className="w-3.5 h-3.5" /> },
     ],
     alerts: [],
     profile: [
-      { id: 'chat', label: 'AI', icon: <MessageCircle className="w-3.5 h-3.5" /> },
-      { id: 'mock-draft', label: 'AF Legacy', icon: <LayoutGrid className="w-3.5 h-3.5" />, badge: 'AI' },
+      { id: 'chat', label: 'Chimmy', icon: <MessageCircle className="w-3.5 h-3.5" /> },
+      { id: 'mock-draft', label: 'AF Legacy', icon: <LayoutGrid className="w-3.5 h-3.5" />, badge: 'Chimmy' },
       { id: 'share', label: 'Fairness', icon: <Share2 className="w-3.5 h-3.5" /> },
       { id: 'transfer', label: 'Imports', icon: <PackageOpen className="w-3.5 h-3.5" /> },
       { id: 'shop', label: 'History', icon: <ShoppingBag className="w-3.5 h-3.5" /> },
@@ -4607,7 +4607,7 @@ function AFLegacyContent() {
                     🟢 Playoff & championship context
                   </span>
                   <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-300">
-                    🟢 AI coaching insights (live + learning)
+                    🟢 Chimmy coaching insights (live + learning)
                   </span>
                 </div>
               </div>
@@ -5720,7 +5720,7 @@ function AFLegacyContent() {
                         <div className="flex-1 h-px bg-gradient-to-r from-purple-400/30 to-emerald-400/30" />
                         <div className="flex flex-col items-center text-center flex-1">
                           <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/30 flex items-center justify-center text-emerald-300 text-sm font-bold mb-1">3</div>
-                          <span className="text-[10px] text-white/60">AI Report</span>
+                          <span className="text-[10px] text-white/60">Chimmy Report</span>
                         </div>
                       </div>
                     </div>
@@ -5743,14 +5743,14 @@ function AFLegacyContent() {
                   <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-purple-500/5 to-cyan-500/5 p-5">
                     <div className="flex items-center gap-2 mb-4">
                       <Sparkles className="w-4 h-4 text-purple-400" />
-                      <h4 className="text-sm font-semibold text-white">Preview: What the AI Generates</h4>
+                      <h4 className="text-sm font-semibold text-white">Preview: What Chimmy Generates</h4>
                     </div>
                     
                     {/* AI Report Card Preview */}
                     <div className="mb-3 p-4 rounded-xl bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border border-cyan-400/20">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-white">AI Report Card</span>
-                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-500/30 text-purple-300">AI Generated</span>
+                        <span className="text-xs font-semibold text-white">Chimmy Report Card</span>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-500/30 text-purple-300">Chimmy Generated</span>
                       </div>
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div className="p-2 rounded-lg bg-black/20">
@@ -5771,7 +5771,7 @@ function AFLegacyContent() {
                     {/* AI Insight Preview */}
                     <div className="mb-3 p-4 rounded-xl bg-black/20 border border-white/10">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-white">AI Insight</span>
+                        <span className="text-xs font-semibold text-white">Chimmy Insight</span>
                         <span className="px-1.5 py-0.5 rounded text-[9px] bg-emerald-500/30 text-emerald-300 flex items-center gap-1">
                           <span className="w-1 h-1 rounded-full bg-emerald-400" />
                           High confidence
@@ -5785,8 +5785,8 @@ function AFLegacyContent() {
                     {/* AI Trade Verdict Preview */}
                     <div className="p-4 rounded-xl bg-gradient-to-r from-emerald-500/10 to-green-500/5 border border-emerald-400/20">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-xs font-semibold text-white">AI Trade Verdict</span>
-                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-500/30 text-purple-300">AI Generated</span>
+                        <span className="text-xs font-semibold text-white">Chimmy Trade Verdict</span>
+                        <span className="px-1.5 py-0.5 rounded text-[9px] bg-purple-500/30 text-purple-300">Chimmy Generated</span>
                       </div>
                       <div className="text-lg font-black text-emerald-400 mb-2">SMASH ACCEPT</div>
                       <ul className="text-[11px] text-white/60 space-y-1">
@@ -5805,7 +5805,7 @@ function AFLegacyContent() {
                     <div className="mt-4 pt-3 border-t border-white/10 space-y-1">
                       <p className="text-[11px] text-white/40 flex items-center gap-1.5">
                         <Info className="w-3 h-3" />
-                        AI is learning — built to get smarter from real user feedback.
+                        Chimmy is learning — built to get smarter from real user feedback.
                       </p>
                       <p className="text-[10px] text-white/30 italic pl-4">
                         Not perfect (yet). Always verify critical decisions.
@@ -5831,7 +5831,7 @@ function AFLegacyContent() {
 
                 {/* Footer line */}
                 <p className="text-center text-[11px] text-white/40 mt-4 lg:col-span-2">
-                  Powered by the AllFantasy AI — live preview
+                  Powered by Chimmy — live preview
                 </p>
               </div>
             </div>
@@ -5842,7 +5842,7 @@ function AFLegacyContent() {
               <div>
                 <div className="text-center mb-8">
                   <h3 className="text-2xl font-bold text-white mb-2">What You'll See</h3>
-                  <p className="text-sm text-white/50">Your complete fantasy profile, powered by AI</p>
+                  <p className="text-sm text-white/50">Your complete fantasy profile, powered by Chimmy</p>
                 </div>
                 <div className="grid md:grid-cols-3 gap-4">
                   <div className="group rounded-2xl border border-cyan-500/20 bg-gradient-to-br from-cyan-500/5 to-transparent p-5 hover:border-cyan-400/40 transition-all">
@@ -5856,8 +5856,8 @@ function AFLegacyContent() {
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/30 to-purple-600/20 flex items-center justify-center mb-3">
                       <Sparkles className="w-5 h-5 text-purple-400" />
                     </div>
-                    <h4 className="font-semibold text-white mb-1">AI Perspective</h4>
-                    <p className="text-xs text-white/50 leading-relaxed">How the AI interprets your decisions — with confidence indicators.</p>
+                    <h4 className="font-semibold text-white mb-1">Chimmy's Perspective</h4>
+                    <p className="text-xs text-white/50 leading-relaxed">How Chimmy interprets your decisions — with confidence indicators.</p>
                   </div>
                   <div className="group rounded-2xl border border-emerald-500/20 bg-gradient-to-br from-emerald-500/5 to-transparent p-5 hover:border-emerald-400/40 transition-all">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/30 to-emerald-600/20 flex items-center justify-center mb-3">
@@ -5872,7 +5872,7 @@ function AFLegacyContent() {
               {/* App Preview Showcase */}
               <div className="mt-8">
                 <h3 className="text-xl font-bold text-white mb-2 text-center">Experience the AF Legacy App</h3>
-                <p className="text-sm text-white/50 text-center mb-6">Sleeper-inspired design with AI-powered insights</p>
+                <p className="text-sm text-white/50 text-center mb-6">Sleeper-inspired design with Chimmy-powered insights</p>
                 
                 {/* App Screen Carousel */}
                 <div className="relative max-w-md mx-auto">
@@ -5938,7 +5938,7 @@ function AFLegacyContent() {
                           </div>
                           <div className="text-[9px] font-semibold text-white/40 mb-1 flex justify-between px-1">
                             <span>STARTERS</span>
-                            <div className="flex gap-4"><span>OWN %</span><span>AI</span></div>
+                            <div className="flex gap-4"><span>OWN %</span><span>REC</span></div>
                           </div>
                           <div className="space-y-1">
                             {[
@@ -6004,7 +6004,7 @@ function AFLegacyContent() {
                           </div>
                           <div className="text-[9px] font-semibold text-white/40 mb-1 flex justify-between px-1">
                             <span>PLAYER</span>
-                            <div className="flex gap-3"><span>PROJ</span><span>AI REC</span></div>
+                            <div className="flex gap-3"><span>PROJ</span><span>REC</span></div>
                           </div>
                           <div className="space-y-1">
                             {[
@@ -6057,7 +6057,7 @@ function AFLegacyContent() {
                                 </div>
                               </div>
                               <div className="mt-2 pt-2 border-t border-white/5 flex items-center justify-between">
-                                <span className="text-[8px] text-white/40">AI Analysis:</span>
+                                <span className="text-[8px] text-white/40">Chimmy Analysis:</span>
                                 <span className="text-[8px] font-bold text-green-400">Fair Trade 🟢</span>
                               </div>
                             </div>
@@ -6089,7 +6089,7 @@ function AFLegacyContent() {
                       <div className="flex items-center gap-2">
                         <div className="flex-1 flex items-center gap-2 px-3 py-2 rounded-full bg-white/5 border border-white/10">
                           <span className="text-white/30 text-xs">💬</span>
-                          <span className="text-[10px] text-white/40">Ask AI about your roster...</span>
+                          <span className="text-[10px] text-white/40">Ask Chimmy about your roster...</span>
                         </div>
                         <div className="w-8 h-8 rounded-full bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
                           <span className="text-white text-xs">→</span>
@@ -6164,7 +6164,7 @@ function AFLegacyContent() {
                 <div className="flex items-center justify-center gap-2 mt-4">
                   <div className="text-white/40 text-sm">↓</div>
                   <div className="px-3 py-1.5 rounded-full bg-gradient-to-r from-cyan-500/20 to-purple-500/20 border border-cyan-500/30">
-                    <span className="text-[10px] text-cyan-400 font-semibold">💬 AI Chat Available on Every Screen</span>
+                    <span className="text-[10px] text-cyan-400 font-semibold">💬 Chimmy Chat Available on Every Screen</span>
                   </div>
                   <div className="text-white/40 text-sm">↓</div>
                 </div>
@@ -6172,18 +6172,18 @@ function AFLegacyContent() {
 
               {/* AI Transparency */}
               <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 p-6">
-                <h3 className="text-lg font-semibold text-white mb-3">The AI isn't perfect — and that's the point.</h3>
+                <h3 className="text-lg font-semibold text-white mb-3">Chimmy isn't perfect — and that's the point.</h3>
                 <p className="text-sm text-white/60 mb-3">
-                  AF Legacy is a live preview of the AI powering the AllFantasy app launching in 2026. 
-                  Some insights are marked "learning" as the AI ingests more league data and improves.
+                  AF Legacy is a live preview of Chimmy, the AI powering the AllFantasy app launching in 2026.
+                  Some insights are marked "learning" as Chimmy ingests more league data and improves.
                 </p>
               </div>
 
               {/* Feedback CTA */}
               <div className="text-center">
-                <h3 className="text-lg font-semibold text-white mb-2">Help the AI learn from your leagues</h3>
+                <h3 className="text-lg font-semibold text-white mb-2">Help Chimmy learn from your leagues</h3>
                 <p className="text-sm text-white/50 mb-4">
-                  Something feel right or off? One sentence helps the AI get smarter.
+                  Something feel right or off? One sentence helps Chimmy get smarter.
                 </p>
                 <button
                   onClick={() => setShowFeedback(true)}
@@ -6220,7 +6220,7 @@ function AFLegacyContent() {
             { label: 'Connecting to Sleeper', threshold: 5 },
             { label: 'Loading leagues', threshold: 15 },
             { label: 'Calculating legacy stats', threshold: 40 },
-            { label: 'Generating AI insights', threshold: 70 },
+            { label: 'Generating Chimmy insights', threshold: 70 },
             { label: 'Preparing dashboard', threshold: 100 },
           ]
           // Find which step we're on based on progress
@@ -6240,7 +6240,7 @@ function AFLegacyContent() {
                     <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-cyan-500 to-purple-500 flex items-center justify-center">
                       <span className="text-xs font-black text-white">AF</span>
                     </div>
-                    <span className="text-sm font-semibold text-white/60">AllFantasy AI</span>
+                    <span className="text-sm font-semibold text-white/60">Chimmy</span>
                   </div>
 
                   {/* Avatar + Name */}
@@ -6324,11 +6324,11 @@ function AFLegacyContent() {
                     <div className="grid grid-cols-2 gap-2">
                       {[
                         { icon: '📊', label: 'Report Card' },
-                        { icon: '🤖', label: 'AI Insights' },
+                        { icon: '🤖', label: 'Chimmy Insights' },
                         { icon: '🏆', label: 'Power Rankings' },
                         { icon: '🔄', label: 'Trade Evaluator' },
                         { icon: '📈', label: 'Waiver AI' },
-                        { icon: '💬', label: 'AI Coaching' },
+                        { icon: '💬', label: 'Chimmy Coaching' },
                       ].map((item, idx) => (
                         <div key={idx} className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/5 border border-white/10">
                           <span className="text-base">{item.icon}</span>
@@ -6345,7 +6345,7 @@ function AFLegacyContent() {
                       <span>Read-only import • No passwords • Your leagues stay untouched</span>
                     </div>
                     <p className="text-[11px] text-white/35 italic leading-relaxed">
-                      AI is learning — built to get smarter from real user feedback. Not perfect (yet).
+                      Chimmy is learning — built to get smarter from real user feedback. Not perfect (yet).
                     </p>
                   </div>
 
@@ -6355,7 +6355,7 @@ function AFLegacyContent() {
                       onClick={() => setShowFeedback(true)}
                       className="text-xs text-white/40 hover:text-cyan-400 transition"
                     >
-                      Spot something off later? Leave feedback to help the AI improve →
+                      Spot something off later? Leave feedback to help Chimmy improve →
                     </button>
                   </div>
                 </div>
@@ -6363,7 +6363,7 @@ function AFLegacyContent() {
 
               {/* Subtle brand footer */}
               <div className="text-center mt-4">
-                <p className="text-[11px] text-white/30">Powered by AllFantasy AI — live preview</p>
+                <p className="text-[11px] text-white/30">Powered by Chimmy — live preview</p>
               </div>
             </div>
           )
@@ -6424,7 +6424,7 @@ function AFLegacyContent() {
                                 const gradeColors = getLetterGradeColor(letterGrade)
                                 return (
                                   <span
-                                    title="AI rating based on your imported legacy performance"
+                                    title="Chimmy rating based on your imported legacy performance"
                                     className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-xs text-white/70"
                                   >
                                     <span className="font-medium text-purple-200">{gradeVal}</span>
@@ -6716,9 +6716,9 @@ function AFLegacyContent() {
                     
                     const tabLabels: Record<string, string> = {
                       'overview': 'Overview',
-                      'trade': 'AI Trade Hub',
+                      'trade': 'Chimmy Trade Hub',
                       'waiver': 'Waiver AI',
-                      'chat': 'AI Chat',
+                      'chat': 'Chimmy Chat',
                       'transfer': 'Transfer',
                     }
                     
@@ -6762,7 +6762,7 @@ function AFLegacyContent() {
                               {tab.badge && (
                                 <span className={cx(
                                   'px-1.5 py-0.5 rounded text-[9px] font-medium uppercase tracking-wide hidden sm:inline border',
-                                  tab.badge === 'AI' ? 'bg-purple-500/20 text-purple-300/80 border-purple-500/20' :
+                                  tab.badge === 'Chimmy' ? 'bg-purple-500/20 text-purple-300/80 border-purple-500/20' :
                                   'bg-white/5 text-white/40 border-white/10'
                                 )}>{tab.badge}</span>
                               )}
@@ -6865,7 +6865,7 @@ function AFLegacyContent() {
                                         {tab.badge && (
                                           <span className={cx(
                                             'px-1.5 py-0.5 rounded text-[8px] font-medium uppercase border',
-                                            tab.badge === 'AI' ? 'bg-purple-500/15 text-purple-300/70 border-purple-500/20' :
+                                            tab.badge === 'Chimmy' ? 'bg-purple-500/15 text-purple-300/70 border-purple-500/20' :
                                             tab.badge === 'Beta' ? 'bg-amber-500/15 text-amber-300/70 border-amber-500/20' :
                                             'bg-white/5 text-white/40 border-white/10'
                                           )}>{tab.badge}</span>
@@ -6929,7 +6929,7 @@ function AFLegacyContent() {
 
                           <div className="rounded-2xl bg-black/30 border border-cyan-500/20 p-4 sm:p-5">
                             <div className="flex flex-wrap items-center justify-between gap-3 mb-2">
-                              <h4 className="text-sm font-bold text-cyan-300">AI System Sync</h4>
+                              <h4 className="text-sm font-bold text-cyan-300">Chimmy System Sync</h4>
                               <span className={`px-2 py-0.5 rounded-full text-[10px] border ${
                                 rankingsData?.rankingSource === 'live'
                                   ? 'bg-emerald-500/15 border-emerald-400/30 text-emerald-300'
@@ -6943,11 +6943,11 @@ function AFLegacyContent() {
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-white/65">
                               <div className="rounded-lg bg-black/25 border border-white/10 p-2">
                                 <span className="text-white/45">Coach:</span>{' '}
-                                {aiCoach?.headline || aiCoachError || 'Ask AI Coach to generate format-specific guidance.'}
+                                {aiCoach?.headline || aiCoachError || 'Ask Chimmy Coach to generate format-specific guidance.'}
                               </div>
                               <div className="rounded-lg bg-black/25 border border-white/10 p-2">
-                                <span className="text-white/45">Rankings AI:</span>{' '}
-                                {rankingsData?.aiAnalysis || 'Run League Rankings to inject league-aware AI insight into your overview workflow.'}
+                                <span className="text-white/45">Chimmy Rankings:</span>{' '}
+                                {rankingsData?.aiAnalysis || 'Run League Rankings to inject league-aware Chimmy insight into your overview workflow.'}
                               </div>
                             </div>
                           </div>
@@ -7049,7 +7049,7 @@ function AFLegacyContent() {
                                   {rankRefreshLoading ? 'Refreshing…' : 'Refresh Rank'}
                                 </button>
                                 <button onClick={askAiCoach} disabled={aiCoachLoading} className="px-4 py-2 text-sm rounded-xl bg-purple-500/20 hover:bg-purple-500/30 border border-purple-400/30 text-purple-200 transition disabled:opacity-50 font-medium">
-                                  {aiCoachLoading ? 'Asking…' : 'Ask AI Coach'}
+                                  {aiCoachLoading ? 'Asking…' : 'Ask Chimmy Coach'}
                                 </button>
                               </div>
                             </div>
@@ -7263,7 +7263,7 @@ function AFLegacyContent() {
                             <div className="mt-4 bg-gradient-to-br from-purple-500/10 to-cyan-500/10 rounded-xl p-4 border border-purple-500/20">
                               <div className="flex items-start justify-between gap-2 mb-2">
                                 <h4 className="text-lg font-bold text-purple-300">
-                                  {aiCoach.headline || 'AI Coach Advice'}
+                                  {aiCoach.headline || 'Chimmy Coach Advice'}
                                 </h4>
                                 <ConfidenceFreshnessLabel
                                   confidence={aiCoach.confidence_score ?? 0.75}
@@ -7434,8 +7434,8 @@ function AFLegacyContent() {
                             <div className="flex items-center gap-3">
                               <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-cyan-500/30 to-purple-500/30 flex items-center justify-center text-2xl">🤖</div>
                               <div>
-                                <h3 className="text-2xl font-bold text-white">AI Analysis</h3>
-                                <p className="text-xs text-white/50 mt-0.5">Your fantasy career decoded by AI</p>
+                                <h3 className="text-2xl font-bold text-white">Chimmy Analysis</h3>
+                                <p className="text-xs text-white/50 mt-0.5">Your fantasy career decoded by Chimmy</p>
                                 <span className="inline-flex px-3 py-1 mt-1 rounded-full bg-gradient-to-r from-purple-500/30 to-cyan-500/30 border border-purple-400/40 text-sm text-purple-200 font-medium">
                                   {aiReport.archetype}
                                 </span>
@@ -7465,7 +7465,7 @@ function AFLegacyContent() {
                               <p className="mt-2 text-[10px] text-cyan-300/60 leading-tight">How steady your performance is across seasons. Higher = less variance.</p>
                             </div>
                             <div className="rounded-2xl bg-gradient-to-br from-purple-500/20 to-purple-500/5 border border-purple-400/30 p-4 text-center">
-                              <div className="text-xs uppercase tracking-wider text-purple-300/70 mb-1">AI Rating</div>
+                              <div className="text-xs uppercase tracking-wider text-purple-300/70 mb-1">Chimmy Rating</div>
                               <div className="text-3xl font-black text-purple-200">{aiReport.rating ?? '—'}<span className="text-lg text-purple-400/50">/100</span></div>
                               <div className="mt-2 h-2 rounded-full bg-black/40 overflow-hidden">
                                 <div className="h-2 rounded-full bg-gradient-to-r from-purple-500 to-purple-300" style={{ width: `${Math.max(0, Math.min(100, Number(aiReport.rating ?? 0)))}%` }} />
@@ -7634,7 +7634,7 @@ function AFLegacyContent() {
                                 <span className="text-lg">🎲</span>
                                 <h4 className="text-lg font-semibold text-white/80">Specialty Leagues</h4>
                                 <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                  Not included in AI grading
+                                  Not included in Chimmy grading
                                 </span>
                               </div>
                               <p className="text-xs text-white/50 mb-4">
@@ -7739,7 +7739,7 @@ function AFLegacyContent() {
                             <span className="text-2xl">📋</span>
                             <h2 className="text-xl sm:text-2xl font-bold text-white">Trade Report Card</h2>
                             <span className="ml-auto px-3 py-1 rounded-full bg-purple-500/20 border border-purple-400/30 text-purple-300 text-xs font-semibold">
-                              AI Analysis
+                              Chimmy Analysis
                             </span>
                           </div>
 
@@ -7978,7 +7978,7 @@ function AFLegacyContent() {
 
                           {/* AI Validation Pipeline Visual */}
                           <div className="mb-6 p-4 rounded-2xl bg-black/20 border border-white/5">
-                            <div className="text-xs uppercase tracking-wider text-white/40 mb-3">AI Evaluation Pipeline</div>
+                            <div className="text-xs uppercase tracking-wider text-white/40 mb-3">Chimmy Evaluation Pipeline</div>
                             <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                               {[
                                 { label: 'Values', icon: '💰' },
@@ -8003,7 +8003,7 @@ function AFLegacyContent() {
                             <div className="rounded-2xl bg-gradient-to-br from-cyan-500/10 to-purple-500/10 border border-cyan-500/20 overflow-hidden">
                               <div className="p-5">
                                 <h4 className="text-sm font-semibold text-cyan-400 mb-3 flex items-center gap-2">
-                                  <span>🧠</span> Why the AI says this
+                                  <span>🧠</span> Why Chimmy says this
                                 </h4>
                                 
                                 {/* Top 3 Bullet Points */}
@@ -8157,7 +8157,7 @@ function AFLegacyContent() {
                                   </div>
                                   <div>
                                     <div className="text-sm font-semibold text-white">Share this trade result</div>
-                                    <div className="text-xs text-purple-300">Unlock 1 free AI token</div>
+                                    <div className="text-xs text-purple-300">Unlock 1 free token</div>
                                   </div>
                                 </div>
                                 <button
@@ -8215,7 +8215,7 @@ function AFLegacyContent() {
                             </div>
                             <h3 className="text-lg font-semibold text-white mb-1">Trade History Report Card</h3>
                             <p className="text-sm text-white/50">
-                              Select a league — this will power the entire AI Trade Hub (Trade Hub, Trade Ideas)
+                              Select a league — this will power the entire Chimmy Trade Hub (Trade Hub, Trade Ideas)
                             </p>
                           </div>
 
@@ -8266,7 +8266,7 @@ function AFLegacyContent() {
                               </select>
 
                               <p className="mt-2 text-xs text-white/40 text-center">
-                                Tip: "All Seasons" compiles every trade you've made in this league into one AI report card.
+                                Tip: "All Seasons" compiles every trade you've made in this league into one Chimmy report card.
                               </p>
                             </div>
                           )}
@@ -8298,7 +8298,7 @@ function AFLegacyContent() {
                                 
                                 {/* Title */}
                                 <h4 className="text-lg font-bold text-white mb-2">Analyzing Your Trades</h4>
-                                <p className="text-white/50 text-sm mb-6 text-center max-w-xs">AI is grading each trade against current market values</p>
+                                <p className="text-white/50 text-sm mb-6 text-center max-w-xs">Chimmy is grading each trade against current market values</p>
                                 
                                 {/* Progress Steps */}
                                 <div className="flex items-center gap-3 mb-4">
@@ -8595,9 +8595,9 @@ function AFLegacyContent() {
                                 <div className="rounded-2xl bg-gradient-to-br from-violet-900/30 to-violet-950/20 border border-violet-500/30 p-6">
                                   <div className="flex items-center justify-center gap-2 mb-1">
                                     <span className="text-2xl">🤖</span>
-                                    <h3 className="text-xl font-bold text-white">AI Counter-Proposal Projection</h3>
+                                    <h3 className="text-xl font-bold text-white">Chimmy Counter-Proposal Projection</h3>
                                   </div>
-                                  <p className="text-sm text-white/40 text-center mb-5">What if you had followed the AI&apos;s suggested counters?</p>
+                                  <p className="text-sm text-white/40 text-center mb-5">What if you had followed Chimmy&apos;s suggested counters?</p>
 
                                   {tradeAnalytics.reportCard.aiCounterProjection.available ? (
                                     <div className="space-y-4">
@@ -8609,7 +8609,7 @@ function AFLegacyContent() {
                                           </div>
                                         </div>
                                         <div className="p-4 rounded-xl bg-slate-800/60 border border-slate-700/40 text-center">
-                                          <div className="text-xs text-white/50 uppercase tracking-wider mb-2">If AI Counters Used</div>
+                                          <div className="text-xs text-white/50 uppercase tracking-wider mb-2">If Chimmy&apos;s Counters Used</div>
                                           <div className={`text-2xl font-black ${tradeAnalytics.reportCard.aiCounterProjection.projectedNetIfFollowed >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
                                             {tradeAnalytics.reportCard.aiCounterProjection.projectedNetIfFollowed >= 0 ? '+' : ''}{tradeAnalytics.reportCard.aiCounterProjection.projectedNetIfFollowed.toLocaleString()}
                                           </div>
@@ -8627,7 +8627,7 @@ function AFLegacyContent() {
                                         {tradeAnalytics.reportCard.aiCounterProjection.message}
                                       </div>
                                       <div className="text-[10px] text-white/30 text-center">
-                                        Based on {tradeAnalytics.reportCard.aiCounterProjection.tradesWithCounters} of {tradeAnalytics.reportCard.aiCounterProjection.totalTrades} trades with AI counters
+                                        Based on {tradeAnalytics.reportCard.aiCounterProjection.tradesWithCounters} of {tradeAnalytics.reportCard.aiCounterProjection.totalTrades} trades with Chimmy&apos;s counters
                                       </div>
                                     </div>
                                   ) : (
@@ -10288,11 +10288,11 @@ function AFLegacyContent() {
                             </div>
                             {tradeHubGoal && (
                               <p className="text-xs text-white/40 mt-2">
-                                {tradeHubGoal === 'win_now' && 'AI will focus on proven, productive players'}
-                                {tradeHubGoal === 'rebuild' && 'AI will prioritize youth and draft capital'}
-                                {tradeHubGoal === 'consolidate' && 'AI will help package depth for stars'}
-                                {tradeHubGoal === 'add_depth' && 'AI will target multiple pieces for flexibility'}
-                                {tradeHubGoal === 'acquire_picks' && 'AI will favor trades that add draft picks'}
+                                {tradeHubGoal === 'win_now' && 'Chimmy will focus on proven, productive players'}
+                                {tradeHubGoal === 'rebuild' && 'Chimmy will prioritize youth and draft capital'}
+                                {tradeHubGoal === 'consolidate' && 'Chimmy will help package depth for stars'}
+                                {tradeHubGoal === 'add_depth' && 'Chimmy will target multiple pieces for flexibility'}
+                                {tradeHubGoal === 'acquire_picks' && 'Chimmy will favor trades that add draft picks'}
                               </p>
                             )}
                           </div>
@@ -10954,7 +10954,7 @@ function AFLegacyContent() {
                                 </>
                               ) : (
                                 <>
-                                  <span>📋</span> Generate Full AI Report
+                                  <span>📋</span> Generate Full Chimmy Report
                                 </>
                               )}
                             </button>
@@ -10966,14 +10966,14 @@ function AFLegacyContent() {
                                   {tradeHubIdeasLoading ? (
                                     <>
                                       <span className="animate-pulse text-xl">💡</span>
-                                      <span className="text-sm text-purple-300">AI is generating trade ideas for you...</span>
+                                      <span className="text-sm text-purple-300">Chimmy is generating trade ideas for you...</span>
                                     </>
                                   ) : tradeHubIdeas.length > 0 ? (
                                     <>
                                       <span className="text-xl">✨</span>
                                       <div className="flex-1">
                                         <div className="text-sm font-medium text-emerald-400">{tradeHubIdeas.length} Trade Ideas Ready</div>
-                                        <div className="text-xs text-white/50">AI-generated suggestions based on your league</div>
+                                        <div className="text-xs text-white/50">Chimmy-generated suggestions based on your league</div>
                                       </div>
                                       <button
                                         onClick={() => handleActiveTabChange('finder')}
@@ -11109,7 +11109,7 @@ function AFLegacyContent() {
                               {/* Analysis Summary */}
                               {(inlineTradeResult.expertAnalysis || inlineTradeResult.why?.length > 0) && (
                                 <div className="rounded-xl bg-black/30 border border-white/10 p-4">
-                                  <div className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-2">AI Analysis</div>
+                                  <div className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-2">Chimmy Analysis</div>
                                   {inlineTradeResult.why?.slice(0, 3).map((point: string, idx: number) => (
                                     <p key={idx} className="text-sm text-white/80 mb-1">• {point}</p>
                                   ))}
@@ -11134,7 +11134,7 @@ function AFLegacyContent() {
                             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500/30 to-purple-500/30 flex items-center justify-center text-xl">🎯</div>
                             <div>
                               <h3 className="text-lg font-bold text-white">Trade Ideas Generator</h3>
-                              <p className="text-xs text-white/50">Describe your goals for AI suggestions</p>
+                              <p className="text-xs text-white/50">Describe your goals for Chimmy's suggestions</p>
                             </div>
                           </div>
 
@@ -11483,7 +11483,7 @@ function AFLegacyContent() {
                           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500/30 to-amber-500/30 flex items-center justify-center text-xl">🧠</div>
                           <div>
                             <h3 className="text-lg font-bold text-white">Goal-Driven Trade Proposals</h3>
-                            <p className="text-xs text-white/50">Tell the AI what you need — it finds the best partners and builds the deals</p>
+                            <p className="text-xs text-white/50">Tell Chimmy what you need — it finds the best partners and builds the deals</p>
                           </div>
                         </div>
                       </div>
@@ -11759,8 +11759,8 @@ function AFLegacyContent() {
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/30 to-cyan-500/30 flex items-center justify-center text-xl">🎯</div>
                           <div>
-                            <h3 className="text-lg font-bold text-white">AI Trade Proposal Generator</h3>
-                            <p className="text-xs text-white/50">Pick what you want, AI builds the deal</p>
+                            <h3 className="text-lg font-bold text-white">Chimmy Trade Proposal Generator</h3>
+                            <p className="text-xs text-white/50">Pick what you want, Chimmy builds the deal</p>
                           </div>
                         </div>
                       </div>
@@ -11902,7 +11902,7 @@ function AFLegacyContent() {
                           <div className="space-y-4 mt-2">
                             <div className="flex items-center justify-between flex-wrap gap-2">
                               <div className="flex items-center gap-2">
-                                <span className="text-sm font-semibold text-white">AI Trade Proposals</span>
+                                <span className="text-sm font-semibold text-white">Chimmy Trade Proposals</span>
                                 <span className="px-2 py-0.5 text-[10px] rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-400/30">
                                   {proposalResults.length} options
                                 </span>
@@ -12097,7 +12097,7 @@ function AFLegacyContent() {
                   <div className="bg-black/30 border border-cyan-500/20 rounded-2xl p-4 sm:p-6">
                     <h3 className="text-lg sm:text-xl font-bold text-cyan-400 mb-3 sm:mb-4">Trade Finder</h3>
                     <p className="text-sm sm:text-base text-gray-400 mb-4">
-                      AI analyzes all teams in your league and finds the best trade opportunities for you.
+                      Chimmy analyzes all teams in your league and finds the best trade opportunities for you.
                     </p>
                     
                     {/* Trade History Learning Notification */}
@@ -12168,7 +12168,7 @@ function AFLegacyContent() {
                           <div className="w-10 h-10 rounded-xl bg-purple-500/30 flex items-center justify-center text-xl">🎯</div>
                           <div>
                             <h4 className="text-lg font-bold text-white">Calibrate Your Trade Style</h4>
-                            <p className="text-sm text-white/60">Answer {quizTrades.length} quick questions so AI knows your preferences</p>
+                            <p className="text-sm text-white/60">Answer {quizTrades.length} quick questions so Chimmy knows your preferences</p>
                           </div>
                         </div>
                         
@@ -12273,7 +12273,7 @@ function AFLegacyContent() {
                     {quizChecked && quizCompleted && (
                       <div className="mb-4 flex items-center gap-2 text-sm text-green-400/80">
                         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z"/></svg>
-                        Trade preferences calibrated - AI will tailor suggestions to your style
+                        Trade preferences calibrated - Chimmy will tailor suggestions to your style
                       </div>
                     )}
 
@@ -12553,7 +12553,7 @@ function AFLegacyContent() {
                                   onClick={() => navigateToChat(`Should I trade ${trade.youGive?.join(' + ')} for ${trade.youReceive?.join(' + ')} with ${suggestion.targetDisplayName}? The trade grade is ${trade.tradeGrade}. ${trade.whyYouWin || ''}`, finderSelectedLeague)}
                                   className="mt-2 w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 text-[11px] font-medium hover:bg-cyan-500/20 transition"
                                 >
-                                  💬 Ask AI more about this trade
+                                  💬 Ask Chimmy more about this trade
                                 </button>
                               </div>
                             ))}
@@ -12566,7 +12566,7 @@ function AFLegacyContent() {
                     {!finderLoading && finderSelectedLeague && tradeSuggestions.length === 0 && !finderError && finderLeagueInfo && (
                       <div className="mt-4 p-5 rounded-xl bg-gradient-to-b from-slate-900/80 to-slate-800/50 border border-white/10 text-center space-y-3">
                         <p className="text-sm font-medium text-white/70">No clean market wins today in this league.</p>
-                        <p className="text-xs text-white/40">Try the Trade Hub above to build custom trades, or use the AI Trade Ideas generator with a different strategy.</p>
+                        <p className="text-xs text-white/40">Try the Trade Hub above to build custom trades, or use the Chimmy Trade Ideas generator with a different strategy.</p>
                         <div className="flex gap-2 justify-center">
                           <button
                             onClick={() => { setFinderSelectedLeague('') }}
@@ -12763,7 +12763,7 @@ function AFLegacyContent() {
                       <div className="text-center py-12 text-white/50">
                         <div className="text-4xl mb-3">🔍</div>
                         <p>Search for a player to see which of your teams have them</p>
-                        <p className="text-sm mt-2">Shows ownership %, stock signals based on your trade activity, and AI buy/sell recommendations</p>
+                        <p className="text-sm mt-2">Shows ownership %, stock signals based on your trade activity, and Chimmy's buy/sell recommendations</p>
                       </div>
                     )}
                   </div>
@@ -13167,7 +13167,7 @@ function AFLegacyContent() {
                             className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-medium transition flex-shrink-0 bg-purple-500/15 border border-purple-400/25 text-purple-200 hover:bg-purple-500/25"
                           >
                             <span>✨</span>
-                            AI Share Post
+                            Chimmy Share Post
                           </button>
                           <button
                             onClick={() => {
@@ -13298,7 +13298,7 @@ function AFLegacyContent() {
                             <div className="h-2 bg-white/10 rounded-full overflow-hidden">
                               <div className="h-full bg-gradient-to-r from-yellow-500 via-amber-500 to-yellow-500 rounded-full animate-pulse" style={{ width: '100%' }} />
                             </div>
-                            <p className="text-center text-sm text-gray-400">AI is analyzing all rosters and stats...</p>
+                            <p className="text-center text-sm text-gray-400">Chimmy is analyzing all rosters and stats...</p>
                           </div>
                         )}
 
@@ -13324,7 +13324,7 @@ function AFLegacyContent() {
                             </div>
                             {rankingsData.aiAnalysis && (
                               <div className="rounded-xl bg-black/30 border border-white/10 p-4">
-                                <div className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-2">AI Insight</div>
+                                <div className="text-xs font-semibold text-white/60 uppercase tracking-wider mb-2">Chimmy Insight</div>
                                 <p className="text-sm text-white/70">{rankingsData.aiAnalysis}</p>
                               </div>
                             )}
@@ -13498,7 +13498,7 @@ function AFLegacyContent() {
                                                   onClick={() => navigateToChat(`Tell me about ${team.displayName || team.username}'s team in my league. They have ${(totalValue / 1000).toFixed(1)}k total value (${vsAvg >= 0 ? '+' : ''}${vsAvg.toLocaleString()} vs avg). What trade opportunities do I have with them?`, rankingsSelectedLeague)}
                                                   className="mt-2 w-full flex items-center justify-center gap-1.5 px-2 py-1 rounded-md bg-cyan-500/10 border border-cyan-400/20 text-cyan-300 text-[10px] font-medium hover:bg-cyan-500/20 transition"
                                                 >
-                                                  💬 Ask AI about this team
+                                                  💬 Ask Chimmy about this team
                                                 </button>
                                               </div>
                                             )}
@@ -13920,7 +13920,7 @@ function AFLegacyContent() {
 
                             {rankingsData.aiAnalysis && (
                               <div className="p-4 rounded-xl bg-cyan-500/10 border border-cyan-400/30">
-                                <h4 className="text-sm font-semibold text-cyan-400 mb-2">AI Analysis</h4>
+                                <h4 className="text-sm font-semibold text-cyan-400 mb-2">Chimmy Analysis</h4>
                                 <p className="text-sm text-gray-300 whitespace-pre-wrap">{rankingsData.aiAnalysis}</p>
                                 <div className="flex flex-wrap gap-3 mt-4 pt-4 border-t border-cyan-400/20">
                                   <span className="text-xs text-gray-400">Improve your standing:</span>
@@ -14049,7 +14049,7 @@ function AFLegacyContent() {
                                   <div className="flex items-center gap-3">
                                     <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/40 to-purple-500/40 flex items-center justify-center text-xl">🎓</div>
                                     <div>
-                                      <h4 className="text-lg font-bold text-white">Devy Draft Assistant <span className="text-xs font-medium text-indigo-400 ml-1.5">(AI)</span></h4>
+                                      <h4 className="text-lg font-bold text-white">Devy Draft Assistant <span className="text-xs font-medium text-indigo-400 ml-1.5">(Chimmy)</span></h4>
                                       <p className="text-xs text-white/50">Recommendations update with roster changes, injuries, news, and league context.</p>
                                     </div>
                                   </div>
@@ -14072,7 +14072,7 @@ function AFLegacyContent() {
                                             devyBoardData.dataSource === 'hybrid' ? 'bg-violet-500/20 text-violet-300' :
                                             'bg-slate-600/50 text-slate-300'
                                           }`}>
-                                            {devyBoardData.dataSource === 'hybrid' ? 'CFBD + AI' : devyBoardData.dataSource === 'database' ? 'CFBD Data' : 'AI Only'}
+                                            {devyBoardData.dataSource === 'hybrid' ? 'CFBD + Chimmy' : devyBoardData.dataSource === 'database' ? 'CFBD Data' : 'Chimmy Only'}
                                           </span>
                                         )}
                                         {devyBoardData.totalClassifiedPlayers && (
@@ -14301,7 +14301,7 @@ function AFLegacyContent() {
 
                                     {/* Disclaimer */}
                                     <p className="text-[10px] text-white/30 text-center pt-2">
-                                      AI is learning — not perfect yet. Always verify major decisions. Draft values are AllFantasy estimates, not licensed ADP.
+                                      Chimmy is learning — not perfect yet. Always verify major decisions. Draft values are AllFantasy estimates, not licensed ADP.
                                     </p>
                                   </div>
                                 )}
@@ -14372,7 +14372,7 @@ function AFLegacyContent() {
                                     {/* AI Recommendations */}
                                     {playoffForecastData.aiRecommendations?.length > 0 && (
                                       <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/20 mb-4">
-                                        <h5 className="text-xs font-semibold text-emerald-300 mb-2">AI Recommendations to Improve Your Chances</h5>
+                                        <h5 className="text-xs font-semibold text-emerald-300 mb-2">Chimmy's Recommendations to Improve Your Chances</h5>
                                         <div className="space-y-1.5">
                                           {playoffForecastData.aiRecommendations.map((rec: string, i: number) => (
                                             <div key={i} className="flex items-start gap-2 text-xs text-white/70">
@@ -15495,7 +15495,7 @@ function AFLegacyContent() {
                   <HeroMetric 
                     value={chatMessages.length > 0 ? `${chatMessages.length}` : '—'}
                     label="Messages"
-                    helper="Your most recent AI guidance"
+                    helper="Your most recent Chimmy guidance"
                     accent="purple"
                   />
                   <div
@@ -15524,10 +15524,10 @@ function AFLegacyContent() {
 
                     {username && (
                       <div className="mb-3 rounded-xl border border-cyan-400/25 bg-cyan-500/10 p-3 text-xs text-cyan-200">
-                        🔒 Private to <span className="font-bold">{username}</span>{chatLeagueId ? ` in ${leagues.find(l => l.league_id === chatLeagueId)?.name || 'selected league'}` : ''}. Your AI chat + recommendations are scoped to your account context.
+                        🔒 Private to <span className="font-bold">{username}</span>{chatLeagueId ? ` in ${leagues.find(l => l.league_id === chatLeagueId)?.name || 'selected league'}` : ''}. Your Chimmy chat + recommendations are scoped to your account context.
                         {aiCoach?.quick_wins?.length ? (
                           <div className="mt-2 text-[11px] text-cyan-100/90">
-                            <span className="font-semibold">Personal AI recommendations:</span> {aiCoach.quick_wins.slice(0, 2).join(' • ')}
+                            <span className="font-semibold">Personal Chimmy recommendations:</span> {aiCoach.quick_wins.slice(0, 2).join(' • ')}
                           </div>
                         ) : null}
                       </div>
@@ -15541,7 +15541,7 @@ function AFLegacyContent() {
                         <div className="h-full flex flex-col items-center justify-center text-center p-4">
                           <div className="text-4xl mb-4">🏈</div>
                           <h4 className="text-lg font-semibold text-white mb-2">
-                            {username ? `Hey ${username}, I'm Your AI Fantasy Coach` : 'Welcome to AI Fantasy Coach'}
+                            {username ? `Hey ${username}, I'm Chimmy, Your Fantasy Coach` : 'Welcome to Chimmy, Your Fantasy Coach'}
                           </h4>
                           <p className="text-sm text-gray-400 max-w-md mb-6">
                             {username 
@@ -15903,7 +15903,7 @@ function AFLegacyContent() {
 
                     <div className="mb-4 p-4 rounded-xl bg-black/25 border border-cyan-500/20">
                       <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-                        <p className="text-xs text-gray-300 font-semibold">How AI prepares your social post</p>
+                        <p className="text-xs text-gray-300 font-semibold">How Chimmy prepares your social post</p>
                         <div className="text-[11px] text-cyan-300">Target platform</div>
                       </div>
 
@@ -15930,7 +15930,7 @@ function AFLegacyContent() {
                       </div>
 
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-gray-400">
-                        <div className="rounded-lg bg-black/30 border border-white/10 p-2">1) AI reads your selected share type and key stats.</div>
+                        <div className="rounded-lg bg-black/30 border border-white/10 p-2">1) Chimmy reads your selected share type and key stats.</div>
                         <div className="rounded-lg bg-black/30 border border-white/10 p-2">2) Tone is applied from your style choice (Balanced, Humble, Trash Talk).</div>
                         <div className="rounded-lg bg-black/30 border border-white/10 p-2">3) Copy is rewritten to fit {sharePlatform === 'x' ? 'X character limits' : sharePlatform === 'threads' ? 'Threads conversation style' : sharePlatform === 'instagram' ? 'Instagram caption flow' : 'TikTok hook/caption style'}.</div>
                         <div className="rounded-lg bg-black/30 border border-white/10 p-2">4) You review, then post via quick links or copy text anywhere.</div>
@@ -16286,7 +16286,7 @@ function AFLegacyContent() {
                           ))}
                         </div>
                         <div className="text-center text-xs text-white/50 mb-4 capitalize">
-                          {phoneScreens[phoneScreenIndex].replace('aitools', 'AI Tools')} Preview
+                          {phoneScreens[phoneScreenIndex].replace('aitools', 'Chimmy Tools')} Preview
                         </div>
 
                         {/* Phone Frame with Navigation Arrows */}
@@ -16385,7 +16385,7 @@ function AFLegacyContent() {
                                       <div className="p-2 rounded-lg bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-400/20">
                                         <div className="flex items-center gap-1 mb-1">
                                           <span className="text-[10px]">🤖</span>
-                                          <span className="text-[9px] font-semibold text-cyan-300">AF AI TOOLS AVAILABLE</span>
+                                          <span className="text-[9px] font-semibold text-cyan-300">AF CHIMMY TOOLS AVAILABLE</span>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
                                           <span className="px-1.5 py-0.5 text-[7px] rounded bg-cyan-500/20 text-cyan-300">Trade Analyzer</span>
@@ -16438,7 +16438,7 @@ function AFLegacyContent() {
                                       <div className="p-2 rounded-lg bg-gradient-to-r from-purple-500/10 to-cyan-500/10 border border-purple-400/20">
                                         <div className="flex items-center gap-1">
                                           <span className="text-[10px]">📊</span>
-                                          <span className="text-[8px] text-purple-300">League Rankings AI available</span>
+                                          <span className="text-[8px] text-purple-300">Chimmy Rankings available</span>
                                         </div>
                                       </div>
                                     </div>
@@ -16864,12 +16864,12 @@ function AFLegacyContent() {
                                       <div className="p-2 rounded-lg bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-400/20">
                                         <div className="flex items-center gap-1 mb-1">
                                           <span className="text-[10px]">🤖</span>
-                                          <span className="text-[8px] font-semibold text-cyan-300">AF AI TRADE TOOLS</span>
+                                          <span className="text-[8px] font-semibold text-cyan-300">AF CHIMMY TRADE TOOLS</span>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
                                           <span className="px-1.5 py-0.5 text-[7px] rounded bg-cyan-500/20 text-cyan-300">Trade Analyzer</span>
                                           <span className="px-1.5 py-0.5 text-[7px] rounded bg-purple-500/20 text-purple-300">Trade Finder</span>
-                                          <span className="px-1.5 py-0.5 text-[7px] rounded bg-amber-500/20 text-amber-300">AI GM</span>
+                                          <span className="px-1.5 py-0.5 text-[7px] rounded bg-amber-500/20 text-amber-300">Chimmy GM</span>
                                         </div>
                                       </div>
                                     </div>
@@ -16998,18 +16998,18 @@ function AFLegacyContent() {
                                     <div className="px-3 pb-4">
                                       <div className="flex items-center gap-2 mb-3">
                                         <span className="text-lg">🤖</span>
-                                        <h5 className="text-xs font-bold text-white">AF AI Tools</h5>
+                                        <h5 className="text-xs font-bold text-white">AF Chimmy Tools</h5>
                                       </div>
-                                      <p className="text-[9px] text-white/60 mb-3">Powerful AI-powered tools available for your league</p>
-                                      
+                                      <p className="text-[9px] text-white/60 mb-3">Powerful Chimmy-powered tools available for your league</p>
+
                                       <div className="space-y-2">
                                         {[
-                                          { name: 'Trade Analyzer', desc: 'AI-powered trade evaluation with tier system', icon: '📊', color: 'cyan' },
+                                          { name: 'Trade Analyzer', desc: 'Chimmy-powered trade evaluation with tier system', icon: '📊', color: 'cyan' },
                                           { name: 'Trade Finder', desc: 'Find optimal trades with other managers', icon: '🔍', color: 'purple' },
                                           { name: 'Waiver AI', desc: 'Smart waiver recommendations & FAAB', icon: '🎯', color: 'emerald' },
-                                          { name: 'AI GM Assistant', desc: 'Personal GM with counter-offers & targeting', icon: '🧠', color: 'amber' },
+                                          { name: 'Chimmy GM Assistant', desc: 'Personal GM with counter-offers & targeting', icon: '🧠', color: 'amber' },
                                           { name: 'League Rankings', desc: 'See where you rank in your league', icon: '🏆', color: 'pink' },
-                                          { name: 'AI Chat', desc: 'Personalized advice based on your data', icon: '💬', color: 'blue' },
+                                          { name: 'Chimmy Chat', desc: 'Personalized advice based on your data', icon: '💬', color: 'blue' },
                                         ].map((tool, i) => (
                                           <div key={i} className={`p-2.5 rounded-lg bg-gradient-to-r from-${tool.color}-500/10 to-transparent border border-${tool.color}-400/20`}>
                                             <div className="flex items-center gap-2">
@@ -17030,7 +17030,7 @@ function AFLegacyContent() {
                                           <span className="text-[9px] font-semibold text-amber-300">AF EXCLUSIVE</span>
                                         </div>
                                         <div className="text-[8px] text-white/60">
-                                          All AI tools learn from your trading history and league patterns for personalized recommendations.
+                                          All Chimmy tools learn from your trading history and league patterns for personalized recommendations.
                                         </div>
                                       </div>
                                     </div>
@@ -17064,7 +17064,7 @@ function AFLegacyContent() {
                                   : 'bg-white/10 text-white/50 hover:bg-white/20'
                               }`}
                             >
-                              {screen.replace('aitools', 'AI Tools')}
+                              {screen.replace('aitools', 'Chimmy Tools')}
                             </button>
                           ))}
                         </div>
@@ -17091,7 +17091,7 @@ function AFLegacyContent() {
                           ))}
                         </div>
                         <div className="text-center text-xs text-white/50 mb-4 capitalize">
-                          {phoneScreens[phoneScreenIndex].replace('aitools', 'AI Tools')} Preview
+                          {phoneScreens[phoneScreenIndex].replace('aitools', 'Chimmy Tools')} Preview
                         </div>
 
                         {/* Phone Frame with Navigation Arrows */}
@@ -17180,7 +17180,7 @@ function AFLegacyContent() {
                                       <div className="p-2 rounded-lg bg-gradient-to-r from-cyan-500/10 to-purple-500/10 border border-cyan-400/20">
                                         <div className="flex items-center gap-1 mb-1">
                                           <span className="text-[10px]">🤖</span>
-                                          <span className="text-[9px] font-semibold text-cyan-300">AF AI TOOLS AVAILABLE</span>
+                                          <span className="text-[9px] font-semibold text-cyan-300">AF CHIMMY TOOLS AVAILABLE</span>
                                         </div>
                                         <div className="flex flex-wrap gap-1">
                                           <span className="px-1.5 py-0.5 text-[7px] rounded bg-cyan-500/20 text-cyan-300">Trade Analyzer</span>
@@ -17229,7 +17229,7 @@ function AFLegacyContent() {
                                     <div className="px-3 pb-4 flex items-center justify-center h-full">
                                       <div className="text-center">
                                         <div className="text-4xl mb-2">{['📋', '🏈', '🔄', '⚙️', '🤖'][phoneScreenIndex - 2]}</div>
-                                        <div className="text-sm font-semibold text-white mb-1">{['Draft', 'Team', 'Trades', 'Settings', 'AI Tools'][phoneScreenIndex - 2]} Screen</div>
+                                        <div className="text-sm font-semibold text-white mb-1">{['Draft', 'Team', 'Trades', 'Settings', 'Chimmy Tools'][phoneScreenIndex - 2]} Screen</div>
                                         <div className="text-[10px] text-white/50">Select a league to see full preview</div>
                                       </div>
                                     </div>
@@ -17261,7 +17261,7 @@ function AFLegacyContent() {
                                   : 'bg-white/10 text-white/50 hover:bg-white/20'
                               }`}
                             >
-                              {screen.replace('aitools', 'AI Tools')}
+                              {screen.replace('aitools', 'Chimmy Tools')}
                             </button>
                           ))}
                         </div>
@@ -17691,9 +17691,9 @@ function AFLegacyContent() {
                   <LegacyHeroTabSection
                     metric={
                       <HeroMetric
-                        value="AI"
+                        value="Chimmy"
                         label="Season Strategy Planner"
-                        helper="AI-powered roadmap for your fantasy season"
+                        helper="Chimmy-powered roadmap for your fantasy season"
                         accent="purple"
                       />
                     }
@@ -18043,7 +18043,7 @@ function AFLegacyContent() {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500/30 to-cyan-500/30 flex items-center justify-center text-xl">🧠</div>
-                  <h3 className="text-xl font-bold text-white">How AI Analysis Works</h3>
+                  <h3 className="text-xl font-bold text-white">How Chimmy's Analysis Works</h3>
                 </div>
                 <button onClick={() => setShowAiExplain(false)} className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white/60 hover:text-white transition">
                   ✕
@@ -18062,7 +18062,7 @@ function AFLegacyContent() {
                 <div className="rounded-2xl bg-purple-500/10 border border-purple-500/20 p-4">
                   <div className="flex items-center gap-2 mb-2">
                     <span className="text-lg">🤖</span>
-                    <h4 className="font-semibold text-purple-200">2. AI Processing</h4>
+                    <h4 className="font-semibold text-purple-200">2. Chimmy Processing</h4>
                   </div>
                   <p className="text-sm text-white/70 leading-relaxed">GPT-4o analyzes your career data to identify patterns — your draft tendencies, trade behavior, roster management style, and how you perform under pressure in playoffs.</p>
                 </div>
@@ -18080,7 +18080,7 @@ function AFLegacyContent() {
                     <span className="text-lg">📈</span>
                     <h4 className="font-semibold text-emerald-200">4. Scoring & Insights</h4>
                   </div>
-                  <p className="text-sm text-white/70 leading-relaxed">You receive a Consistency Score (how stable your performance is), an AI Rating (overall career grade), a Window Status (contender vs rebuilder), and personalized action items.</p>
+                  <p className="text-sm text-white/70 leading-relaxed">You receive a Consistency Score (how stable your performance is), a Chimmy Rating (overall career grade), a Window Status (contender vs rebuilder), and personalized action items.</p>
                 </div>
 
                 <div className="rounded-2xl bg-white/5 border border-white/10 p-4">
