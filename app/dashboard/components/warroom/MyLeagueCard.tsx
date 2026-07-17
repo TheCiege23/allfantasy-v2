@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Clock, Crown, DollarSign, ShieldCheck } from 'lucide-react'
 import type { UserLeague } from '../../types'
 import { resolveLeagueLogoSrc, leagueInitials } from '@/lib/dashboard/league-logo-src'
+import { shouldFetchLeagueScopedData } from '@/lib/dashboard/league-card-fetch-policy'
 import { useImageLoadFailed } from '@/hooks/useImageLoadFailed'
 import { WarRoomCard } from './WarRoomCard'
 import { ChampionshipGauge } from './ChampionshipGauge'
@@ -186,12 +187,40 @@ export function MyLeagueCard({
   /** True once the matchups fetch has settled (success or failure) — distinguishes "still
    *  loading" / "genuinely no data" from "haven't started fetching because preseason". */
   const [matchupFetchAttempted, setMatchupFetchAttempted] = useState(false)
-  const { items: activityItems } = useActivityFeed({ limit: 20, leagueId: league.id })
+  /**
+   * AF Legacy board rows carry a `LegacyLeague` id and no row in the `leagues` table
+   * (`hasUnifiedRecord: false`). The DB-backed per-league fetches below all resolve the league out
+   * of `leagues`, so for those rows they are dead on arrival — `/api/league/detail` 404s by
+   * construction. Skipping them leaves the card in exactly the state the failed fetches did.
+   *
+   * Not a micro-optimization: these are per-card, and useActivityFeed additionally polls every 90s
+   * for the lifetime of the mount. A real account with 543 legacy leagues therefore made ~2,000
+   * requests per dashboard load and then held ~6 req/s indefinitely while merely sitting open —
+   * enough to exhaust Postgres and surface as 53200 out-of-memory across unrelated routes.
+   *
+   * useLeagueHealth stays on: its route computes from the POST body and never reads the DB.
+   * The predicate itself lives in lib/dashboard/league-card-fetch-policy.ts (pure + unit-tested,
+   * per the lib/league/leagueTabSync.ts pattern) and carries the full reasoning.
+   */
+  const hasUnifiedRecord = shouldFetchLeagueScopedData(league)
+  const { items: activityItems } = useActivityFeed({
+    limit: 20,
+    leagueId: league.id,
+    enabled: hasUnifiedRecord,
+  })
   const health = useLeagueHealth(league)
 
   const commissionerNotice = activityItems.find((i) => i.type === 'announcement') ?? null
 
   useEffect(() => {
+    if (!hasUnifiedRecord) {
+      // Legacy rows reach the matchups branch too (25 of one real account's 543 are `in_season`),
+      // where the fetch 404'd and its `.then` still ran setMatchupFetchAttempted(true). Reproduce
+      // that here so resolveOpponentCell/resolveResultCell render exactly as before — skipping the
+      // request must not also change the cell copy from "no data" back to "loading".
+      setMatchupFetchAttempted(true)
+      return
+    }
     let cancelled = false
 
     void fetch(`/api/league/detail?leagueId=${encodeURIComponent(league.id)}`, { cache: 'no-store' })
@@ -256,7 +285,7 @@ export function MyLeagueCard({
     return () => {
       cancelled = true
     }
-  }, [league.id, league.season, league.currentWeek, league.lifecycleState, league.status, userId])
+  }, [hasUnifiedRecord, league.id, league.season, league.currentWeek, league.lifecycleState, league.status, userId])
 
   const forecast = useMemo(
     () => (myTeam ? (forecastRows?.find((r) => r.teamId === myTeam.externalId) ?? null) : null),
