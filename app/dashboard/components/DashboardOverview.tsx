@@ -828,11 +828,20 @@ export function DashboardOverview({
             primary decision column (~2/3) beside a secondary context/portfolio column (~1/3) on
             wide screens, collapsing to a single stack below `xl`. Phase 3.8D moves this directly
             under the hero (ahead of the setup checklist) so the hero flows straight into Platform
-            Pulse; the onboarding checklist now sits below the intelligence. */}
-        <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 xl:items-start">
-          <div className="space-y-5 xl:col-span-2">{layout.primary}</div>
-          <div className="space-y-5">{layout.secondary}</div>
-        </div>
+            Pulse; the onboarding checklist now sits below the intelligence.
+
+            Commissioner Focus's secondary column is empty (Rankings & Legacy moved to its own
+            full-width block below, and nothing else fills it here) — rendering the 2/3+1/3 split
+            in that case would just leave a dead empty column. Collapse to a single full-width
+            primary column instead whenever secondary has nothing in it. */}
+        {layout.secondary.length > 0 ? (
+          <div className="grid grid-cols-1 gap-5 xl:grid-cols-3 xl:items-start">
+            <div className="space-y-5 xl:col-span-2">{layout.primary}</div>
+            <div className="space-y-5">{layout.secondary}</div>
+          </div>
+        ) : (
+          <div className="space-y-5">{layout.primary}</div>
+        )}
 
         {/* My Leagues — same fix as AF Legacy Toolset below: this grid's own internal columns
             (sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4) are keyed to viewport breakpoints, so
