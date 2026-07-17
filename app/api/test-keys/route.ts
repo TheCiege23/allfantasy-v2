@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getProviderStatus } from "@/lib/provider-config";
 import { runClearSportsHealthCheck } from "@/lib/clear-sports/client";
-import { getTwilioRuntimeStatus, getTwilioClient } from "@/lib/twilio-client";
+import { getTwilioRuntimeStatus, verifyTwilioAuth } from "@/lib/twilio-client";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -199,50 +199,46 @@ async function testTwilio(): Promise<ServiceResult> {
   const sid = process.env.TWILIO_ACCOUNT_SID || "";
   const configured = status.canUseAuthTokenMode || status.canUseApiKeyMode;
 
-  let clientInitialized = false;
-  let clientError: string | null = null;
-  if (configured) {
-    try {
-      getTwilioClient();
-      clientInitialized = true;
-    } catch (err) {
-      clientError = err instanceof Error ? err.message : "Client init failed.";
-    }
-  }
-
-  const mode = status.canUseApiKeyMode
-    ? "api_key"
-    : status.canUseAuthTokenMode
-      ? "auth_token"
-      : "none";
+  // A live probe, not a construction check. This endpoint previously reported ok:true whenever the
+  // client could be *built* — but an unauthorized API key builds fine and only fails on the first
+  // real request, so genuinely broken SMS (phone signup, SMS password reset) read as healthy here.
+  const probe = configured ? await verifyTwilioAuth() : null;
+  const clientInitialized = probe ? probe.reason !== "client_init_failed" : false;
 
   const message = !configured
-    ? "Twilio env vars are incomplete."
-    : !clientInitialized
-      ? `Twilio env vars set but client init failed: ${clientError}`
-      : mode === "api_key"
-        ? "Twilio configured (API key/secret mode)."
-        : "Twilio configured (account SID/auth token mode).";
+    ? status.hasAccountSid && !status.accountSidWellFormed
+      ? `TWILIO_ACCOUNT_SID is set but is not an Account SID (starts with "${sid.slice(0, 2)}", expected "AC").`
+      : "Twilio env vars are incomplete."
+    : probe?.ok
+      ? `Twilio verified against the live API (${probe.mode} mode).`
+      : probe?.reason === "client_init_failed"
+        ? `Twilio client init failed: ${probe.error?.message}`
+        : `Twilio env vars are set but the credentials were REJECTED by the live API (${probe?.mode} mode): ${probe?.error?.message}`;
 
   return {
     configured,
-    ok: configured && clientInitialized,
+    ok: Boolean(probe?.ok),
     message,
     details: {
       accountSidPreview: maskKey(sid),
-      mode,
+      mode: probe?.mode ?? "none",
+      liveAuthOk: probe?.ok ?? false,
+      ...(probe?.reason ? { failureReason: probe.reason } : {}),
+      ...(probe?.error ? { authError: probe.error } : {}),
       hasAccountSid: status.hasAccountSid,
       hasAuthToken: status.hasAuthToken,
       hasApiKey: status.hasApiKey,
       hasApiSecret: status.hasApiSecret,
       hasFromNumber: status.hasFromNumber,
       hasVerifyServiceSid: status.hasVerifyServiceSid,
+      accountSidWellFormed: status.accountSidWellFormed,
+      apiKeyWellFormed: status.apiKeyWellFormed,
+      verifyServiceSidWellFormed: status.verifyServiceSidWellFormed,
       canUseAuthTokenMode: status.canUseAuthTokenMode,
       canUseApiKeyMode: status.canUseApiKeyMode,
       canUseRawSms: status.canUseRawSms,
       canUseVerify: status.canUseVerify,
       clientInitialized,
-      ...(clientError ? { clientError } : {}),
     },
   };
 }
