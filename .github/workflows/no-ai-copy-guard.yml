@@ -1,0 +1,25 @@
+name: No-AI copy guard
+
+on:
+  pull_request:
+    branches: [main, master]
+  push:
+    branches: [main, master]
+
+jobs:
+  no-ai-copy-guard:
+    name: No bare "AI" labels in dashboard customer copy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify dashboard customer copy says Chimmy, never bare AI
+        run: npm run test:no-ai-copy
