@@ -5,6 +5,7 @@ import Image from 'next/image'
 import { Crown, Sparkles, Swords, MessageCircle, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 import type { UserLeague } from '../../types'
+import { leagueDisplayName } from '@/lib/dashboard/platform-label'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import { WarRoomCard } from './WarRoomCard'
 import { useGreetingPeriod } from './useGreeting'
@@ -191,7 +192,7 @@ export function DashboardHero({
               className="rounded-xl border border-white/10 bg-[#0a1220] px-3 py-1.5 text-[12px] font-semibold text-white/85">
               <option value="">{t('dashboard.warroom.hero.scopeAllLeagues')}</option>
               {leagues.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
+                <option key={l.id} value={l.id}>{leagueDisplayName(l.name, l.platform)}</option>
               ))}
             </select>
             <span
@@ -201,7 +202,9 @@ export function DashboardHero({
               {t(EYEBROW_KEY[context])}
               <span aria-hidden className="text-white/20">·</span>
               <span className="normal-case tracking-normal text-white/60">
-                {selectedLeague ? selectedLeague.name : t('dashboard.warroom.hero.scopeAllLeagues')}
+                {selectedLeague
+                  ? leagueDisplayName(selectedLeague.name, selectedLeague.platform)
+                  : t('dashboard.warroom.hero.scopeAllLeagues')}
               </span>
             </span>
           </div>
