@@ -296,7 +296,7 @@ export default function DashboardContent({
               </h1>
               <p className="mt-2 text-sm text-secondary md:text-base">
                 Pick a league from the left rail to open the new league hub, or stay here for your
-                profile, AI, and onboarding overview.
+                profile, Chimmy, and onboarding overview.
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -518,7 +518,7 @@ export default function DashboardContent({
                 ))}
                 {!entries.length ? (
                   <div className="rounded-2xl border border-dashed border-subtle px-4 py-10 text-center text-sm text-muted">
-                    Use the left sidebar to open a league, or head to the tools hub for your first AI action.
+                    Use the left sidebar to open a league, or head to the tools hub for your first Chimmy action.
                   </div>
                 ) : null}
               </div>
