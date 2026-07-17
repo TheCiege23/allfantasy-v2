@@ -22,15 +22,22 @@ node -e "console.log(new URL(process.env.DATABASE_URL.replace(/^postgres(ql)?:\/
 npx prisma migrate deploy
 npx prisma db push --skip-generate      # closes schema-ahead-of-migrations drift
 
-# 3. Seed a real NFL redraft league with a commissioner, member, and rosters
-node --env-file=.env --require ./scripts/_audit-preload.cjs --import tsx \
-  scripts/seed-redraft-war-room-runtime.ts
+# 3. Seed the dev fixture — gives Local Dev User BOTH dashboard contexts
+npm run seed:dev
+#    -> "Dev Commissioner League" (dev user OWNS it)  -> Commissioner Focus
+#    -> "Dev Managed League"      (dev user is MEMBER) -> Team Focus
+#    Idempotent: re-run any time. Reset just this fixture: npm run seed:dev -- --reset
 
 # 4. Run
 npx next dev -p 3000        # use 3000 — NEXTAUTH_URL is pinned to it (see §6)
 
 # 5. Log in — open http://localhost:3000/login and click "Continue as Local Dev User"
 ```
+
+`npm run seed:dev` (`scripts/seed-dev-fixture.ts`) **fails closed**: it refuses the production host
+marker, refuses any host not on an explicit dev allowlist, and refuses an absent/unparseable
+`DATABASE_URL`. All three refusal paths were tested by simulating each URL. Its teardown is scoped
+strictly to its own two league ids — never a global delete.
 
 ### Seeded test accounts (created by `seed-redraft-war-room-runtime.ts`)
 
@@ -116,6 +123,19 @@ Verified against `http://localhost:3011`, Chrome, authenticated session:
 | Commissioner context resolves | ✅ COMMISSIONER HUB panel appears for the commissioner-owned league; nav swaps "Run a League" → "Commissioner Hub" |
 | **No fabrication when data is absent** | ✅ Signed in with zero leagues: `0/0/0/0` counters, AF Rank/Tier/XP all `—`, "You're all caught up", "Next Opponent: Not available right now". Nothing invented. |
 
+### After `npm run seed:dev` — all three contexts observed as Local Dev User (one-click bypass)
+
+| Context | Evidence |
+|---|---|
+| **Global Command Center** | "GLOBAL COMMAND CENTER / This is Fantasy HQ.", leagues counter `2`, MY LEAGUES lists both fixture leagues |
+| **Commissioner Focus** | *Dev Commissioner League* renders with a 👑 marker; the COMMISSIONER HUB panel lists **only** that league — the member league is correctly excluded |
+| **Team Focus** | Selecting *Dev Managed League* flips the whole shell to "TEAM HEADQUARTERS / Focus. Compete. Win Championships.", breadcrumb `TEAM HEADQUARTERS · Dev Managed League`, and swaps in THIS WEEK'S MATCHUP, SEASON JOURNEY (`SETUP → PRE-DRAFT → DRAFTING → POST-DRAFT → IN SEASON`), INJURY IMPACT, RECOMMENDATIONS |
+| **League switching** | ✅ Switcher populated with `All Leagues / Dev Commissioner League / Dev Managed League`; selecting one re-renders the context |
+
+The crown-vs-no-crown split and the Commissioner Hub filter are the live proof that
+`resolveIsCommissioner()` classifies the two fixture leagues correctly (owner + `allfantasy` platform
+⇒ commissioner; synthetic owner + `MEMBER` role ⇒ not).
+
 ## 6. Defect & error log (found during this pass, NOT fixed)
 
 | # | Severity | Finding |
@@ -126,6 +146,9 @@ Verified against `http://localhost:3011`, Chrome, authenticated session:
 | D4 | Low | The login page copy reads *"Sign in to access the Sports App, Brackets, and **AI Tools**."* — an "AI" customer-copy violation per the brand rule. |
 | D5 | Low | Default theme renders **Light** (top bar shows `Theme: Light`) with a dark navy hero, i.e. a mixed light/dark presentation, while the stated direction is "premium dark". Worth confirming the intended default. |
 | D6 | Low | Clicking the login page's Google button initiates a **real** Google OAuth flow against `localhost:3000` — expected, but a trap in a dev environment. |
+| **D7** | **High — newly proven in-browser** | **The league selector does not scope the RECOMMENDATIONS panel.** In Team Focus for *Dev Managed League*, every Recommendations row is labelled `DEV COMMISSIONER LEAGUE` — i.e. the *other* league's items render under this league's context. The hero simultaneously reads `0 LINEUP DECISIONS` but `4 URGENT`, because the urgent count is drawn from the unscoped set. This is a **runtime-confirmed instance** of the "only 2 of 8 dashboard sections honor the selector" finding from the dashboard real-data audit — previously a code-read claim, now observed. A user in one league is shown another league's urgent actions. |
+| D8 | Low | Team Focus shows "Season outlook is being calculated / Your playoff and championship projections will appear here shortly" — reads as a permanent placeholder rather than a real pending state; worth confirming it ever resolves. |
+| D9 | Low | INJURY IMPACT renders the static string "No injury concerns for your starters." even with empty rosters — matches the dashboard audit's suspicion that this is unconditional rather than a real roster↔injury join. |
 
 ## 7. Seed architecture — current state and the gap
 

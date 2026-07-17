@@ -68,6 +68,7 @@
     "run:batch:adp-cleanup:continue-pn-error": "npm run run:batch:adp-cleanup:continue-on-error",
     "run:batch:adp-cleanup:safe:continue-pn-error": "npm run run:batch:adp-cleanup:safe:continue-on-error",
     "seed": "tsx prisma/seed.ts",
+    "seed:dev": "node --env-file=.env --require ./scripts/_audit-preload.cjs --import tsx scripts/seed-dev-fixture.ts",
     "seed:redraft-war-room-runtime": "tsx scripts/seed-redraft-war-room-runtime.ts",
     "audit:draft-assets": "node --require ./scripts/_audit-preload.cjs --import tsx scripts/audit-draft-player-assets.ts",
     "audit:draft-player-pool": "node --env-file=.env --require ./scripts/_audit-preload.cjs --import tsx scripts/audit-draft-player-pool.ts",
