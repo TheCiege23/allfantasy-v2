@@ -7,6 +7,8 @@ import { resolveDashboardAvatarUrl } from '@/lib/dashboard/resolve-dashboard-ava
 import { resolveDisplayName } from '@/lib/dashboard/resolve-display-name'
 import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
 import { fetchUserRankJsonForDashboardSSR } from '@/lib/dashboard/fetch-user-rank-ssr'
+import { getCommissionerHubHealthForUser } from '@/lib/commissioner-hub/commissionerHubHealth'
+import type { UserLeague } from '@/app/dashboard/types'
 
 export const dynamic = 'force-dynamic'
 
@@ -46,6 +48,12 @@ export default async function NocturneDashboardPage() {
     fetchUserRankJsonForDashboardSSR().catch(() => null),
   ])
 
+  // Commissioner health reuses the same engine as the real /commissioner-hub —
+  // a snapshot per commissioned league (needs the league list first).
+  const commissionerHealth = leagueList
+    ? await getCommissionerHubHealthForUser(userId, leagueList.leagues as unknown as UserLeague[]).catch(() => null)
+    : null
+
   const userImage = resolveDashboardAvatarUrl(session?.user?.image, dbUser?.avatarUrl ?? undefined)
   const userName = resolveDisplayName({
     displayName: userProfile?.displayName,
@@ -61,6 +69,7 @@ export default async function NocturneDashboardPage() {
       userImage={userImage}
       initialLeagueList={leagueList ?? undefined}
       initialUserRankPayload={rankPayload ?? undefined}
+      initialCommissionerHealthSnapshots={commissionerHealth ?? undefined}
     />
   )
 }
