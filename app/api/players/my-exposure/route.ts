@@ -6,6 +6,16 @@ import { computeUserPlayerExposure } from '@/lib/shared-services/game-day/UserPl
 
 export const dynamic = 'force-dynamic'
 
+// Per-user in-memory cache of the (expensive) cross-league exposure computation.
+// `computeUserPlayerExposure` reads every roster the user owns; the query `q` is only
+// an in-memory filter, so the underlying result is identical across keystrokes. Caching
+// it for a short window stops a fast typist from re-fanning-out over Postgres on each
+// keystroke — the same connection-exhaustion shape as the #246 activity fix. Per-instance
+// only (serverless), which is exactly where the rapid repeats land.
+type ExposureResult = Awaited<ReturnType<typeof computeUserPlayerExposure>>
+const EXPOSURE_CACHE = new Map<string, { at: number; data: ExposureResult }>()
+const EXPOSURE_TTL_MS = 60_000
+
 /**
  * Live cross-league player search — "which of MY leagues is this player on?"
  *
@@ -32,7 +42,12 @@ export async function GET(req: Request) {
   const limit = Math.min(Math.max(Number(url.searchParams.get('limit') ?? 8), 1), 25)
 
   try {
-    const { exposures, connectedLeagueCount } = await computeUserPlayerExposure({ userId })
+    let cached = EXPOSURE_CACHE.get(userId)
+    if (!cached || Date.now() - cached.at > EXPOSURE_TTL_MS) {
+      cached = { at: Date.now(), data: await computeUserPlayerExposure({ userId }) }
+      EXPOSURE_CACHE.set(userId, cached)
+    }
+    const { exposures, connectedLeagueCount } = cached.data
     if (exposures.length === 0) {
       return NextResponse.json({ players: [], connectedLeagueCount })
     }
