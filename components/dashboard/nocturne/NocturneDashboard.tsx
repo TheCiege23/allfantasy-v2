@@ -40,6 +40,14 @@ import { useEntitlements } from '@/hooks/useEntitlements'
 import { useOptionalLanguage } from '@/components/i18n/LanguageProviderClient'
 import { useOptionalThemeMode } from '@/components/theme/ThemeProvider'
 import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
+import type { UserLeague } from '@/app/dashboard/types'
+import { TeamThisWeek } from '@/app/dashboard/components/warroom/TeamThisWeek'
+import { SeasonOutlook } from '@/app/dashboard/components/warroom/SeasonOutlook'
+import { InjuryImpactPanel } from '@/app/dashboard/components/warroom/InjuryImpactPanel'
+import { SeasonJourney } from '@/app/dashboard/components/warroom/SeasonJourney'
+import { WaiverWirePreview } from '@/app/dashboard/components/warroom/WaiverWirePreview'
+import type { WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
+import { StartSitLauncher } from '@/components/dashboard/StartSitLauncher'
 import './nocturne-dashboard.css'
 
 type RankPayload = Record<string, unknown>
@@ -93,6 +101,41 @@ function mapLeagues(payload: LeagueListPayload): DisplayLeague[] {
 function leagueHref(lg: DisplayLeague): string {
   return lg.unified ? `/league/${lg.id}` : '/af-legacy'
 }
+
+// Raw league row → full UserLeague (what the reused warroom Team components need).
+// Focused replica of app/dashboard/DashboardShell.tsx mapLeague, reading the same raw rows.
+function toUserLeague(raw: unknown): UserLeague | null {
+  const r = (raw ?? {}) as Record<string, unknown>
+  const id = str(r.navigationLeagueId) ?? str(r.unifiedLeagueId) ?? str(r.id)
+  if (!id) return null
+  const platform = (str(r.platform) ?? 'allfantasy').toLowerCase()
+  const settings = (r.settings && typeof r.settings === 'object' ? r.settings : {}) as Record<string, unknown>
+  const role = r.userRole === 'commissioner' || r.userRole === 'member' || r.userRole === 'imported' ? r.userRole : 'member'
+  return {
+    id,
+    name: str(r.name) ?? 'League',
+    platform,
+    sport: str(r.sport) ?? str(r.sport_type) ?? 'NFL',
+    format: str(r.leagueType) ?? str(r.leagueVariant) ?? (r.isDynasty === true ? 'dynasty' : 'redraft'),
+    scoring: str(r.scoring) ?? 'Standard',
+    teamCount: num(r.teamCount) ?? num(r.leagueSize) ?? 0,
+    season: num(r.season) ?? str(r.season) ?? undefined,
+    status: str(r.status) ?? str(r.syncStatus) ?? undefined,
+    currentWeek: num(r.currentWeek) ?? num(settings.leg) ?? num(settings.week) ?? null,
+    isDynasty: r.isDynasty === true,
+    avatarUrl: str(r.avatarUrl),
+    logoUrl: str(r.logoUrl),
+    leagueType: str(r.leagueType),
+    leagueVariant: str(r.leagueVariant),
+    hasUnifiedRecord: r.hasUnifiedRecord === true,
+    isCommissioner: r.isCommissioner === true || r.userRole === 'commissioner',
+    userRole: role,
+    lifecycleState: str(r.lifecycleState),
+    tradeDeadlineWeek: num(r.tradeDeadlineWeek),
+    playoffStartWeek: num(r.playoffStartWeek),
+    sleeperLeagueId: platform === 'sleeper' ? str(r.platformLeagueId) ?? undefined : undefined,
+  }
+}
 function cryptoLikeId(r: Record<string, unknown>): string {
   return str(r.platformLeagueId) ?? `lg-${str(r.name) ?? Math.abs(hashStr(JSON.stringify(r))).toString(36)}`
 }
@@ -138,7 +181,7 @@ const TOKENS_HREF = '/pricing'
 const PREVIEW_TIER_TOGGLE = process.env.NODE_ENV !== 'production'
 
 export default function NocturneDashboard({
-  userName, userImage, initialLeagueList, initialUserRankPayload, initialCommissionerHealthSnapshots,
+  userId, userName, userImage, initialLeagueList, initialUserRankPayload, initialCommissionerHealthSnapshots,
 }: NocturneDashboardProps) {
   const access = useAccessTier()
   const { balance: tokenBalance } = useTokenBalance()
@@ -161,6 +204,19 @@ export default function NocturneDashboard({
   const [today, setToday] = useState<TodayState>(null)
   const [commLeagueId, setCommLeagueId] = useState<string | null>(null)
   const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({})
+  const [teamLeagueId, setTeamLeagueId] = useState<string | null>(null)
+  const [todayFull, setTodayFull] = useState<Record<string, unknown> | null>(null)
+
+  const userLeagues = useMemo(
+    () => (Array.isArray(initialLeagueList?.leagues) ? initialLeagueList!.leagues! : [])
+      .map(toUserLeague)
+      .filter((l): l is UserLeague => l !== null),
+    [initialLeagueList],
+  )
+  // Team context lists every league you play; the live game-day components render only
+  // for unified leagues (AF-Legacy board rows 404 on /league APIs — they get a view-only note).
+  const teamLeagues = userLeagues
+  const activeTeamLeague = teamLeagues.find((l) => l.id === teamLeagueId) ?? teamLeagues[0] ?? null
 
   const commHealth = useMemo(() => initialCommissionerHealthSnapshots ?? [], [initialCommissionerHealthSnapshots])
   const activeCommSnapshot = useMemo(
@@ -196,8 +252,12 @@ export default function NocturneDashboard({
     // 503 on failure precisely so the client doesn't tell the user everything is fine).
     void fetch('/api/dashboard/today-actions', { cache: 'no-store' })
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
-      .then((data) => { if (!cancelled) setToday(parseToday(data) ?? 'unavailable') })
-      .catch(() => { if (!cancelled) setToday('unavailable') })
+      .then((data) => {
+        if (cancelled) return
+        setToday(parseToday(data) ?? 'unavailable')
+        setTodayFull(data && typeof data === 'object' ? (data as Record<string, unknown>) : null)
+      })
+      .catch(() => { if (!cancelled) { setToday('unavailable'); setTodayFull(null) } })
     return () => { cancelled = true }
   }, [leagues.length])
 
@@ -296,6 +356,7 @@ export default function NocturneDashboard({
               </div>
             ) : (
               <>
+                <StartSitLauncher userId={userId} variant="compact" />
                 <button type="button" onClick={() => setImportOpen(true)} className="btn btn-secondary" style={{ fontSize: 12.5 }}><Plus size={14} />Import league</button>
                 <button type="button" onClick={() => setSettingsOpen((s) => !s)} style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'none', border: 'none', cursor: 'pointer', padding: '2px 4px', borderRadius: 6 }}>
                   <Avatar name={userName} image={userImage} size={28} />
@@ -491,14 +552,55 @@ export default function NocturneDashboard({
           )
         )}
 
-        {/* ═══ CONTEXT: TEAM — deferred to a later phase ═══ */}
+        {/* ═══ CONTEXT: TEAM — live game-day view (reuses the warroom Team components) ═══ */}
         {context === 'team' && (
-          <div className="afcard" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10, padding: '40px 24px' }}>
-            <User size={30} style={{ color: 'var(--color-accent-400)' }} />
-            <div style={{ fontWeight: 600, fontSize: 16 }}>Team view — coming next</div>
-            <p style={{ fontSize: 13, color: 'var(--color-neutral-500)', maxWidth: '46ch' }}>The per-league matchup card and quick-glance alerts land in the next phase — your live matchup data is already wired on the current dashboard.</p>
-            <Link href="/dashboard" className="btn btn-secondary" style={{ fontSize: 12.5 }}>Open the current dashboard</Link>
-          </div>
+          activeTeamLeague ? (
+            <div>
+              <div className="dash-kicker" style={{ marginBottom: 12 }}>Choose a league</div>
+              {teamLeagues.length > 1 && (
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+                  {teamLeagues.map((l) => {
+                    const sel = l.id === activeTeamLeague.id
+                    return (
+                      <button key={l.id} type="button" onClick={() => setTeamLeagueId(l.id)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999, border: `1px solid ${sel ? 'var(--color-accent)' : 'var(--color-neutral-800)'}`, background: sel ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)' : 'none', color: 'var(--color-text)', cursor: 'pointer', fontSize: 13.5, fontWeight: 500 }}>
+                        {l.name} <span style={{ color: 'var(--color-neutral-500)', fontWeight: 400, textTransform: 'capitalize' }}>· {l.platform}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+              )}
+              {activeTeamLeague.hasUnifiedRecord ? (
+                <>
+                  <div style={{ marginBottom: 16 }}>
+                    <SeasonJourney lifecycleState={activeTeamLeague.lifecycleState ?? null} currentWeek={activeTeamLeague.currentWeek ?? null} tradeDeadlineWeek={activeTeamLeague.tradeDeadlineWeek ?? null} playoffStartWeek={activeTeamLeague.playoffStartWeek ?? null} />
+                  </div>
+                  <TeamThisWeek league={activeTeamLeague} userId={userId} />
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(300px,1fr))', gap: 12, marginTop: 12 }}>
+                    <SeasonOutlook league={activeTeamLeague} userId={userId} />
+                    <InjuryImpactPanel league={activeTeamLeague} />
+                  </div>
+                  <div style={{ marginTop: 12 }}>
+                    <WaiverWirePreview data={(todayFull?.waivers as WaiverDashboardResponse) ?? null} onOpenAll={() => setContext('global')} />
+                  </div>
+                </>
+              ) : (
+                <div className="afcard" style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                  <Info size={18} style={{ color: 'var(--color-accent-400)', flex: 'none', marginTop: 1 }} />
+                  <div style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>
+                    <strong style={{ color: 'var(--color-text)' }}>{activeTeamLeague.name}</strong> is an imported (view-only) league, so the live matchup, season outlook, and injury view aren't available for it. It still counts toward your AF Rank &amp; legacy. Sync or create a native league to get the full game-day view.
+                  </div>
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="afcard" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10, padding: '40px 24px' }}>
+              <User size={30} style={{ color: 'var(--color-accent-400)' }} />
+              <div style={{ fontWeight: 600, fontSize: 16 }}>No team leagues to show yet</div>
+              <p style={{ fontSize: 13, color: 'var(--color-neutral-500)', maxWidth: '46ch' }}>Import a league (Sleeper, ESPN, Yahoo, MFL or Fantrax) to see your matchup, season outlook, injuries, and waiver targets here.</p>
+              <button type="button" onClick={() => setImportOpen(true)} className="btn btn-primary" style={{ fontSize: 12.5 }}>Import a league</button>
+            </div>
+          )
         )}
 
         {/* ═══ RANKINGS & LEGACY (global) ═══ */}
