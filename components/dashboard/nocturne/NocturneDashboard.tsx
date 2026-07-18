@@ -80,6 +80,36 @@ const PLATFORM_COLORS: Record<string, string> = {
   sleeper: '#1f2a4d', espn: '#4a1414', yahoo: '#3a1d55', mfl: '#143a2e', fantrax: '#5a3a14',
 }
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+/**
+ * Season year off a league row. MUST tolerate strings: `SleeperLeague.season` is a
+ * `String` column while `League.season` / `LegacyLeague.season` are `Int`. Reading it
+ * as a number only would silently null every Sleeper league and dump them all into
+ * the Historical bucket.
+ */
+const seasonYear = (v: unknown): number | null => {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string') {
+    const n = Number.parseInt(v.trim(), 10)
+    if (Number.isFinite(n) && n > 1900 && n < 2200) return n
+  }
+  return null
+}
+
+/**
+ * Sleeper drives a league through pre_draft → drafting → post_draft → in_season →
+ * complete. A league being set up for the upcoming year is often still keyed to last
+ * season, so season-year alone misfiles it as history; conversely `complete` means the
+ * season is over no matter what year it carries. Native AF leagues don't model this yet
+ * (first season), so they fall through to the season-year comparison.
+ */
+const PRE_SEASON_STATUSES = new Set(['pre_draft', 'predraft', 'drafting', 'post_draft', 'postdraft'])
+function isCurrentSeasonLeague(l: { season: number | null; status: string }, currentYear: number): boolean {
+  const s = (l.status ?? '').toLowerCase().trim().replace(/\s+/g, '_')
+  if (s === 'complete' || s === 'completed') return false
+  if (PRE_SEASON_STATUSES.has(s)) return true
+  if (l.season != null) return l.season >= currentYear
+  return false
+}
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 function platformColor(platform: string): string {
@@ -113,7 +143,7 @@ function mapLeagues(payload: LeagueListPayload): DisplayLeague[] {
       // Only leagues with a unified record resolve on /league/[id]; AF-Legacy board
       // rows (hasUnifiedRecord=false) 404 there — they open the detail popup instead.
       unified: r.hasUnifiedRecord === true,
-      season: num(r.season),
+      season: seasonYear(r.season),
       teamCount: num(r.teamCount) ?? num(r.leagueSize),
       format: str(r.format) ?? str(r.leagueType),
       scoring: str(r.scoring) ?? str(r.scoringType),
@@ -392,11 +422,11 @@ export default function NocturneDashboard({
   // reading the clock during render can't cause a hydration mismatch.
   const currentSeasonYear = useMemo(() => new Date().getFullYear(), [])
   const currentLeagues = useMemo(
-    () => filteredLeagues.filter((l) => (l.season ?? 0) >= currentSeasonYear),
+    () => filteredLeagues.filter((l) => isCurrentSeasonLeague(l, currentSeasonYear)),
     [filteredLeagues, currentSeasonYear],
   )
   const historicalLeagues = useMemo(
-    () => filteredLeagues.filter((l) => (l.season ?? 0) < currentSeasonYear),
+    () => filteredLeagues.filter((l) => !isCurrentSeasonLeague(l, currentSeasonYear)),
     [filteredLeagues, currentSeasonYear],
   )
 
@@ -909,6 +939,7 @@ export default function NocturneDashboard({
             <div className="dash-kicker" style={{ marginBottom: 10 }}>League details</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
               <LeagueDetailRow label="Season" value={leagueModal.season ? String(leagueModal.season) : '—'} />
+              <LeagueDetailRow label="Status" value={(leagueModal.status ?? '—').replace(/_/g, ' ')} />
               <LeagueDetailRow label="Sport" value={leagueModal.sport ?? '—'} />
               <LeagueDetailRow label="Teams" value={leagueModal.teamCount ? String(leagueModal.teamCount) : '—'} />
               <LeagueDetailRow label="Format" value={leagueModal.format ?? '—'} />
