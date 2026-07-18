@@ -32,7 +32,7 @@ import {
   LayoutGrid, ShieldCheck, User, Plus, ChevronDown, ChevronRight, LifeBuoy, Sparkles,
   Rocket, AlertCircle, Trophy, ListChecks, ArrowLeftRight, Handshake, Filter, Lock,
   List as ListIcon, X, MousePointerClick, LineChart, History, Brain, Share2, Scale,
-  Sun, Moon, Monitor, Search, Lightbulb, Info, Settings,
+  Sun, Moon, Monitor, Search, Lightbulb, Info, Settings, MessageCircle, Swords,
 } from 'lucide-react'
 import { useAccessTier } from '@/hooks/useAccessTier'
 import { useTokenBalance } from '@/hooks/useTokenBalance'
@@ -48,6 +48,13 @@ import { SeasonJourney } from '@/app/dashboard/components/warroom/SeasonJourney'
 import { WaiverWirePreview } from '@/app/dashboard/components/warroom/WaiverWirePreview'
 import type { WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import { StartSitLauncher } from '@/components/dashboard/StartSitLauncher'
+import { FloatingCommunications } from '@/app/dashboard/components/FloatingCommunications'
+import { LineupIssuesModal, type LineupCheckPayload } from '@/app/dashboard/components/LineupIssuesModal'
+import { WaiverRecommendationsModal } from '@/app/dashboard/components/WaiverRecommendationsModal'
+import { PendingTradesModal } from '@/app/dashboard/components/PendingTradesModal'
+import { useGeoRestriction } from '@/lib/geo/useGeoRestriction'
+import type { LeftChatInitialTab } from '@/app/dashboard/types'
+import type { TradesDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import './nocturne-dashboard.css'
 
 type RankPayload = Record<string, unknown>
@@ -60,6 +67,8 @@ type NocturneDashboardProps = {
   initialLeagueList?: LeagueListPayload
   initialUserRankPayload?: RankPayload
   initialCommissionerHealthSnapshots?: CommissionerLeagueHealthSnapshot[]
+  emailVerified?: boolean
+  discordConnected?: boolean
 }
 
 type PrimaryContext = 'global' | 'commissioner' | 'team'
@@ -182,6 +191,7 @@ const PREVIEW_TIER_TOGGLE = process.env.NODE_ENV !== 'production'
 
 export default function NocturneDashboard({
   userId, userName, userImage, initialLeagueList, initialUserRankPayload, initialCommissionerHealthSnapshots,
+  emailVerified = true, discordConnected = false,
 }: NocturneDashboardProps) {
   const access = useAccessTier()
   const { balance: tokenBalance } = useTokenBalance()
@@ -217,6 +227,16 @@ export default function NocturneDashboard({
   // for unified leagues (AF-Legacy board rows 404 on /league APIs — they get a view-only note).
   const teamLeagues = userLeagues
   const activeTeamLeague = teamLeagues.find((l) => l.id === teamLeagueId) ?? teamLeagues[0] ?? null
+
+  const [commsOpen, setCommsOpen] = useState(false)
+  const [commsTab, setCommsTab] = useState<LeftChatInitialTab | null>(null)
+  const [openModal, setOpenModal] = useState<'lineup' | 'waiver' | 'trade' | null>(null)
+  const geo = useGeoRestriction()
+  const commissionerLeagues = useMemo(
+    () => userLeagues.filter((l) => l.isCommissioner).map((l) => ({ id: l.id, name: l.name, teamCount: l.teamCount ?? 0 })),
+    [userLeagues],
+  )
+  const hasPro = entitlements.hasPro
 
   const commHealth = useMemo(() => initialCommissionerHealthSnapshots ?? [], [initialCommissionerHealthSnapshots])
   const activeCommSnapshot = useMemo(
@@ -276,6 +296,20 @@ export default function NocturneDashboard({
   }, [playerQuery])
 
   const todayData = today && today !== 'unavailable' ? today : null
+  // Reused components (RankingsCard, action modals, hero chips) dispatch window events to open chat.
+  useEffect(() => {
+    const openChimmy = () => { setCommsTab('chimmy'); setCommsOpen(true) }
+    const openDefault = () => { setCommsTab('league'); setCommsOpen(true) }
+    window.addEventListener('af-dashboard-focus-left-chimmy', openChimmy)
+    window.addEventListener('af-dashboard-open-chimmy', openChimmy)
+    window.addEventListener('af-dashboard-open-mobile-left', openDefault)
+    return () => {
+      window.removeEventListener('af-dashboard-focus-left-chimmy', openChimmy)
+      window.removeEventListener('af-dashboard-open-chimmy', openChimmy)
+      window.removeEventListener('af-dashboard-open-mobile-left', openDefault)
+    }
+  }, [])
+
   const urgentCount = todayData ? todayData.urgent : 0
 
   // ── Filtered leagues (search + platform + top-bar league scope) ──────────────
@@ -387,6 +421,22 @@ export default function NocturneDashboard({
             <Link href={UPGRADE_HREF} className="btn btn-primary">Upgrade</Link>
           </Banner>
         )}
+        {/* Activation: email verification */}
+        {!emailVerified && (
+          <Banner icon={<AlertCircle size={22} style={{ color: 'var(--color-accent-400)' }} />}
+            title="Verify your email"
+            body="Confirm your email to unlock leagues, brackets, and chat.">
+            <Link href="/verify" className="btn btn-primary">Verify now →</Link>
+          </Banner>
+        )}
+        {/* Compliance: paid-restricted geo */}
+        {!geo.loading && geo.isPaidBlocked && geo.stateCode && (
+          <Banner icon={<AlertCircle size={22} style={{ color: 'var(--color-accent-400)' }} />}
+            title={`Paid features aren't available in ${geo.stateName ?? geo.stateCode}`}
+            body="You can still use the free features — paid leagues and subscriptions are restricted in your state.">
+            <Link href={`/paid-restricted?state=${geo.stateCode}`} className="btn btn-secondary">Learn more</Link>
+          </Banner>
+        )}
 
         {/* ═══ HERO ═══ */}
         <div>
@@ -403,6 +453,15 @@ export default function NocturneDashboard({
               </div>
             </Link>
           </div>
+          {/* Quick actions (reference NavChips): War Room / Commissioner Hub / Ask Chimmy / Communications */}
+          {!isVisitor && (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+              <Link href="/war-room" className="btn btn-secondary" style={{ fontSize: 12.5 }}><Swords size={14} />War Room</Link>
+              <Link href="/commissioner-hub" className="btn btn-secondary" style={{ fontSize: 12.5 }}><ShieldCheck size={14} />Commissioner Hub</Link>
+              <button type="button" onClick={() => { setCommsTab('chimmy'); setCommsOpen(true) }} className="btn btn-secondary" style={{ fontSize: 12.5 }}><Sparkles size={14} />Ask Chimmy</button>
+              <button type="button" onClick={() => { setCommsTab('league'); setCommsOpen(true) }} className="btn btn-secondary" style={{ fontSize: 12.5 }}><MessageCircle size={14} />Communications</button>
+            </div>
+          )}
         </div>
 
         {/* ═══ PLAYER SEARCH (global) ═══ */}
@@ -444,9 +503,9 @@ export default function NocturneDashboard({
               </div>
             ) : todayData && (todayData.lineups + todayData.waivers + todayData.trades) > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
-                {todayData.lineups > 0 && <Priority icon={<ListChecks size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.lineups} lineup${todayData.lineups > 1 ? 's' : ''} to set`} sub="Across your leagues" />}
-                {todayData.waivers > 0 && <Priority icon={<ArrowLeftRight size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.waivers} waiver target${todayData.waivers > 1 ? 's' : ''}`} sub="Runs coming up" />}
-                {todayData.trades > 0 && <Priority icon={<Handshake size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.trades} trade${todayData.trades > 1 ? 's' : ''} pending`} sub="Waiting on you" />}
+                {todayData.lineups > 0 && <Priority icon={<ListChecks size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.lineups} lineup${todayData.lineups > 1 ? 's' : ''} to set`} sub="Across your leagues" onClick={() => setOpenModal('lineup')} />}
+                {todayData.waivers > 0 && <Priority icon={<ArrowLeftRight size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.waivers} waiver target${todayData.waivers > 1 ? 's' : ''}`} sub="Runs coming up" onClick={() => setOpenModal('waiver')} />}
+                {todayData.trades > 0 && <Priority icon={<Handshake size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.trades} trade${todayData.trades > 1 ? 's' : ''} pending`} sub="Waiting on you" onClick={() => setOpenModal('trade')} />}
               </div>
             ) : (
               <div className="afcard" style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>
@@ -748,6 +807,46 @@ export default function NocturneDashboard({
           </div>
         </div>
       )}
+
+      {/* ── Communications hub — League / Chimmy / DMs (own floating launcher + hero NavChips) ── */}
+      {!isVisitor && (
+        <FloatingCommunications
+          open={commsOpen}
+          requestedTab={commsTab}
+          onOpen={() => setCommsOpen(true)}
+          onClose={() => { setCommsOpen(false); setCommsTab(null) }}
+          userId={userId}
+          userName={userName}
+          userImage={userImage ?? null}
+          leagues={userLeagues}
+          activeLeagueId={teamLeagueId}
+          discordConnected={discordConnected}
+          commissionerLeagues={commissionerLeagues}
+        />
+      )}
+
+      {/* ── Today's-priorities action modals — full payloads pulled off the today-actions bundle ── */}
+      <LineupIssuesModal
+        isOpen={openModal === 'lineup'}
+        onClose={() => setOpenModal(null)}
+        data={(todayFull?.lineup as LineupCheckPayload) ?? null}
+        loading={today === null}
+        hasProAccess={hasPro}
+      />
+      <WaiverRecommendationsModal
+        isOpen={openModal === 'waiver'}
+        onClose={() => setOpenModal(null)}
+        data={(todayFull?.waivers as WaiverDashboardResponse) ?? null}
+        loading={today === null}
+        hasProAccess={hasPro}
+      />
+      <PendingTradesModal
+        isOpen={openModal === 'trade'}
+        onClose={() => setOpenModal(null)}
+        data={(todayFull?.trades as TradesDashboardResponse) ?? null}
+        loading={today === null}
+        hasProAccess={hasPro}
+      />
     </div>
   )
 }
@@ -810,9 +909,11 @@ function StatChip({ icon, value, label }: { icon: React.ReactNode; value: string
   )
 }
 
-function Priority({ icon, title, sub }: { icon: React.ReactNode; title: string; sub: string }) {
+function Priority({ icon, title, sub, onClick }: { icon: React.ReactNode; title: string; sub: string; onClick?: () => void }) {
   return (
-    <div className="afcard" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+    <div className="afcard" onClick={onClick} role={onClick ? 'button' : undefined} tabIndex={onClick ? 0 : undefined}
+      onKeyDown={onClick ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } } : undefined}
+      style={{ display: 'flex', alignItems: 'center', gap: 12, cursor: onClick ? 'pointer' : 'default' }}>
       <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: 'var(--color-accent-900)', display: 'grid', placeItems: 'center' }}>{icon}</div>
       <div><div style={{ fontWeight: 600, fontSize: 13.5 }}>{title}</div><div style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>{sub}</div></div>
     </div>
