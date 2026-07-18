@@ -1648,6 +1648,7 @@ export const translations: Record<string, Record<string, string>> = {
 
     "settings.title": "Settings",
     "settings.home": "Home",
+    "settings.searchPlaceholder": "Search settings…",
     "settings.aria.sections": "Settings sections",
     "settings.aria.navigation": "Settings navigation",
     "settings.nav.profile": "Profile",
@@ -1658,7 +1659,9 @@ export const translations: Record<string, Record<string, string>> = {
     "settings.nav.chimmy": "Chimmy",
     "settings.nav.billing": "Subscription & Billing",
     "settings.nav.referral": "Referrals",
-    "settings.nav.legacy": "Legacy Import",
+    "settings.nav.legacy": "League Imports",
+    "settings.nav.rank": "Legacy",
+    "settings.nav.command": "Command Center",
     "settings.nav.legal": "Legal & Agreements",
     "settings.nav.account": "Account",
     "settings.loading": "Loading settings...",
