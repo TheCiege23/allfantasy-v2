@@ -32,13 +32,14 @@ import {
   LayoutGrid, ShieldCheck, User, Plus, ChevronDown, ChevronRight, LifeBuoy, Sparkles,
   Rocket, AlertCircle, Trophy, ListChecks, ArrowLeftRight, Handshake, Filter, Lock,
   List as ListIcon, X, MousePointerClick, LineChart, History, Brain, Share2, Scale,
-  Sun, Moon, Monitor, Search,
+  Sun, Moon, Monitor, Search, Lightbulb, Info, Settings,
 } from 'lucide-react'
 import { useAccessTier } from '@/hooks/useAccessTier'
 import { useTokenBalance } from '@/hooks/useTokenBalance'
 import { useEntitlements } from '@/hooks/useEntitlements'
 import { useOptionalLanguage } from '@/components/i18n/LanguageProviderClient'
 import { useOptionalThemeMode } from '@/components/theme/ThemeProvider'
+import type { CommissionerLeagueHealthSnapshot } from '@/lib/commissioner-hub/commissionerHubHealth'
 import './nocturne-dashboard.css'
 
 type RankPayload = Record<string, unknown>
@@ -50,6 +51,7 @@ type NocturneDashboardProps = {
   userImage?: string | null
   initialLeagueList?: LeagueListPayload
   initialUserRankPayload?: RankPayload
+  initialCommissionerHealthSnapshots?: CommissionerLeagueHealthSnapshot[]
 }
 
 type PrimaryContext = 'global' | 'commissioner' | 'team'
@@ -127,7 +129,7 @@ const UPGRADE_HREF = '/upgrade'
 const TOKENS_HREF = '/pricing'
 
 export default function NocturneDashboard({
-  userId, userName, userImage, initialLeagueList, initialUserRankPayload,
+  userId, userName, userImage, initialLeagueList, initialUserRankPayload, initialCommissionerHealthSnapshots,
 }: NocturneDashboardProps) {
   const access = useAccessTier()
   const { balance: tokenBalance } = useTokenBalance()
@@ -148,6 +150,14 @@ export default function NocturneDashboard({
   const [playerResults, setPlayerResults] = useState<PlayerResult[]>([])
   const [activePlayer, setActivePlayer] = useState<PlayerResult | null>(null)
   const [today, setToday] = useState<TodayShape | null>(null)
+  const [commLeagueId, setCommLeagueId] = useState<string | null>(null)
+  const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({})
+
+  const commHealth = useMemo(() => initialCommissionerHealthSnapshots ?? [], [initialCommissionerHealthSnapshots])
+  const activeCommSnapshot = useMemo(
+    () => commHealth.find((s) => s.leagueId === commLeagueId) ?? commHealth[0] ?? null,
+    [commHealth, commLeagueId],
+  )
 
   const leagues = useMemo(() => mapLeagues(initialLeagueList), [initialLeagueList])
   const rank = useMemo(() => readRank(initialUserRankPayload), [initialUserRankPayload])
@@ -434,14 +444,35 @@ export default function NocturneDashboard({
           </div>
         )}
 
-        {/* ═══ CONTEXT: COMMISSIONER / TEAM — Phase 1 placeholder ═══ */}
-        {context !== 'global' && (
+        {/* ═══ CONTEXT: COMMISSIONER HQ (live commissioner-health engine) ═══ */}
+        {context === 'commissioner' && (
+          activeCommSnapshot ? (
+            <CommissionerHQ
+              snapshots={commHealth}
+              active={activeCommSnapshot}
+              onSelect={setCommLeagueId}
+              platformLabel={commPlatformLabel(activeCommSnapshot, leagues)}
+              showLock={showLock}
+              checked={checkedActions}
+              onToggle={(k) => setCheckedActions((s) => ({ ...s, [k]: !s[k] }))}
+              tokensHref={TOKENS_HREF}
+              upgradeHref={UPGRADE_HREF}
+            />
+          ) : (
+            <div className="afcard" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10, padding: '40px 24px' }}>
+              <ShieldCheck size={30} style={{ color: 'var(--color-accent-400)' }} />
+              <div style={{ fontWeight: 600, fontSize: 16 }}>No commissioned leagues yet</div>
+              <p style={{ fontSize: 13, color: 'var(--color-neutral-500)', maxWidth: '44ch' }}>Commissioner HQ shows health, analytics, and recommendations for leagues you run. Import or create a league you commission to see it here.</p>
+            </div>
+          )
+        )}
+
+        {/* ═══ CONTEXT: TEAM — deferred to a later phase ═══ */}
+        {context === 'team' && (
           <div className="afcard" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: 10, padding: '40px 24px' }}>
-            {context === 'commissioner' ? <ShieldCheck size={30} style={{ color: 'var(--color-accent-400)' }} /> : <User size={30} style={{ color: 'var(--color-accent-400)' }} />}
-            <div style={{ fontWeight: 600, fontSize: 16 }}>{context === 'commissioner' ? 'Commissioner HQ' : 'Team view'} — coming next</div>
-            <p style={{ fontSize: 13, color: 'var(--color-neutral-500)', maxWidth: '46ch' }}>
-              This preview ships the Global context first. The {context === 'commissioner' ? 'health ring, analytics, and recommendation checklist' : 'matchup card and quick-glance alerts'} land in the next phase — your live {context === 'commissioner' ? 'commissioner health engine' : 'matchup data'} is already wired on the current dashboard.
-            </p>
+            <User size={30} style={{ color: 'var(--color-accent-400)' }} />
+            <div style={{ fontWeight: 600, fontSize: 16 }}>Team view — coming next</div>
+            <p style={{ fontSize: 13, color: 'var(--color-neutral-500)', maxWidth: '46ch' }}>The per-league matchup card and quick-glance alerts land in the next phase — your live matchup data is already wired on the current dashboard.</p>
             <Link href="/dashboard" className="btn btn-secondary" style={{ fontSize: 12.5 }}>Open the current dashboard</Link>
           </div>
         )}
@@ -683,4 +714,145 @@ function Row({ label, value, accent }: { label: string; value: string; accent?: 
       <span style={{ fontSize: 12.5, fontWeight: 600, color: accent ? 'var(--color-accent-400)' : 'var(--color-text)' }}>{value}</span>
     </div>
   )
+}
+
+// Best-effort platform name for the read-only "do this on {platform}" copy.
+function commPlatformLabel(snap: CommissionerLeagueHealthSnapshot, leagues: DisplayLeague[]): string {
+  const match = leagues.find((l) => l.name === snap.leagueName)
+  if (match && match.platform !== 'native') return match.platform.charAt(0).toUpperCase() + match.platform.slice(1)
+  return 'your platform'
+}
+
+const dividerLine = <div style={{ height: 1, background: 'var(--color-neutral-800)' }} />
+
+function CommissionerHQ({
+  snapshots, active, onSelect, platformLabel, showLock, checked, onToggle, tokensHref, upgradeHref,
+}: {
+  snapshots: CommissionerLeagueHealthSnapshot[]
+  active: CommissionerLeagueHealthSnapshot
+  onSelect: (id: string) => void
+  platformLabel: string
+  showLock: boolean
+  checked: Record<string, boolean>
+  onToggle: (key: string) => void
+  tokensHref: string
+  upgradeHref: string
+}) {
+  const m = active.metrics
+  const lineupPct = Math.round(m.lineupSubmissionRate <= 1 ? m.lineupSubmissionRate * 100 : m.lineupSubmissionRate)
+  const health = Math.max(0, Math.min(100, Math.round(active.healthScore)))
+  return (
+    <div>
+      <div className="dash-kicker" style={{ marginBottom: 12 }}>Your commissioned leagues</div>
+      {snapshots.length > 1 && (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
+          {snapshots.map((s) => {
+            const sel = s.leagueId === active.leagueId
+            return (
+              <button key={s.leagueId} type="button" onClick={() => onSelect(s.leagueId)}
+                style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999, border: `1px solid ${sel ? 'var(--color-accent)' : 'var(--color-neutral-800)'}`, background: sel ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)' : 'none', color: 'var(--color-text)', cursor: 'pointer', fontSize: 13.5, fontWeight: 500 }}>
+                {s.leagueName}
+              </button>
+            )
+          })}
+        </div>
+      )}
+
+      <div className="afcard" style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+        {/* Health ring + sub-scores */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 16 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 18 }}>
+            <div className="afring" style={{ width: 84, height: 84, background: `conic-gradient(var(--color-accent) ${health}%, var(--color-neutral-800) ${health}% 100%)` }}>
+              <div className="afringval"><span style={{ fontSize: 22, fontWeight: 700 }}>{health}</span><span style={{ fontSize: 9.5, color: 'var(--color-neutral-600)', letterSpacing: '.04em', textTransform: 'uppercase' }}>Health</span></div>
+            </div>
+            <div>
+              <div style={{ fontWeight: 600, fontSize: 17 }}>{active.leagueName}</div>
+              <span className="tag tag-accent" style={{ marginTop: 6, textTransform: 'capitalize' }}>{active.overallStatus ?? 'Healthy'}</span>
+            </div>
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 14, textAlign: 'center' }}>
+            <SubScore value={active.fairnessScore} label="Fairness" />
+            <SubScore value={active.engagementScore} label="Engagement" />
+            <SubScore value={active.sustainabilityScore} label="Sustain." />
+          </div>
+        </div>
+
+        {dividerLine}
+
+        {/* Activity metrics */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(130px,1fr))', gap: 12 }}>
+          <Metric value={m.tradeActivity} label="Trades (7d)" />
+          <Metric value={m.waiverActivity} label="Waiver claims (7d)" />
+          <Metric value={m.chatMessagesLast7Days} label="Chat msgs (7d)" />
+          <Metric value={m.inactiveTeams} label={`Inactive team${m.inactiveTeams === 1 ? '' : 's'}`} />
+          <Metric value={`${lineupPct}%`} label="Lineups set" />
+        </div>
+
+        {active.recommendations.length > 0 && (
+          <>
+            {dividerLine}
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 10 }}>Recommendations</div>
+              <div style={{ position: 'relative' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, filter: showLock ? 'blur(4px)' : 'none' }}>
+                  {active.recommendations.slice(0, 4).map((rec, i) => (
+                    <div key={i} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13.5, color: 'var(--color-neutral-300)' }}>
+                      <Lightbulb size={16} style={{ color: 'var(--color-accent-400)', flex: 'none', marginTop: 1 }} />{rec}
+                    </div>
+                  ))}
+                </div>
+                {showLock && (
+                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', background: 'linear-gradient(90deg,transparent,var(--color-surface) 25%)' }}>
+                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <Link href={tokensHref} className="btn btn-secondary" style={{ padding: '5px 10px', fontSize: 11 }}>Buy tokens</Link>
+                      <Link href={upgradeHref} className="btn btn-primary" style={{ padding: '5px 10px', fontSize: 11 }}><Lock size={12} /> Unlock</Link>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+
+        {active.actions.length > 0 && (
+          <>
+            {dividerLine}
+            <div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 4 }}>
+                <Info size={13} style={{ color: 'var(--color-neutral-600)' }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '.05em' }}>Recommended for you to do on {platformLabel}</span>
+              </div>
+              <p style={{ fontSize: 12, color: 'var(--color-neutral-600)', margin: '0 0 12px' }}>
+                AllFantasy reads {platformLabel} data but can't make changes there — here's what's worth doing; check it off once it's handled.
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {active.actions.slice(0, 5).map((a) => {
+                  const isChecked = !!checked[a.key]
+                  return (
+                    <label key={a.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-800)', cursor: 'pointer', opacity: isChecked ? 0.6 : 1 }}>
+                      <input type="checkbox" checked={isChecked} onChange={() => onToggle(a.key)} style={{ accentColor: 'var(--color-accent)', width: 16, height: 16, flex: 'none', marginTop: 2 }} />
+                      <span>
+                        <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--color-text)' }}>{a.label}</span>
+                        <span style={{ display: 'block', fontSize: 12, color: 'var(--color-neutral-600)', marginTop: 2 }}>{a.description}</span>
+                      </span>
+                    </label>
+                  )
+                })}
+              </div>
+              <Link href="/commissioner-hub" style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginTop: 12, fontSize: 12.5, color: 'var(--color-neutral-500)' }}>
+                <Settings size={13} />AllFantasy settings for this league
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function SubScore({ value, label }: { value: number; label: string }) {
+  return <div><div style={{ fontSize: 16, fontWeight: 700 }}>{Math.round(value)}</div><div style={{ fontSize: 10.5, color: 'var(--color-neutral-600)', textTransform: 'uppercase', letterSpacing: '.04em' }}>{label}</div></div>
+}
+function Metric({ value, label }: { value: number | string; label: string }) {
+  return <div><div style={{ fontSize: 19, fontWeight: 700 }}>{value}</div><div style={{ fontSize: 11, color: 'var(--color-neutral-600)' }}>{label}</div></div>
 }
