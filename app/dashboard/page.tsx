@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import nextDynamic from 'next/dynamic'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -15,10 +16,29 @@ import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-lea
 import { fetchUserRankJsonForDashboardSSR } from '@/lib/dashboard/fetch-user-rank-ssr'
 import { getCommissionerHubHealthForUser } from '@/lib/commissioner-hub/commissionerHubHealth'
 import type { UserLeague } from './types'
-import { DashboardShell } from './DashboardShell'
-import { resolveFantasyOsAccessView } from '@/lib/fantasy-os/access'
 
 export const dynamic = 'force-dynamic'
+
+/**
+ * Production cut-over — `/dashboard` now renders the Nocturne dashboard (previously
+ * `DashboardShell`). Every SSR loader below is unchanged, so the data contract, auth
+ * gate, and DashboardUnavailableState error boundaries stay exactly as they were;
+ * only the presentation layer swaps.
+ *
+ * Client-only (`ssr: false`) mirrors the preview route: SSR-bundling next/image on
+ * Windows Next 14.2 can corrupt the dev manifests.
+ */
+const NocturneDashboard = nextDynamic(
+  () => import('@/components/dashboard/nocturne/NocturneDashboard'),
+  {
+    ssr: false,
+    loading: () => (
+      <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#161826', color: '#9397ab', fontSize: 14 }}>
+        Loading dashboard…
+      </div>
+    ),
+  },
+)
 
 export default async function DashboardPage() {
   const missingEnvVars = getDashboardMissingEnvVars()
@@ -113,18 +133,9 @@ export default async function DashboardPage() {
         })
       : null
 
-    // Fantasy OS is an enterprise workspace; resolve access on the server (the authorization source
-    // of truth) and pass only a coarse view to the client shell for nav + launch-card visibility.
-    const fantasyOsAccess = await resolveFantasyOsAccessView({
-      userId,
-      email: sessionUser.email,
-      role: sessionUser.role ?? null,
-    }).catch(() => ({ allowed: false, reason: 'unauthorized' as const }))
-
     return (
-      <DashboardShell
+      <NocturneDashboard
         userId={userId}
-        fantasyOsAccess={fantasyOsAccess}
         userName={userName}
         userImage={userImage}
         emailVerified={Boolean(dbUser?.emailVerified)}

@@ -28,6 +28,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
+import { usePathname } from 'next/navigation'
 import {
   LayoutGrid, ShieldCheck, User, Plus, ChevronDown, ChevronRight, LifeBuoy, Sparkles,
   Rocket, AlertCircle, Trophy, ListChecks, ArrowLeftRight, Handshake, Filter, Lock,
@@ -198,6 +199,11 @@ export default function NocturneDashboard({
   const entitlements = useEntitlements()
   const lang = useOptionalLanguage()
   const theme = useOptionalThemeMode()
+  // Mount-location-aware self URL for auth/import round-trips. This component renders at both
+  // `/dashboard` (production cut-over) and `/dashboard/nocturne` (preview) — hardcoding either
+  // sends post-import / post-sign-in users to the wrong home, so derive it from the live path.
+  const pathname = usePathname()
+  const selfHref = pathname || '/dashboard'
 
   // ── Client state ────────────────────────────────────────────────────────────
   const [context, setContext] = useState<PrimaryContext>('global')
@@ -385,8 +391,8 @@ export default function NocturneDashboard({
             <a href="/support" style={{ fontSize: 12.5, color: 'var(--color-neutral-500)', display: 'flex', alignItems: 'center', gap: 5 }}><LifeBuoy size={15} />Contact support</a>
             {isVisitor ? (
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Link href="/login?callbackUrl=/dashboard/nocturne" className="btn btn-secondary" style={{ fontSize: 12.5 }}>Sign in</Link>
-                <Link href="/signup?next=/dashboard/nocturne" className="btn btn-primary" style={{ fontSize: 12.5 }}>Sign up free</Link>
+                <Link href={`/login?callbackUrl=${encodeURIComponent(selfHref)}`} className="btn btn-secondary" style={{ fontSize: 12.5 }}>Sign in</Link>
+                <Link href={`/signup?next=${encodeURIComponent(selfHref)}`} className="btn btn-primary" style={{ fontSize: 12.5 }}>Sign up free</Link>
               </div>
             ) : (
               <>
@@ -409,8 +415,8 @@ export default function NocturneDashboard({
           <Banner icon={<Sparkles size={22} style={{ color: 'var(--color-accent-400)' }} />} accent
             title="You're browsing as a visitor"
             body="Create a free account to save your leagues, track rankings, and unlock more.">
-            <Link href="/login?callbackUrl=/dashboard/nocturne" className="btn btn-secondary">Sign in</Link>
-            <Link href="/signup?next=/dashboard/nocturne" className="btn btn-primary">Sign up for free</Link>
+            <Link href={`/login?callbackUrl=${encodeURIComponent(selfHref)}`} className="btn btn-secondary">Sign in</Link>
+            <Link href={`/signup?next=${encodeURIComponent(selfHref)}`} className="btn btn-primary">Sign up for free</Link>
           </Banner>
         )}
         {!access.loading && isFree && (
@@ -781,7 +787,8 @@ export default function NocturneDashboard({
             <p style={{ fontSize: 12.5, color: 'var(--color-neutral-400)', margin: '0 0 14px' }}>
               Sleeper imports instantly by username; ESPN, Yahoo, MFL and Fantrax take one quick connect step.
             </p>
-            <Link href="/import?returnTo=/dashboard/nocturne" className="btn btn-primary btn-block" style={{ width: '100%' }}>Go to import →</Link>
+            <Link href={`/import?returnTo=${encodeURIComponent(selfHref)}`} className="btn btn-primary btn-block" style={{ width: '100%' }}>Go to import →</Link>
+            <Link href="/create-league" className="btn btn-secondary btn-block" style={{ width: '100%', marginTop: 8 }}>Or create a league from scratch</Link>
           </div>
         </div>
       )}
