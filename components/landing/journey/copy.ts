@@ -22,7 +22,7 @@ export const LANDING_COPY = {
       secondary: 'Sign In',
       alreadyHaveAccount: 'Already have an account? Sign in',
       primaryAuthed: 'Go to Dashboard →',
-      reassurance: 'Free for players · Commissioners from $4.99/mo · Cancel anytime',
+      reassurance: 'Free for players · Commissioners from $14.99/mo · Cancel anytime',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
     trust: [
@@ -221,7 +221,7 @@ export const LANDING_COPY = {
       secondary: 'Iniciar sesión',
       alreadyHaveAccount: '¿Ya tienes cuenta? Inicia sesión',
       primaryAuthed: 'Ir al panel →',
-      reassurance: 'Gratis para jugadores · Comisionados desde $4.99/mes · Cancela cuando quieras',
+      reassurance: 'Gratis para jugadores · Comisionados desde $14.99/mes · Cancela cuando quieras',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
     trust: [
@@ -420,7 +420,7 @@ export const LANDING_COPY = {
       secondary: '登录',
       alreadyHaveAccount: '已有账户？登录',
       primaryAuthed: '前往控制台 →',
-      reassurance: '玩家免费 · 赛区长 $4.99/月起 · 随时取消',
+      reassurance: '玩家免费 · 赛区长 $14.99/月起 · 随时取消',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', '足球'],
     trust: [
@@ -619,7 +619,7 @@ export const LANDING_COPY = {
       secondary: 'Mag-sign In',
       alreadyHaveAccount: 'May account na? Mag-sign in',
       primaryAuthed: 'Pumunta sa Dashboard →',
-      reassurance: 'Libre para sa mga manlalaro · Commissioner mula $4.99/buwan · Kanselahin anumang oras',
+      reassurance: 'Libre para sa mga manlalaro · Commissioner mula $14.99/buwan · Kanselahin anumang oras',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Soccer'],
     trust: [
@@ -818,7 +818,7 @@ export const LANDING_COPY = {
       secondary: 'Đăng nhập',
       alreadyHaveAccount: 'Đã có tài khoản? Đăng nhập',
       primaryAuthed: 'Đến Bảng Điều Khiển →',
-      reassurance: 'Miễn phí cho người chơi · Commissioner từ $4.99/tháng · Hủy bất cứ lúc nào',
+      reassurance: 'Miễn phí cho người chơi · Commissioner từ $14.99/tháng · Hủy bất cứ lúc nào',
     },
     sports: ['NFL', 'NBA', 'NHL', 'MLB', 'NCAA', 'Bóng đá'],
     trust: [
