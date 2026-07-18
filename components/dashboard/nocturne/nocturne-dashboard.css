@@ -1,0 +1,254 @@
+/*
+ * Nocturne dashboard — scoped design system for the reskinned logged-in dashboard.
+ *
+ * Everything is namespaced under `.nocturne-dash` so these tokens/classes never
+ * collide with the app's own theme OR with the landing page's `.nocturne` scope.
+ * Ported from the dashboard handoff `reference-dashboard.html` <style> block +
+ * `design-system/nocturne-styles.css` (same Nocturne token set as the landing).
+ *
+ * Dark-theme only by design.
+ */
+
+.nocturne-dash {
+  /* ── Ground + accent ─────────────────────────────────────────────── */
+  --color-bg: #161826;
+  --color-surface: #232532;
+  --color-text: #e9e9ed;
+  --color-accent: #9184d9;
+  --color-accent-2: #a7a1db;
+  --color-divider: color-mix(in srgb, #e9e9ed 16%, transparent);
+
+  --color-neutral-100: #f3f5fe;
+  --color-neutral-200: #e4e7f5;
+  --color-neutral-300: #cfd3e5;
+  --color-neutral-400: #b2b6ca;
+  --color-neutral-500: #9397ab;
+  --color-neutral-600: #75798c;
+  --color-neutral-700: #595d6c;
+  --color-neutral-800: #3f424d;
+  --color-neutral-900: #292b31;
+
+  --color-accent-100: #f5f4ff;
+  --color-accent-200: #e7e5fe;
+  --color-accent-300: #d2cefd;
+  --color-accent-400: #b5abfc;
+  --color-accent-500: #968ae0;
+  --color-accent-600: #796cbf;
+  --color-accent-700: #5d5294;
+  --color-accent-800: #423a6a;
+  --color-accent-900: #2b2741;
+
+  --color-accent-2-500: #9690c9;
+
+  --color-section: #262a60;
+  --color-section-glow: #353b80;
+
+  --radius-sm: 4px;
+  --radius-md: 8px;
+  --radius-lg: 14px;
+
+  --font-nocturne: 'Inter', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif;
+
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-nocturne);
+  font-size: 15px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+.nocturne-dash *,
+.nocturne-dash *::before,
+.nocturne-dash *::after { box-sizing: border-box; }
+
+/* Heading reset — app globals force h1–h6 to weight 800; Nocturne caps at 600. */
+.nocturne-dash h1,
+.nocturne-dash h2,
+.nocturne-dash h3,
+.nocturne-dash h4 {
+  font-family: var(--font-nocturne);
+  font-weight: 600;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+  margin: 0;
+}
+.nocturne-dash p { margin: 0; }
+.nocturne-dash a { color: var(--color-accent-400); text-decoration: none; }
+.nocturne-dash a:hover { color: var(--color-accent-300); }
+.nocturne-dash button { font-family: var(--font-nocturne); }
+.nocturne-dash img { display: block; max-width: 100%; }
+.nocturne-dash ::selection { background: color-mix(in srgb, var(--color-accent) 30%, transparent); }
+.nocturne-dash :focus { outline: none; }
+.nocturne-dash :focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* ── Cards ─────────────────────────────────────────────────────────── */
+.nocturne-dash .afcard {
+  border: 1px solid var(--color-neutral-800);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  padding: 18px;
+}
+.nocturne-dash .afcard:hover { border-color: var(--color-neutral-700); }
+
+/* ── Context tabs ──────────────────────────────────────────────────── */
+.nocturne-dash .aftab {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 14px;
+  border-radius: calc(var(--radius-md) - 2px);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  border: none;
+  background: none;
+  color: var(--color-neutral-400);
+  transition: 0.15s;
+}
+.nocturne-dash .aftab.is-active { background: var(--color-accent); color: #fff; }
+.nocturne-dash .aftab:not(.is-active):hover { color: var(--color-neutral-200); }
+
+/* ── Progress ring (health / grade) ───────────────────────────────── */
+.nocturne-dash .afring {
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  position: relative;
+  flex: none;
+}
+.nocturne-dash .afring::after {
+  content: "";
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--color-surface);
+}
+.nocturne-dash .afringval {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* ── Platform-source square ────────────────────────────────────────── */
+.nocturne-dash .afsrc {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  font: 700 12px ui-monospace, Menlo, monospace;
+  color: var(--color-neutral-100);
+  flex: none;
+}
+
+/* ── Icon chip button ──────────────────────────────────────────────── */
+.nocturne-dash .afchip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 30px;
+  width: 30px;
+  border: none;
+  background: none;
+  color: var(--color-neutral-500);
+  cursor: pointer;
+  border-radius: 6px;
+}
+.nocturne-dash .afchip:hover {
+  background: color-mix(in srgb, var(--color-text) 7%, transparent);
+  color: var(--color-neutral-200);
+}
+
+/* ── Gated blur ────────────────────────────────────────────────────── */
+.nocturne-dash .afblur { filter: blur(5px); user-select: none; }
+
+/* ── Inputs / selects ──────────────────────────────────────────────── */
+.nocturne-dash .input {
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 10px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  caret-color: var(--color-accent);
+  background: var(--color-surface);
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+  outline: none;
+}
+.nocturne-dash .input:hover { border-color: color-mix(in srgb, var(--color-text) 40%, transparent); }
+.nocturne-dash .input:focus-visible { border-color: var(--color-accent); }
+
+/* ── Segmented control ─────────────────────────────────────────────── */
+.nocturne-dash .seg {
+  display: inline-flex;
+  overflow: hidden;
+  border: 1px solid var(--color-divider);
+  border-radius: var(--radius-md);
+}
+
+/* ── Tags ──────────────────────────────────────────────────────────── */
+.nocturne-dash .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  border-radius: calc(var(--radius-md) * 0.75);
+  white-space: nowrap;
+}
+.nocturne-dash .tag-accent { background: var(--color-accent-800); color: var(--color-accent-100); }
+.nocturne-dash .tag-neutral { background: var(--color-neutral-800); color: var(--color-neutral-100); }
+.nocturne-dash .tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+
+/* ── Buttons ───────────────────────────────────────────────────────── */
+.nocturne-dash .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-nocturne);
+  font-weight: 500;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.nocturne-dash .btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.nocturne-dash .btn svg { display: block; }
+.nocturne-dash .btn-primary { color: var(--color-accent); border-color: var(--color-accent); }
+.nocturne-dash .btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
+.nocturne-dash .btn-secondary { border-color: var(--color-divider); color: var(--color-text); }
+.nocturne-dash .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+
+/* ── Modal backdrop ────────────────────────────────────────────────── */
+.nocturne-dash-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 35;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: color-mix(in srgb, #161826 72%, transparent);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+/* ── Section kicker ────────────────────────────────────────────────── */
+.nocturne-dash .dash-kicker {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-neutral-500);
+}
