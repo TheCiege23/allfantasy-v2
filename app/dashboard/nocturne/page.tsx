@@ -42,8 +42,8 @@ export default async function NocturneDashboardPage() {
   }
 
   const [dbUser, userProfile, leagueList, rankPayload] = await Promise.all([
-    prisma.appUser.findUnique({ where: { id: userId }, select: { avatarUrl: true, username: true } }).catch(() => null),
-    prisma.userProfile.findUnique({ where: { userId }, select: { displayName: true } }).catch(() => null),
+    prisma.appUser.findUnique({ where: { id: userId }, select: { avatarUrl: true, username: true, emailVerified: true } }).catch(() => null),
+    prisma.userProfile.findUnique({ where: { userId }, select: { displayName: true, discordUserId: true } }).catch(() => null),
     getDashboardLeagueListForUser(userId).catch(() => null),
     fetchUserRankJsonForDashboardSSR().catch(() => null),
   ])
@@ -70,6 +70,8 @@ export default async function NocturneDashboardPage() {
       initialLeagueList={leagueList ?? undefined}
       initialUserRankPayload={rankPayload ?? undefined}
       initialCommissionerHealthSnapshots={commissionerHealth ?? undefined}
+      emailVerified={Boolean(dbUser?.emailVerified)}
+      discordConnected={Boolean(userProfile?.discordUserId)}
     />
   )
 }
