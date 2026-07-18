@@ -15,8 +15,24 @@ import type { ActivityFeedItem, ActivitySourceContext } from "@/lib/activity/typ
 import { mergeActivityItems } from "@/lib/activity/merge"
 import { collectNativeLeagueActivity } from "@/lib/activity/sources/nativeLeagueActivity"
 import { collectRosterInjuryActivity } from "@/lib/activity/sources/rosterInjuryActivity"
+import { consumeRateLimit } from "@/lib/rate-limit"
+import {
+  buildActivityCacheKey,
+  getCachedActivityFeed,
+  setCachedActivityFeed,
+} from "@/lib/activity/activity-response-cache"
 
 export const dynamic = "force-dynamic"
+
+// Per-user request budget for this endpoint. Keyed on the viewer's userId *alone* (not the
+// per-league query params), so every card in a dashboard fan-out shares one bucket — a tab that
+// mounts hundreds of MyLeagueCard polls can't multiply its way past this. The incident that
+// motivated it: a pre-deploy client bundle polled this route at ~6 req/s for 29+ hours and
+// exhausted production Postgres (53200 out of memory); a server deploy can't fix an already-loaded
+// bundle, so the endpoint caps itself. Cache hits are served *before* this check (they cost no
+// Postgres), so a steadily-polling dashboard warms up and stays populated without ever tripping it.
+const ACTIVITY_RATE_LIMIT_MAX = 1
+const ACTIVITY_RATE_LIMIT_WINDOW_MS = 10_000
 
 // Bounds how many of the viewer's Sleeper leagues get a live transactions call per request —
 // this endpoint is polled every ~90s by useActivityFeed, so an unbounded per-league fetch
@@ -142,6 +158,34 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ status: "ok", items: [] })
   }
 
+  // 1) Coalesce: an identical poll that's already been computed this window is served from memory,
+  //    never re-opening a Postgres connection. Keyed on the full response signature so a cached
+  //    feed is only ever returned for the exact params it was computed for.
+  const cacheKey = buildActivityCacheKey(userId, leagueIdFilter, limit)
+  const cached = getCachedActivityFeed(cacheKey)
+  if (cached) {
+    return NextResponse.json({ status: "ok", items: cached }, { headers: { "X-Cache": "HIT" } })
+  }
+
+  // 2) Throttle: only genuine cache misses reach Postgres, so the rate limit is what bounds a
+  //    single session's DB load. Keyed on userId alone (see ACTIVITY_RATE_LIMIT_* above).
+  const rl = consumeRateLimit({
+    scope: "shared",
+    action: "activity",
+    sleeperUsername: userId,
+    maxRequests: ACTIVITY_RATE_LIMIT_MAX,
+    windowMs: ACTIVITY_RATE_LIMIT_WINDOW_MS,
+  })
+  if (!rl.success) {
+    // Honest-empty under back-pressure: we decline to compute rather than fabricate. The client
+    // (useActivityFeed) reads `items` and keeps rendering; the next poll retries once the window
+    // clears, by which point a warmed cache entry usually serves it.
+    return NextResponse.json(
+      { status: "rate_limited", items: [], retryAfterSec: rl.retryAfterSec },
+      { status: 429, headers: { "Retry-After": String(Math.max(1, rl.retryAfterSec)) } }
+    )
+  }
+
   try {
     // Lean resolver: only the native + real Sleeper leagues the activity sources can produce events
     // for — NOT the full dashboard list. Skips the AF Legacy board + season-max groupBy that made
@@ -164,7 +208,11 @@ export async function GET(req: NextRequest) {
     const perSource = results.map((r) => (r.status === "fulfilled" ? r.value : []))
     const items = mergeActivityItems(perSource, limit)
 
-    return NextResponse.json({ status: "ok", items })
+    // Cache the successful aggregation (an honest-empty feed included) so the next identical poll
+    // skips Postgres entirely. The error path below is intentionally never cached.
+    setCachedActivityFeed(cacheKey, items)
+
+    return NextResponse.json({ status: "ok", items }, { headers: { "X-Cache": "MISS" } })
   } catch (err) {
     console.error("[api/shared/activity] aggregation failed:", err)
     return NextResponse.json({ status: "ok", items: [] })

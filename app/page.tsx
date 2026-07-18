@@ -7,16 +7,19 @@ import { LandingInviteCapture } from '@/components/landing/LandingInviteCapture'
 import { getHomeInitialSession } from '@/lib/landing/get-home-initial-session'
 
 /**
+ * Landing page (Nocturne "1a" design). Replaces the legacy scrollytelling
+ * `LandingPageClient`, which stays on disk for one-line rollback.
+ *
  * Client-only: SSR-bundling this module on Windows Next 14.2 reliably hits
  * webpack-runtime `reading 'call'` at `next/image` and can corrupt `.next-dev-local`
  * manifests (`React Client Manifest` / `entryCSSFiles` / empty JSON).
  */
-const LandingPageClient = dynamic(() => import('@/components/landing/LandingPageClient'), {
+const LandingPageClient = dynamic(() => import('@/components/landing/nocturne/LandingNocturne'), {
   ssr: false,
   loading: () => (
     <div
-      className="mode-readable flex min-h-[40vh] items-center justify-center text-sm"
-      style={{ background: 'var(--bg)', color: 'var(--muted)' }}
+      className="flex min-h-[40vh] items-center justify-center text-sm"
+      style={{ background: '#161826', color: '#9397ab' }}
     >
       Loading…
     </div>
