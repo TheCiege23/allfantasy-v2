@@ -229,6 +229,7 @@
 .nocturne-dash .btn-primary:hover { background: color-mix(in srgb, var(--color-accent) 12%, transparent); }
 .nocturne-dash .btn-secondary { border-color: var(--color-divider); color: var(--color-text); }
 .nocturne-dash .btn-secondary:hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.nocturne-dash .btn-block { width: 100%; }
 
 /* ── Modal backdrop ────────────────────────────────────────────────── */
 .nocturne-dash-modal {

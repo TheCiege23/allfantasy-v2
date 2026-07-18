@@ -25,7 +25,7 @@
  * because this is a design-review preview route (drop it at production cut-over).
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import {
@@ -67,7 +67,7 @@ function platformColor(platform: string): string {
   return PLATFORM_COLORS[platform.toLowerCase()] ?? 'var(--color-accent-800)'
 }
 
-type DisplayLeague = { id: string; name: string; platform: string; initial: string; color: string; isCommissioner: boolean; status: string }
+type DisplayLeague = { id: string; name: string; platform: string; initial: string; color: string; isCommissioner: boolean; status: string; unified: boolean }
 
 function mapLeagues(payload: LeagueListPayload): DisplayLeague[] {
   const rows = Array.isArray(payload?.leagues) ? payload!.leagues! : []
@@ -84,8 +84,14 @@ function mapLeagues(payload: LeagueListPayload): DisplayLeague[] {
       color: platformColor(platform),
       isCommissioner: r.isCommissioner === true || r.userRole === 'commissioner',
       status: str(r.status) ?? str(r.lifecycleState) ?? 'Active',
+      // Only leagues with a unified record resolve on /league/[id]; AF-Legacy board
+      // rows (hasUnifiedRecord=false) 404 there, so they deep-link to /af-legacy.
+      unified: r.hasUnifiedRecord === true,
     }
   })
+}
+function leagueHref(lg: DisplayLeague): string {
+  return lg.unified ? `/league/${lg.id}` : '/af-legacy'
 }
 function cryptoLikeId(r: Record<string, unknown>): string {
   return str(r.platformLeagueId) ?? `lg-${str(r.name) ?? Math.abs(hashStr(JSON.stringify(r))).toString(36)}`
@@ -127,9 +133,12 @@ const TOOLS = [
 
 const UPGRADE_HREF = '/upgrade'
 const TOKENS_HREF = '/pricing'
+// Design-review tier override: dev only. Next inlines process.env.NODE_ENV at build
+// time, so this is `false` in the production bundle → the toggle can't ship or bypass gates.
+const PREVIEW_TIER_TOGGLE = process.env.NODE_ENV !== 'production'
 
 export default function NocturneDashboard({
-  userId, userName, userImage, initialLeagueList, initialUserRankPayload, initialCommissionerHealthSnapshots,
+  userName, userImage, initialLeagueList, initialUserRankPayload, initialCommissionerHealthSnapshots,
 }: NocturneDashboardProps) {
   const access = useAccessTier()
   const { balance: tokenBalance } = useTokenBalance()
@@ -149,7 +158,7 @@ export default function NocturneDashboard({
   const [playerQuery, setPlayerQuery] = useState('')
   const [playerResults, setPlayerResults] = useState<PlayerResult[]>([])
   const [activePlayer, setActivePlayer] = useState<PlayerResult | null>(null)
-  const [today, setToday] = useState<TodayShape | null>(null)
+  const [today, setToday] = useState<TodayState>(null)
   const [commLeagueId, setCommLeagueId] = useState<string | null>(null)
   const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({})
 
@@ -162,9 +171,16 @@ export default function NocturneDashboard({
   const leagues = useMemo(() => mapLeagues(initialLeagueList), [initialLeagueList])
   const rank = useMemo(() => readRank(initialUserRankPayload), [initialUserRankPayload])
 
-  // Real tier → Visitor/Free/Premium; preview override wins on this review route.
-  const realTier: PreviewTier = access.tier === 'paid' ? 'premium' : access.tier === 'free' ? 'free' : 'visitor'
-  const tier: PreviewTier = tierOverride ?? realTier
+  // Real tier → Visitor/Free/Premium. While entitlements load, default to 'free'
+  // (the route is auth-gated server-side, so the user is never really a visitor) to
+  // avoid flashing the visitor UI to paying users (SF3).
+  const realTier: PreviewTier = access.loading
+    ? 'free'
+    : access.tier === 'paid' ? 'premium' : access.tier === 'free' ? 'free' : 'visitor'
+  // The "Preview as" override is a DESIGN-REVIEW affordance only — it must NEVER be
+  // able to flip a real user's gates in production (B3). Ignored outside dev, and the
+  // control itself only renders in dev (see PREVIEW_TIER_TOGGLE below).
+  const tier: PreviewTier = (PREVIEW_TIER_TOGGLE ? tierOverride : null) ?? realTier
   const isVisitor = tier === 'visitor'
   const isFree = tier === 'free'
   const isPremium = tier === 'premium'
@@ -176,10 +192,12 @@ export default function NocturneDashboard({
   useEffect(() => {
     if (leagues.length === 0) { setToday(null); return }
     let cancelled = false
+    // 503/degraded is surfaced as 'unavailable', never as "all clear" (the API returns
+    // 503 on failure precisely so the client doesn't tell the user everything is fine).
     void fetch('/api/dashboard/today-actions', { cache: 'no-store' })
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => { if (!cancelled) setToday(parseToday(data)) })
-      .catch(() => { if (!cancelled) setToday(null) })
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json() })
+      .then((data) => { if (!cancelled) setToday(parseToday(data) ?? 'unavailable') })
+      .catch(() => { if (!cancelled) setToday('unavailable') })
     return () => { cancelled = true }
   }, [leagues.length])
 
@@ -197,7 +215,8 @@ export default function NocturneDashboard({
     return () => { cancelled = true; clearTimeout(t) }
   }, [playerQuery])
 
-  const urgentCount = today ? today.lineups + today.waivers + today.trades : 0
+  const todayData = today && today !== 'unavailable' ? today : null
+  const urgentCount = todayData ? todayData.urgent : 0
 
   // ── Filtered leagues (search + platform + top-bar league scope) ──────────────
   const platformOptions = useMemo(
@@ -225,8 +244,6 @@ export default function NocturneDashboard({
   const modeIcon = theme?.mode === 'dark' ? Moon : theme?.mode === 'light' ? Sun : Monitor
   const ModeIcon = modeIcon
 
-  const closeAll = useCallback(() => { setSettingsOpen(false); setImportOpen(false); setActivePlayer(null) }, [])
-
   return (
     <div className="nocturne-dash" style={{ minHeight: '100vh' }}>
       {/* ═══ TOP BAR ═══ */}
@@ -249,7 +266,8 @@ export default function NocturneDashboard({
             )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexWrap: 'wrap' }}>
-            {/* Preview-as override (design-review only) */}
+            {/* Preview-as override — DEV ONLY (never renders in production) */}
+            {PREVIEW_TIER_TOGGLE && (
             <div className="seg" title="Preview tier (design review)">
               {(['visitor', 'free', 'premium'] as const).map((t, i) => (
                 <button key={t} type="button" onClick={() => setTierOverride(t === realTier ? null : t)}
@@ -258,6 +276,7 @@ export default function NocturneDashboard({
                 </button>
               ))}
             </div>
+            )}
             {lang && (
               <select className="input" value={lang.language} onChange={(e) => lang.setLanguage(e.target.value as never)} style={{ width: 'auto', minHeight: 30, padding: '0 8px', fontSize: 12 }} aria-label="Language">
                 <option value="en">English</option>
@@ -290,8 +309,8 @@ export default function NocturneDashboard({
       </div>
 
       <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 20px 64px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-        {/* ═══ CTA BANNERS ═══ */}
-        {isVisitor && (
+        {/* ═══ CTA BANNERS ═══ (suppressed until entitlements resolve, so paid users don't flash the free banner) */}
+        {!access.loading && isVisitor && (
           <Banner icon={<Sparkles size={22} style={{ color: 'var(--color-accent-400)' }} />} accent
             title="You're browsing as a visitor"
             body="Create a free account to save your leagues, track rankings, and unlock more.">
@@ -299,7 +318,7 @@ export default function NocturneDashboard({
             <Link href="/signup?next=/dashboard/nocturne" className="btn btn-primary">Sign up for free</Link>
           </Banner>
         )}
-        {isFree && (
+        {!access.loading && isFree && (
           <Banner icon={<Rocket size={22} style={{ color: 'var(--color-accent-400)' }} />}
             title="You're on the free plan"
             body="Upgrade to unlock live scores, projected edge, and the full analytics suite — or unlock features à la carte with tokens.">
@@ -357,15 +376,20 @@ export default function NocturneDashboard({
         {context === 'global' && (
           <div>
             <div className="dash-kicker" style={{ marginBottom: 12 }}>Today's priorities</div>
-            {today && urgentCount > 0 ? (
+            {today === 'unavailable' ? (
+              <div className="afcard" style={{ fontSize: 13, color: 'var(--color-neutral-400)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                <AlertCircle size={16} style={{ color: 'var(--color-accent-400)', flex: 'none' }} />
+                Priorities are temporarily unavailable — refresh in a moment.
+              </div>
+            ) : todayData && (todayData.lineups + todayData.waivers + todayData.trades) > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
-                {today.lineups > 0 && <Priority icon={<ListChecks size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${today.lineups} lineup${today.lineups > 1 ? 's' : ''} to set`} sub="Across your leagues" />}
-                {today.waivers > 0 && <Priority icon={<ArrowLeftRight size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${today.waivers} waiver target${today.waivers > 1 ? 's' : ''}`} sub="Runs coming up" />}
-                {today.trades > 0 && <Priority icon={<Handshake size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${today.trades} trade${today.trades > 1 ? 's' : ''} pending`} sub="Waiting on you" />}
+                {todayData.lineups > 0 && <Priority icon={<ListChecks size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.lineups} lineup${todayData.lineups > 1 ? 's' : ''} to set`} sub="Across your leagues" />}
+                {todayData.waivers > 0 && <Priority icon={<ArrowLeftRight size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.waivers} waiver target${todayData.waivers > 1 ? 's' : ''}`} sub="Runs coming up" />}
+                {todayData.trades > 0 && <Priority icon={<Handshake size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.trades} trade${todayData.trades > 1 ? 's' : ''} pending`} sub="Waiting on you" />}
               </div>
             ) : (
               <div className="afcard" style={{ fontSize: 13, color: 'var(--color-neutral-400)' }}>
-                {leagues.length === 0 ? 'Import a league to see your priorities here.' : "You're all set — nothing needs attention right now."}
+                {leagues.length === 0 ? 'Import a league to see your priorities here.' : today === null ? 'Loading your priorities…' : "You're all set — nothing needs attention right now."}
               </div>
             )}
           </div>
@@ -412,7 +436,7 @@ export default function NocturneDashboard({
                     </div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       {lg.isCommissioner ? <span className="tag tag-accent">Commissioner</span> : <span className="tag tag-neutral">Manager</span>}
-                      <Link href="/dashboard" style={{ fontSize: 12, color: 'var(--color-accent-400)' }}>Open →</Link>
+                      <Link href={leagueHref(lg)} style={{ fontSize: 12, color: 'var(--color-accent-400)' }}>Open →</Link>
                     </div>
                   </div>
                 ))}
@@ -420,12 +444,12 @@ export default function NocturneDashboard({
             ) : (
               <div className="afcard" style={{ padding: 6 }}>
                 {filteredLeagues.map((lg) => (
-                  <div key={lg.id} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-md)' }}>
+                  <Link key={lg.id} href={leagueHref(lg)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-md)', color: 'inherit', textDecoration: 'none' }}>
                     <span className="afsrc" style={{ width: 24, height: 24, fontSize: 10, background: lg.color }}>{lg.initial}</span>
                     <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 0 }}>{lg.name}</span>
                     <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', width: 70, textTransform: 'capitalize' }}>{lg.platform}</span>
                     {lg.isCommissioner ? <span className="tag tag-accent">Comm</span> : <span className="tag tag-neutral">Mgr</span>}
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
@@ -503,17 +527,16 @@ export default function NocturneDashboard({
                   <div className="afring" style={{ width: 92, height: 92, background: `conic-gradient(var(--color-accent) ${gradePct(rank.grade)}%, var(--color-neutral-800) ${gradePct(rank.grade)}% 100%)` }}>
                     <div className="afringval"><span style={{ fontSize: 24, fontWeight: 700 }}>{rank.grade ?? '—'}</span><span style={{ fontSize: 9, color: 'var(--color-neutral-600)', textTransform: 'uppercase', letterSpacing: '.04em' }}>Chimmy Grade</span></div>
                   </div>
-                  {rank.insight && (
-                    <div style={{ position: 'relative', maxWidth: 170 }}>
-                      <p style={{ fontSize: 11.5, color: 'var(--color-neutral-500)', textAlign: 'center', margin: 0, filter: showLock ? 'blur(4px)' : 'none' }}>{rank.insight}</p>
-                      {showLock && (
-                        <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 6, fontSize: 10.5, color: 'var(--color-neutral-500)', background: 'var(--color-surface)' }}>
-                          <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Lock size={12} style={{ color: 'var(--color-accent-400)' }} />Premium</span>
-                          <Link href={TOKENS_HREF} style={{ fontSize: 10, color: 'var(--color-accent-400)' }}>Buy tokens instead</Link>
-                        </div>
-                      )}
+                  {/* Don't put premium insight text in the DOM for locked tiers (SF1) —
+                      render a lock placeholder instead of blur-over-real-text. */}
+                  {showLock ? (
+                    <div style={{ maxWidth: 170, textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, fontSize: 10.5, color: 'var(--color-neutral-500)' }}>
+                      <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}><Lock size={12} style={{ color: 'var(--color-accent-400)' }} />Projected edge & insight</span>
+                      <Link href={TOKENS_HREF} style={{ fontSize: 10, color: 'var(--color-accent-400)' }}>Unlock with tokens</Link>
                     </div>
-                  )}
+                  ) : rank.insight ? (
+                    <p style={{ fontSize: 11.5, color: 'var(--color-neutral-500)', textAlign: 'center', margin: 0, maxWidth: 170 }}>{rank.insight}</p>
+                  ) : null}
                 </div>
               </div>
             ) : (
@@ -632,19 +655,22 @@ type PlayerResult = {
   playerId: string; name: string | null; position: string | null; team: string | null
   leagueCount: number; startingCount: number; benchCount: number; irTaxiCount: number; exposurePercent: number
 }
-type TodayShape = { lineups: number; waivers: number; trades: number }
+type TodayShape = { lineups: number; waivers: number; trades: number; urgent: number }
+/** 'unavailable' = today-actions failed/degraded (503) — must NOT be shown as "all clear". */
+type TodayState = TodayShape | 'unavailable' | null
 
 // ── Parsers / helpers ─────────────────────────────────────────────────────────
 function parseToday(data: unknown): TodayShape | null {
   if (!data || typeof data !== 'object') return null
   const d = data as Record<string, unknown>
   const counts = (d.counts ?? {}) as Record<string, unknown>
-  const waivers = (d.waivers ?? {}) as Record<string, unknown>
-  const trades = (d.trades ?? {}) as Record<string, unknown>
-  const lineupCount = num(counts.lineupsToSet) ?? num(counts.unsetLineups) ?? num(counts.lineups) ?? 0
-  const waiverCount = Array.isArray(waivers.recommendations) ? waivers.recommendations.length : num(waivers.totalLeagues) ?? 0
-  const tradeCount = num(trades.totalPending) ?? 0
-  return { lineups: lineupCount, waivers: waiverCount, trades: tradeCount }
+  // Real TodayActionsEngineResponse.counts keys (lib/today-actions-engine/types.ts).
+  const lineups = num(counts.unresolvedLineupSlotActions) ?? 0
+  const urgentLineups = num(counts.urgentLineupActions) ?? 0
+  const waivers = num(counts.waiverPickupSuggestions) ?? 0
+  const urgentWaivers = num(counts.waiverUrgentAdds) ?? 0
+  const trades = num(counts.pendingTrades) ?? 0
+  return { lineups, waivers, trades, urgent: urgentLineups + urgentWaivers + trades }
 }
 
 function resolvePlanChip(e: ReturnType<typeof useEntitlements>): string {
@@ -793,23 +819,27 @@ function CommissionerHQ({
             {dividerLine}
             <div>
               <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-neutral-500)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 10 }}>Recommendations</div>
-              <div style={{ position: 'relative' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, filter: showLock ? 'blur(4px)' : 'none' }}>
+              {/* Locked: show the COUNT + unlock CTA, never the premium text (SF1). */}
+              {showLock ? (
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px dashed var(--color-accent-700)', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: 12.5, color: 'var(--color-neutral-400)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                    <Lock size={13} style={{ color: 'var(--color-accent-400)', flex: 'none' }} />
+                    {active.recommendations.length} commissioner recommendation{active.recommendations.length === 1 ? '' : 's'} — Premium
+                  </span>
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <Link href={tokensHref} className="btn btn-secondary" style={{ padding: '5px 10px', fontSize: 11 }}>Buy tokens</Link>
+                    <Link href={upgradeHref} className="btn btn-primary" style={{ padding: '5px 10px', fontSize: 11 }}>Unlock</Link>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {active.recommendations.slice(0, 4).map((rec, i) => (
                     <div key={i} style={{ display: 'flex', gap: 9, alignItems: 'flex-start', fontSize: 13.5, color: 'var(--color-neutral-300)' }}>
                       <Lightbulb size={16} style={{ color: 'var(--color-accent-400)', flex: 'none', marginTop: 1 }} />{rec}
                     </div>
                   ))}
                 </div>
-                {showLock && (
-                  <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', background: 'linear-gradient(90deg,transparent,var(--color-surface) 25%)' }}>
-                    <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <Link href={tokensHref} className="btn btn-secondary" style={{ padding: '5px 10px', fontSize: 11 }}>Buy tokens</Link>
-                      <Link href={upgradeHref} className="btn btn-primary" style={{ padding: '5px 10px', fontSize: 11 }}><Lock size={12} /> Unlock</Link>
-                    </div>
-                  </div>
-                )}
-              </div>
+              )}
             </div>
           </>
         )}
@@ -827,10 +857,12 @@ function CommissionerHQ({
               </p>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {active.actions.slice(0, 5).map((a) => {
-                  const isChecked = !!checked[a.key]
+                  // Key check-off state by league + action so it doesn't bleed across leagues (SF2).
+                  const ck = `${active.leagueId}:${a.key}`
+                  const isChecked = !!checked[ck]
                   return (
                     <label key={a.key} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-neutral-800)', cursor: 'pointer', opacity: isChecked ? 0.6 : 1 }}>
-                      <input type="checkbox" checked={isChecked} onChange={() => onToggle(a.key)} style={{ accentColor: 'var(--color-accent)', width: 16, height: 16, flex: 'none', marginTop: 2 }} />
+                      <input type="checkbox" checked={isChecked} onChange={() => onToggle(ck)} style={{ accentColor: 'var(--color-accent)', width: 16, height: 16, flex: 'none', marginTop: 2 }} />
                       <span>
                         <span style={{ display: 'block', fontSize: 13.5, fontWeight: 600, color: 'var(--color-text)' }}>{a.label}</span>
                         <span style={{ display: 'block', fontSize: 12, color: 'var(--color-neutral-600)', marginTop: 2 }}>{a.description}</span>
