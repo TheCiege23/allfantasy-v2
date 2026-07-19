@@ -96,6 +96,22 @@ const seasonYear = (v: unknown): number | null => {
 }
 
 /**
+ * Compact "time from now" for the priority cards ("Locks in 4h"). Returns null for a
+ * missing/unparseable/past timestamp so callers fall back to generic copy — the card must
+ * never claim a deadline the data doesn't actually carry.
+ */
+function relativeUntil(iso: string | null | undefined): string | null {
+  if (!iso) return null
+  const ms = new Date(iso).getTime() - Date.now()
+  if (!Number.isFinite(ms) || ms <= 0) return null
+  const mins = Math.round(ms / 60000)
+  if (mins < 60) return `${mins}m`
+  const hrs = Math.round(mins / 60)
+  if (hrs < 24) return `${hrs}h`
+  return `${Math.round(hrs / 24)}d`
+}
+
+/**
  * Sleeper drives a league through pre_draft → drafting → post_draft → in_season →
  * complete. A league being set up for the upcoming year is often still keyed to last
  * season, so season-year alone misfiles it as history; conversely `complete` means the
@@ -415,6 +431,25 @@ export default function NocturneDashboard({
     })
   }, [leagues, leagueSearch, platformFilter, dashLeagueFilter])
 
+  // Real urgency for the priority cards. `lockTime` rides each lineup action and
+  // `waiverTiming` carries the server's next waiver run — so "Locks in 4h" is measured,
+  // not decorative. Scoped the same way the counts are; falls back to generic copy
+  // whenever the timestamps aren't actually present.
+  const priorityTiming = useMemo(() => {
+    const rawActions = ((todayFull?.lineup as { actions?: Array<{ leagueId: string; lockTime?: string | null }> } | undefined)?.actions) ?? []
+    const actions = dashLeagueFilter === 'all' ? rawActions : scopeBySelectedLeague(rawActions, dashLeagueFilter)
+    const upcoming = actions
+      .map((a) => (a.lockTime ? new Date(a.lockTime).getTime() : NaN))
+      .filter((t) => Number.isFinite(t) && t > Date.now())
+    const soonestLock = upcoming.length ? new Date(Math.min(...upcoming)).toISOString() : null
+    const wt = (todayFull?.waiverTiming ?? null) as { nextWaiverProcessIsoUtc?: string | null; waiverTimingHint?: string | null } | null
+    return {
+      lockIn: relativeUntil(soonestLock),
+      waiverIn: relativeUntil(wt?.nextWaiverProcessIsoUtc),
+      waiverHint: wt?.waiverTimingHint ?? null,
+    }
+  }, [todayFull, dashLeagueFilter])
+
   // ── Current vs Historical ────────────────────────────────────────────────────
   // An imported account can carry hundreds of past-season snapshots (547 here). Only
   // leagues whose season is the live one belong in the main list; everything older is
@@ -433,7 +468,15 @@ export default function NocturneDashboard({
   const dashFilterLeagueName = dashLeagueFilter === 'all' ? null : leagues.find((l) => l.id === dashLeagueFilter)?.name ?? null
   const commissionedCount = scopedLeagues.filter((l) => l.isCommissioner).length
 
-  const heroTitle = `Welcome back, ${userName.split(' ')[0] || userName}`
+  // Time-of-day greeting, matching the design. Uses the existing warroom greeting keys so
+  // the language switcher keeps working (EN + ES already translated) instead of hardcoding
+  // English. Client-only route (ssr:false), so reading the clock can't desync hydration.
+  const heroTitle = useMemo(() => {
+    const firstName = userName.split(' ')[0] || userName
+    const hour = new Date().getHours()
+    const slot = hour < 12 ? 'morning' : hour < 18 ? 'afternoon' : 'evening'
+    return lang.tInterpolate(`dashboard.warroom.hero.greeting.${slot}`, { name: firstName })
+  }, [userName, lang])
   const heroSubtitle = context === 'global'
     ? 'Everything across your leagues, in one place.'
     : context === 'commissioner' ? 'Health and analytics for the leagues you run.' : 'Your matchup, league by league.'
@@ -606,8 +649,8 @@ export default function NocturneDashboard({
               </div>
             ) : todayData && (todayData.lineups + todayData.waivers + todayData.trades) > 0 ? (
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(180px,1fr))', gap: 10 }}>
-                {todayData.lineups > 0 && <Priority icon={<ListChecks size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.lineups} lineup${todayData.lineups > 1 ? 's' : ''} to set`} sub="Across your leagues" onClick={() => setOpenModal('lineup')} />}
-                {todayData.waivers > 0 && <Priority icon={<ArrowLeftRight size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.waivers} waiver target${todayData.waivers > 1 ? 's' : ''}`} sub="Runs coming up" onClick={() => setOpenModal('waiver')} />}
+                {todayData.lineups > 0 && <Priority icon={<ListChecks size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.lineups} lineup${todayData.lineups > 1 ? 's' : ''} to set`} sub={priorityTiming.lockIn ? `Locks in ${priorityTiming.lockIn}` : 'Across your leagues'} onClick={() => setOpenModal('lineup')} />}
+                {todayData.waivers > 0 && <Priority icon={<ArrowLeftRight size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.waivers} waiver target${todayData.waivers > 1 ? 's' : ''}`} sub={priorityTiming.waiverHint ?? (priorityTiming.waiverIn ? `Runs in ${priorityTiming.waiverIn}` : 'Runs coming up')} onClick={() => setOpenModal('waiver')} />}
                 {todayData.trades > 0 && <Priority icon={<Handshake size={17} style={{ color: 'var(--color-accent-400)' }} />} title={`${todayData.trades} trade${todayData.trades > 1 ? 's' : ''} pending`} sub="Waiting on you" onClick={() => setOpenModal('trade')} />}
               </div>
             ) : (
@@ -921,6 +964,29 @@ export default function NocturneDashboard({
         </div>
       )}
 
+      {/* ── Chat bubble — the design's circular launcher, on Nocturne tokens. Replaces
+             FloatingCommunications' own pill (hideLauncher), which was desktop-only
+             (`hidden md:inline-flex`) and so vanished on narrow screens. ── */}
+      {!isVisitor && !commsOpen && (
+        <button
+          type="button"
+          onClick={() => { setCommsTab(null); setCommsOpen(true) }}
+          data-testid="nocturne-chat-bubble"
+          aria-label="Open communications"
+          title="Chat"
+          style={{
+            position: 'fixed', bottom: 20, right: 20, zIndex: 40,
+            width: 52, height: 52, borderRadius: '50%',
+            display: 'grid', placeItems: 'center', cursor: 'pointer',
+            background: 'var(--color-accent)', color: '#fff',
+            border: '1px solid color-mix(in srgb, var(--color-accent-300) 40%, transparent)',
+            boxShadow: '0 10px 30px -8px color-mix(in srgb, var(--color-accent) 70%, transparent)',
+          }}
+        >
+          <MessageCircle size={22} />
+        </button>
+      )}
+
       {/* ── League detail popup — real fields off the league-list payload, nothing fabricated ── */}
       {leagueModal && (
         <div className="nocturne-dash-modal" onClick={() => setLeagueModal(null)}>
@@ -967,6 +1033,7 @@ export default function NocturneDashboard({
         <FloatingCommunications
           open={commsOpen}
           requestedTab={commsTab}
+          hideLauncher
           onOpen={() => setCommsOpen(true)}
           onClose={() => { setCommsOpen(false); setCommsTab(null) }}
           userId={userId}
