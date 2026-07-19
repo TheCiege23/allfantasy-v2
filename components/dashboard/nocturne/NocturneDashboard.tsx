@@ -1475,10 +1475,21 @@ function CommissionerHQ({
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 16 }}>
           {snapshots.map((s) => {
             const sel = s.leagueId === active.leagueId
+            // Leagues created from the default template all share one name, so several
+            // chips can read identically and become unpickable. When a name repeats,
+            // append a short stable id fragment to tell them apart. Names that are
+            // already unique are left completely alone.
+            const duplicated = snapshots.filter((o) => o.leagueName === s.leagueName).length > 1
             return (
               <button key={s.leagueId} type="button" onClick={() => onSelect(s.leagueId)}
+                title={duplicated ? `${s.leagueName} · id ${s.leagueId}` : s.leagueName}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 14px', borderRadius: 999, border: `1px solid ${sel ? 'var(--color-accent)' : 'var(--color-neutral-800)'}`, background: sel ? 'color-mix(in srgb, var(--color-accent) 14%, transparent)' : 'none', color: 'var(--color-text)', cursor: 'pointer', fontSize: 13.5, fontWeight: 500 }}>
                 {s.leagueName}
+                {duplicated && (
+                  <span style={{ fontSize: 11, color: 'var(--color-neutral-500)', fontFamily: 'ui-monospace,Menlo,monospace' }}>
+                    #{s.leagueId.slice(-4)}
+                  </span>
+                )}
               </button>
             )
           })}
