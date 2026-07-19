@@ -54,6 +54,7 @@ import { LineupIssuesModal, type LineupCheckPayload } from '@/app/dashboard/comp
 import { WaiverRecommendationsModal } from '@/app/dashboard/components/WaiverRecommendationsModal'
 import { PendingTradesModal } from '@/app/dashboard/components/PendingTradesModal'
 import { useGeoRestriction } from '@/lib/geo/useGeoRestriction'
+import { scopeBySelectedLeague } from '@/lib/dashboard/scope-by-selected-league'
 import type { LeftChatInitialTab } from '@/app/dashboard/types'
 import type { TradesDashboardResponse } from '@/app/dashboard/dashboardStripApiTypes'
 import './nocturne-dashboard.css'
@@ -79,13 +80,50 @@ const PLATFORM_COLORS: Record<string, string> = {
   sleeper: '#1f2a4d', espn: '#4a1414', yahoo: '#3a1d55', mfl: '#143a2e', fantrax: '#5a3a14',
 }
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null)
+/**
+ * Season year off a league row. MUST tolerate strings: `SleeperLeague.season` is a
+ * `String` column while `League.season` / `LegacyLeague.season` are `Int`. Reading it
+ * as a number only would silently null every Sleeper league and dump them all into
+ * the Historical bucket.
+ */
+const seasonYear = (v: unknown): number | null => {
+  if (typeof v === 'number' && Number.isFinite(v)) return v
+  if (typeof v === 'string') {
+    const n = Number.parseInt(v.trim(), 10)
+    if (Number.isFinite(n) && n > 1900 && n < 2200) return n
+  }
+  return null
+}
+
+/**
+ * Sleeper drives a league through pre_draft → drafting → post_draft → in_season →
+ * complete. A league being set up for the upcoming year is often still keyed to last
+ * season, so season-year alone misfiles it as history; conversely `complete` means the
+ * season is over no matter what year it carries. Native AF leagues don't model this yet
+ * (first season), so they fall through to the season-year comparison.
+ */
+const PRE_SEASON_STATUSES = new Set(['pre_draft', 'predraft', 'drafting', 'post_draft', 'postdraft'])
+function isCurrentSeasonLeague(l: { season: number | null; status: string }, currentYear: number): boolean {
+  const s = (l.status ?? '').toLowerCase().trim().replace(/\s+/g, '_')
+  if (s === 'complete' || s === 'completed') return false
+  if (PRE_SEASON_STATUSES.has(s)) return true
+  if (l.season != null) return l.season >= currentYear
+  return false
+}
 const str = (v: unknown): string | null => (typeof v === 'string' && v.trim() ? v.trim() : null)
 
 function platformColor(platform: string): string {
   return PLATFORM_COLORS[platform.toLowerCase()] ?? 'var(--color-accent-800)'
 }
 
-type DisplayLeague = { id: string; name: string; platform: string; initial: string; color: string; isCommissioner: boolean; status: string; unified: boolean }
+type DisplayLeague = {
+  id: string; name: string; platform: string; initial: string; color: string
+  isCommissioner: boolean; status: string; unified: boolean
+  // Real fields off the league-list payload (native + AF-Legacy board rows both carry these).
+  // `season` drives the Current vs Historical split; the rest populate the league detail popup.
+  season: number | null; teamCount: number | null; format: string | null
+  scoring: string | null; sport: string | null; platformLeagueId: string | null
+}
 
 function mapLeagues(payload: LeagueListPayload): DisplayLeague[] {
   const rows = Array.isArray(payload?.leagues) ? payload!.leagues! : []
@@ -103,13 +141,16 @@ function mapLeagues(payload: LeagueListPayload): DisplayLeague[] {
       isCommissioner: r.isCommissioner === true || r.userRole === 'commissioner',
       status: str(r.status) ?? str(r.lifecycleState) ?? 'Active',
       // Only leagues with a unified record resolve on /league/[id]; AF-Legacy board
-      // rows (hasUnifiedRecord=false) 404 there, so they deep-link to /af-legacy.
+      // rows (hasUnifiedRecord=false) 404 there — they open the detail popup instead.
       unified: r.hasUnifiedRecord === true,
+      season: seasonYear(r.season),
+      teamCount: num(r.teamCount) ?? num(r.leagueSize),
+      format: str(r.format) ?? str(r.leagueType),
+      scoring: str(r.scoring) ?? str(r.scoringType),
+      sport: str(r.sport) ?? str(r.sport_type),
+      platformLeagueId: str(r.platformLeagueId) ?? str(r.sleeperLeagueId),
     }
   })
-}
-function leagueHref(lg: DisplayLeague): string {
-  return lg.unified ? `/league/${lg.id}` : '/af-legacy'
 }
 
 // Raw league row → full UserLeague (what the reused warroom Team components need).
@@ -209,6 +250,9 @@ export default function NocturneDashboard({
   const [context, setContext] = useState<PrimaryContext>('global')
   const [tierOverride, setTierOverride] = useState<PreviewTier | null>(null)
   const [dashLeagueFilter, setDashLeagueFilter] = useState('all')
+  // League detail popup + the collapsed Historical section (547-league accounts need both).
+  const [leagueModal, setLeagueModal] = useState<DisplayLeague | null>(null)
+  const [showHistorical, setShowHistorical] = useState(false)
   const [leagueSearch, setLeagueSearch] = useState('')
   const [platformFilter, setPlatformFilter] = useState('all')
   const [view, setView] = useState<'cards' | 'list'>('cards')
@@ -244,13 +288,24 @@ export default function NocturneDashboard({
   )
   const hasPro = entitlements.hasPro
 
-  const commHealth = useMemo(() => initialCommissionerHealthSnapshots ?? [], [initialCommissionerHealthSnapshots])
+  // Commissioner HQ honors the top-bar league scope too — otherwise selecting one league
+  // still listed every commissioned league and kept the previous health card on screen.
+  const commHealth = useMemo(() => {
+    const all = initialCommissionerHealthSnapshots ?? []
+    return dashLeagueFilter === 'all' ? all : all.filter((s) => s.leagueId === dashLeagueFilter)
+  }, [initialCommissionerHealthSnapshots, dashLeagueFilter])
   const activeCommSnapshot = useMemo(
     () => commHealth.find((s) => s.leagueId === commLeagueId) ?? commHealth[0] ?? null,
     [commHealth, commLeagueId],
   )
 
   const leagues = useMemo(() => mapLeagues(initialLeagueList), [initialLeagueList])
+  // Hero chips + the commission callout follow the league scope (not the section-local
+  // search/platform filters), so "547 Leagues" collapses to the one you selected.
+  const scopedLeagues = useMemo(
+    () => (dashLeagueFilter === 'all' ? leagues : leagues.filter((l) => l.id === dashLeagueFilter)),
+    [leagues, dashLeagueFilter],
+  )
   const rank = useMemo(() => readRank(initialUserRankPayload), [initialUserRankPayload])
 
   // Real tier → Visitor/Free/Premium. While entitlements load, default to 'free'
@@ -301,7 +356,34 @@ export default function NocturneDashboard({
     return () => { cancelled = true; clearTimeout(t) }
   }, [playerQuery])
 
-  const todayData = today && today !== 'unavailable' ? today : null
+  // Today's priorities, scoped to the top-bar league filter. `/api/dashboard/today-actions`
+  // reports counts across EVERY league, so with a league selected the global counts are
+  // simply wrong for what's on screen. The payload's lineup.actions / waivers.recommendations
+  // / trades.trades each carry a leagueId, so we re-derive the counts from the scoped rows
+  // (same approach as the old shell's scopeBySelectedLeague usage) rather than fetching again.
+  const todayData = useMemo<TodayShape | null>(() => {
+    if (!today || today === 'unavailable') return null
+    if (dashLeagueFilter === 'all') return today
+    const lineupActions = scopeBySelectedLeague(
+      ((todayFull?.lineup as { actions?: Array<{ leagueId: string }> } | undefined)?.actions ?? []),
+      dashLeagueFilter,
+    )
+    const waiverRecs = scopeBySelectedLeague(
+      ((todayFull?.waivers as { recommendations?: Array<{ leagueId: string; pickups?: unknown[] }> } | undefined)?.recommendations ?? []),
+      dashLeagueFilter,
+    )
+    const trades = scopeBySelectedLeague(
+      ((todayFull?.trades as { trades?: Array<{ leagueId: string }> } | undefined)?.trades ?? []),
+      dashLeagueFilter,
+    )
+    const waivers = waiverRecs.reduce((n, r) => n + (Array.isArray(r.pickups) ? r.pickups.length : 0), 0)
+    return {
+      lineups: lineupActions.length,
+      waivers,
+      trades: trades.length,
+      urgent: lineupActions.length + trades.length,
+    }
+  }, [today, todayFull, dashLeagueFilter])
   // Reused components (RankingsCard, action modals, hero chips) dispatch window events to open chat.
   useEffect(() => {
     const openChimmy = () => { setCommsTab('chimmy'); setCommsOpen(true) }
@@ -333,8 +415,23 @@ export default function NocturneDashboard({
     })
   }, [leagues, leagueSearch, platformFilter, dashLeagueFilter])
 
+  // ── Current vs Historical ────────────────────────────────────────────────────
+  // An imported account can carry hundreds of past-season snapshots (547 here). Only
+  // leagues whose season is the live one belong in the main list; everything older is
+  // history and collapses behind a disclosure. Client-only route (ssr:false), so
+  // reading the clock during render can't cause a hydration mismatch.
+  const currentSeasonYear = useMemo(() => new Date().getFullYear(), [])
+  const currentLeagues = useMemo(
+    () => filteredLeagues.filter((l) => isCurrentSeasonLeague(l, currentSeasonYear)),
+    [filteredLeagues, currentSeasonYear],
+  )
+  const historicalLeagues = useMemo(
+    () => filteredLeagues.filter((l) => !isCurrentSeasonLeague(l, currentSeasonYear)),
+    [filteredLeagues, currentSeasonYear],
+  )
+
   const dashFilterLeagueName = dashLeagueFilter === 'all' ? null : leagues.find((l) => l.id === dashLeagueFilter)?.name ?? null
-  const commissionedCount = leagues.filter((l) => l.isCommissioner).length
+  const commissionedCount = scopedLeagues.filter((l) => l.isCommissioner).length
 
   const heroTitle = `Welcome back, ${userName.split(' ')[0] || userName}`
   const heroSubtitle = context === 'global'
@@ -450,7 +547,7 @@ export default function NocturneDashboard({
           <p style={{ fontSize: 14, color: 'var(--color-neutral-500)', margin: '0 0 16px' }}>{heroSubtitle}</p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <StatChip icon={<AlertCircle size={18} style={{ color: 'var(--color-accent-400)' }} />} value={String(urgentCount)} label="Need attention" />
-            <StatChip icon={<LayoutGrid size={18} style={{ color: 'var(--color-accent-400)' }} />} value={String(leagues.length)} label="Leagues" />
+            <StatChip icon={<LayoutGrid size={18} style={{ color: 'var(--color-accent-400)' }} />} value={String(scopedLeagues.length)} label="Leagues" />
             <Link href="/af-rankings" className="afcard" style={{ padding: '12px 18px', flexDirection: 'row', display: 'flex', alignItems: 'center', gap: 10, color: 'inherit' }}>
               <Trophy size={18} style={{ color: 'var(--color-accent-400)' }} />
               <div>
@@ -549,35 +646,44 @@ export default function NocturneDashboard({
               <div className="afcard" style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>
                 {leagues.length === 0 ? 'No leagues yet — import one to get started.' : 'No leagues match your filters.'}
               </div>
-            ) : view === 'cards' ? (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12 }}>
-                {filteredLeagues.map((lg) => (
-                  <div key={lg.id} className="afcard">
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
-                      <span className="afsrc" style={{ background: lg.color }}>{lg.initial}</span>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>{lg.name}</div>
-                        <div style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', textTransform: 'capitalize' }}>{lg.platform}</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      {lg.isCommissioner ? <span className="tag tag-accent">Commissioner</span> : <span className="tag tag-neutral">Manager</span>}
-                      <Link href={leagueHref(lg)} style={{ fontSize: 12, color: 'var(--color-accent-400)' }}>Open →</Link>
-                    </div>
-                  </div>
-                ))}
-              </div>
             ) : (
-              <div className="afcard" style={{ padding: 6 }}>
-                {filteredLeagues.map((lg) => (
-                  <Link key={lg.id} href={leagueHref(lg)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-md)', color: 'inherit', textDecoration: 'none' }}>
-                    <span className="afsrc" style={{ width: 24, height: 24, fontSize: 10, background: lg.color }}>{lg.initial}</span>
-                    <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 0 }}>{lg.name}</span>
-                    <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', width: 70, textTransform: 'capitalize' }}>{lg.platform}</span>
-                    {lg.isCommissioner ? <span className="tag tag-accent">Comm</span> : <span className="tag tag-neutral">Mgr</span>}
-                  </Link>
-                ))}
-              </div>
+              <>
+                {/* Current season — the leagues you're actually playing this year. */}
+                {currentLeagues.length > 0 ? (
+                  <LeagueCollection leagues={currentLeagues} view={view} onOpen={setLeagueModal} />
+                ) : (
+                  <div className="afcard" style={{ fontSize: 13, color: 'var(--color-neutral-500)' }}>
+                    No {currentSeasonYear} leagues yet — once a league is renewed for {currentSeasonYear} it shows here. Past seasons are under Historical below.
+                  </div>
+                )}
+
+                {/* Historical — past-season snapshots, collapsed by default. */}
+                {historicalLeagues.length > 0 && (
+                  <div style={{ marginTop: 14 }}>
+                    <button
+                      type="button"
+                      onClick={() => setShowHistorical((s) => !s)}
+                      aria-expanded={showHistorical}
+                      className="afcard"
+                      style={{ width: '100%', display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', textAlign: 'left', color: 'inherit', padding: '12px 16px' }}
+                    >
+                      <ChevronRight size={16} style={{ color: 'var(--color-neutral-500)', transition: 'transform .15s', transform: showHistorical ? 'rotate(90deg)' : 'none', flex: 'none' }} />
+                      <History size={16} style={{ color: 'var(--color-neutral-500)', flex: 'none' }} />
+                      <span style={{ fontWeight: 600, fontSize: 13.5, flex: 1 }}>
+                        Historical leagues ({historicalLeagues.length})
+                      </span>
+                      <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)' }}>
+                        {showHistorical ? 'Hide' : 'Show'} past seasons
+                      </span>
+                    </button>
+                    {showHistorical && (
+                      <div style={{ marginTop: 12 }}>
+                        <LeagueCollection leagues={historicalLeagues} view={view} onOpen={setLeagueModal} />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </>
             )}
             {commissionedCount > 0 && (
               <div className="afcard" style={{ marginTop: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap', borderColor: 'var(--color-accent-800)', background: 'linear-gradient(180deg,color-mix(in srgb, var(--color-accent-800) 20%, transparent),var(--color-surface))' }}>
@@ -815,6 +921,47 @@ export default function NocturneDashboard({
         </div>
       )}
 
+      {/* ── League detail popup — real fields off the league-list payload, nothing fabricated ── */}
+      {leagueModal && (
+        <div className="nocturne-dash-modal" onClick={() => setLeagueModal(null)}>
+          <div className="afcard" style={{ width: '100%', maxWidth: 480, position: 'relative' }} onClick={(e) => e.stopPropagation()}>
+            <button type="button" onClick={() => setLeagueModal(null)} aria-label="Close" style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', color: 'var(--color-neutral-500)', cursor: 'pointer' }}><X size={16} /></button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, paddingRight: 24 }}>
+              <span className="afsrc" style={{ width: 44, height: 44, fontSize: 15, background: leagueModal.color }}>{leagueModal.initial}</span>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 16 }}>{leagueModal.name}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', textTransform: 'capitalize' }}>
+                  {leagueModal.platform}{leagueModal.season ? ` · ${leagueModal.season} season` : ''}
+                  {(leagueModal.season ?? 0) < currentSeasonYear ? ' · historical' : ''}
+                </div>
+              </div>
+            </div>
+            <div className="dash-kicker" style={{ marginBottom: 10 }}>League details</div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2,1fr)', gap: 12 }}>
+              <LeagueDetailRow label="Season" value={leagueModal.season ? String(leagueModal.season) : '—'} />
+              <LeagueDetailRow label="Status" value={(leagueModal.status ?? '—').replace(/_/g, ' ')} />
+              <LeagueDetailRow label="Sport" value={leagueModal.sport ?? '—'} />
+              <LeagueDetailRow label="Teams" value={leagueModal.teamCount ? String(leagueModal.teamCount) : '—'} />
+              <LeagueDetailRow label="Format" value={leagueModal.format ?? '—'} />
+              <LeagueDetailRow label="Scoring" value={leagueModal.scoring ?? '—'} />
+              <LeagueDetailRow label="Your role" value={leagueModal.isCommissioner ? 'Commissioner' : 'Manager'} />
+            </div>
+            <div style={{ marginTop: 18 }}>
+              {leagueModal.unified ? (
+                <Link href={`/league/${leagueModal.id}`} className="btn btn-primary btn-block" style={{ width: '100%' }}>Open league →</Link>
+              ) : (
+                <>
+                  <p style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', margin: '0 0 10px' }}>
+                    This is an imported {leagueModal.season ?? 'past'}-season snapshot, so it has no live league page. Its history feeds your AF Rank and Legacy tools.
+                  </p>
+                  <Link href="/af-legacy" className="btn btn-secondary btn-block" style={{ width: '100%' }}>Open AF Legacy tools →</Link>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── Communications hub — League / Chimmy / DMs (own floating launcher + hero NavChips) ── */}
       {!isVisitor && (
         <FloatingCommunications
@@ -905,6 +1052,74 @@ function Avatar({ name, image, size }: { name: string; image?: string | null; si
     return <img src={image} alt="" width={size} height={size} style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover' }} />
   }
   return <div style={{ width: size, height: size, borderRadius: '50%', background: 'var(--color-accent-800)', display: 'grid', placeItems: 'center', font: `700 ${Math.round(size * 0.4)}px ui-monospace,Menlo,monospace`, color: 'var(--color-accent-100)' }}>{initials}</div>
+}
+
+/**
+ * Cards/list renderer shared by the Current and Historical league sections.
+ * Rows OPEN THE DETAIL POPUP rather than navigating: AF-Legacy board rows have no
+ * `/league/[id]` page (they 404), and the old behaviour of sending them all to the
+ * generic `/af-legacy` landing page is what made "Open" feel random. The popup then
+ * offers the real deep-link for leagues that actually have one.
+ */
+function LeagueCollection({ leagues, view, onOpen }: { leagues: DisplayLeague[]; view: 'cards' | 'list'; onOpen: (lg: DisplayLeague) => void }) {
+  if (view === 'cards') {
+    return (
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit,minmax(240px,1fr))', gap: 12 }}>
+        {leagues.map((lg) => (
+          <div
+            key={lg.id}
+            className="afcard"
+            role="button"
+            tabIndex={0}
+            onClick={() => onOpen(lg)}
+            onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onOpen(lg) } }}
+            style={{ cursor: 'pointer' }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+              <span className="afsrc" style={{ background: lg.color }}>{lg.initial}</span>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lg.name}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', textTransform: 'capitalize' }}>
+                  {lg.platform}{lg.season ? ` · ${lg.season}` : ''}
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              {lg.isCommissioner ? <span className="tag tag-accent">Commissioner</span> : <span className="tag tag-neutral">Manager</span>}
+              <span style={{ fontSize: 12, color: 'var(--color-accent-400)' }}>Open →</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )
+  }
+  return (
+    <div className="afcard" style={{ padding: 6 }}>
+      {leagues.map((lg) => (
+        <button
+          key={lg.id}
+          type="button"
+          onClick={() => onOpen(lg)}
+          style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '8px 10px', borderRadius: 'var(--radius-md)', color: 'inherit', background: 'none', border: 'none', width: '100%', cursor: 'pointer', textAlign: 'left' }}
+        >
+          <span className="afsrc" style={{ width: 24, height: 24, fontSize: 10, background: lg.color }}>{lg.initial}</span>
+          <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lg.name}</span>
+          <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', width: 46, flex: 'none' }}>{lg.season ?? '—'}</span>
+          <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', width: 66, flex: 'none', textTransform: 'capitalize' }}>{lg.platform}</span>
+          {lg.isCommissioner ? <span className="tag tag-accent">Comm</span> : <span className="tag tag-neutral">Mgr</span>}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function LeagueDetailRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: 'var(--color-neutral-600)' }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 600, textTransform: 'capitalize' }}>{value}</div>
+    </div>
+  )
 }
 
 function StatChip({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
