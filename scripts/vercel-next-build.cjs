@@ -197,6 +197,7 @@ const filesToKeep = new Set([
   path.join('app', 'api', 'cron', 'live-score-tick', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'sync-player-images', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'legacy-import-drain', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'cron', 'import-season-stats', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'automation', 'health', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'automation', 'waivers', 'run', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'ai', 'waivers', 'commissioner-insights', 'route.ts').replace(/\\/g, '/'),
