@@ -2,8 +2,7 @@ import { withApiUsage } from "@/lib/telemetry/usage"
 import { getOpenAIRouteClient } from '@/lib/ai/openai-route-client'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { consumeRateLimit, getClientIp } from '@/lib/rate-limit'
-import { requireAuthOrOrigin, forbiddenResponse } from '@/lib/api-auth'
+import { requireLegacySleeperIdentity } from '@/lib/legacy/requireLegacySleeperIdentity'
 import { trackLegacyToolUsage } from '@/lib/analytics-server'
 import { buildBaselineMeta } from '@/lib/engine/response-guard'
 import {
@@ -184,16 +183,25 @@ Output JSON:
 
 export const POST = withApiUsage({ endpoint: "/api/legacy/waiver/analyze", tool: "LegacyWaiverAnalyze" })(async (request: NextRequest) => {
   try {
-    const auth = requireAuthOrOrigin(request)
-    if (!auth.authenticated) {
-      return forbiddenResponse(auth.error || 'Unauthorized')
-    }
-
-    const ip = getClientIp(request)
     const body = await request.json()
-    const { sleeper_username, league_id, goal: userProvidedGoal, sleeperUser: sleeperUserIdentity } = body
+    const { league_id, goal: userProvidedGoal, sleeperUser: sleeperUserIdentity } = body
 
-    const resolvedUsername = sleeperUserIdentity?.username || sleeper_username
+    /*
+     * Was `requireAuthOrOrigin`, which authenticates nobody. Like rankings/analyze, this
+     * accepted the username from either `sleeperUser.username` or `sleeper_username` —
+     * both caller-controlled, so both are only compared now, never used to select data.
+     *
+     * The old limiter keyed on that same caller-supplied username with
+     * `includeIpInKey: false`, so rotating the username bought unlimited model calls. The
+     * gate's limiter keys on the resolved actor instead.
+     */
+    const gate = await requireLegacySleeperIdentity(request, {
+      requestedUsername: String(sleeperUserIdentity?.username || body?.sleeper_username || '').trim() || null,
+      rateLimit: { action: 'waiver_analyze', maxRequests: 10, windowMs: 60_000 },
+    })
+    if (!gate.ok) return gate.response
+
+    const resolvedUsername = gate.identity.sleeperUsername
     const resolvedUserId = sleeperUserIdentity?.userId || undefined
     const normalizedLeagueId = String(league_id || '').trim()
 
@@ -209,22 +217,9 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/waiver/analyze", tool:
       return NextResponse.json({ error: boundary.message }, { status: boundary.status })
     }
 
-    const rl = consumeRateLimit({
-      scope: 'legacy',
-      action: 'waiver_analyze',
-      sleeperUsername: resolvedUsername,
-      ip,
-      maxRequests: 5,
-      windowMs: 60_000,
-      includeIpInKey: false,
-    })
-
-    if (!rl.success) {
-      return NextResponse.json(
-        { error: 'Rate limit exceeded', retryAfterSec: rl.retryAfterSec },
-        { status: 429 }
-      )
-    }
+    // Rate limiting moved into the gate above, keyed on the resolved actor. The limiter that
+    // stood here keyed on `resolvedUsername` — which the caller supplied — with
+    // `includeIpInKey: false`, so rotating the username reset the budget and the cap never bound.
 
     const sleeperUser = resolvedUserId
       ? { user_id: resolvedUserId, username: resolvedUsername, display_name: resolvedUsername }
@@ -881,7 +876,8 @@ Write narrative summary, per-player reasoning, and roster notes.`
       },
       roster_count: userRosterCategorized.length,
       free_agent_count: freeAgents.length,
-      remaining: rl.remaining,
+      // From the gate's per-actor limiter now; clients read this to show remaining runs.
+      remaining: gate.rateLimit?.remaining ?? null,
       legacyDecision: {
         topCandidates: legacyWaiverCandidates.slice(0, 5),
         topRecommendation: topLegacyWaiver,
