@@ -84,7 +84,7 @@ export default function AdaptiveDashboard({
   const selfHref = pathname || '/dashboard/v2'
 
   const access = useAccessTier()
-  const { balance: tokenBalance } = useTokenBalance()
+  const { balance: tokenBalance, loading: tokenBalanceLoading, error: tokenBalanceError } = useTokenBalance()
   const entitlements = useEntitlements()
 
   // ── Layout state ────────────────────────────────────────────────────────────
@@ -448,7 +448,10 @@ export default function AdaptiveDashboard({
                 </span>
               </span>
               <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 12.5, color: 'var(--af-text-dim)' }}>
-                Tokens <span style={{ color: 'var(--af-gold)', fontWeight: 800, fontSize: 13 }}>🪙 {tokenBalance}</span>
+                Tokens{' '}
+                <span style={{ color: 'var(--af-gold)', fontWeight: 800, fontSize: 13 }}>
+                  🪙 {tokenBalanceLoading ? '...' : tokenBalanceError || tokenBalance == null ? '—' : tokenBalance}
+                </span>
               </span>
               {!role.hasPro && !role.loading && (
                 <Link href="/upgrade" className="af-btn af-btn-primary"

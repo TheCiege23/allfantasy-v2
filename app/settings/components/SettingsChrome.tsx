@@ -21,7 +21,7 @@ import {
   User,
 } from 'lucide-react'
 import { useLanguage } from '@/components/i18n/LanguageProviderClient'
-import { useEntitlement } from '@/hooks/useEntitlement'
+import { useEntitlements } from '@/hooks/useEntitlements'
 import { AVATAR_PRESET_EMOJI } from '@/lib/avatar'
 import type { SettingsProfile } from './sections/settings-types'
 import '../nocturne-settings.css'
@@ -100,9 +100,27 @@ function SidebarProfileCard({
   profile: SettingsProfile
   planLabel: string | null
 }) {
-  const ent = useEntitlement('pro_autocoach')
-  const isPro = ent.isActiveOrGrace
-  const planText = planLabel ?? (isPro ? 'Pro' : 'Free')
+  const ent = useEntitlements()
+  const isPro = ent.hasAnyPaid
+  // Same tier-priority order as BillingSettingsSection.tsx: supreme inherits every lower tier, so
+  // it must win the label even though hasCommissioner/hasPro/hasWarRoom are all also true for it.
+  // A fetch error must never be conflated with a verified free plan — the hook's own catch path
+  // leaves hasSupreme/etc. at their last-known (false, on a first-load failure) value rather than
+  // proving "free," so this checks ent.error explicitly instead of trusting those booleans alone.
+  const derivedPlanText = ent.loading
+    ? null
+    : ent.error
+      ? 'Unable to verify'
+      : ent.hasSupreme
+        ? 'AF Supreme'
+        : ent.hasCommissioner
+          ? 'AF Commissioner'
+          : ent.hasPro
+            ? 'AF Pro'
+            : ent.hasWarRoom
+              ? 'AF Legacy'
+              : 'Free'
+  const planText = planLabel ?? derivedPlanText ?? '...'
 
   const name = profile?.displayName || profile?.username || 'Your profile'
   const username = profile?.username
@@ -144,6 +162,11 @@ function SidebarProfileCard({
           <span className="ns-rank">Lv.{level}</span>
         ) : null}
         <span className={`ns-plan ${isPro ? 'is-pro' : 'is-free'}`}>{planText}</span>
+        {ent.isAdminBypassAccount && (
+          <span className="ns-rank" title="Admin bypass — not a real Stripe subscription" data-testid="sidebar-plan-bypass-notice">
+            (bypass)
+          </span>
+        )}
       </div>
 
       {sports.length > 0 ? (

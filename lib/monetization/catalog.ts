@@ -119,7 +119,11 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     amountUsd: 19.99,
     currency: "usd",
     interval: "month",
-    tokenAmount: 1500,
+    // Must match lib/tokens/subscription-policy.ts's supreme.monthlyIncludedPremiumCredits — that
+    // policy value is what the invoice.payment_succeeded webhook actually grants (TokenSpendService
+    // .grantMonthlySubscriptionCredits). This field was previously 1500, overpromising vs. the 1000
+    // actually credited.
+    tokenAmount: 1000,
     planFamily: "af_supreme",
     stripePriceEnvVar: "STRIPE_PRICE_AF_SUPREME_MONTHLY",
   },
@@ -132,7 +136,9 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     amountUsd: 199.99,
     currency: "usd",
     interval: "year",
-    tokenAmount: 18000,
+    // Must match subscription-policy.ts's supreme.yearlyIncludedPremiumCredits (15000). Previously
+    // 18000, overpromising vs. what invoice.payment_succeeded actually grants.
+    tokenAmount: 15000,
     planFamily: "af_supreme",
     stripePriceEnvVar: "STRIPE_PRICE_AF_SUPREME_YEARLY",
   },

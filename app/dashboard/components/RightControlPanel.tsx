@@ -175,7 +175,10 @@ export function RightControlPanel({
           {(() => {
             const chip = resolvePlanChip(entitlements)
             if (!chip) return null
-            const hasTokens = !tokenBalance.loading && tokenBalance.balance > 0
+            const visibleTokenCount =
+              !tokenBalance.loading && tokenBalance.balance != null && tokenBalance.balance > 0
+                ? tokenBalance.balance
+                : null
             return (
               <Link
                 href="/settings?tab=billing"
@@ -183,7 +186,7 @@ export function RightControlPanel({
               >
                 <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${chip.dotClass}`} />
                 <span className="truncate text-[9px] font-bold text-white/72">{chip.label}</span>
-                {hasTokens ? (
+                {visibleTokenCount != null ? (
                   tokenBalance.isAdminBypassAccount ? (
                     <span
                       className="text-[9px] text-white/35"
@@ -192,7 +195,7 @@ export function RightControlPanel({
                       · Admin bypass
                     </span>
                   ) : (
-                    <span className="text-[9px] text-white/35">· {tokenBalance.balance.toLocaleString()} tokens</span>
+                    <span className="text-[9px] text-white/35">· {visibleTokenCount.toLocaleString()} tokens</span>
                   )
                 ) : null}
               </Link>

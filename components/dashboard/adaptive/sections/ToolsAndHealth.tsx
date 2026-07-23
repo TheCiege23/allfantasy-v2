@@ -60,7 +60,8 @@ function tokenTools(category: 'ai_feature' | 'commissioner_function') {
 export function TokenToolsStrip({
   tokenBalance, onSpend, category, title,
 }: {
-  tokenBalance: number
+  /** null when the balance hasn't loaded yet or the fetch failed — never a fabricated 0. */
+  tokenBalance: number | null
   onSpend: (req: UnlockRequest) => void
   category: 'ai_feature' | 'commissioner_function'
   title: string
@@ -78,12 +79,12 @@ export function TokenToolsStrip({
           display: 'inline-flex', alignItems: 'center', gap: 4,
         }}>
           <Coins size={11} strokeWidth={2.5} />
-          {tokenBalance} available
+          {tokenBalance == null ? 'Balance unavailable' : `${tokenBalance} available`}
         </span>
       </div>
       <div className="af-hscroll">
         {tools.map((t) => {
-          const affordable = tokenBalance >= t.tokenCost
+          const affordable = tokenBalance != null && tokenBalance >= t.tokenCost
           return (
             <button
               key={t.code}

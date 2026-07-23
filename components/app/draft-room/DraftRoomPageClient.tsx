@@ -502,7 +502,7 @@ export function DraftRoomPageClient({
    * get to use AI features, spending one token per request. Gate is true when
    * EITHER a qualifying subscription is active OR balance > 0.
    */
-  const hasAiAccess = hasAiSubscription || tokenBalance.balance > 0
+  const hasAiAccess = hasAiSubscription || (tokenBalance.balance != null && tokenBalance.balance > 0)
   const resolvedOrphanAiProviderAvailable =
     (session as { orphanAiProviderAvailable?: boolean } | null)?.orphanAiProviderAvailable ??
     orphanAiProviderAvailableState ??

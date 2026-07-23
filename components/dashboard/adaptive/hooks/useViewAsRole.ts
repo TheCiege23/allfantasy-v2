@@ -72,7 +72,8 @@ export function useViewAsRole({
 }: {
   access: UseAccessTierResult
   entitlements: EntitlementsState
-  tokenBalance: number
+  /** null while the balance is loading or unavailable — never a fabricated 0. */
+  tokenBalance: number | null
   /** True when the user commissions at least one of their real leagues. */
   commissionsAnyLeague: boolean
 }): {
@@ -112,7 +113,7 @@ export function useViewAsRole({
       isCommissioner: applied.isCommissioner,
       roleKey: `${applied.planTier}-${applied.isCommissioner ? 'c' : 'm'}`,
       hasPro,
-      hasTokens: tokenBalance > 0,
+      hasTokens: tokenBalance != null && tokenBalance > 0,
       loading,
       planLabel: resolvePlanLabel(entitlements, applied.planTier, Boolean(VIEW_AS_ENABLED && override)),
       roleLabel: applied.isCommissioner ? 'Commissioner' : 'Manager',
