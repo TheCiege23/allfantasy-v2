@@ -818,6 +818,24 @@ export const authOptions: NextAuthOptions = {
       } catch (signalErr) {
         console.warn("[auth] identity signal capture (signIn event) failed (non-blocking):", signalErr);
       }
+
+      // Join the anonymous pre-auth campaign journey to this account. The attribution
+      // cookies are set server-side in middleware and are SameSite=Lax specifically so
+      // they survive the OAuth provider's cross-site redirect back to us — this is the
+      // one moment where the anonymous journey and the real user id are both in hand.
+      // Its own try/catch, matching the blocks above: a failure here must not skip
+      // anything else, and must never block sign-in.
+      try {
+        const { cookies } = await import("next/headers");
+        const cookieStore = await cookies();
+        const { linkAttributionToUser } = await import("@/lib/analytics/linkAttributionToUser");
+        await linkAttributionToUser({
+          userId: user.id,
+          getCookie: (name) => cookieStore.get(name)?.value,
+        });
+      } catch (attributionErr) {
+        console.warn("[auth] attribution link (signIn event) failed (non-blocking):", attributionErr);
+      }
     },
   },
 };
