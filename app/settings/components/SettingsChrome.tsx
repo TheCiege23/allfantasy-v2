@@ -104,17 +104,22 @@ function SidebarProfileCard({
   const isPro = ent.hasAnyPaid
   // Same tier-priority order as BillingSettingsSection.tsx: supreme inherits every lower tier, so
   // it must win the label even though hasCommissioner/hasPro/hasWarRoom are all also true for it.
-  const derivedPlanText = !ent.loading
-    ? ent.hasSupreme
-      ? 'AF Supreme'
-      : ent.hasCommissioner
-        ? 'AF Commissioner'
-        : ent.hasPro
-          ? 'AF Pro'
-          : ent.hasWarRoom
-            ? 'AF Legacy'
-            : 'Free'
-    : null
+  // A fetch error must never be conflated with a verified free plan — the hook's own catch path
+  // leaves hasSupreme/etc. at their last-known (false, on a first-load failure) value rather than
+  // proving "free," so this checks ent.error explicitly instead of trusting those booleans alone.
+  const derivedPlanText = ent.loading
+    ? null
+    : ent.error
+      ? 'Unable to verify'
+      : ent.hasSupreme
+        ? 'AF Supreme'
+        : ent.hasCommissioner
+          ? 'AF Commissioner'
+          : ent.hasPro
+            ? 'AF Pro'
+            : ent.hasWarRoom
+              ? 'AF Legacy'
+              : 'Free'
   const planText = planLabel ?? derivedPlanText ?? '...'
 
   const name = profile?.displayName || profile?.username || 'Your profile'

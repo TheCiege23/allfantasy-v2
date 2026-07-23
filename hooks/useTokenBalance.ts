@@ -34,8 +34,13 @@ export function useTokenBalance() {
     try {
       const res = await fetchWithRetry('/api/tokens/balance', undefined, { context: 'token-balance' })
       const json = await res.json()
+      // The API contract guarantees a numeric `balance` on 200. If that's ever violated, treat it as
+      // a failure rather than silently coercing to a fabricated 0 that looks like a verified balance.
+      if (typeof json.balance !== 'number' || !Number.isFinite(json.balance)) {
+        throw new Error('Token balance response missing a valid balance field')
+      }
       setData({
-        balance: json.balance ?? 0,
+        balance: json.balance,
         updatedAt: json.updatedAt ?? '',
         isAdminBypassAccount: Boolean(json.isAdminBypassAccount),
         lifetimePurchased: Number(json.lifetimePurchased ?? 0),

@@ -106,7 +106,7 @@ export function SettingsMenu({ onClose }: { onClose: () => void }) {
               <div className={styles.smPlanLabel}>{planName}</div>
               <div className={styles.smPlanSub}>
                 {isAdminBypassAccount
-                  ? 'Admin bypass — not a real subscription'
+                  ? 'Admin bypass — not a real Stripe subscription'
                   : renewsAt
                     ? `Renews ${renewsAt} · billing & invoices`
                     : 'Upgrade for more · billing & invoices'}

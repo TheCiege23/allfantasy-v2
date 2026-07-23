@@ -28,15 +28,20 @@ export function AccountSettingsSection({
       })
     : null
 
-  const derivedPlanDisplay = ents.hasSupreme
-    ? "AF Supreme"
-    : ents.hasCommissioner
-      ? "AF Commissioner"
-      : ents.hasPro
-        ? "AF Pro"
-        : ents.hasWarRoom
-          ? "AF Legacy"
-          : t("settings.account.planFree")
+  // A fetch error must never be conflated with a verified free plan — the hook's own catch path
+  // leaves hasSupreme/etc. at their last-known (false, on a first-load failure) value rather than
+  // proving "free," so this checks ents.error explicitly instead of trusting those booleans alone.
+  const derivedPlanDisplay = ents.error
+    ? "Unable to verify"
+    : ents.hasSupreme
+      ? "AF Supreme"
+      : ents.hasCommissioner
+        ? "AF Commissioner"
+        : ents.hasPro
+          ? "AF Pro"
+          : ents.hasWarRoom
+            ? "AF Legacy"
+            : t("settings.account.planFree")
   const planDisplay = planLabel?.trim() || (ents.loading ? "..." : derivedPlanDisplay)
 
   const deletionMailto = `mailto:support@allfantasy.ai?subject=${encodeURIComponent(

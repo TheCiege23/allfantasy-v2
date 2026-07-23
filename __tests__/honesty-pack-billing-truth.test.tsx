@@ -1,10 +1,13 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { renderHook, waitFor } from '@testing-library/react'
+import { render, renderHook, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { useTokenBalance } from '@/hooks/useTokenBalance'
+import { usePostPurchaseSync } from '@/hooks/usePostPurchaseSync'
 import { getMonetizationCatalogItemBySku } from '@/lib/monetization/catalog'
 import { SUBSCRIPTION_TOKEN_POLICY_CONFIG } from '@/lib/tokens/subscription-policy'
+import { AccountSettingsSection } from '@/app/settings/components/sections/AccountSettingsSection'
+import { toast } from 'sonner'
 
 const root = resolve(__dirname, '..')
 function read(rel: string): string {
@@ -17,12 +20,29 @@ function read(rel: string): string {
  * fabricated on a fetch failure. Source-scan contracts follow this repo's existing no-stub-leakage
  * pattern; the token-balance hook test follows the existing renderHook + fetch-mock convention
  * (see chimmy-alert-actions-hook.test.ts).
+ *
+ * `fetchMock` is declared once at module scope (not per-describe) because `vi.stubGlobal` mutates
+ * the real global — a second `vi.stubGlobal('fetch', ...)` in a later describe block would silently
+ * replace the first describe block's mock for the whole file, since describe bodies all run during
+ * collection before any `it` executes.
  */
+const fetchMock = vi.fn()
+vi.stubGlobal('fetch', fetchMock)
+
+vi.mock('@/components/i18n/LanguageProviderClient', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/components/i18n/LanguageProviderClient')>()
+  return { ...actual, useLanguage: () => actual.defaultLanguageValue }
+})
+
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams('success=true'),
+}))
+
+vi.mock('sonner', () => ({
+  toast: { success: vi.fn(), info: vi.fn(), error: vi.fn(), custom: vi.fn() },
+}))
 
 describe('Billing Truth — useTokenBalance never fabricates a zero balance on failure', () => {
-  const fetchMock = vi.fn()
-  vi.stubGlobal('fetch', fetchMock)
-
   beforeEach(() => {
     fetchMock.mockReset()
   })
@@ -97,14 +117,49 @@ describe('Billing Truth — admin bypass is disclosed, not shown as a real subsc
 })
 
 describe('Billing Truth — Account tab shows a real plan, not a hardcoded Free', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+  })
+
   it('AccountSettingsSection derives a real plan from useEntitlements instead of trusting a null prop', () => {
     const src = read('app/settings/components/sections/AccountSettingsSection.tsx')
     expect(src).toContain('useEntitlements')
     expect(src).toContain('derivedPlanDisplay')
   })
+
+  // Regression test for a review-caught bug: the original derivedPlanDisplay only checked
+  // `ents.loading`, never `ents.error`, so a genuine fetch failure fell through the same
+  // tier-priority chain as a verified free plan and rendered "Free" — indistinguishable from a
+  // real, checked answer. This must render "Unable to verify" instead.
+  it('renders "Unable to verify" (not "Free") when the entitlements fetch fails', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 500, json: async () => ({ error: 'boom' }) })
+
+    render(<AccountSettingsSection accountCreatedAt={null} planLabel={null} />)
+
+    await screen.findByText('Unable to verify')
+    expect(screen.queryByText('Free')).toBeNull()
+  })
+
+  it('renders the real plan name once entitlements load successfully', async () => {
+    fetchMock.mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        entitlement: { plans: ['supreme'], status: 'active', currentPeriodEnd: null, gracePeriodEnd: null },
+        isAdminBypassAccount: false,
+      }),
+    })
+
+    render(<AccountSettingsSection accountCreatedAt={null} planLabel={null} />)
+
+    await screen.findByText('AF Supreme')
+  })
 })
 
 describe('Billing Truth — checkout success is never claimed without real verification', () => {
+  beforeEach(() => {
+    fetchMock.mockReset()
+  })
+
   it('usePostPurchaseSync no longer treats no_session as equivalent to a verified sync', () => {
     const src = read('hooks/usePostPurchaseSync.ts')
     expect(src).not.toContain("syncStatus === 'synced' || syncStatus === 'no_session'")
@@ -115,6 +170,57 @@ describe('Billing Truth — checkout success is never claimed without real verif
     const src = read('app/donate/success/page.tsx')
     expect(src).not.toContain('>Payment confirmed<')
     expect(src).not.toContain('Bracket Lab Pass unlocked')
+  })
+
+  // Regression test for direct navigation to a success URL without a completed payment: a bare
+  // `?success=true` (no session_id) must never resolve as a verified purchase, since the server
+  // has nothing to check it against. `next/navigation` is mocked at module scope to exactly this
+  // URL shape (see top of file).
+  it('never reports success when the URL claims success but carries no session_id to verify', async () => {
+    fetchMock.mockImplementation((url: string) => {
+      if (url.includes('/api/monetization/post-purchase-sync')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            syncStatus: 'no_session',
+            syncMessage: 'No checkout session id provided. Refreshed current state.',
+            sessionId: null,
+            syncEvidence: { subscription: false, tokens: false },
+          }),
+        })
+      }
+      if (url.includes('/api/subscription/entitlements')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            entitlement: { plans: [], status: 'none', currentPeriodEnd: null, gracePeriodEnd: null },
+            isAdminBypassAccount: false,
+            hasAccess: false,
+          }),
+        })
+      }
+      if (url.includes('/api/tokens/balance')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({
+            balance: 0,
+            updatedAt: '',
+            isAdminBypassAccount: false,
+            lifetimePurchased: 0,
+            lifetimeSpent: 0,
+            lifetimeRefunded: 0,
+          }),
+        })
+      }
+      return Promise.resolve({ ok: false, status: 404, json: async () => ({}) })
+    })
+
+    const { result } = renderHook(() => usePostPurchaseSync())
+
+    await waitFor(() => expect(result.current.state.phase).toBe('idle'))
+
+    expect(result.current.state.phase).not.toBe('success')
+    expect(toast.success).not.toHaveBeenCalled()
   })
 })
 
