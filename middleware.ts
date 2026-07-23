@@ -6,6 +6,7 @@ import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret"
 import { isFullyBlocked, isPaidBlocked } from "@/lib/geo/restrictedStates"
 import { getPublicSiteHostname } from "@/lib/site-public-origin"
 import { GUEST_SESSION_COOKIE_NAME } from "@/lib/guest-mode/guestSessionToken"
+import { applyAttributionCapture } from "@/lib/analytics/attributionCookies"
 
 /**
  * Once a visitor is authenticated, the no-login trial cookie (`af_guest_session`)
@@ -287,7 +288,18 @@ function nextWithRouteHeaders(request: NextRequest, pathname: string): NextRespo
   })
 }
 
+/**
+ * Campaign attribution is applied by the `middleware` wrapper below rather than inside
+ * `routeMiddleware`, which has ~10 distinct return points (geo redirects, host
+ * canonicalization, the username gate, `/` → `/dashboard`). Stamping cookies at a single
+ * choke point means a new redirect added later cannot silently drop attribution.
+ */
 export async function middleware(request: NextRequest) {
+  const response = await routeMiddleware(request)
+  return applyAttributionCapture(request, response)
+}
+
+async function routeMiddleware(request: NextRequest) {
   const { pathname } = request.nextUrl
 
   // ── Hard early-exit for all API routes ───────────────────────────────────
