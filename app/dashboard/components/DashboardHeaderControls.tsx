@@ -68,7 +68,10 @@ export function DashboardHeaderControls({
   }, [menuOpen])
 
   const chip = resolvePlanChip(entitlements)
-  const hasTokens = !tokenBalance.loading && tokenBalance.balance > 0
+  const visibleTokenCount =
+    !tokenBalance.loading && tokenBalance.balance != null && tokenBalance.balance > 0
+      ? tokenBalance.balance
+      : null
 
   return (
     <div className="flex shrink-0 items-center gap-2">
@@ -115,7 +118,7 @@ export function DashboardHeaderControls({
             <span className="hidden items-center gap-1 lg:inline-flex">
               <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${chip.dotClass}`} />
               <span className="text-[10px] font-bold text-white/70">{chip.label}</span>
-              {hasTokens ? (
+              {visibleTokenCount != null ? (
                 tokenBalance.isAdminBypassAccount ? (
                   <span
                     className="text-[10px] text-white/35"
@@ -124,7 +127,7 @@ export function DashboardHeaderControls({
                     · Admin
                   </span>
                 ) : (
-                  <span className="text-[10px] text-white/35">· {tokenBalance.balance.toLocaleString()}</span>
+                  <span className="text-[10px] text-white/35">· {visibleTokenCount.toLocaleString()}</span>
                 )
               ) : null}
             </span>
@@ -146,7 +149,7 @@ export function DashboardHeaderControls({
                 >
                   <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${chip.dotClass}`} />
                   <span className="text-[9px] font-bold text-white/72">{chip.label}</span>
-                  {hasTokens ? (
+                  {visibleTokenCount != null ? (
                     tokenBalance.isAdminBypassAccount ? (
                       <span
                         className="text-[9px] text-white/35"
@@ -155,7 +158,7 @@ export function DashboardHeaderControls({
                         · Admin bypass
                       </span>
                     ) : (
-                      <span className="text-[9px] text-white/35">· {tokenBalance.balance.toLocaleString()} tokens</span>
+                      <span className="text-[9px] text-white/35">· {visibleTokenCount.toLocaleString()} tokens</span>
                     )
                   ) : null}
                 </Link>

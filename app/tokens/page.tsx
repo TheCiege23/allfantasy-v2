@@ -70,7 +70,7 @@ function formatDelta(delta: number): string {
 
 export default function TokensPage() {
   const { t, tInterpolate } = useLanguage()
-  const { balance, loading: balanceLoading, refetch: refetchBalance } = useTokenBalance()
+  const { balance, loading: balanceLoading, error: balanceError, refetch: refetchBalance } = useTokenBalance()
   const [tokenPacks, setTokenPacks] = useState<TokenPack[]>([])
   const [rules, setRules] = useState<SpendRule[]>([])
   const [history, setHistory] = useState<LedgerEntry[]>([])
@@ -424,6 +424,10 @@ export default function TokensPage() {
             <Coins className="h-4 w-4 text-amber-300" />
             {balanceLoading ? (
               <Loader2 className="h-4 w-4 animate-spin text-amber-300" />
+            ) : balanceError || balance == null ? (
+              <span className="text-sm font-semibold text-amber-100/50 tabular-nums" data-testid="tokens-balance-unavailable">
+                —
+              </span>
             ) : (
               <span className="text-sm font-semibold text-amber-100 tabular-nums">{balance}</span>
             )}

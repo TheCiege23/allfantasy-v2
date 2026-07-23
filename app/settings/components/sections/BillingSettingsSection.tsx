@@ -89,6 +89,12 @@ export function BillingSettingsSection() {
             })}
           </div>
         )}
+
+        {ents.isAdminBypassAccount && (
+          <p className="mt-3 text-[11px] italic" style={{ color: "var(--muted2)" }} data-testid="settings-billing-bypass-notice">
+            Admin bypass — this plan is not a real Stripe subscription.
+          </p>
+        )}
       </div>
 
       {/* AI Token balance */}
@@ -120,7 +126,7 @@ export function BillingSettingsSection() {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {hasAnySub ? (
+        {hasAnySub && !ents.isAdminBypassAccount ? (
           <a
             href="/api/subscription/billing-portal"
             className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border px-4 py-2 text-sm font-semibold transition hover:opacity-90"

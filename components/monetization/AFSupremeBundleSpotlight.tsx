@@ -96,7 +96,7 @@ export function AFSupremeBundleSpotlight({ className = '' }: { className?: strin
             ))}
           </ul>
           <p className="mt-2 text-[11px] text-white/65" data-testid="af-supreme-token-clarity-copy">
-            Includes 1,500 tokens monthly or 18,000 yearly. Tokens only apply to token-metered actions where policy requires.
+            Includes 1,000 tokens monthly or 15,000 yearly. Tokens only apply to token-metered actions where policy requires.
           </p>
         </article>
 

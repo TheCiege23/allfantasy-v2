@@ -125,7 +125,7 @@ export function InContextMonetizationCard({
       <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-white/65">
         <span className="inline-flex items-center gap-1" data-testid={`${testIdPrefix}-token-balance`}>
           <Coins className="h-3.5 w-3.5 text-amber-300" />
-          {tokenBalance?.balance ?? 0} tokens
+          {loading ? '...' : error || !tokenBalance ? '— tokens (unavailable)' : `${tokenBalance.balance} tokens`}
         </span>
         {feature ? (
           <span

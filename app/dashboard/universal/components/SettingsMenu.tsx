@@ -25,8 +25,18 @@ import styles from './universal-dashboard.module.css'
 
 export function SettingsMenu({ onClose }: { onClose: () => void }) {
   const { profile } = useSettingsProfile()
-  const { balance } = useTokenBalance()
-  const { snapshot, hasAnyPaid } = useEntitlements()
+  const { balance, loading: tokensLoading, error: tokensError, isAdminBypassAccount: tokensBypass } = useTokenBalance()
+  const {
+    hasSupreme,
+    hasCommissioner,
+    hasPro,
+    hasWarRoom,
+    snapshot,
+    hasAnyPaid,
+    loading: entsLoading,
+    error: entsError,
+    isAdminBypassAccount,
+  } = useEntitlements()
   const themeMode = useOptionalThemeMode()
   const menuRef = useRef<HTMLDivElement>(null)
 
@@ -38,7 +48,21 @@ export function SettingsMenu({ onClose }: { onClose: () => void }) {
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const planName = hasAnyPaid && snapshot?.plans?.[0] ? getDisplayPlanName(snapshot.plans[0]) : 'AllFantasy Free'
+  // Priority order matches every other plan badge in the app (supreme inherits every lower tier) —
+  // snapshot.plans[0] isn't guaranteed to be the highest tier, so it can't be used directly here.
+  const planName = entsLoading
+    ? '...'
+    : entsError
+      ? 'Unable to verify'
+      : hasSupreme
+        ? getDisplayPlanName('supreme')
+        : hasCommissioner
+          ? getDisplayPlanName('commissioner')
+          : hasPro
+            ? getDisplayPlanName('pro')
+            : hasWarRoom
+              ? getDisplayPlanName('war_room')
+              : 'AllFantasy Free'
   const renewsAt = snapshot?.currentPeriodEnd
     ? new Date(snapshot.currentPeriodEnd).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
     : null
@@ -80,7 +104,13 @@ export function SettingsMenu({ onClose }: { onClose: () => void }) {
           <div className={styles.smPlan}>
             <div>
               <div className={styles.smPlanLabel}>{planName}</div>
-              <div className={styles.smPlanSub}>{renewsAt ? `Renews ${renewsAt} · billing & invoices` : 'Upgrade for more · billing & invoices'}</div>
+              <div className={styles.smPlanSub}>
+                {isAdminBypassAccount
+                  ? 'Admin bypass — not a real subscription'
+                  : renewsAt
+                    ? `Renews ${renewsAt} · billing & invoices`
+                    : 'Upgrade for more · billing & invoices'}
+              </div>
             </div>
             <Link href="/settings" className={styles.smBtn} onClick={onClose}>
               Manage
@@ -91,7 +121,11 @@ export function SettingsMenu({ onClose }: { onClose: () => void }) {
         <div className={styles.smSection}>
           <div className={styles.smToken}>
             <span>
-              ◆ Token balance <span className={styles.smTokenAmt}>{balance.toLocaleString()}</span>
+              ◆ Token balance{' '}
+              <span className={styles.smTokenAmt}>
+                {tokensLoading || tokensError || balance == null ? (tokensLoading ? '...' : '—') : balance.toLocaleString()}
+              </span>
+              {tokensBypass && !tokensLoading && !tokensError ? ' (bypass)' : ''}
             </span>
             <Link href="/tokens" className={styles.smBuy} onClick={onClose}>
               Buy more

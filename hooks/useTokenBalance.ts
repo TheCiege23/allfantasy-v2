@@ -91,7 +91,9 @@ export function useTokenBalance() {
   useEffect(() => addStateRefreshListener(['tokens', 'all'], () => void fetchBalance()), [fetchBalance])
 
   return {
-    balance: data?.balance ?? 0,
+    // null (not 0) when data hasn't loaded or the fetch failed, so a genuine fetch failure is
+    // never indistinguishable from a real, verified zero balance. Callers must handle null.
+    balance: data ? data.balance : null,
     updatedAt: data?.updatedAt ?? '',
     isAdminBypassAccount: data?.isAdminBypassAccount ?? false,
     lifetimePurchased: data?.lifetimePurchased ?? 0,
