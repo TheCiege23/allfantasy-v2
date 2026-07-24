@@ -11,7 +11,12 @@ import { useCallback, useEffect, useMemo, useState } from "react"
  *    state (never localStorage / analytics / logs), with a warning that it cannot be
  *    recovered after dismissal. The stored digest is never surfaced.
  *  - The issue button disables while submitting to prevent duplicate invites.
- *  - Light is the admin default; dark/AF/system inherit the shell's design tokens.
+ *
+ * Visual: matches the admin Command Center shell (hard dark navy #020817). Text colors are
+ * chosen to clear WCAG AA on that background — every body/label/header token composites to
+ * >= 4.5:1 (>= 3:1 for large headings), so the panel is readable on mobile and desktop.
+ * It renders in BOTH the healthy admin page and the degraded (metrics-failed) page, so a
+ * failing unrelated admin loader can never hide the invitation controls.
  */
 
 type InviteStatus = "pending" | "redeemed" | "revoked"
@@ -170,7 +175,7 @@ export function BetaInvitePanel() {
         }}
         className="rounded-2xl border border-white/10 bg-black/25 p-4"
       >
-        <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-100/45">Issue an invitation</div>
+        <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-100/75">Issue an invitation</div>
         <div className="mt-3 grid gap-3 sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_auto] sm:items-end">
           <label className="block">
             <span className="mb-1 block text-[11px] text-white/50">Email (required)</span>
@@ -180,7 +185,7 @@ export function BetaInvitePanel() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="manager@example.com"
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             />
           </label>
           <label className="block">
@@ -189,7 +194,7 @@ export function BetaInvitePanel() {
               type="datetime-local"
               value={expiresAt}
               onChange={(e) => setExpiresAt(e.target.value)}
-              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+              className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             />
           </label>
           <button
@@ -208,7 +213,7 @@ export function BetaInvitePanel() {
             onChange={(e) => setNote(e.target.value)}
             placeholder="wave 1 — reddit"
             maxLength={200}
-            className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+            className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           />
         </label>
         {issueError && (
@@ -292,7 +297,7 @@ export function BetaInvitePanel() {
         </div>
       )}
       {!loading && !error && filtered.length === 0 && (
-        <div className="rounded-2xl border border-white/10 bg-black/25 p-6 text-sm text-white/45">
+        <div className="rounded-2xl border border-white/10 bg-black/25 p-6 text-sm text-white/60">
           No invitations {filter === "all" ? "yet" : `with status "${filter}"`}. Issue one above.
         </div>
       )}
@@ -300,7 +305,7 @@ export function BetaInvitePanel() {
         <div className="overflow-x-auto rounded-2xl border border-white/10 bg-black/25">
           <table className="w-full min-w-[720px] text-left text-xs">
             <caption className="sr-only">Closed-beta invitations</caption>
-            <thead className="text-[10px] uppercase tracking-[0.16em] text-white/42">
+            <thead className="text-[10px] uppercase tracking-[0.16em] text-white/60">
               <tr>
                 <th scope="col" className="py-2 pl-4 pr-3">Email</th>
                 <th scope="col" className="py-2 pr-3">Status</th>
@@ -323,7 +328,7 @@ export function BetaInvitePanel() {
                     </td>
                     <td className="py-3 pr-3 text-[11px] text-white/50">{formatEt(row.createdAt)}</td>
                     <td className="py-3 pr-3 text-[11px] text-white/50">{formatEt(row.expiresAt)}</td>
-                    <td className="max-w-[180px] py-3 pr-3 text-[11px] text-white/45">{row.note ?? "—"}</td>
+                    <td className="max-w-[180px] py-3 pr-3 text-[11px] text-white/60">{row.note ?? "—"}</td>
                     <td className="py-3 pr-4 text-right">
                       {ds === "active" ? (
                         <button
@@ -334,7 +339,7 @@ export function BetaInvitePanel() {
                           Revoke
                         </button>
                       ) : (
-                        <span className="text-[11px] text-white/30">—</span>
+                        <span className="text-[11px] text-white/55">—</span>
                       )}
                     </td>
                   </tr>

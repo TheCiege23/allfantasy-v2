@@ -334,6 +334,16 @@ function AdminPageLoadFailure({
             </a>
           </div>
         </section>
+
+        {/*
+          P0-1: closed-beta invitations must NOT disappear because an unrelated admin data
+          loader failed. BetaInvitePanel is a client component that fetches its own data from
+          the admin-gated API, so it renders here in degraded mode exactly as on the healthy
+          page — an authenticated admin can always issue/list/revoke invites.
+        */}
+        <AccordionSection id="beta-invites" title="Closed-Beta Invitations" eyebrow="access">
+          <BetaInvitePanel />
+        </AccordionSection>
       </div>
     </main>
   )
