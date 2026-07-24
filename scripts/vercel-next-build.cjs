@@ -228,6 +228,10 @@ const filesToKeep = new Set([
   // back to zeros/empty. Verified against production: these returned 404 while kept siblings
   // (status, ai/audit-logs) correctly returned 401.
   path.join('app', 'api', 'admin', 'visitor-analytics', 'route.ts').replace(/\\/g, '/'),
+  // Social/campaign attribution reporting, fetched by the admin dashboard UI. Without this
+  // keep-line the whole `app/api/admin` directory exclusion applies and the panel renders
+  // against a 404 — the same failure mode documented for its siblings above.
+  path.join('app', 'api', 'admin', 'visitor-analytics', 'campaigns', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'api-health', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'chimmy', 'health', 'route.ts').replace(/\\/g, '/'),
   // Also the endpoint the Stripe checkout-link verification step depends on — it has been
