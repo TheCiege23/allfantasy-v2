@@ -137,6 +137,24 @@ describe("/api/analytics/track — attribution", () => {
     expect(data.meta).not.toHaveProperty("latest_platform")
   })
 
+  it("reads the DOUBLE-encoded cookie a real browser sends, not just the test-shaped one", async () => {
+    // Regression: this route parses the RAW Cookie header, so it sees BOTH encoding layers
+    // (encodeTouch + NextResponse.cookies.set). The original fixture here was
+    // single-encoded, so it passed while the live route silently recorded every event with
+    // no campaign fields — indistinguishable from real direct traffic. Value below is
+    // verbatim from a live Set-Cookie header.
+    const fromWire =
+      "%257B%2522p%2522%253A%2522tiktok%2522%252C%2522s%2522%253A%2522tiktok%2522%252C" +
+      "%2522c%2522%253A%2522launch_a%2522%252C%2522lp%2522%253A%2522%252F%2522%252C" +
+      "%2522at%2522%253A%25222026-07-24T00%253A34%253A11.446Z%2522%257D"
+
+    await callRoute(post({ event: "landing_view" }, { [FIRST_TOUCH_COOKIE]: fromWire }))
+
+    const { data } = mocks.create.mock.calls[0][0]
+    expect(data.meta.first_platform).toBe("tiktok")
+    expect(data.meta.first_campaign).toBe("launch_a")
+  })
+
   it("prefers the server-set anonymous id over a client-supplied sessionId", async () => {
     await callRoute(post({ event: "landing_view", sessionId: "client-claimed" }, { [ANON_ID_COOKIE]: "anon-9" }))
     expect(mocks.create.mock.calls[0][0].data.sessionId).toBe("anon-9")

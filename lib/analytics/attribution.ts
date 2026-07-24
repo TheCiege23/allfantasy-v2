@@ -223,11 +223,40 @@ export function encodeTouch(touch: AttributionTouch): string {
   return encodeURIComponent(JSON.stringify(encoded))
 }
 
-/** Returns null for anything malformed — a corrupt cookie must never throw into middleware. */
+/** Bounded — enough for the observed double-encoding plus one margin; never unbounded. */
+const MAX_DECODE_PASSES = 3
+
+/**
+ * Parse a stored touch, tolerating however many percent-encoding layers the transport
+ * applied.
+ *
+ * This is not defensive padding — it is load-bearing. `encodeTouch` percent-encodes, and
+ * `NextResponse.cookies.set()` encodes AGAIN, so the wire value is double-encoded. Readers
+ * then see different layer counts depending on how they access the cookie:
+ *   - `request.cookies.get()` / `next/headers` cookies() decode once → one layer left
+ *   - parsing the raw `Cookie` header decodes nothing        → two layers left
+ * A fixed single decode works for the first and silently fails for the second, which made
+ * /api/analytics/track record every event with no campaign fields — indistinguishable from
+ * genuine direct traffic. Decoding until it parses makes every reader agree.
+ */
 export function decodeTouch(raw: string | null | undefined): AttributionTouch | null {
   if (!raw) return null
   try {
-    const parsed = JSON.parse(decodeURIComponent(raw)) as EncodedTouch
+    let candidate = raw
+    let parsed: EncodedTouch | null = null
+
+    for (let pass = 0; pass < MAX_DECODE_PASSES; pass += 1) {
+      try {
+        parsed = JSON.parse(candidate) as EncodedTouch
+        break
+      } catch {
+        const next = decodeURIComponent(candidate)
+        // No progress means further passes cannot help; stop rather than spin.
+        if (next === candidate) return null
+        candidate = next
+      }
+    }
+
     if (!parsed || typeof parsed !== "object") return null
 
     const platform = ATTRIBUTION_PLATFORMS.includes(parsed.p as AttributionPlatform)

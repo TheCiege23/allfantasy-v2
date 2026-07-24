@@ -144,6 +144,35 @@ describe("touch encoding", () => {
     const forged = encodeURIComponent(JSON.stringify({ p: "admin-platform", s: "x" }))
     expect(decodeTouch(forged)?.platform).toBe("other")
   })
+
+  it("decodes the DOUBLE-encoded form a real browser actually sends", () => {
+    // Captured verbatim from a live Set-Cookie header (dev server, tracked TikTok link).
+    // encodeTouch percent-encodes, then NextResponse.cookies.set() encodes again. Readers
+    // that parse the RAW Cookie header (e.g. /api/analytics/track) therefore see two
+    // layers, while request.cookies.get() readers see one. A single fixed decode passes
+    // the one-layer case and silently fails the two-layer case — which is exactly the
+    // regression this asserts against, since the earlier fixture was single-encoded and
+    // did not match reality.
+    const fromWire =
+      "%257B%2522p%2522%253A%2522tiktok%2522%252C%2522s%2522%253A%2522tiktok%2522%252C" +
+      "%2522c%2522%253A%2522launch_a%2522%252C%2522lp%2522%253A%2522%252F%2522%252C" +
+      "%2522at%2522%253A%25222026-07-24T00%253A34%253A11.446Z%2522%257D"
+
+    const touch = decodeTouch(fromWire)
+    expect(touch).toMatchObject({ platform: "tiktok", source: "tiktok", campaign: "launch_a", landingPath: "/" })
+  })
+
+  it("decodes single-encoded and already-plain JSON identically", () => {
+    const plain = JSON.stringify({ p: "instagram", s: "instagram", c: "retarget" })
+    expect(decodeTouch(plain)?.campaign).toBe("retarget")
+    expect(decodeTouch(encodeURIComponent(plain))?.campaign).toBe("retarget")
+    expect(decodeTouch(encodeURIComponent(encodeURIComponent(plain)))?.campaign).toBe("retarget")
+  })
+
+  it("still rejects garbage rather than looping on it", () => {
+    expect(decodeTouch("%25%25%25not-json")).toBeNull()
+    expect(decodeTouch("plain garbage")).toBeNull()
+  })
 })
 
 describe("touchToMeta", () => {
