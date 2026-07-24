@@ -227,6 +227,30 @@ export async function linkSocialAccountToAppUser(
           userId: user.id,
           username: user.username,
         });
+
+        // Campaign funnel truth for OAuth signups. Emitted from this create branch
+        // specifically — the link-to-existing path returns before here — so a returning
+        // Google/Discord/Spotify login is never counted as a new signup. Without this,
+        // campaign conversion would only ever see email/password accounts.
+        // `next/headers` is imported dynamically to match this module's existing
+        // constraint of never pulling it into a non-request server context.
+        // Fire-and-forget; a failure must not break sign-in.
+        void (async () => {
+          try {
+            const { cookies } = await import("next/headers");
+            const cookieStore = await cookies();
+            const { recordFunnelEvent } = await import("@/lib/analytics/recordFunnelEvent");
+            const { ACQUISITION } = await import("@/lib/analytics/eventNames");
+            await recordFunnelEvent({
+              event: ACQUISITION.SIGNUP_COMPLETED,
+              userId: user.id,
+              getCookie: (name) => cookieStore.get(name)?.value,
+              meta: { auth_method: `oauth:${input.provider}` },
+            });
+          } catch (funnelErr) {
+            console.warn("[social-link] signup funnel event failed (non-blocking):", funnelErr);
+          }
+        })();
       } catch (error) {
         if (!isUniqueConstraintError(error)) {
           throw error;

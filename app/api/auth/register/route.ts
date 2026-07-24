@@ -10,6 +10,8 @@ import { getClientIp, rateLimit } from "@/lib/rate-limit"
 import { attributeSignup } from "@/lib/referral"
 import { attributeSignupFromLandingInviteToken } from "@/lib/dashboard/attributeSignupFromLandingInvite"
 import { recordAttribution } from "@/lib/viral-loop"
+import { recordFunnelEvent } from "@/lib/analytics/recordFunnelEvent"
+import { ACQUISITION } from "@/lib/analytics/eventNames"
 import { validateLeagueJoin } from "@/lib/league-privacy"
 import { hasProfanityInUsername } from "@/lib/signup/UsernameProfanityGuard"
 import { generateUniqueUsername } from "@/lib/signup/AutoUsernameGenerator"
@@ -593,6 +595,20 @@ export async function POST(req: Request) {
       } catch (growthErr) {
         console.warn("[register] Growth attribution failed (non-blocking):", growthErr)
       }
+    }
+
+    // Social/campaign funnel truth. Complements — does not replace — the referral
+    // attribution above: that block answers "which AF user or invite brought them",
+    // this answers "which social platform, campaign, and creative brought them".
+    // Emitted here, after a committed account exists, so a redirect or an abandoned
+    // OAuth flow can never be counted as a signup. Best-effort; never blocks the response.
+    if (!isE2ERequest) {
+      void recordFunnelEvent({
+        event: ACQUISITION.SIGNUP_COMPLETED,
+        userId: user.id,
+        getCookie: (name) => cookieStore.get(name)?.value,
+        meta: { auth_method: "email" },
+      })
     }
 
     // Guest-to-account claim: if this visitor already did a no-login Sleeper

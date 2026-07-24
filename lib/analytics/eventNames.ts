@@ -3,6 +3,32 @@
 export const ANALYTICS_TOOL_PRODUCT = 'af_product'
 export const ANALYTICS_TOOL_ENGINE = 'af_engine'
 
+/**
+ * Acquisition funnel — the authenticated customer journey that admin campaign
+ * reporting is built on.
+ *
+ * These are SERVER-emitted and first-party by design. Per the launch decision, admin
+ * funnel truth comes from the database (AppUser / AnalyticsEvent / Stripe webhooks);
+ * GA4 and Meta Pixel are reported separately as estimates and are never summed with
+ * these. Ad-blockers suppress pixel data heavily for this audience, so a client beacon
+ * cannot be the authoritative source for a stage that decides revenue attribution.
+ *
+ * A redirect is never a completion: SIGNUP_COMPLETED fires only after a committed
+ * account row exists.
+ */
+export const ACQUISITION = {
+  /** A committed AppUser row now exists. Never emitted from a redirect or a callback. */
+  SIGNUP_COMPLETED: 'acquisition.signup_completed',
+  /** Email/verification confirmed for an existing account. */
+  EMAIL_VERIFIED: 'acquisition.email_verified',
+  /** An external league import began (provider chosen, credentials/identifier accepted). */
+  IMPORT_STARTED: 'acquisition.import_started',
+  /** An external league import finished; `outcome` meta distinguishes full/partial/failed. */
+  IMPORT_COMPLETED: 'acquisition.import_completed',
+  /** First meaningful dashboard load for a user — the activation moment. */
+  DASHBOARD_ACTIVATED: 'acquisition.dashboard_activated',
+} as const
+
 /** Create-league funnel (client beacon + server confirmation). */
 export const CREATE_LEAGUE = {
   FUNNEL_OPEN: 'product.create_league.funnel_open',
