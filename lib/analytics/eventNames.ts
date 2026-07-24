@@ -17,6 +17,21 @@ export const ANALYTICS_TOOL_ENGINE = 'af_engine'
  * account row exists.
  */
 export const ACQUISITION = {
+  /**
+   * A genuine customer-facing landing-page visit.
+   *
+   * Client-triggered but SERVER-validated: the browser fires the beacon (so React
+   * rerenders and Next's link prefetching of `/` cannot inflate it the way a server
+   * component render would), while the server owns everything that matters — event
+   * allowlisting, campaign attribution from httpOnly cookies, the session-derived
+   * userId, and deduplication.
+   *
+   * Honest limitation: a beacon can be suppressed by an ad-blocker, so this is a FLOOR,
+   * not a census. That is exactly why it is never the denominator of record for revenue
+   * decisions — signup and activation are server-authoritative and are what campaigns
+   * are judged on.
+   */
+  LANDING_VIEWED: 'acquisition.landing_viewed',
   /** A committed AppUser row now exists. Never emitted from a redirect or a callback. */
   SIGNUP_COMPLETED: 'acquisition.signup_completed',
   /** Email/verification confirmed for an existing account. */

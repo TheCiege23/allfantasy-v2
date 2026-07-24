@@ -4,6 +4,7 @@ import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { PageJsonLd } from '@/components/seo/JsonLd'
 import { LandingInviteCapture } from '@/components/landing/LandingInviteCapture'
+import { LandingViewBeacon } from '@/components/landing/LandingViewBeacon'
 import { getHomeInitialSession } from '@/lib/landing/get-home-initial-session'
 
 /**
@@ -83,6 +84,12 @@ export default async function HomePage() {
       <Suspense fallback={null}>
         <LandingInviteCapture />
       </Suspense>
+      {/*
+        Mounted below the signed-in redirect above, so an authenticated user bounced to
+        /dashboard never records a landing view — that is a returning session, not
+        campaign-driven acquisition.
+      */}
+      <LandingViewBeacon landingPath="/" />
       <LandingPageClient initialSession={initialSession} />
     </>
   )

@@ -6,6 +6,23 @@ import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
 import { readAttributionFromCookieHeader } from "@/lib/analytics/attributionCookies";
 import { touchToMeta } from "@/lib/analytics/attribution";
+import { ACQUISITION } from "@/lib/analytics/eventNames";
+import {
+  LANDING_VIEW_DEDUPE_COOKIE,
+  LANDING_VIEW_DEDUPE_WINDOW_SECONDS,
+  decideLandingView,
+  sanitizeLandingMeta,
+} from "@/lib/analytics/landingView";
+
+/** Reads one cookie off a raw header; splits on the FIRST `=` so encoded values survive. */
+function readCookieValue(header: string | null, name: string): string | undefined {
+  for (const part of (header ?? "").split(";")) {
+    const trimmed = part.trim();
+    const eq = trimmed.indexOf("=");
+    if (eq > 0 && trimmed.slice(0, eq) === name) return trimmed.slice(eq + 1);
+  }
+  return undefined;
+}
 
 function safeStr(v: unknown, max = 500) {
   const s = typeof v === "string" ? v : "";
@@ -63,7 +80,24 @@ export const POST = withApiUsage({ endpoint: "/api/analytics/track", tool: "Anal
     // No caller in this repo sends body.userId, so nothing legitimate depended on it.
     const userId = safeStr(session?.user?.id, 128) || null;
 
-    const clientMeta = sanitizeMeta(body?.meta);
+    // Landing views are the one funnel event a caller can fire freely, so the SERVER
+    // decides whether one counts — see lib/analytics/landingView.ts for the three gates.
+    // Drops are reported as ok:true so a suppressed beacon never surfaces as a client
+    // error or leaks the dedup mechanism to a caller probing the endpoint.
+    const isLandingView = event === ACQUISITION.LANDING_VIEWED;
+    if (isLandingView) {
+      const decision = decideLandingView({
+        anonId: attribution.anonId,
+        dedupeCookie: readCookieValue(req.headers.get("cookie"), LANDING_VIEW_DEDUPE_COOKIE),
+      });
+      if (!decision.accept) {
+        return NextResponse.json({ ok: true, dropped: true });
+      }
+    }
+
+    // For a landing view the client's meta is replaced, not merged: only an allowlisted,
+    // query-stripped landing path survives. Campaign data is read from cookies regardless.
+    const clientMeta = isLandingView ? sanitizeLandingMeta(body?.meta) : sanitizeMeta(body?.meta);
     // Server-derived attribution is spread LAST so a client-supplied meta key can never
     // shadow it. Absent cookies contribute nothing rather than a fabricated "direct".
     const meta = {
@@ -85,7 +119,19 @@ export const POST = withApiUsage({ endpoint: "/api/analytics/track", tool: "Anal
       },
     });
 
-    return NextResponse.json({ ok: true });
+    const res = NextResponse.json({ ok: true });
+    if (isLandingView) {
+      // Set only AFTER a successful write, so a failed insert does not suppress the
+      // visitor's next beacon and silently lose the visit entirely.
+      res.cookies.set(LANDING_VIEW_DEDUPE_COOKIE, new Date().toISOString(), {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        path: "/",
+        maxAge: LANDING_VIEW_DEDUPE_WINDOW_SECONDS,
+      });
+    }
+    return res;
   } catch {
     return NextResponse.json({ ok: true });
   }

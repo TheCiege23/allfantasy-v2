@@ -56,12 +56,16 @@ export type CampaignRow = {
   landingPath: string | null
   uniqueVisitors: number
   events: number
+  landingViews: number
   signupsCompleted: number
+  dashboardsActivated: number
   attributionLinked: number
   firstActivity: string | null
   latestActivity: string | null
-  /** signupsCompleted / uniqueVisitors, or null when the denominator is 0. */
+  /** Each is null when its denominator is 0 — never 0, which would read as a real failure. */
   visitorToSignupRate: number | null
+  signupToActivationRate: number | null
+  visitorToActivationRate: number | null
 }
 
 export type CampaignAttributionReport = {
@@ -73,6 +77,14 @@ export type CampaignAttributionReport = {
   freshness: "fresh" | "delayed" | "stale" | "no_data"
   /** Total attribution-bearing rows scanned — the sample size behind every number here. */
   sampleSize: number
+  /** Campaign rows are grouped by first touch — the acquisition question. Never mixed with latest touch. */
+  attributionGrouping: "first_touch"
+  /** Each null when its denominator is 0, never 0 — a 0% would read as a real failure. */
+  conversions: {
+    visitorToSignup: number | null
+    signupToActivation: number | null
+    visitorToActivation: number | null
+  }
   summary: Metric[]
   campaigns: CampaignRow[]
   campaignsTruncated: boolean
@@ -81,8 +93,13 @@ export type CampaignAttributionReport = {
   errors: string[]
 }
 
-/** Stages that have a real server-side emitter today. Keep in sync with the emitters. */
-const IMPLEMENTED_EVENTS = [ACQUISITION.SIGNUP_COMPLETED, ATTRIBUTION_LINK_EVENT] as const
+/** Stages that have a real emitter today. Keep in sync with the emitters. */
+const IMPLEMENTED_EVENTS = [
+  ACQUISITION.LANDING_VIEWED,
+  ACQUISITION.SIGNUP_COMPLETED,
+  ACQUISITION.DASHBOARD_ACTIVATED,
+  ATTRIBUTION_LINK_EVENT,
+] as const
 
 /**
  * Stages required by the launch funnel that have NO emitter yet. Listed explicitly so the
@@ -90,7 +107,6 @@ const IMPLEMENTED_EVENTS = [ACQUISITION.SIGNUP_COMPLETED, ATTRIBUTION_LINK_EVENT
  * reads as "not applicable"; an explicit one reads as "work remaining").
  */
 const UNIMPLEMENTED_STAGES: { stage: string; note: string }[] = [
-  { stage: "landing_viewed", note: "No emitter. app/page.tsx records no analytics event." },
   { stage: "start_clicked", note: "No emitter on the /start CTA." },
   { stage: "signup_started", note: "No emitter; only completion is recorded." },
   { stage: "email_verified", note: "Event name reserved; verification flow not yet wired." },
@@ -98,7 +114,6 @@ const UNIMPLEMENTED_STAGES: { stage: string; note: string }[] = [
   { stage: "onboarding_completed", note: "No emitter." },
   { stage: "import_started", note: "Event name reserved; import flow not yet wired." },
   { stage: "import_completed", note: "Event name reserved; import flow not yet wired." },
-  { stage: "dashboard_activated", note: "Event name reserved; activation not yet wired." },
   { stage: "returning_authenticated", note: "No emitter. attribution_linked is idempotent and is NOT a proxy." },
   { stage: "checkout_started", note: "Deferred to the Stripe phase." },
   { stage: "paid_conversion_confirmed", note: "Deferred to the Stripe phase; webhook-confirmed only." },
@@ -170,7 +185,9 @@ export async function getCampaignAttributionReport(
   let totalsRow: {
     unique_visitors: unknown
     events: unknown
+    landing_views: unknown
     signups: unknown
+    activations: unknown
     linked: unknown
     last_event: Date | null
   } | null = null
@@ -187,7 +204,9 @@ export async function getCampaignAttributionReport(
         landing_path: string | null
         unique_visitors: unknown
         events: unknown
+        landing_views: unknown
         signups: unknown
+        activations: unknown
         linked: unknown
         first_activity: Date | null
         latest_activity: Date | null
@@ -203,7 +222,9 @@ export async function getCampaignAttributionReport(
         meta->>'first_landing_path' AS landing_path,
         COUNT(DISTINCT "sessionId")                                        AS unique_visitors,
         COUNT(*)                                                           AS events,
+        COUNT(*) FILTER (WHERE event = ${ACQUISITION.LANDING_VIEWED})      AS landing_views,
         COUNT(*) FILTER (WHERE event = ${ACQUISITION.SIGNUP_COMPLETED})    AS signups,
+        COUNT(*) FILTER (WHERE event = ${ACQUISITION.DASHBOARD_ACTIVATED}) AS activations,
         COUNT(*) FILTER (WHERE event = ${ATTRIBUTION_LINK_EVENT})          AS linked,
         MIN("createdAt")                                                   AS first_activity,
         MAX("createdAt")                                                   AS latest_activity
@@ -224,6 +245,7 @@ export async function getCampaignAttributionReport(
     campaigns = rows.slice(0, limit).map((r) => {
       const uniqueVisitors = toNumber(r.unique_visitors)
       const signupsCompleted = toNumber(r.signups)
+      const dashboardsActivated = toNumber(r.activations)
       return {
         platform: r.platform ?? "other",
         source: r.source,
@@ -234,11 +256,15 @@ export async function getCampaignAttributionReport(
         landingPath: r.landing_path,
         uniqueVisitors,
         events: toNumber(r.events),
+        landingViews: toNumber(r.landing_views),
         signupsCompleted,
+        dashboardsActivated,
         attributionLinked: toNumber(r.linked),
         firstActivity: r.first_activity?.toISOString() ?? null,
         latestActivity: r.latest_activity?.toISOString() ?? null,
         visitorToSignupRate: rate(signupsCompleted, uniqueVisitors),
+        signupToActivationRate: rate(dashboardsActivated, signupsCompleted),
+        visitorToActivationRate: rate(dashboardsActivated, uniqueVisitors),
       }
     })
   } catch (error) {
@@ -247,14 +273,24 @@ export async function getCampaignAttributionReport(
 
   try {
     const totals = await prisma.$queryRaw<
-      Array<{ unique_visitors: unknown; events: unknown; signups: unknown; linked: unknown; last_event: Date | null }>
+      Array<{
+        unique_visitors: unknown
+        events: unknown
+        landing_views: unknown
+        signups: unknown
+        activations: unknown
+        linked: unknown
+        last_event: Date | null
+      }>
     >(Prisma.sql`
       SELECT
-        COUNT(DISTINCT "sessionId")                                     AS unique_visitors,
-        COUNT(*)                                                        AS events,
-        COUNT(*) FILTER (WHERE event = ${ACQUISITION.SIGNUP_COMPLETED}) AS signups,
-        COUNT(*) FILTER (WHERE event = ${ATTRIBUTION_LINK_EVENT})       AS linked,
-        MAX("createdAt")                                                AS last_event
+        COUNT(DISTINCT "sessionId")                                        AS unique_visitors,
+        COUNT(*)                                                           AS events,
+        COUNT(*) FILTER (WHERE event = ${ACQUISITION.LANDING_VIEWED})      AS landing_views,
+        COUNT(*) FILTER (WHERE event = ${ACQUISITION.SIGNUP_COMPLETED})    AS signups,
+        COUNT(*) FILTER (WHERE event = ${ACQUISITION.DASHBOARD_ACTIVATED}) AS activations,
+        COUNT(*) FILTER (WHERE event = ${ATTRIBUTION_LINK_EVENT})          AS linked,
+        MAX("createdAt")                                                   AS last_event
       FROM "AnalyticsEvent"
       WHERE event IN (${events})
         AND "createdAt" >= ${from}
@@ -271,7 +307,9 @@ export async function getCampaignAttributionReport(
   const queryFailed = totals === null
   const sampleSize = totals ? toNumber(totals.events) : 0
   const uniqueVisitors = totals ? toNumber(totals.unique_visitors) : 0
+  const landingViews = totals ? toNumber(totals.landing_views) : 0
   const signups = totals ? toNumber(totals.signups) : 0
+  const activations = totals ? toNumber(totals.activations) : 0
   const linked = totals ? toNumber(totals.linked) : 0
   const lastEventAt = totals ? totals.last_event : null
 
@@ -296,6 +334,20 @@ export async function getCampaignAttributionReport(
   }
 
   const summary: Metric[] = [
+    countMetric(
+      "landing_viewed",
+      "Landing views",
+      landingViews,
+      "Client-fired, server-validated: requires the server-set anonymous id and is deduplicated to one per visitor per 30 minutes. A floor, not a census — ad-blockers can suppress it.",
+      `AnalyticsEvent.${ACQUISITION.LANDING_VIEWED}`,
+    ),
+    countMetric(
+      "dashboard_activated",
+      "Dashboards activated",
+      activations,
+      "First successful authenticated dashboard load with at least one usable AF or imported league. Idempotent per user; failed context and zero-league states never count.",
+      `AnalyticsEvent.${ACQUISITION.DASHBOARD_ACTIVATED}`,
+    ),
     countMetric(
       "unique_visitors",
       "Unique attributed visitors",
@@ -338,8 +390,20 @@ export async function getCampaignAttributionReport(
     summary,
     campaigns,
     campaignsTruncated,
+    // Every campaign row is grouped by FIRST-touch (`meta->>'first_*'`), the acquisition
+    // question: which campaign originally earned this visitor. Latest-touch data is stored
+    // on every row and is available for a future re-engagement view, but the two are never
+    // mixed in one total — summing them would double-count a visitor who arrived twice.
+    attributionGrouping: "first_touch",
+    conversions: {
+      visitorToSignup: rate(signups, uniqueVisitors),
+      signupToActivation: rate(activations, signups),
+      visitorToActivation: rate(activations, uniqueVisitors),
+    },
     stageInventory: [
+      { stage: ACQUISITION.LANDING_VIEWED, status: "confirmed", note: "Client beacon, server-validated + deduplicated (30 min)." },
       { stage: ACQUISITION.SIGNUP_COMPLETED, status: "confirmed", note: "Emitted at both email and OAuth signup paths." },
+      { stage: ACQUISITION.DASHBOARD_ACTIVATED, status: "confirmed", note: "Server-side on the /dashboard success path; idempotent per user." },
       { stage: ATTRIBUTION_LINK_EVENT, status: "confirmed", note: "Emitted in the NextAuth signIn event." },
       ...UNIMPLEMENTED_STAGES.map(({ stage, note }) => ({ stage, status: "not_implemented" as const, note })),
     ],

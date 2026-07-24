@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation'
+import { cookies } from 'next/headers'
 import nextDynamic from 'next/dynamic'
+import { recordDashboardActivation } from '@/lib/analytics/recordDashboardActivation'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -132,6 +134,18 @@ export default async function DashboardPage() {
           return null
         })
       : null
+
+    // First meaningful activation. Emitted HERE — on the success path, after the server has
+    // resolved real league context — so a loading, permission, error, or
+    // DashboardUnavailableState render can never count. `initialLeagueList` is null when the
+    // prefetch failed, which is "unknown", not "zero leagues"; both are declined inside.
+    // Idempotent per user, so /dashboard, /dashboard/v2, and repeat visits cannot
+    // double-count. Not awaited and never throws — analytics must not break the dashboard.
+    void recordDashboardActivation({
+      userId,
+      leagueCount: initialLeagueList ? initialLeagueList.leagues.length : null,
+      getCookie: (name) => cookies().get(name)?.value,
+    })
 
     return (
       <NocturneDashboard

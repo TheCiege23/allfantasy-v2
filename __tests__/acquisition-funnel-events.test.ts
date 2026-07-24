@@ -84,6 +84,7 @@ describe("recordFunnelEvent", () => {
 
   it("keeps every funnel stage on one canonical name set", () => {
     expect(Object.values(ACQUISITION)).toEqual([
+      "acquisition.landing_viewed",
       "acquisition.signup_completed",
       "acquisition.email_verified",
       "acquisition.import_started",

@@ -185,6 +185,68 @@ test.describe('campaign attribution cookie lifecycle', () => {
     expect(touch?.c).toBe('short_d')
   })
 
+  test('a real browser landing on a tracked link records exactly one landing view', async ({ page, context }) => {
+    // The full Phase 1B entry point: tracked link → middleware attribution → client beacon
+    // → server-validated landing_viewed. Asserted through the browser so React StrictMode,
+    // the mount effect, and the real cookie jar are all exercised together.
+    await page.goto('/?utm_source=tiktok&utm_campaign=browser_journey&utm_content=slide-9')
+
+    // The beacon is fired from an effect; wait for the request rather than racing it.
+    const first = await page.evaluate(async () => {
+      const res = await fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'acquisition.landing_viewed', meta: { landing_path: '/' } }),
+      })
+      return res.json()
+    })
+
+    // Either the mounted beacon already claimed the window, or this call did. Both are a
+    // single counted view — which is the property under test.
+    const dedupeCookie = (await context.cookies()).find((c) => c.name === 'af_lv_seen')
+    expect(dedupeCookie, 'a landing view must have been counted and the window opened').toBeTruthy()
+    expect(dedupeCookie!.httpOnly).toBe(true)
+
+    const second = await page.evaluate(async () => {
+      const res = await fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'acquisition.landing_viewed', meta: { landing_path: '/' } }),
+      })
+      return res.json()
+    })
+
+    // Whatever happened on the first call, a subsequent one inside the window is suppressed.
+    expect(second).toMatchObject({ ok: true, dropped: true })
+    expect(first).toBeTruthy()
+  })
+
+  test('a reload inside the dedup window does not count a second landing view', async ({ page, context }) => {
+    await page.goto('/?utm_source=instagram&utm_campaign=reload_case')
+    await page.evaluate(() =>
+      fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'acquisition.landing_viewed', meta: { landing_path: '/' } }),
+      }),
+    )
+
+    await page.reload()
+
+    const afterReload = await page.evaluate(async () => {
+      const res = await fetch('/api/analytics/track', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event: 'acquisition.landing_viewed', meta: { landing_path: '/' } }),
+      })
+      return res.json()
+    })
+
+    expect(afterReload).toMatchObject({ ok: true, dropped: true })
+    // First touch must still be the campaign that earned the visitor, not the reload.
+    expect((await readTouch(context, FIRST))?.c).toBe('reload_case')
+  })
+
   test('a corrupt cookie does not break routing and is replaced cleanly', async ({ page, context }) => {
     await context.addCookies([
       { name: LATEST, value: '%7Bnot-json', domain: '127.0.0.1', path: '/' },

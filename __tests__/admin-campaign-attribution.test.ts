@@ -39,7 +39,9 @@ const CAMPAIGN_ROW = {
   landing_path: "/",
   unique_visitors: 40n,
   events: 55n,
+  landing_views: 40n,
   signups: 10n,
+  activations: 4n,
   linked: 8n,
   first_activity: new Date("2026-07-20T00:00:00Z"),
   latest_activity: new Date("2026-07-23T00:00:00Z"),
@@ -48,7 +50,9 @@ const CAMPAIGN_ROW = {
 const TOTALS_ROW = {
   unique_visitors: 40n,
   events: 55n,
+  landing_views: 40n,
   signups: 10n,
+  activations: 4n,
   linked: 8n,
   last_event: new Date("2026-07-23T00:00:00Z"),
 }
@@ -138,8 +142,11 @@ describe("admin campaign attribution — data truth", () => {
       expect(metric.note).toBeTruthy()
     }
     expect(unbuilt.map((m) => m.key)).toEqual(
-      expect.arrayContaining(["landing_viewed", "dashboard_activated", "paid_conversion_confirmed"]),
+      expect.arrayContaining(["start_clicked", "onboarding_completed", "paid_conversion_confirmed"]),
     )
+    // Phase 1B shipped these two, so they must NOT appear as unbuilt any more.
+    expect(unbuilt.map((m) => m.key)).not.toContain("landing_viewed")
+    expect(unbuilt.map((m) => m.key)).not.toContain("dashboard_activated")
   })
 
   it("never reports returning_authenticated as measured — the link event is not a proxy", async () => {
@@ -166,7 +173,9 @@ describe("admin campaign attribution — data truth", () => {
   it("distinguishes an empty window from a failure", async () => {
     mocks.queryRaw
       .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ unique_visitors: 0n, events: 0n, signups: 0n, linked: 0n, last_event: null }])
+      .mockResolvedValueOnce([
+        { unique_visitors: 0n, events: 0n, landing_views: 0n, signups: 0n, activations: 0n, linked: 0n, last_event: null },
+      ])
 
     const result = await report()
     const visitors = result.summary.find((m) => m.key === "unique_visitors")
@@ -191,6 +200,39 @@ describe("admin campaign attribution — data truth", () => {
 
     const result = await report()
     expect(result.campaigns[0].visitorToSignupRate).toBeCloseTo(0.25, 4)
+  })
+
+  it("reports landing views and activations per campaign", async () => {
+    mocks.queryRaw.mockResolvedValueOnce([CAMPAIGN_ROW]).mockResolvedValueOnce([TOTALS_ROW])
+
+    const result = await report()
+    expect(result.campaigns[0]).toMatchObject({ landingViews: 40, dashboardsActivated: 4 })
+    expect(result.summary.find((m) => m.key === "landing_viewed")).toMatchObject({ value: 40, status: "confirmed" })
+    expect(result.summary.find((m) => m.key === "dashboard_activated")).toMatchObject({ value: 4, status: "confirmed" })
+  })
+
+  it("computes the account-to-activation conversion campaigns are judged on", async () => {
+    mocks.queryRaw.mockResolvedValueOnce([CAMPAIGN_ROW]).mockResolvedValueOnce([TOTALS_ROW])
+
+    const result = await report()
+    // 4 activations / 10 accounts, and 4 / 40 visitors.
+    expect(result.campaigns[0].signupToActivationRate).toBeCloseTo(0.4, 4)
+    expect(result.campaigns[0].visitorToActivationRate).toBeCloseTo(0.1, 4)
+    expect(result.conversions.signupToActivation).toBeCloseTo(0.4, 4)
+    expect(result.conversions.visitorToActivation).toBeCloseTo(0.1, 4)
+  })
+
+  it("returns null activation rates when nobody signed up, never 0%", async () => {
+    mocks.queryRaw
+      .mockResolvedValueOnce([{ ...CAMPAIGN_ROW, signups: 0n, activations: 0n }])
+      .mockResolvedValueOnce([TOTALS_ROW])
+
+    expect((await report()).campaigns[0].signupToActivationRate).toBeNull()
+  })
+
+  it("labels campaign grouping as first-touch so totals are never silently mixed", async () => {
+    mocks.queryRaw.mockResolvedValueOnce([CAMPAIGN_ROW]).mockResolvedValueOnce([TOTALS_ROW])
+    expect((await report()).attributionGrouping).toBe("first_touch")
   })
 
   it("clamps the window so an unbounded scan cannot be requested", async () => {

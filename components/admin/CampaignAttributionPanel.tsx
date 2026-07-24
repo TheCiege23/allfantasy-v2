@@ -236,8 +236,15 @@ export function CampaignAttributionPanel() {
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-black/25 p-4">
-            <div className="flex items-baseline justify-between gap-3">
-              <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-100/45">Campaigns</div>
+            <div className="flex flex-wrap items-baseline justify-between gap-3">
+              <div className="text-[11px] uppercase tracking-[0.14em] text-cyan-100/45">
+                Campaigns
+                {/* Stated explicitly: mixing first- and latest-touch totals would double-count
+                    a visitor who arrived through two campaigns. */}
+                <span className="ml-2 rounded-full border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[9px] font-black tracking-normal text-white/50">
+                  grouped by {report.attributionGrouping.replace("_", "-")}
+                </span>
+              </div>
               <div className="font-mono text-[10px] text-white/35">
                 {formatEt(report.window.fromIso)} → {formatEt(report.window.toIso)} ET
               </div>
@@ -258,10 +265,12 @@ export function CampaignAttributionPanel() {
                       <th scope="col" className="py-2 pr-3">Campaign</th>
                       <th scope="col" className="py-2 pr-3">Creative</th>
                       <th scope="col" className="py-2 pr-3">Landing</th>
+                      <th scope="col" className="py-2 pr-3 text-right">Views</th>
                       <th scope="col" className="py-2 pr-3 text-right">Visitors</th>
                       <th scope="col" className="py-2 pr-3 text-right">Accounts</th>
-                      <th scope="col" className="py-2 pr-3 text-right">Linked</th>
-                      <th scope="col" className="py-2 pr-3 text-right">Conv.</th>
+                      <th scope="col" className="py-2 pr-3 text-right">Activated</th>
+                      <th scope="col" className="py-2 pr-3 text-right">V→A</th>
+                      <th scope="col" className="py-2 pr-3 text-right">Acct→Act</th>
                       <th scope="col" className="py-2 pr-3">Latest</th>
                     </tr>
                   </thead>
@@ -275,10 +284,13 @@ export function CampaignAttributionPanel() {
                         <td className="py-3 pr-3">{row.campaign ?? "—"}</td>
                         <td className="py-3 pr-3">{row.content ?? "—"}</td>
                         <td className="py-3 pr-3 font-mono text-[11px] text-white/45">{row.landingPath ?? "—"}</td>
+                        <td className="py-3 pr-3 text-right">{row.landingViews.toLocaleString()}</td>
                         <td className="py-3 pr-3 text-right font-black text-white">{row.uniqueVisitors.toLocaleString()}</td>
                         <td className="py-3 pr-3 text-right font-black text-white">{row.signupsCompleted.toLocaleString()}</td>
-                        <td className="py-3 pr-3 text-right">{row.attributionLinked.toLocaleString()}</td>
-                        <td className="py-3 pr-3 text-right">{formatRate(row.visitorToSignupRate)}</td>
+                        {/* The launch question: which campaigns produced ACTIVATED users, not just accounts. */}
+                        <td className="py-3 pr-3 text-right font-black text-violet-200">{row.dashboardsActivated.toLocaleString()}</td>
+                        <td className="py-3 pr-3 text-right">{formatRate(row.visitorToActivationRate)}</td>
+                        <td className="py-3 pr-3 text-right">{formatRate(row.signupToActivationRate)}</td>
                         <td className="py-3 pr-3 text-[11px] text-white/45">{formatEt(row.latestActivity)}</td>
                       </tr>
                     ))}
