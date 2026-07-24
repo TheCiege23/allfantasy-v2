@@ -7,6 +7,7 @@ import {
   type AdminMetric,
 } from "@/lib/admin-dashboard/AdminCommandCenterService"
 import { AiAuditLogsPanel } from "@/components/admin/AiAuditLogsPanel"
+import { CampaignAttributionPanel } from "@/components/admin/CampaignAttributionPanel"
 import { AiProviderHealthPanel } from "@/components/admin/AiProviderHealthPanel"
 import { PlatformOsOperatorPanel } from "@/components/admin/PlatformOsOperatorPanel"
 import type {
@@ -1516,6 +1517,11 @@ export default async function AdminPage({
           <ProductionReadinessPanel data={data.productionReadiness} />
         </div>
         <TrafficGeoPanel data={data.productionReadiness} metrics={data.traffic} />
+        <div id="social-campaigns">
+          <AccordionSection title="Social & Campaigns" eyebrow="attribution">
+            <CampaignAttributionPanel />
+          </AccordionSection>
+        </div>
         <EmailCenterPanel status={data.emailStatus} />
         <div id="sports-os">
           <SportsOperatingSystemPanel audit={data.sportsOperatingSystem} />
