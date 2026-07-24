@@ -12,6 +12,22 @@ import { attributeSignupFromLandingInviteToken } from "@/lib/dashboard/attribute
 import { recordAttribution } from "@/lib/viral-loop"
 import { recordFunnelEvent } from "@/lib/analytics/recordFunnelEvent"
 import { ACQUISITION } from "@/lib/analytics/eventNames"
+import {
+  admissionErrorMessage,
+  consumeAdmission,
+  isInviteOnlyEnabled,
+  validateAdmission,
+  type AdmissionErrorCode,
+} from "@/lib/beta-invite/betaAdmissionService"
+import { BETA_ADMISSION_COOKIE, clearAdmissionCookie } from "@/lib/beta-invite/betaAdmissionCookie"
+
+/** Thrown inside the create transaction so a consume failure rolls the account back and maps to a 403. */
+class BetaAdmissionConsumeError extends Error {
+  constructor(public readonly code: AdmissionErrorCode) {
+    super(`beta admission consume failed: ${code}`)
+    this.name = "BetaAdmissionConsumeError"
+  }
+}
 import { validateLeagueJoin } from "@/lib/league-privacy"
 import { hasProfanityInUsername } from "@/lib/signup/UsernameProfanityGuard"
 import { generateUniqueUsername } from "@/lib/signup/AutoUsernameGenerator"
@@ -262,6 +278,36 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Please enter a valid email address." }, { status: 400 })
     }
 
+    // ── P0-1 BETA-GATE (credentials path) ────────────────────────────────────────────
+    // Closed-beta admission is checked BEFORE any expensive/irreversible work (password
+    // hashing, profile creation) and consumed atomically inside the create transaction
+    // below. The token comes from the request body or the httpOnly admission cookie; the
+    // client never chooses the userId or the outcome. The E2E seam bypasses the gate under
+    // its existing explicit control, so automated tests keep working.
+    const admissionToken =
+      (typeof body?.inviteToken === "string" ? body.inviteToken.trim() : "") ||
+      cookieStore.get(BETA_ADMISSION_COOKIE)?.value ||
+      null
+
+    if (isInviteOnlyEnabled() && !isE2ERequest) {
+      let precheck: Awaited<ReturnType<typeof validateAdmission>>
+      try {
+        precheck = await validateAdmission({ rawToken: admissionToken, email })
+      } catch {
+        // Fail closed: if the gate cannot be evaluated, refuse rather than open signup.
+        return NextResponse.json(
+          { error: admissionErrorMessage("GATE_UNAVAILABLE"), code: "GATE_UNAVAILABLE" },
+          { status: 503 },
+        )
+      }
+      if (!precheck.ok) {
+        return NextResponse.json(
+          { error: admissionErrorMessage(precheck.code), code: precheck.code },
+          { status: 403 },
+        )
+      }
+    }
+
     // Case-insensitive availability probe, shared by generation and validation.
     const isUsernameTaken = async (candidate: string): Promise<boolean> => {
       const hit = await withDatabaseUnavailableRetry(() =>
@@ -492,6 +538,22 @@ export async function POST(req: Request) {
               data: buildUserCreateData(finalUsername),
               select: { id: true, email: true, username: true },
             })
+
+            // P0-1 BETA-GATE: consume the invite in the SAME transaction as the account.
+            // If this throws (concurrent redemption, or the invite changed state between the
+            // pre-check and here), the whole transaction rolls back and the invite stays
+            // redeemable — a failed signup never burns an invite. E2E signups skip the gate.
+            if (isInviteOnlyEnabled() && !isE2ERequest) {
+              const consumed = await consumeAdmission({
+                rawToken: admissionToken,
+                email,
+                userId: created.id,
+                db: tx,
+              })
+              if (!consumed.ok) {
+                throw new BetaAdmissionConsumeError(consumed.code)
+              }
+            }
 
             await tx.userProfile.create({
               data: {
@@ -770,10 +832,22 @@ export async function POST(req: Request) {
       metaEvent: registrationMetaEvent,
     })
     res.cookies.delete(GUEST_SESSION_COOKIE_NAME)
+    // The admission token has now been consumed by this successful signup; clear the
+    // cookie so a stale copy can't be presented again. No-op when it isn't present.
+    clearAdmissionCookie(res.cookies)
     return res
   } catch (err: any) {
     if (err instanceof Response) {
       return err
+    }
+    // P0-1 BETA-GATE: a consume failure inside the create transaction rolled the account
+    // back — the invite was NOT burned. Map to a 403 with the honest reason. This is
+    // reached only when the atomic consume lost a race after the pre-check passed.
+    if (err instanceof BetaAdmissionConsumeError) {
+      return NextResponse.json(
+        { error: admissionErrorMessage(err.code), code: err.code },
+        { status: 403 },
+      )
     }
     if (isDatabaseUnavailableError(err)) {
       console.error("[register] database unavailable:", err)

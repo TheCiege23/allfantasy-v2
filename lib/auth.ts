@@ -14,6 +14,7 @@ import { linkSocialAccountToAppUser } from "@/lib/auth/SocialAccountLinkingServi
 import { ensureSharedAccountProfile } from "@/lib/auth/SharedAccountBootstrapService";
 import { GUEST_SESSION_COOKIE_NAME } from "@/lib/guest-mode/guestSessionToken";
 import { claimGuestTrialForUser } from "@/lib/legacy/claimGuestTrialForUser";
+import { isInviteOnlyEnabled } from "@/lib/beta-invite/betaAdmissionService";
 import { lookupSleeperUser } from "@/lib/sleeper/user-lookup";
 import { getTierFromXP, getXPRemainingToNextTier } from "@/lib/xp-progression/TierResolver";
 import { resolveAuthSecret } from "@/lib/auth/resolve-auth-secret";
@@ -263,6 +264,17 @@ const providers: NextAuthOptions["providers"] = [
       });
 
       if (!user) {
+        // ── P0-1 BETA-GATE (Sleeper-username new-account path) ───────────────────────
+        // A Sleeper-username account has only a SYNTHETIC email, and P0-1 invites are
+        // strictly EMAIL-BOUND (no token-only admission — an invite is not a transferable
+        // access code). There is therefore no way to admit a NEW Sleeper account under the
+        // closed beta, so it is blocked: the user must sign up with a real email or a social
+        // account (both email-matched) first. Existing Sleeper accounts hit the `else`
+        // branch above and sign in normally without ever needing an invite.
+        if (isInviteOnlyEnabled()) {
+          throw new Error("BETA_INVITE_REQUIRED");
+        }
+
         user = await prisma.appUser.create({
           data: {
             email: `${sleeperUserId}@sleeper.allfantasy.ai`,
@@ -570,6 +582,11 @@ export const authOptions: NextAuthOptions = {
           } catch (err) {
             console.error("[google-signin] FATAL:", err);
             const errMsg = err instanceof Error ? err.message : "";
+            // P0-1 BETA-GATE: a new OAuth account was refused for lack of valid closed-beta
+            // admission. Send the user back to signup with an honest reason (no token here).
+            if (errMsg.startsWith("BETA_INVITE_")) {
+              return `/signup?beta=1&betaError=${encodeURIComponent(errMsg.slice("BETA_INVITE_".length))}`;
+            }
             if (errMsg === "SOCIAL_EMAIL_UNVERIFIED") {
               return "/auth/error?error=SOCIAL_EMAIL_UNVERIFIED";
             }
@@ -639,6 +656,10 @@ export const authOptions: NextAuthOptions = {
           // -> reject" check here (before the existing-account lookup) would break
           // legitimate repeat Apple sign-ins for already-linked accounts.
           const errMsg = error instanceof Error ? error.message : "";
+          // P0-1 BETA-GATE (Apple/Spotify/other): new-account admission refused.
+          if (errMsg.startsWith("BETA_INVITE_")) {
+            return `/signup?beta=1&betaError=${encodeURIComponent(errMsg.slice("BETA_INVITE_".length))}`;
+          }
           if (errMsg === "SOCIAL_PROVIDER_EMAIL_MISSING") {
             return "/auth/error?error=SOCIAL_PROVIDER_EMAIL_MISSING";
           }

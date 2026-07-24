@@ -8,6 +8,7 @@ import {
 } from "@/lib/admin-dashboard/AdminCommandCenterService"
 import { AiAuditLogsPanel } from "@/components/admin/AiAuditLogsPanel"
 import { CampaignAttributionPanel } from "@/components/admin/CampaignAttributionPanel"
+import { BetaInvitePanel } from "@/components/admin/BetaInvitePanel"
 import { AiProviderHealthPanel } from "@/components/admin/AiProviderHealthPanel"
 import { PlatformOsOperatorPanel } from "@/components/admin/PlatformOsOperatorPanel"
 import type {
@@ -40,6 +41,9 @@ import type {
 } from "@/lib/sports-os/ProviderTeamReconciliationService"
 
 export const dynamic = "force-dynamic"
+
+// Admin surfaces must never be indexed (defense-in-depth beyond robots.txt Disallow: /admin).
+export const metadata = { robots: { index: false, follow: false } }
 
 function MetricCard({ item }: { item: AdminMetric }) {
   return (
@@ -1520,6 +1524,11 @@ export default async function AdminPage({
         <div id="social-campaigns">
           <AccordionSection title="Social & Campaigns" eyebrow="attribution">
             <CampaignAttributionPanel />
+          </AccordionSection>
+        </div>
+        <div id="beta-invites">
+          <AccordionSection title="Closed-Beta Invitations" eyebrow="access">
+            <BetaInvitePanel />
           </AccordionSection>
         </div>
         <EmailCenterPanel status={data.emailStatus} />

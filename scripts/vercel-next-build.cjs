@@ -232,6 +232,9 @@ const filesToKeep = new Set([
   // keep-line the whole `app/api/admin` directory exclusion applies and the panel renders
   // against a 404 — the same failure mode documented for its siblings above.
   path.join('app', 'api', 'admin', 'visitor-analytics', 'campaigns', 'route.ts').replace(/\\/g, '/'),
+  // Closed-beta invite admin (P0-1 BETA-GATE): issue/list/revoke. Ships despite the
+  // wholesale app/api/admin exclusion, or the admin UI would render against a 404.
+  path.join('app', 'api', 'admin', 'beta-invites', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'api-health', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'chimmy', 'health', 'route.ts').replace(/\\/g, '/'),
   // Also the endpoint the Stripe checkout-link verification step depends on — it has been
