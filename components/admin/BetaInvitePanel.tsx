@@ -72,6 +72,12 @@ export function BetaInvitePanel() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<DisplayStatus | "all">("all")
+  // Provisioning + build identity, reported by the API. `provisioned:false` means this
+  // deployment's database has no beta_invites table (e.g. a Preview running against a DB
+  // where the additive migration hasn't been applied) — the panel still renders, but issuing
+  // is disabled with an honest notice instead of a silent 500.
+  const [provisioned, setProvisioned] = useState(true)
+  const [build, setBuild] = useState<{ env: string; commit: string } | null>(null)
 
   const [email, setEmail] = useState("")
   const [expiresAt, setExpiresAt] = useState("")
@@ -91,8 +97,14 @@ export function BetaInvitePanel() {
         setInvites([])
         return
       }
-      const body = (await res.json()) as { invites: InviteRow[] }
+      const body = (await res.json()) as {
+        invites: InviteRow[]
+        provisioned?: boolean
+        build?: { env: string; commit: string }
+      }
       setInvites(body.invites ?? [])
+      setProvisioned(body.provisioned !== false)
+      setBuild(body.build ?? null)
     } catch {
       setError("Network error — invites could not be loaded.")
       setInvites([])
@@ -167,6 +179,27 @@ export function BetaInvitePanel() {
 
   return (
     <div className="space-y-4">
+      {/* ── Build marker (distinguish the deployed build without guessing) ──────────── */}
+      {build && (
+        <div className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100">
+          <span className="rounded-md border border-cyan-300/30 bg-cyan-300/10 px-2 py-0.5">
+            build {build.commit} · {build.env}
+          </span>
+        </div>
+      )}
+
+      {/* ── Storage-not-provisioned notice (honest env state, never a silent 500) ───── */}
+      {!provisioned && (
+        <div role="alert" className="rounded-2xl border border-amber-300/30 bg-amber-300/10 p-4 text-[13px] text-amber-100">
+          <div className="font-black uppercase tracking-[0.12em]">Beta-invite storage not provisioned here</div>
+          <p className="mt-1 leading-5 text-amber-100/90">
+            This deployment&rsquo;s database has no <code className="font-mono">beta_invites</code> table, so issuing is
+            disabled in this environment. The panel and history are shown for reference. Apply the additive
+            <code className="font-mono"> beta_invites</code> migration to this deployment&rsquo;s database to enable issuing.
+          </p>
+        </div>
+      )}
+
       {/* ── Issue form ─────────────────────────────────────────────────────────────── */}
       <form
         onSubmit={(e) => {
@@ -199,7 +232,8 @@ export function BetaInvitePanel() {
           </label>
           <button
             type="submit"
-            disabled={issuing || !email.trim()}
+            disabled={issuing || !email.trim() || !provisioned}
+            title={!provisioned ? "Storage not provisioned in this environment" : undefined}
             className="rounded-xl bg-violet-500/30 px-4 py-2 text-sm font-black text-white transition hover:bg-violet-500/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {issuing ? "Issuing…" : "Issue invite"}

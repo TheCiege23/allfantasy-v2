@@ -23,14 +23,62 @@ function adminIdentity(user: { id?: string; email?: string }): string {
   return user.email || user.id || "unknown-admin"
 }
 
+/**
+ * True when the failure is "the beta_invites table isn't in this deployment's database"
+ * (Prisma P2021). On Preview deployments that run against a database where the additive
+ * beta-invite migration has not been applied, the storage is simply absent — that is an
+ * environment/provisioning state, NOT a 500-worthy bug. We surface it as such so the panel
+ * renders with an honest notice instead of breaking.
+ */
+function isMissingTableError(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false
+  if ((error as { code?: unknown }).code === "P2021") return true
+  const msg = error instanceof Error ? error.message : String(error)
+  return /does not exist in the current database|relation ".*" does not exist/i.test(msg)
+}
+
+/** Non-sensitive deployment classification for the build marker + safe diagnostics. */
+function deploymentInfo() {
+  const env = process.env.VERCEL_ENV || process.env.NODE_ENV || "unknown"
+  const commit = (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7) || "unknown"
+  let dbHost = "unset"
+  try {
+    const raw = process.env.DATABASE_URL || process.env.POSTGRES_PRISMA_URL || process.env.DIRECT_URL || ""
+    if (raw) dbHost = new URL(raw).hostname.split(".")[0] || "unknown" // e.g. "ep-xxxx" — a host label, never credentials
+  } catch {
+    dbHost = "unparseable"
+  }
+  return { env, commit, dbHost }
+}
+
+/** One sanitized structured line — NEVER tokens, cookies, emails, secrets, or full URLs. */
+function logProvisioningGap(where: string) {
+  const info = deploymentInfo()
+  // eslint-disable-next-line no-console
+  console.warn(
+    `[beta-invites] storage_absent where=${where} env=${info.env} commit=${info.commit} dbHost=${info.dbHost}`,
+  )
+}
+
 export async function GET() {
   const gate = await requireAdmin()
   if (!gate.ok) return gate.res
 
+  const info = deploymentInfo()
   try {
     const invites = await listInvites({ limit: 200 })
-    return NextResponse.json({ invites })
+    return NextResponse.json({ invites, provisioned: true, build: { env: info.env, commit: info.commit } })
   } catch (error) {
+    if (isMissingTableError(error)) {
+      logProvisioningGap("GET")
+      // Graceful: the panel renders its UI + an honest "not provisioned here" notice.
+      return NextResponse.json({
+        invites: [],
+        provisioned: false,
+        reason: "storage_absent",
+        build: { env: info.env, commit: info.commit },
+      })
+    }
     const message = error instanceof Error ? error.message : "Failed to list invites"
     return NextResponse.json({ error: message }, { status: 500 })
   }
@@ -87,6 +135,18 @@ export async function POST(request: Request) {
       claimUrl,
     })
   } catch (error) {
+    if (isMissingTableError(error)) {
+      logProvisioningGap("POST")
+      return NextResponse.json(
+        {
+          error:
+            "Beta-invite storage isn't provisioned in this environment. Apply the beta_invites migration to this deployment's database to enable issuing.",
+          provisioned: false,
+          reason: "storage_absent",
+        },
+        { status: 503 },
+      )
+    }
     const message = error instanceof Error ? error.message : "Failed to issue invite"
     return NextResponse.json({ error: message }, { status: 500 })
   }
@@ -108,6 +168,13 @@ export async function DELETE(request: Request) {
     }
     return NextResponse.json({ ok: true })
   } catch (error) {
+    if (isMissingTableError(error)) {
+      logProvisioningGap("DELETE")
+      return NextResponse.json(
+        { error: "Beta-invite storage isn't provisioned in this environment.", provisioned: false, reason: "storage_absent" },
+        { status: 503 },
+      )
+    }
     const message = error instanceof Error ? error.message : "Failed to revoke invite"
     return NextResponse.json({ error: message }, { status: 500 })
   }

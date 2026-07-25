@@ -167,4 +167,33 @@ describe("BetaInvitePanel", () => {
       expect(within(group).getByRole("button", { name: new RegExp(`^${state}$`, "i") })).toBeInTheDocument()
     }
   })
+
+  it("shows a build marker and an honest notice (issuing disabled) when storage is not provisioned", async () => {
+    // The API reports provisioned:false when this deployment's DB has no beta_invites table
+    // (e.g. a Preview running against a DB without the additive migration). The panel must still
+    // RENDER — with a clear notice and a build marker — instead of vanishing on a 500.
+    fetchMock.mockImplementation(() =>
+      jsonResponse({ invites: [], provisioned: false, reason: "storage_absent", build: { env: "preview", commit: "abc1234" } }),
+    )
+    render(<BetaInvitePanel />)
+
+    // Build marker is visible so the deployed build is identifiable.
+    expect(await screen.findByText(/build abc1234 · preview/i)).toBeInTheDocument()
+    // Honest provisioning notice (not a silent failure).
+    const alert = await screen.findByRole("alert")
+    expect(alert).toHaveTextContent(/storage not provisioned/i)
+    // The issue form still renders, but issuing is disabled.
+    const emailInput = screen.getByPlaceholderText(/manager@example.com/i)
+    fireEvent.change(emailInput, { target: { value: "prospect@example.com" } })
+    expect(screen.getByRole("button", { name: /Issue invite/i })).toBeDisabled()
+  })
+
+  it("treats a normal list response as provisioned (no notice, issuing enabled)", async () => {
+    fetchMock.mockImplementation(() => jsonResponse({ invites: [], provisioned: true, build: { env: "production", commit: "deadbee" } }))
+    render(<BetaInvitePanel />)
+    expect(await screen.findByText(/No invitations/i)).toBeInTheDocument()
+    expect(screen.queryByText(/storage not provisioned/i)).not.toBeInTheDocument()
+    fireEvent.change(screen.getByPlaceholderText(/manager@example.com/i), { target: { value: "prospect@example.com" } })
+    expect(screen.getByRole("button", { name: /Issue invite/i })).toBeEnabled()
+  })
 })

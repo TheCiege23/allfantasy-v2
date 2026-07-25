@@ -138,3 +138,45 @@ describe("admin beta-invites — list & revoke", () => {
     expect((await mod.DELETE(req("DELETE"))).status).toBe(400)
   })
 })
+
+describe("admin beta-invites — storage not provisioned (missing table)", () => {
+  beforeEach(() => mocks.requireAdmin.mockResolvedValue(ADMIN))
+
+  // Prisma P2021 = "The table ... does not exist in the current database" — the state on a
+  // Preview whose DB has not had the additive beta_invites migration applied.
+  const p2021 = () => Object.assign(new Error("The table `public.beta_invites` does not exist in the current database."), { code: "P2021" })
+
+  it("GET degrades to 200 { provisioned:false } instead of 500 (panel still renders)", async () => {
+    mocks.listInvites.mockRejectedValue(p2021())
+    const mod = await route()
+    const res = await mod.GET()
+    const body = await res.json()
+    expect(res.status).toBe(200)
+    expect(body.provisioned).toBe(false)
+    expect(body.invites).toEqual([])
+    expect(body.reason).toBe("storage_absent")
+  })
+
+  it("POST returns 503 { provisioned:false } (issuing disabled, not a crash)", async () => {
+    mocks.issueInvite.mockRejectedValue(p2021())
+    const mod = await route()
+    const res = await mod.POST(req("POST", { body: { email: "a@b.com" } }))
+    const body = await res.json()
+    expect(res.status).toBe(503)
+    expect(body.provisioned).toBe(false)
+  })
+
+  it("DELETE returns 503 { provisioned:false } when storage is absent", async () => {
+    mocks.revokeInvite.mockRejectedValue(p2021())
+    const mod = await route()
+    const res = await mod.DELETE(req("DELETE", { qs: "?id=i1" }))
+    expect(res.status).toBe(503)
+    expect((await res.json()).provisioned).toBe(false)
+  })
+
+  it("a genuine (non-P2021) error still surfaces as 500", async () => {
+    mocks.listInvites.mockRejectedValue(new Error("connection refused"))
+    const mod = await route()
+    expect((await mod.GET()).status).toBe(500)
+  })
+})
