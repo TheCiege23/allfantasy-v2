@@ -54,8 +54,13 @@ export async function POST(req: Request) {
   await (prisma as any).emailVerifyToken.deleteMany({ where: { userId } }).catch(() => {})
   const tokenRecord = await (prisma as any).emailVerifyToken.create({ data: { userId, tokenHash, expiresAt } })
 
+  // Preview-aware, spoof-safe origin (mirrors the register route): a resend on a PREVIEW
+  // deployment links back to the preview host so the token resolves in the preview DB;
+  // production keeps the configured canonical. Never derived from a request header.
+  const { getDeploymentLinkOrigin } = await import("@/lib/site-public-origin")
   const { USER_FACING_SITE_ORIGIN } = await import("@/lib/auth/user-facing-site-origin")
-  const verifyUrl = `${USER_FACING_SITE_ORIGIN}/verify/email?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(safeReturnTo)}`
+  const emailOrigin = getDeploymentLinkOrigin() || USER_FACING_SITE_ORIGIN
+  const verifyUrl = `${emailOrigin}/verify/email?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent(safeReturnTo)}`
 
   const { getResendClient } = await import("@/lib/resend-client")
   const { client, fromEmail } = await getResendClient()

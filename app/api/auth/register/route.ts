@@ -789,12 +789,20 @@ export async function POST(req: Request) {
         const { getResendClient } = await import("@/lib/resend-client")
         const { client, fromEmail } = await getResendClient()
 
+        // Preview-aware, spoof-safe origin: on a PREVIEW deployment this is the preview's own
+        // host, so a preview-issued verification token links back to the SAME environment that
+        // stored it (the isolated preview DB) instead of production, where it doesn't exist.
+        // Production is unchanged — getDeploymentLinkOrigin returns the configured canonical
+        // there; the USER_FACING_SITE_ORIGIN fallback covers local/unset. Never derived from a
+        // request header, so an emailed link can't be pointed at an attacker host.
+        const { getDeploymentLinkOrigin } = await import("@/lib/site-public-origin")
         const { USER_FACING_SITE_ORIGIN } = await import("@/lib/auth/user-facing-site-origin")
+        const emailOrigin = getDeploymentLinkOrigin() || USER_FACING_SITE_ORIGIN
         // returnTo=/onboarding routes ONLY this new-signup cohort into the profile
         // setup step after they verify (they hold an auto-generated username).
         // /onboarding self-guards and bounces already-complete profiles onward, so
         // existing users and other verification flows are unaffected.
-        const verifyUrl = `${USER_FACING_SITE_ORIGIN}/verify/email?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent("/onboarding")}`
+        const verifyUrl = `${emailOrigin}/verify/email?token=${encodeURIComponent(rawToken)}&returnTo=${encodeURIComponent("/onboarding")}`
 
         const { buildVerificationEmailHtml, resolveEmailSafeName } = await import("@/lib/email/verification-email-html")
         const safeName = resolveEmailSafeName({ username })
