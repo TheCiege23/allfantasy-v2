@@ -196,4 +196,96 @@ describe("BetaInvitePanel", () => {
     fireEvent.change(screen.getByPlaceholderText(/manager@example.com/i), { target: { value: "prospect@example.com" } })
     expect(screen.getByRole("button", { name: /Issue invite/i })).toBeEnabled()
   })
+
+  // ── Client-side field validation (P0-1) ─────────────────────────────────────────────────
+  // Standards-compliant email (plus-addressing accepted), optional expiry (blank OK, future
+  // required), and per-field error text — the button disables ONLY when a message is visible.
+  describe("client-side field validation", () => {
+    it("enables Issue invite for a normal Gmail address (no error shown)", async () => {
+      listOnly([])
+      render(<BetaInvitePanel />)
+      fireEvent.change(await screen.findByPlaceholderText(/manager@example.com/i), {
+        target: { value: "manager@gmail.com" },
+      })
+      expect(screen.getByRole("button", { name: /Issue invite/i })).toBeEnabled()
+      expect(screen.queryByText(/valid email address/i)).not.toBeInTheDocument()
+    })
+
+    it("accepts a Gmail plus-address (+beta1) and enables the button — the reported case", async () => {
+      listOnly([])
+      render(<BetaInvitePanel />)
+      fireEvent.change(await screen.findByPlaceholderText(/manager@example.com/i), {
+        target: { value: "allfantasysportsapp+beta1@gmail.com" },
+      })
+      expect(screen.getByRole("button", { name: /Issue invite/i })).toBeEnabled()
+      expect(screen.queryByText(/valid email address/i)).not.toBeInTheDocument()
+    })
+
+    it("POSTs the full plus-address verbatim — the client never strips +beta1", async () => {
+      fetchMock.mockImplementation((url: string, init?: RequestInit) => {
+        if (init?.method === "POST") {
+          const b = JSON.parse(String(init.body)) as { email: string }
+          return jsonResponse({ id: "x", invitedEmail: b.email, claimUrl: "u", expiresAt: null })
+        }
+        return jsonResponse({ invites: [] })
+      })
+      render(<BetaInvitePanel />)
+      fireEvent.change(await screen.findByPlaceholderText(/manager@example.com/i), {
+        target: { value: "allfantasysportsapp+beta1@gmail.com" },
+      })
+      fireEvent.click(screen.getByRole("button", { name: /Issue invite/i }))
+
+      // Read the captured POST from the mock's recorded calls (the pattern used by the revoke
+      // test above) — proving the client sends the full plus-address, `+beta1` intact.
+      await waitFor(() =>
+        expect(fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === "POST")).toBeTruthy(),
+      )
+      const post = fetchMock.mock.calls.find((c) => (c[1] as RequestInit | undefined)?.method === "POST")
+      const body = JSON.parse(String((post?.[1] as RequestInit).body)) as { email: string }
+      expect(body.email).toBe("allfantasysportsapp+beta1@gmail.com")
+    })
+
+    it("accepts a blank optional expiry (button stays enabled, no expiry error)", async () => {
+      listOnly([])
+      render(<BetaInvitePanel />)
+      fireEvent.change(await screen.findByPlaceholderText(/manager@example.com/i), {
+        target: { value: "manager+wave1@gmail.com" },
+      })
+      expect((screen.getByLabelText(/expires/i) as HTMLInputElement).value).toBe("")
+      expect(screen.getByRole("button", { name: /Issue invite/i })).toBeEnabled()
+      expect(screen.queryByText(/must be in the future/i)).not.toBeInTheDocument()
+    })
+
+    it("accepts a valid future expiry", async () => {
+      listOnly([])
+      render(<BetaInvitePanel />)
+      fireEvent.change(await screen.findByPlaceholderText(/manager@example.com/i), {
+        target: { value: "manager@example.com" },
+      })
+      fireEvent.change(screen.getByLabelText(/expires/i), { target: { value: "2999-01-01T12:00" } })
+      expect(screen.getByRole("button", { name: /Issue invite/i })).toBeEnabled()
+      expect(screen.queryByText(/must be in the future/i)).not.toBeInTheDocument()
+    })
+
+    it("rejects a past expiry with a visible error beneath the field and disables the button", async () => {
+      listOnly([])
+      render(<BetaInvitePanel />)
+      fireEvent.change(await screen.findByPlaceholderText(/manager@example.com/i), {
+        target: { value: "manager@example.com" },
+      })
+      fireEvent.change(screen.getByLabelText(/expires/i), { target: { value: "2020-01-01T12:00" } })
+      expect(await screen.findByText(/must be in the future/i)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /Issue invite/i })).toBeDisabled()
+    })
+
+    it("shows a visible error (not a silent disable) and disables for an invalid email", async () => {
+      listOnly([])
+      render(<BetaInvitePanel />)
+      fireEvent.change(await screen.findByPlaceholderText(/manager@example.com/i), {
+        target: { value: "not-an-email" },
+      })
+      expect(await screen.findByText(/valid email address/i)).toBeInTheDocument()
+      expect(screen.getByRole("button", { name: /Issue invite/i })).toBeDisabled()
+    })
+  })
 })

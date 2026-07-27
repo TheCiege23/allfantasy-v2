@@ -67,6 +67,31 @@ function formatEt(iso: string | null): string {
   }
 }
 
+/**
+ * Standards-compliant email validity — the WHATWG HTML5 `<input type=email>` validation regex,
+ * whose local-part class explicitly includes `+`. Plus-addressing (name+tag@example.com, e.g. a
+ * Gmail `+beta1` alias) is therefore accepted, matching exactly what the browser itself allows.
+ */
+const EMAIL_RE =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+
+function emailValidationError(raw: string): string | null {
+  const v = raw.trim()
+  if (!v) return "Email is required."
+  if (!EMAIL_RE.test(v)) return "Enter a valid email address (e.g. manager@example.com)."
+  return null
+}
+
+/** Optional expiry: blank is valid; if provided it must parse and be in the future. */
+function expiryValidationError(raw: string, now: number = Date.now()): string | null {
+  const v = raw.trim()
+  if (!v) return null // optional — blank is allowed
+  const t = new Date(v).getTime()
+  if (Number.isNaN(t)) return "Enter a valid date and time."
+  if (t <= now) return "Expiry must be in the future."
+  return null
+}
+
 export function BetaInvitePanel() {
   const [invites, setInvites] = useState<InviteRow[]>([])
   const [loading, setLoading] = useState(true)
@@ -86,6 +111,15 @@ export function BetaInvitePanel() {
   const [issueError, setIssueError] = useState<string | null>(null)
   const [lastIssued, setLastIssued] = useState<IssuedInvite | null>(null)
   const [copied, setCopied] = useState(false)
+  // Explicit, standards-compliant field validation — never a silent disable. The "required"
+  // email message is withheld until the user has typed or attempted a submit, so a pristine
+  // form isn't nagged; format/expiry errors surface as soon as there's something to judge.
+  const [submitAttempted, setSubmitAttempted] = useState(false)
+
+  const emailError = emailValidationError(email)
+  const expiryError = expiryValidationError(expiresAt)
+  const showEmailError = email.trim().length > 0 || submitAttempted ? emailError : null
+  const showExpiryError = expiryError
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -141,6 +175,7 @@ export function BetaInvitePanel() {
       setEmail("")
       setExpiresAt("")
       setNote("")
+      setSubmitAttempted(false)
       await load()
     } catch {
       setIssueError("Network error — the invite was not created.")
@@ -202,8 +237,11 @@ export function BetaInvitePanel() {
 
       {/* ── Issue form ─────────────────────────────────────────────────────────────── */}
       <form
+        noValidate
         onSubmit={(e) => {
           e.preventDefault()
+          setSubmitAttempted(true)
+          if (emailError || expiryError) return
           void issue()
         }}
         className="rounded-2xl border border-white/10 bg-black/25 p-4"
@@ -214,12 +252,19 @@ export function BetaInvitePanel() {
             <span className="mb-1 block text-[11px] text-white/50">Email (required)</span>
             <input
               type="email"
-              required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setSubmitAttempted(true)}
+              aria-invalid={Boolean(showEmailError)}
+              aria-describedby={showEmailError ? "beta-email-error" : undefined}
               placeholder="manager@example.com"
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             />
+            {showEmailError && (
+              <p id="beta-email-error" role="alert" className="mt-1 text-[11px] font-semibold text-rose-200">
+                {showEmailError}
+              </p>
+            )}
           </label>
           <label className="block">
             <span className="mb-1 block text-[11px] text-white/50">Expires (optional)</span>
@@ -227,12 +272,19 @@ export function BetaInvitePanel() {
               type="datetime-local"
               value={expiresAt}
               onChange={(e) => setExpiresAt(e.target.value)}
+              aria-invalid={Boolean(showExpiryError)}
+              aria-describedby={showExpiryError ? "beta-expiry-error" : undefined}
               className="w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm text-white placeholder:text-white/50 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
             />
+            {showExpiryError && (
+              <p id="beta-expiry-error" role="alert" className="mt-1 text-[11px] font-semibold text-rose-200">
+                {showExpiryError}
+              </p>
+            )}
           </label>
           <button
             type="submit"
-            disabled={issuing || !email.trim() || !provisioned}
+            disabled={issuing || !provisioned || Boolean(showEmailError) || Boolean(showExpiryError)}
             title={!provisioned ? "Storage not provisioned in this environment" : undefined}
             className="rounded-xl bg-violet-500/30 px-4 py-2 text-sm font-black text-white transition hover:bg-violet-500/45 focus:outline-none focus-visible:ring-2 focus-visible:ring-violet-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
