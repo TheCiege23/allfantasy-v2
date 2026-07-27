@@ -63,6 +63,21 @@ export function getResendClient(): ResendClientResult {
   };
 }
 
+/**
+ * Non-throwing check of a Resend send result. The Resend SDK resolves `{ data, error }`
+ * WITHOUT throwing on a provider rejection (unverified domain, sandbox recipient, quota,
+ * etc.), so any caller that ignores `error` silently drops failed sends. Returns a
+ * sanitized, log-safe provider string (message or name only — NEVER the recipient, token,
+ * verification URL, or API key), or null on success.
+ */
+export function resendSendError(
+  result: { error?: { message?: string; name?: string } | null } | null | undefined
+): string | null {
+  const err = result?.error;
+  if (!err) return null;
+  return (err.message && err.message.trim()) || (err.name && err.name.trim()) || "unknown provider error";
+}
+
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")
@@ -102,10 +117,9 @@ async function sendEmail(params: {
     html: params.html,
   });
 
-  if ("error" in result && result.error) {
-    throw new Error(
-      `[resend] Failed to send email: ${result.error.message || "Unknown error"}`
-    );
+  const sendError = resendSendError(result);
+  if (sendError) {
+    throw new Error(`[resend] Failed to send email: ${sendError}`);
   }
 
   return result;

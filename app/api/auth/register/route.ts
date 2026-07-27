@@ -777,6 +777,9 @@ export async function POST(req: Request) {
 
     let emailVerificationPrepared = false
     if (!isE2ERequest) {
+      // Track the token so an undelivered one can be removed — a token whose email never went
+      // out must not be left behind as usable. Only cleared when the send did not succeed.
+      let createdTokenId: string | null = null
       try {
         const rawToken = makeToken(32)
         const tokenHash = sha256Hex(rawToken)
@@ -785,8 +788,9 @@ export async function POST(req: Request) {
         const tokenRecord = await (prisma as any).emailVerifyToken.create({
           data: { userId: user.id, tokenHash, expiresAt },
         })
+        createdTokenId = tokenRecord.id
 
-        const { getResendClient } = await import("@/lib/resend-client")
+        const { getResendClient, resendSendError } = await import("@/lib/resend-client")
         const { client, fromEmail } = await getResendClient()
 
         // Preview-aware, spoof-safe origin: on a PREVIEW deployment this is the preview's own
@@ -809,7 +813,7 @@ export async function POST(req: Request) {
 
         const { buildEmailIdempotencyKey } = await import("@/lib/email/idempotency")
 
-        await client.emails.send(
+        const sendResult = await client.emails.send(
           {
             from: fromEmail || "AllFantasy.ai <noreply@allfantasy.ai>",
             to: email,
@@ -823,9 +827,28 @@ export async function POST(req: Request) {
           },
           { idempotencyKey: buildEmailIdempotencyKey("email-verify", user.id, tokenRecord.id) }
         )
-        emailVerificationPrepared = true
+        // Resend resolves { data, error } WITHOUT throwing on a provider rejection, so an
+        // unchecked send silently reports success. Inspect it and log the provider message
+        // ONLY (never the recipient, token, or verification URL).
+        const sendError = resendSendError(sendResult)
+        if (sendError) {
+          console.error(`[register] verification email rejected by provider: ${sendError}`)
+        } else {
+          emailVerificationPrepared = true
+        }
       } catch (emailErr) {
-        console.error("[register] Failed to create/send verification email (non-blocking):", emailErr)
+        // Client/config construction or a thrown provider/network error. Non-blocking: the
+        // account already exists and the user can request a fresh email. Log the message only.
+        console.error(
+          `[register] verification email send failed: ${emailErr instanceof Error ? emailErr.message : "unknown error"}`
+        )
+      }
+
+      // Delivery did not succeed — remove the just-created token so an undelivered token is
+      // never left presented as usable. Best-effort; never blocks the response. A successful
+      // send keeps its token unchanged.
+      if (!emailVerificationPrepared && createdTokenId) {
+        await (prisma as any).emailVerifyToken.delete({ where: { id: createdTokenId } }).catch(() => {})
       }
     }
 

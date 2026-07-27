@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 
 import { requireAdmin } from "@/lib/adminAuth"
+import { resolveAdminAuditIdentity } from "@/lib/admin-audit-identity"
 import { issueInvite, listInvites, revokeInvite } from "@/lib/beta-invite/betaAdmissionService"
 import { normalizeEmail } from "@/lib/beta-invite/betaAdmissionService"
 import { getClientIp, rateLimit } from "@/lib/rate-limit"
@@ -18,10 +19,6 @@ export const dynamic = "force-dynamic"
  * The raw token is returned exactly once, in the POST response, and is never logged or
  * persisted (only its digest is stored).
  */
-
-function adminIdentity(user: { id?: string; email?: string }): string {
-  return user.email || user.id || "unknown-admin"
-}
 
 /**
  * True when the failure is "the beta_invites table isn't in this deployment's database"
@@ -90,7 +87,7 @@ export async function POST(request: Request) {
 
   // Defense-in-depth rate limit on issuance (admin is already authenticated). Keyed by the
   // admin identity so one admin's burst can't starve another.
-  const rl = rateLimit(`beta-issue:${adminIdentity(gate.user)}:${getClientIp(request)}`, 60, 600_000)
+  const rl = rateLimit(`beta-issue:${resolveAdminAuditIdentity(gate.user)}:${getClientIp(request)}`, 60, 600_000)
   if (!rl.success) {
     return NextResponse.json({ error: "Too many invites issued — slow down a moment." }, { status: 429 })
   }
@@ -118,7 +115,7 @@ export async function POST(request: Request) {
   try {
     const issued = await issueInvite({
       email,
-      adminId: adminIdentity(gate.user),
+      adminId: resolveAdminAuditIdentity(gate.user),
       expiresAt,
       note,
     })
@@ -161,7 +158,7 @@ export async function DELETE(request: Request) {
   if (!id) return NextResponse.json({ error: "id is required." }, { status: 400 })
 
   try {
-    const result = await revokeInvite({ id, adminId: adminIdentity(gate.user) })
+    const result = await revokeInvite({ id, adminId: resolveAdminAuditIdentity(gate.user) })
     if (!result.ok) {
       const status = result.reason === "not_found" ? 404 : 409
       return NextResponse.json({ error: result.reason }, { status })

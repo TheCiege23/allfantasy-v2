@@ -180,3 +180,33 @@ describe("admin beta-invites — storage not provisioned (missing table)", () =>
     expect((await mod.GET()).status).toBe(500)
   })
 })
+
+describe("admin beta-invites — audit attribution (createdByAdmin)", () => {
+  beforeEach(() => {
+    mocks.issueInvite.mockResolvedValue({ id: "i", invitedEmail: "a@b.com", rawToken: "t".repeat(24), expiresAt: null })
+  })
+
+  it("records 'password-admin' for a shared-password session (no email/id) — never unknown-admin", async () => {
+    mocks.requireAdmin.mockResolvedValue({ ok: true, user: { role: "admin", authMethod: "password" } })
+    const mod = await route()
+    await mod.POST(req("POST", { body: { email: "a@b.com" } }))
+    expect(mocks.issueInvite.mock.calls[0][0].adminId).toBe("password-admin")
+  })
+
+  it("still records the admin email when the session carries one (attribution unchanged)", async () => {
+    mocks.requireAdmin.mockResolvedValue({
+      ok: true,
+      user: { id: "admin-1", email: "ops@allfantasy.ai", authMethod: "password" },
+    })
+    const mod = await route()
+    await mod.POST(req("POST", { body: { email: "a@b.com" } }))
+    expect(mocks.issueInvite.mock.calls[0][0].adminId).toBe("ops@allfantasy.ai")
+  })
+
+  it("falls back to 'unknown-admin' only for a genuinely identity-less session", async () => {
+    mocks.requireAdmin.mockResolvedValue({ ok: true, user: { role: "admin" } })
+    const mod = await route()
+    await mod.POST(req("POST", { body: { email: "a@b.com" } }))
+    expect(mocks.issueInvite.mock.calls[0][0].adminId).toBe("unknown-admin")
+  })
+})
