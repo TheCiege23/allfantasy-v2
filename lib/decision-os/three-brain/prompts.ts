@@ -22,7 +22,7 @@ export const SAFETY_PREAMBLE = [
   'Respond with ONLY a single JSON object matching the requested schema, with no prose outside the JSON.',
 ].join(' ')
 
-function evidenceBlock(packet: DecisionOSEvidencePacket): string {
+export function evidenceBlock(packet: DecisionOSEvidencePacket): string {
   return `<evidence>\n${JSON.stringify(toModelFacingEvidence(packet))}\n</evidence>`
 }
 
@@ -58,7 +58,7 @@ export function buildGrokRequest(packet: DecisionOSEvidencePacket): ProviderChat
 const SYNTHESIS_OUTPUT_SPEC =
   'Return JSON of shape { "shortAnswer": string, "whatDataSays": string, "whatItMeans": string, "recommendedAction"?: string, "alternatives": string[], "caveats": string[], "evidenceIds": string[] }. Cite only evidence ids from the packet. Do NOT output confidence, freshness, or URLs — those are assigned by the system.'
 
-function specialistBlock(name: SpecialistProvider, evaluation: SpecialistEvaluation): string {
+export function specialistBlock(name: SpecialistProvider, evaluation: SpecialistEvaluation): string {
   if (evaluation.status === 'failed') {
     return `<${name} status="unavailable">This specialist did not return a usable evaluation. Do not invent or infer its conclusions.</${name}>`
   }

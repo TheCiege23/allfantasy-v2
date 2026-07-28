@@ -17,7 +17,7 @@ export function sanitizeModelText(input: string): string {
   return input.replace(URL_RE, '[link removed]').replace(/\s+/g, ' ').trim()
 }
 
-function parseModelJson(raw: ProviderChatResult): unknown {
+export function parseModelJson(raw: ProviderChatResult): unknown {
   if (raw.json != null && typeof raw.json === 'object') return raw.json
   try {
     return JSON.parse(raw.text)

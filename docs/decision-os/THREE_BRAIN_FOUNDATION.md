@@ -201,3 +201,59 @@ routes actually consume it. P1 alone is orchestration plumbing, not a live capab
 ## 8. What this Phase‑0 change contains
 Only this document. No code, no schema, no route changes — so there is zero risk to the deterministic
 Decision OS, Chimmy, or any existing suite. P1 begins the implementation on this branch.
+
+---
+
+## 9. Phase 1.5 — Claude (Anthropic) as a SELECTIVE reviewer + synthesis fallback (landed on this branch)
+
+Extends the standalone P1 service to a **four‑provider** flow. Still standalone — **no route/persistence/token/
+Chimmy/UI wiring** (those remain P2–P4). Claude does **not** run on every request.
+
+**Flow:** `DeepSeek(quant) ∥ Grok(trend) → OpenAI synthesis → Claude review (only when eligible)`. If OpenAI
+fails: `evidence + validated specialist evals → Claude fallback synthesis`. Claude runs **at most once** per
+request.
+
+**Eligibility (deterministic, `eligibility.ts`).** REVIEW (OpenAI succeeded) fires only if ≥1 holds: specialists
+materially disagree · server confidence ≤ threshold (`DEFAULT_CLAUDE_CONFIDENCE_THRESHOLD = 45`, the
+disagreement base) · caller policy `explicitReviewRequested` · caller policy `highStakesPremium`. With **no
+caller policy** (ordinary standalone execution) a confident consensus is **not** reviewed — nothing is treated
+as premium by default. FALLBACK (OpenAI failed) fires only when usable specialist/evidence material remains.
+The module invents **no** entitlements, tokens, prices, or tiers — it implements the policy contract only.
+
+**Review role (`claudeReview.ts`).** Claude receives the minimized evidence packet, both validated specialist
+evals, the validated OpenAI synthesis, and the server‑owned agreement/confidence/freshness as **read‑only**
+context. It reviews for: unsupported claims, hidden/flattened disagreement, misread evidence, dropped
+minority/safety warnings, overconfidence, missing caveats, internal contradiction. It may **not** browse,
+fetch, invent facts/URLs, change identity, decide access, assign confidence, or override freshness — enforced
+in both prompt and validation.
+
+**`ClaudeReviewEvaluation` contract (`types.ts` / `schemas.ts`).** `{ provider:'anthropic',
+status:'completed'|'degraded'|'failed'|'not_requested', verdict:'approved'|'qualified'|'rejected'|'unavailable',
+findings[], requiredCaveats[], correctedContent? }`. Evidence ids validated; a review finding critiquing an
+**unsupported** synthesis claim may cite **no** id (it points at an absence), but a finding that cites ids of
+which none are known is dropped; URLs stripped; zod strips any attempt to set authoritative fields.
+
+**Final‑result behavior (`orchestrator.ts`).** approve → preserve OpenAI synthesis; qualify → apply only the
+grounded corrections + keep required caveats (confidence −8); reject → **no false consensus** (state →
+`disagreement`, concerns disclosed, confidence capped ≤40); Claude fails after a valid OpenAI → preserve OpenAI
++ disclose review unavailable; OpenAI fails → Claude fallback synthesis (`claudeState:'fallback_synthesis'`);
+both fail → degraded. **Claude never raises confidence** merely because it ran; it may only lower it. The
+result distinguishes `not_requested` / `completed` / `failed` / `fallback_synthesis`, so a run is never
+described as four‑provider when Claude didn't run.
+
+**Disagreement coverage (`confidence.ts`).** Deterministic detection now spans lineup start/sit, trade
+accept/decline, waiver add/drop, buy/sell + hold/trade, commissioner intervene/do‑not‑intervene,
+insufficient‑evidence‑vs‑directive, and one‑warns‑risk‑while‑the‑other‑recommends‑action. Material minority
+warnings (high‑impact risk findings + risk‑worded caveats) are **unioned into the final caveats** so a
+downstream model can never silently drop a safety warning.
+
+**Timeout / cost safety.** The Anthropic adapter (`anthropicClient.ts`, wrapping `@anthropic-ai/sdk`) honors an
+**AbortSignal**, so a per‑provider timeout **cancels** the request; a late completion is swallowed and never
+mutates the returned result; a timeout never triggers a duplicate fallback. Registry providers
+(OpenAI/DeepSeek/Grok) are called via `getProvider(role).chat()` and do **not** accept a signal — for them a
+timeout is stop‑awaiting only (late result discarded), an honest limitation. Non‑sensitive telemetry
+(`three_brain_anthropic`) is recorded; tests make **no** real paid calls (provider boundary mocked).
+
+**Tests:** `__tests__/decision-os/three-brain-claude.test.ts` (34 proofs) + the unchanged P1 suite (19) all
+green (53/53). Retry/circuit‑breaker are intentionally **not** inherited (this service calls the raw provider
+boundary, not `runUnifiedOrchestration`) — to be added in a later phase if needed.

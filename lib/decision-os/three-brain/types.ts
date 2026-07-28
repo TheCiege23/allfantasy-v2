@@ -104,6 +104,29 @@ export type AgreementState =
 
 /** The validated three-brain result. agreementState / confidence / freshness / specialistStatus / evidence
  *  identity are SERVER-owned; the model only drafts the explanatory prose. */
+/** Claude (Anthropic) review verdict on the OpenAI synthesis. */
+export type ClaudeReviewVerdict = 'approved' | 'qualified' | 'rejected' | 'unavailable'
+
+/** State of the Claude stage in a run. `not_requested` = eligibility policy did not trigger it. */
+export type ClaudeState = 'not_requested' | 'completed' | 'degraded' | 'failed' | 'fallback_synthesis'
+
+/** Validated Claude review of the OpenAI synthesis (server-owned status; model owns only prose + verdict). */
+export type ClaudeReviewEvaluation = {
+  provider: 'anthropic'
+  status: 'completed' | 'degraded' | 'failed' | 'not_requested'
+  verdict: ClaudeReviewVerdict
+  findings: SpecialistFinding[]
+  requiredCaveats: string[]
+  /** Evidence-grounded content corrections applied only on a `qualified` verdict (URLs stripped). */
+  correctedContent?: {
+    shortAnswer?: string
+    whatDataSays?: string
+    whatItMeans?: string
+    recommendedAction?: string
+    alternatives?: string[]
+  }
+}
+
 export type ThreeBrainDecisionResult = {
   schemaVersion: string
   decisionType: string
@@ -115,7 +138,12 @@ export type ThreeBrainDecisionResult = {
   caveats: string[]
   evidenceIds: string[]
   agreementState: AgreementState
-  specialistStatus: { deepseek: string; grok: string; openai: string }
+  /** Per-provider status. `anthropic` reflects the Claude stage (see `claudeState`). */
+  specialistStatus: { deepseek: string; grok: string; openai: string; anthropic: string }
+  /** Distinguishes not_requested / completed / failed / fallback_synthesis for the Claude stage. */
+  claudeState: ClaudeState
+  /** Claude's review verdict when it ran as a reviewer (absent for fallback / not_requested). */
+  reviewVerdict?: ClaudeReviewVerdict
   confidencePct?: number
   freshness: DecisionFreshness
   missingInformation: string[]
