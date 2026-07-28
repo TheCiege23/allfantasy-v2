@@ -14,8 +14,8 @@ const source = fs.readFileSync(
 
 describe('import page provider flow', () => {
   it('treats import as a league-import experience instead of the old sleeper legacy flow', () => {
-    expect(source).toContain('Import your league')
-    expect(source).toContain('Bring your Sleeper, ESPN, Yahoo, Fantrax, or MFL league into')
+    expect(source).toContain('Connect your league')
+    expect(source).toContain('Connect your Sleeper, ESPN, Yahoo, Fantrax, or MFL league to')
     expect(source).not.toContain('useLegacySleeperImport')
     expect(source).not.toContain('Build My Legacy Profile')
   })
@@ -26,6 +26,11 @@ describe('import page provider flow', () => {
     expect(source).toContain("{ id: 'yahoo', label: 'Yahoo' }")
     expect(source).toContain("{ id: 'fantrax', label: 'Fantrax' }")
     expect(source).toContain("{ id: 'mfl', label: 'MFL' }")
+    // Fleaflicker is an intended provider — visible as a tab even though it is
+    // currently unavailable (its input stays disabled via provider-ui-config).
+    expect(source).toContain("{ id: 'fleaflicker', label: 'Fleaflicker' }")
+    // Unavailable providers render an honest blocked/coming-soon state.
+    expect(source).toContain('import-provider-coming-soon')
   })
 
   it('drives sleeper through the same preview-first provider pipeline', () => {
