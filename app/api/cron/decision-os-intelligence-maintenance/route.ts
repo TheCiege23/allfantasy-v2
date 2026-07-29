@@ -28,9 +28,25 @@ function authorizeCron(request: Request): boolean {
   return false
 }
 
+/**
+ * Off-by-default activation gate. Maintenance runs ONLY when `DECISION_OS_MAINTENANCE_ENABLED` is EXACTLY "true";
+ * missing/empty/"false"/"1"/"yes"/any other value stays disabled. Placed AFTER authentication (an unauthorized
+ * request still 401s) and BEFORE any deps/runner/DB call, so an authenticated-but-disabled invocation is fully
+ * inert — no Phase 2 table query, no job drain, no reservation reconcile, no provider call, no token/freshness
+ * mutation, no DB write. Keeps the deployed cron safe before migrations exist, with provider creds configured,
+ * and even after Phase 3 begins enqueueing jobs — until an operator intentionally flips this flag.
+ */
+function maintenanceEnabled(): boolean {
+  return process.env.DECISION_OS_MAINTENANCE_ENABLED === 'true'
+}
+
 export async function GET(request: Request) {
   if (!authorizeCron(request)) {
     return NextResponse.json({ ok: false, error: 'unauthorized' }, { status: 401 })
+  }
+  if (!maintenanceEnabled()) {
+    // Authenticated but disabled → inert success. Do NOT touch the DB, runner, providers, tokens, or freshness.
+    return NextResponse.json({ ok: true, enabled: false, status: 'maintenance_disabled' })
   }
   try {
     // Minute-bucket tick id. Overlap is prevented by the ONE global maintenance lease (AutomationLock) inside
@@ -41,7 +57,7 @@ export async function GET(request: Request) {
       deps: createManagedIntelligenceDeps(),
       config: { refreshBatch: 20, reconcileBatch: 200 },
     })
-    return NextResponse.json({ ok: true, tickId, ...result })
+    return NextResponse.json({ ok: true, enabled: true, tickId, ...result })
   } catch (error) {
     return NextResponse.json(
       { ok: false, error: error instanceof Error ? error.message.slice(0, 200) : 'maintenance failed' },

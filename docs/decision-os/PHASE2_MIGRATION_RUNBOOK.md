@@ -16,6 +16,33 @@ rewrite, no long lock). None of the other 60+ externally-managed tables are refe
 the order above (migration 3 depends on migration 1's table). The `scripts/verify-phase2-migration-prodlike.mjs`
 proof exercises all **three** against the real 626-table structure (checksums match, additive-only, idempotent).
 
+## Maintenance activation flag — `DECISION_OS_MAINTENANCE_ENABLED` (OFF by default)
+
+The maintenance cron (`/api/cron/decision-os-intelligence-maintenance`, scheduled every 10 min in `vercel.json`)
+is gated by a single server-side env flag. It runs the drain + reconcile **only** when the value is EXACTLY
+`true`; missing / empty / `false` / `1` / `yes` / any other value keeps it disabled. When disabled, an
+authenticated request returns an inert `{ ok: true, enabled: false, status: "maintenance_disabled" }` **without**
+querying Phase 2 tables, draining jobs, reconciling reservations, invoking providers, mutating tokens, minting
+freshness, or writing any DB state. (An unauthenticated request still returns `401` regardless of the flag.)
+
+Operational rules:
+
+- **Off by default.** Merging or deploying PR #349 does **not** enable maintenance — the flag is absent, so the
+  cron is inert even before the migrations exist, even with provider credentials configured, and even after
+  Phase 3 begins enqueueing refresh jobs.
+- **Apply + verify the three migrations BEFORE enabling.** Set `DECISION_OS_MAINTENANCE_ENABLED=true` only after
+  the three migrations above are applied and verified (`prisma migrate status` clean; the two new tables + the
+  `reserved_balance` column present). Enabling before the tables exist would only produce a harmless `500` (the
+  gate/route never mutates state), but activation should follow a clean migration regardless.
+- **Phase 3 must not auto-enable it.** Wiring `runManagedIntelligence` into the live Decision OS routes (Phase 3)
+  must NOT set this flag. Activation is a **separate, deliberate operator decision**, made only when the operator
+  intends maintenance (job drain + provider spend on material-change refreshes) to run.
+- **Disable / rollback:** set `DECISION_OS_MAINTENANCE_ENABLED=false` (or remove the variable) and redeploy /
+  restart. This immediately stops new maintenance processing. It does **not** erase stored state — persisted runs,
+  reservations, and ledger entries are untouched; in-flight holds continue to auto-expire and are reconciled once
+  maintenance is re-enabled. Never commit a production value for this flag; the repo documents only the safe
+  default (`DECISION_OS_MAINTENANCE_ENABLED=false`, see `.env.example`).
+
 ## Why NOT `prisma migrate deploy` against production
 
 This database carries a large set of externally-managed tables (created by direct SQL, `db push`, and provider

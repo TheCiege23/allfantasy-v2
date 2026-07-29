@@ -16,6 +16,7 @@
  * stays correct under Postgres READ COMMITTED: a concurrent writer re-evaluates the WHERE against the committed
  * row (EvalPlanQual), so exactly one of two racing reservations can succeed when only one fits.
  */
+import 'server-only'
 import { createHash } from 'node:crypto'
 import { Prisma } from '@prisma/client'
 import { prisma as defaultPrisma } from '@/lib/prisma'
