@@ -66,9 +66,82 @@ export type RunThreeBrainOptions = {
   recordUsage?: RecordUsageFn
   /** Selective-Claude policy. Absent in ordinary standalone execution (Claude is NOT premium by default). */
   reviewPolicy?: ClaudeReviewPolicy
+  /** EXTERNAL cancellation — the Phase 2 durable-refresh lease-loss / hard-deadline signal. When it aborts, every
+   *  in-flight provider network request is cancelled and no further provider call (synthesis, fallback, review)
+   *  is started. Absent for ordinary standalone execution. */
+  signal?: AbortSignal
+  /** Grace to await a cancelled request settling before returning (no detached work). Test override. */
+  cancelGraceMs?: number
+  /** Invoked ONCE per provider request ISSUED during the attempt, at its settlement — for EVERY request, whether
+   *  it settled before, during, or after an external abort (so a stage that completed early is never forgotten).
+   *  The Phase 2 owner accumulates the full history and folds it via `aggregateExecutionSettlement` to decide
+   *  whether an aborted attempt was wholly CONFIRMED cancelled (safe to re-execute) or UNKNOWN (block re-exec). */
+  onProviderRequest?: (outcome: ProviderRequestOutcome) => void
+}
+
+/** True once external cancellation has fired — used to stop starting further provider calls after an abort. */
+function isAborted(opts: RunThreeBrainOptions): boolean {
+  return opts.signal?.aborted === true
+}
+
+/** Settlement classification of ONE issued provider request (reported for EVERY request in the attempt, whether it
+ *  settled before, during, or after an external abort):
+ *   • completed     — the request's promise RESOLVED: the remote produced a response (a billable stage finished).
+ *   • cancelled     — REJECTED with a RECOGNIZED cancellation (AbortError/APIUserAbortError): terminated before
+ *                     producing a usable response.
+ *   • indeterminate — did NOT settle within the grace, OR rejected with an AMBIGUOUS/timeout error: the remote may
+ *                     have completed or may still be running — its outcome is UNKNOWN. */
+export type ProviderCallSettlement = 'cancelled' | 'completed' | 'indeterminate'
+
+/** One row of the orchestration's complete execution history — retained for EVERY issued provider request so a
+ *  stage that completed BEFORE an external abort is never forgotten by the whole-run settlement decision. */
+export type ProviderRequestOutcome = {
+  role: ThreeBrainRole
+  classification: ProviderCallSettlement
+  /** The remote produced a response (the promise resolved) — a completed, potentially-billable stage. */
+  usableResponse: boolean
+  /** The response was actually used by later orchestration work (resolved AND not discarded by our timeout). */
+  incorporated: boolean
+  startedAtMs: number
+  settledAtMs: number
+}
+
+/** Aggregate settlement of an ENTIRE aborted orchestration attempt — what the Phase 2 owner needs to decide fate.
+ *   • confirmed_cancelled — NO request produced a usable response AND none is indeterminate (every issued request
+ *                           confirmed cancellation, or none was issued): the ONLY automatically-retryable outcome.
+ *   • confirmed_completed — at least one request produced a usable response: a billable stage finished, so the
+ *                           whole run cannot be re-run without duplicating it → UNKNOWN (completed-but-unsettled).
+ *   • unknown             — no usable response, but at least one request is indeterminate: cannot prove safety. */
+export type OwnerExecutionSettlement = 'confirmed_cancelled' | 'confirmed_completed' | 'unknown'
+
+/**
+ * True ONLY for a RECOGNIZED cancellation/abort rejection — never for a timeout or an ambiguous transport error.
+ * A dropped connection, `socket hang up`, `ECONNRESET`, or a bare timeout does NOT prove the remote provider
+ * stopped, so those are deliberately NOT treated as confirmed cancellations (→ classified `indeterminate`).
+ */
+export function isCancellationError(e: unknown): boolean {
+  if (!e || typeof e !== 'object') return false
+  const name = String((e as { name?: unknown }).name ?? '')
+  return name === 'AbortError' || name === 'APIUserAbortError'
+}
+
+/**
+ * Fold the COMPLETE execution history into the owner-level decision (conservative whole-run contract). A completed
+ * stage (usable response) anywhere in the attempt — even one that settled BEFORE the external abort while another
+ * request was later cancelled — forbids a wholesale CONFIRMED_CANCELLED, because a full re-run would duplicate it.
+ * Precedence: any usable response → `confirmed_completed`; else any indeterminate → `unknown`; else (empty, or
+ * every issued request confirmed-cancelled with no usable response) → `confirmed_cancelled`.
+ */
+export function aggregateExecutionSettlement(history: ProviderRequestOutcome[]): OwnerExecutionSettlement {
+  if (history.some((r) => r.usableResponse)) return 'confirmed_completed'
+  if (history.some((r) => r.classification === 'indeterminate')) return 'unknown'
+  return 'confirmed_cancelled'
 }
 
 const DEFAULT_TIMEOUT_MS = 25_000
+/** After aborting a request we AWAIT it settling up to this grace, so nothing continues detached. Cancellable
+ *  providers settle well within it; overridable for deterministic tests. */
+const DEFAULT_CANCEL_GRACE_MS = 2_000
 
 const asProvider = (role: ThreeBrainRole): ProviderChatResult['provider'] =>
   role as unknown as ProviderChatResult['provider']
@@ -92,32 +165,88 @@ const defaultGetProvider: ThreeBrainProviderGetter = (role) =>
     : (realGetProvider(role as AIModelRole) as ThreeBrainProviderClient)
 
 /**
- * Race the provider call against a hard per-provider timeout. Never rejects. On timeout it aborts the
- * underlying request (honored by clients that support AbortSignal — e.g. Anthropic) and a late resolution is
- * swallowed so it cannot mutate the returned result.
+ * Race the provider call against a hard per-provider timeout AND an external cancellation signal. Never rejects.
+ * On timeout OR external abort it aborts the shared controller the provider client receives.
+ *
+ * Which providers TERMINATE the network request on abort: the Anthropic adapter (`anthropicClient.ts`) forwards
+ * `{ signal }` into the actual SDK/HTTP request of EVERY provider — Anthropic (`@anthropic-ai/sdk`), OpenAI +
+ * DeepSeek (OpenAI SDK `create(body, { signal })`), and Grok (xAI `fetch(url, { signal })`) — so a lease-loss /
+ * hard-deadline / per-provider-timeout abort GENUINELY terminates the in-flight network request.
+ *
+ * NO DETACHED WORK: on timeout or external abort the controller is aborted and we then AWAIT the (now-cancelled)
+ * request to SETTLE before returning, bounded by a short grace so a pathological non-cancelling client cannot
+ * hang the runner. For a cancellable provider the abort settles the request promptly.
+ *
+ * EXECUTION HISTORY: `onProviderRequest` is invoked once at THIS request's settlement — for EVERY issued request,
+ * regardless of when it settles relative to an external abort — with its cause-aware disposition:
+ *   • `completed`     — the promise RESOLVED (a usable remote response was produced), whether or not an abort later
+ *                       fired. `incorporated` is false if our per-provider timeout had already discarded it.
+ *   • `cancelled`     — REJECTED with a recognized cancellation and NOT via our own per-provider timeout: proven
+ *                       terminated before producing a response.
+ *   • `indeterminate` — did not settle within the grace, was aborted by OUR per-provider timeout (the remote may
+ *                       have completed), or rejected ambiguously. A bounded wait returning is NOT proof of anything.
+ * The owner keeps the full history so a stage that COMPLETED before the abort is never forgotten.
  */
 async function callWithTimeout(
   client: ThreeBrainProviderClient,
   request: ProviderChatRequest,
   timeoutMs: number,
   role: ThreeBrainRole,
+  externalSignal?: AbortSignal,
+  cancelGraceMs: number = DEFAULT_CANCEL_GRACE_MS,
+  onProviderRequest?: (outcome: ProviderRequestOutcome) => void,
 ): Promise<ProviderChatResult> {
   const controller = new AbortController()
+  const onExternalAbort = () => controller.abort()
+  if (externalSignal) {
+    if (externalSignal.aborted) controller.abort()
+    else externalSignal.addEventListener('abort', onExternalAbort, { once: true })
+  }
   let timer: ReturnType<typeof setTimeout> | undefined
-  const timeout = new Promise<ProviderChatResult>((resolve) => {
-    timer = setTimeout(() => {
-      controller.abort() // cancel the underlying request where supported
-      resolve(timeoutResult(role))
-    }, timeoutMs)
+  let timedOut = false
+  const startedAtMs = Date.now()
+  let reported = false
+  // Record THIS request's disposition in the orchestration history (once), for every issued request.
+  const record = (classification: ProviderCallSettlement, usableResponse: boolean, incorporated: boolean) => {
+    if (reported) return
+    reported = true
+    onProviderRequest?.({ role, classification, usableResponse, incorporated, startedAtMs, settledAtMs: Date.now() })
+  }
+  const timeout = new Promise<void>((resolve) => {
+    timer = setTimeout(() => { timedOut = true; controller.abort(); resolve() }, timeoutMs)
   })
   try {
+    // client.chat is inside the try so a bad/misconfigured provider client → failedResult (never uncaught).
     const chatPromise = client.chat({ ...request, timeoutMs }, { signal: controller.signal })
-    chatPromise.catch(() => {}) // a late rejection after a timeout must not surface as unhandled
-    return await Promise.race([chatPromise, timeout])
+    const settled = chatPromise.then((r) => ({ ok: true as const, r }), (e) => ({ ok: false as const, e }))
+    // Wait for the request to settle OR the timeout to fire (which aborts it).
+    await Promise.race([settled, timeout])
+    if (externalSignal?.aborted && !timedOut) controller.abort()
+    // AWAIT the (cancelled) request settling so nothing continues detached; bounded grace as a safety net.
+    const outcome = await Promise.race([
+      settled,
+      new Promise<{ grace: true }>((res) => setTimeout(() => res({ grace: true }), cancelGraceMs)),
+    ])
+    if ('grace' in outcome) {
+      // Did NOT settle within the grace → remote outcome UNKNOWN (a bounded wait returning proves nothing).
+      record('indeterminate', false, false)
+      return timeoutResult(role)
+    }
+    if (outcome.ok) {
+      // RESOLVED → the remote produced a response; usable even if our per-provider timeout already discarded it.
+      record('completed', true, !timedOut)
+      return timedOut ? timeoutResult(role) : outcome.r
+    }
+    // Rejected. A rejection AFTER our own per-provider timeout aborted it does NOT prove the remote stopped → UNKNOWN.
+    // Only a recognized cancellation that was NOT our timeout is a proven cancellation.
+    record(!timedOut && isCancellationError(outcome.e) ? 'cancelled' : 'indeterminate', false, false)
+    return failedResult(role, outcome.e instanceof Error ? outcome.e.message : 'provider error')
   } catch (err) {
+    // Synchronous client fault BEFORE a network request was issued → nothing to record (no history entry).
     return failedResult(role, err instanceof Error ? err.message : 'provider error')
   } finally {
     if (timer) clearTimeout(timer)
+    if (externalSignal) externalSignal.removeEventListener('abort', onExternalAbort)
   }
 }
 
@@ -315,6 +444,7 @@ export async function runThreeBrainAnalysis(
 ): Promise<ThreeBrainDecisionResult> {
   const getProvider = opts.getProvider ?? defaultGetProvider
   const timeoutMs = opts.perProviderTimeoutMs ?? DEFAULT_TIMEOUT_MS
+  const cancelGraceMs = opts.cancelGraceMs ?? DEFAULT_CANCEL_GRACE_MS
   const recordUsage = opts.recordUsage ?? recordLlmUsage
   const validIds = evidenceIdSet(packet)
 
@@ -332,10 +462,18 @@ export async function runThreeBrainAnalysis(
     ).catch(() => {})
   }
 
-  // 1) Specialists in parallel. Each receives ONLY the evidence packet + its role prompt.
+  // 0) Already aborted before any provider call → do NOT start the network requests.
+  if (isAborted(opts)) {
+    const d = validateSpecialistOutput('deepseek', failedResult('deepseek', 'aborted'), validIds).evaluation
+    const g = validateSpecialistOutput('grok', failedResult('grok', 'aborted'), validIds).evaluation
+    return deterministicOnlyResult(packet, d, g)
+  }
+
+  // 1) Specialists in parallel. Each receives ONLY the evidence packet + its role prompt + the external signal,
+  //    so a lease-loss / deadline abort cancels BOTH in-flight requests.
   const [dSettled, gSettled] = await Promise.allSettled([
-    callWithTimeout(getProvider('deepseek'), buildDeepSeekRequest(packet), timeoutMs, 'deepseek'),
-    callWithTimeout(getProvider('grok'), buildGrokRequest(packet), timeoutMs, 'grok'),
+    callWithTimeout(getProvider('deepseek'), buildDeepSeekRequest(packet), timeoutMs, 'deepseek', opts.signal, cancelGraceMs, opts.onProviderRequest),
+    callWithTimeout(getProvider('grok'), buildGrokRequest(packet), timeoutMs, 'grok', opts.signal, cancelGraceMs, opts.onProviderRequest),
   ])
   const dRaw = dSettled.status === 'fulfilled' ? dSettled.value : failedResult('deepseek', 'settle error')
   const gRaw = gSettled.status === 'fulfilled' ? gSettled.value : failedResult('grok', 'settle error')
@@ -352,8 +490,10 @@ export async function runThreeBrainAnalysis(
     return deterministicOnlyResult(packet, deepseek, grok)
   }
 
-  // 3) OpenAI synthesis — ONLY after both specialists settled, receiving BOTH evaluations.
-  const oRaw = await callWithTimeout(getProvider('openai'), buildSynthesisRequest(packet, deepseek, grok), timeoutMs, 'openai')
+  // 3) OpenAI synthesis — ONLY after both specialists settled, receiving BOTH evaluations. Do not START it if
+  //    the execution was cancelled between stages (no post-abort provider call).
+  if (isAborted(opts)) return deterministicOnlyResult(packet, deepseek, grok)
+  const oRaw = await callWithTimeout(getProvider('openai'), buildSynthesisRequest(packet, deepseek, grok), timeoutMs, 'openai', opts.signal, cancelGraceMs, opts.onProviderRequest)
   emit('openai', oRaw)
   const synth = validateSynthesisOutput(oRaw, validIds)
 
@@ -370,8 +510,8 @@ export async function runThreeBrainAnalysis(
 
   // 4) OpenAI failed → Claude FALLBACK synthesis (from the same verified evidence + specialist evals).
   if (!synth.ok) {
-    if (shouldRunClaudeFallback({ packet, deepseek, grok })) {
-      const fRaw = await callWithTimeout(getProvider('anthropic'), buildSynthesisRequest(packet, deepseek, grok), timeoutMs, 'anthropic')
+    if (!isAborted(opts) && shouldRunClaudeFallback({ packet, deepseek, grok })) {
+      const fRaw = await callWithTimeout(getProvider('anthropic'), buildSynthesisRequest(packet, deepseek, grok), timeoutMs, 'anthropic', opts.signal, cancelGraceMs, opts.onProviderRequest)
       emit('anthropic', fRaw)
       const fallback = validateSynthesisOutput(fRaw, validIds)
       if (fallback.ok) {
@@ -418,7 +558,8 @@ export async function runThreeBrainAnalysis(
     })
   }
 
-  // 5) OpenAI succeeded → Claude REVIEWS only when eligible (disagreement / low confidence / policy).
+  // 5) OpenAI succeeded → Claude REVIEWS only when eligible (disagreement / low confidence / policy). An abort
+  //    between stages skips the review entirely (no post-abort provider call) and returns the OpenAI synthesis.
   const eligibility = evaluateClaudeReviewEligibility({ agreementState, confidencePct, policy: opts.reviewPolicy })
   const baseStatus: SpecialistStatusRecord = {
     deepseek: deepseek.status,
@@ -426,7 +567,7 @@ export async function runThreeBrainAnalysis(
     openai: 'completed',
     anthropic: 'not_requested',
   }
-  if (!eligibility.eligible) {
+  if (!eligibility.eligible || isAborted(opts)) {
     return buildSynthesisResult({
       packet,
       deepseek,
@@ -451,6 +592,9 @@ export async function runThreeBrainAnalysis(
     }),
     timeoutMs,
     'anthropic',
+    opts.signal,
+    cancelGraceMs,
+    opts.onProviderRequest,
   )
   emit('anthropic', rRaw)
   const review = validateClaudeReview(rRaw, validIds)
