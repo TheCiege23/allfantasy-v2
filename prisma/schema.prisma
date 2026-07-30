@@ -499,6 +499,59 @@ model AiResult {
   @@map("ai_results")
 }
 
+/// Decision OS three-brain (Phase 2) — durable managed-intelligence run + result cache. Carries the
+/// single-flight lease (owner token + lease expiry), freshness/version invalidation, provider participation,
+/// idempotent token linkage, and a MINIMIZED (secret-free) request snapshot. `resultKey` is the canonical,
+/// tenant-scoped identity and the cross-instance single-flight lock. STANDALONE — not wired to live Decision
+/// OS routes or Chimmy yet (Phase 3/4). Private results are scoped by `userId` on every read.
+model DecisionIntelligenceRun {
+  id                    String    @id @default(cuid())
+  resultKey             String    @unique @map("result_key") @db.VarChar(255)
+  inputHash             String    @map("input_hash") @db.VarChar(128)
+  tool                  String    @db.VarChar(64)
+  decisionType          String    @map("decision_type") @db.VarChar(64)
+  userId                String    @map("user_id")
+  leagueId              String?   @map("league_id")
+  connectedGroupId      String?   @map("connected_group_id")
+  sport                 String?   @db.VarChar(16)
+  platform              String?   @db.VarChar(24)
+  entitlementMode       String?   @map("entitlement_mode") @db.VarChar(24)
+  status                String    @default("pending") @db.VarChar(24)
+  versionTag            String    @map("version_tag") @db.VarChar(64)
+  agreementState        String?   @map("agreement_state") @db.VarChar(32)
+  claudeState           String?   @map("claude_state") @db.VarChar(32)
+  providerParticipation Json?     @map("provider_participation")
+  resultJson            Json?     @map("result_json")
+  requestSnapshot       Json?     @map("request_snapshot")
+  failureCategory       String?   @map("failure_category") @db.VarChar(48)
+  retryable             Boolean   @default(false)
+  attemptCount          Int       @default(0) @map("attempt_count")
+  maxAttempts           Int       @default(3) @map("max_attempts")
+  ownerToken            String?   @map("owner_token") @db.VarChar(80)
+  leaseExpiresAt        DateTime? @map("lease_expires_at")
+  /// Set BEFORE an external provider request begins; cleared on confirmed settlement (success / graceful abort /
+  /// failure). If a takeover finds it non-null on an expired 'running' run, the OUTCOME IS UNKNOWN (the owner
+  /// crashed mid-request) — the run is moved to status 'unknown' which blocks automatic re-execution.
+  providerExecStartedAt DateTime? @map("provider_exec_started_at")
+  tokenLedgerId         String?   @map("token_ledger_id")
+  tokenReservationKey   String?   @map("token_reservation_key") @db.VarChar(255)
+  correlationId         String?   @map("correlation_id") @db.VarChar(64)
+  lastError             String?   @map("last_error") @db.Text
+  createdAt             DateTime  @default(now()) @map("created_at")
+  startedAt             DateTime? @map("started_at")
+  completedAt          DateTime? @map("completed_at")
+  expiresAt             DateTime? @map("expires_at")
+  lastAccessedAt        DateTime? @map("last_accessed_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@index([userId, tool])
+  @@index([leagueId])
+  @@index([status, leaseExpiresAt])
+  @@index([inputHash])
+  @@index([expiresAt])
+  @@map("decision_intelligence_runs")
+}
+
 /// Unified sync/ingestion job telemetry for DB-first observability.
 model SyncJobRun {
   id           String    @id @default(cuid())
@@ -12152,19 +12205,57 @@ model TokenPackage {
 
 /// User-level AI token balance snapshot.
 model UserTokenBalance {
-  id                String        @id @default(uuid())
-  userId            String        @unique
-  balance           Int           @default(0)
-  lifetimePurchased Int           @default(0)
-  lifetimeSpent     Int           @default(0)
-  lifetimeRefunded  Int           @default(0)
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
+  id                String             @id @default(uuid())
+  userId            String             @unique
+  balance           Int                @default(0)
+  /// Sum of currently-held (pending) reservations. Spendable = balance - reservedBalance. Only `balance` is
+  /// debited on a FINALIZED consumption; a held reservation never reduces `balance`, so a failed/abandoned run
+  /// can never leave a finalized charge.
+  reservedBalance   Int                @default(0) @map("reserved_balance")
+  lifetimePurchased Int                @default(0)
+  lifetimeSpent     Int                @default(0)
+  lifetimeRefunded  Int                @default(0)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
   entries           TokenLedger[]
-  user              AppUser       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reservations      TokenReservation[]
+  user              AppUser            @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([balance])
   @@map("user_token_balances")
+}
+
+/// True token RESERVATION lifecycle (pending → finalized/consumed | released/cancelled). A reservation holds
+/// spendable balance (via UserTokenBalance.reservedBalance) WITHOUT finalizing consumption, so concurrent runs
+/// cannot overspend and a failure/crash never yields a finalized charge. Finalization (after a persisted
+/// success) debits `balance` and writes an immutable TokenLedger SPEND entry; release restores the hold.
+/// `idempotencyKey` is the canonical run key → one reservation per billable run. Additive; extends the
+/// existing token system (no parallel ledger).
+model TokenReservation {
+  id                 String           @id @default(cuid())
+  userId             String           @map("user_id")
+  userTokenBalanceId String           @map("user_token_balance_id")
+  amount             Int
+  status             String           @default("reserved") @db.VarChar(16)
+  spendRuleCode      String?          @map("spend_rule_code") @db.VarChar(64)
+  sourceType         String?          @map("source_type") @db.VarChar(64)
+  sourceId           String?          @map("source_id") @db.VarChar(255)
+  idempotencyKey     String           @unique @map("idempotency_key") @db.VarChar(255)
+  intelligenceRunId  String?          @map("intelligence_run_id")
+  finalizedLedgerId  String?          @map("finalized_ledger_id")
+  reason             String?          @db.VarChar(128)
+  reservedAt         DateTime         @default(now()) @map("reserved_at")
+  finalizedAt        DateTime?        @map("finalized_at")
+  releasedAt         DateTime?        @map("released_at")
+  expiresAt          DateTime         @map("expires_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  tokenBalance       UserTokenBalance @relation(fields: [userTokenBalanceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([status, expiresAt])
+  @@index([intelligenceRunId])
+  @@map("token_reservations")
 }
 
 /// Centralized per-feature spend pricing for token deductions.

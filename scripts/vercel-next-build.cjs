@@ -200,6 +200,9 @@ const filesToKeep = new Set([
   path.join('app', 'api', 'cron', 'import-season-stats', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'import-player-game-stats', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'import-nfl-team-defense', 'route.ts').replace(/\\/g, '/'),
+  // Decision OS three-brain (Phase 2) maintenance drain — scheduled in vercel.json (*/10). `app/api/cron` is
+  // disabled wholesale above, so without this keep-line Vercel would invoke it on schedule and 404 every time.
+  path.join('app', 'api', 'cron', 'decision-os-intelligence-maintenance', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'automation', 'health', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'admin', 'automation', 'waivers', 'run', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'ai', 'waivers', 'commissioner-insights', 'route.ts').replace(/\\/g, '/'),
