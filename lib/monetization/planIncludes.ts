@@ -35,7 +35,10 @@ export const PLAN_FAMILY_INCLUDES: Record<PlanFamilyKey, readonly string[]> = {
   ],
   af_supreme: [
     "AF Pro + Commissioner + AF Legacy in one plan",
-    "1,500 monthly tokens or 18,000 yearly tokens included",
+    // Must match lib/monetization/catalog.ts (af_supreme_monthly.tokenAmount = 1000,
+    // af_supreme_yearly = 15000) and lib/tokens/subscription-policy.ts, which is what the
+    // invoice.payment_succeeded webhook actually grants. Previously 1,500/18,000 (overpromise).
+    "1,000 monthly tokens or 15,000 yearly tokens included",
     "Best for commissioners and power users who live in the product",
   ],
 }
