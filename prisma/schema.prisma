@@ -28,6 +28,38 @@ model EarlyAccessSignup {
   @@index([utmSource])
 }
 
+/// Closed-beta account admission (P0-1 BETA-GATE). Distinct from InviteLink (viral,
+/// user-issued, league/referral-typed) and EarlyAccessSignup (waitlist capture): a
+/// BetaInvite is admin-issued, email-bound, single-use for ACCOUNT CREATION, and
+/// revocable. The raw token is NEVER stored — only its sha256 digest. `redeemedByUserId`
+/// is a plain column (no Prisma relation) to avoid modifying the heavily-referenced
+/// AppUser model; it is set only when account creation succeeds.
+model BetaInvite {
+  id               String    @id @default(uuid())
+  /// sha256 hex digest of the raw token. Unique so a token can be looked up without storing it.
+  tokenDigest      String    @unique
+  /// Normalized (trimmed, lowercased) invited email. REQUIRED and non-empty: every ordinary
+  /// invite is email-bound and admission must match it (no token-only / transferable codes).
+  invitedEmail     String
+  /// pending | redeemed | revoked. Explicit state, not derived from timestamps.
+  status           String    @default("pending") @db.VarChar(16)
+  /// Optional non-sensitive internal note (e.g. "wave 1 - reddit").
+  note             String?
+  /// Admin identity that issued this invite (email or user id).
+  createdByAdmin   String
+  createdAt        DateTime  @default(now())
+  expiresAt        DateTime?
+  revokedAt        DateTime?
+  revokedBy        String?
+  redeemedAt       DateTime?
+  redeemedByUserId String?
+
+  @@index([invitedEmail])
+  @@index([status])
+  @@index([redeemedByUserId])
+  @@map("beta_invites")
+}
+
 model VisitorLocation {
   id          String   @id @default(cuid())
   ipAddress   String   @unique

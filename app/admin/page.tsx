@@ -7,6 +7,8 @@ import {
   type AdminMetric,
 } from "@/lib/admin-dashboard/AdminCommandCenterService"
 import { AiAuditLogsPanel } from "@/components/admin/AiAuditLogsPanel"
+import { CampaignAttributionPanel } from "@/components/admin/CampaignAttributionPanel"
+import { BetaInvitePanel } from "@/components/admin/BetaInvitePanel"
 import { AiProviderHealthPanel } from "@/components/admin/AiProviderHealthPanel"
 import { PlatformOsOperatorPanel } from "@/components/admin/PlatformOsOperatorPanel"
 import type {
@@ -39,6 +41,9 @@ import type {
 } from "@/lib/sports-os/ProviderTeamReconciliationService"
 
 export const dynamic = "force-dynamic"
+
+// Admin surfaces must never be indexed (defense-in-depth beyond robots.txt Disallow: /admin).
+export const metadata = { robots: { index: false, follow: false } }
 
 function MetricCard({ item }: { item: AdminMetric }) {
   return (
@@ -280,6 +285,25 @@ function AdminOverviewDeck({
   )
 }
 
+/**
+ * Non-sensitive build marker: shows the deployment's abbreviated commit SHA + environment
+ * (e.g. "build a1b2c3d · preview") so a deployed build is identifiable at a glance — you can
+ * tell Preview from Production without guessing from appearance. Reads only Vercel-set system
+ * vars; never renders secrets. Falls back gracefully when the vars are absent.
+ */
+function DeploymentMarker() {
+  const env = process.env.VERCEL_ENV || process.env.NODE_ENV || "local"
+  const commit = (process.env.VERCEL_GIT_COMMIT_SHA || "").slice(0, 7) || "dev"
+  return (
+    <span
+      data-testid="admin-build-marker"
+      className="inline-flex items-center rounded-md border border-cyan-300/30 bg-cyan-300/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.16em] text-cyan-100"
+    >
+      build {commit} · {env}
+    </span>
+  )
+}
+
 function AdminPageLoadFailure({
   message,
 }: {
@@ -290,9 +314,12 @@ function AdminPageLoadFailure({
       <div className="pointer-events-none fixed inset-0 bg-[radial-gradient(circle_at_15%_0%,rgba(34,211,238,0.20),transparent_34%),radial-gradient(circle_at_85%_8%,rgba(251,191,36,0.14),transparent_30%),linear-gradient(180deg,#020817_0%,#06111f_46%,#020817_100%)]" />
       <div className="relative mx-auto flex w-full max-w-5xl flex-col gap-6 px-4 py-8 sm:px-6 lg:px-8">
         <section className="rounded-3xl border border-rose-300/20 bg-black/35 p-6 shadow-[0_28px_90px_-54px_rgba(244,63,94,0.65)] backdrop-blur-xl sm:p-8">
-          <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-200">
-            Admin degraded
-          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-black uppercase tracking-[0.22em] text-rose-200">
+              Admin degraded
+            </p>
+            <DeploymentMarker />
+          </div>
           <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-5xl">
             The admin shell loaded, but the data pipeline failed.
           </h1>
@@ -329,6 +356,16 @@ function AdminPageLoadFailure({
             </a>
           </div>
         </section>
+
+        {/*
+          P0-1: closed-beta invitations must NOT disappear because an unrelated admin data
+          loader failed. BetaInvitePanel is a client component that fetches its own data from
+          the admin-gated API, so it renders here in degraded mode exactly as on the healthy
+          page — an authenticated admin can always issue/list/revoke invites.
+        */}
+        <AccordionSection id="beta-invites" title="Closed-Beta Invitations" eyebrow="access">
+          <BetaInvitePanel />
+        </AccordionSection>
       </div>
     </main>
   )
@@ -1481,7 +1518,10 @@ export default async function AdminPage({
         <header className="rounded-3xl border border-cyan-300/15 bg-black/35 p-5 shadow-[0_28px_90px_-54px_rgba(34,211,238,0.85)] backdrop-blur-xl sm:p-7">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">AllFantasy Admin</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-xs font-black uppercase tracking-[0.22em] text-cyan-200">AllFantasy Admin</p>
+                <DeploymentMarker />
+              </div>
               <h1 className="mt-2 text-3xl font-black tracking-tight text-white sm:text-5xl">
                 Command Center
               </h1>
@@ -1516,6 +1556,16 @@ export default async function AdminPage({
           <ProductionReadinessPanel data={data.productionReadiness} />
         </div>
         <TrafficGeoPanel data={data.productionReadiness} metrics={data.traffic} />
+        <div id="social-campaigns">
+          <AccordionSection title="Social & Campaigns" eyebrow="attribution">
+            <CampaignAttributionPanel />
+          </AccordionSection>
+        </div>
+        <div id="beta-invites">
+          <AccordionSection title="Closed-Beta Invitations" eyebrow="access">
+            <BetaInvitePanel />
+          </AccordionSection>
+        </div>
         <EmailCenterPanel status={data.emailStatus} />
         <div id="sports-os">
           <SportsOperatingSystemPanel audit={data.sportsOperatingSystem} />

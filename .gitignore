@@ -1,6 +1,10 @@
 # Next / node
 node_modules/
 .next/
+# Ad-hoc verification build dirs (.next-myteam-3100, .next-verify-nocturne, …) are
+# created routinely by local dev/verification runs and reach hundreds of MB each.
+# Without this they show up as untracked and are one `git add -A` away from the repo.
+.next-*/
 .next-playwright-*/
 .next-dev*/
 .next-dev-local/

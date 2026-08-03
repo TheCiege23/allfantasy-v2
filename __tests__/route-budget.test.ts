@@ -98,7 +98,9 @@ const FILES_KEPT = [
   'app/api/admin/sports/sync/route.ts', 'app/api/admin/fantasy-data/import/route.ts',
   // Fetched by the admin dashboard UI itself (app/admin/** is NOT excluded and does ship, so
   // excluding these made the panel render against 404s).
-  'app/api/admin/visitor-analytics/route.ts', 'app/api/admin/api-health/route.ts',
+  'app/api/admin/visitor-analytics/route.ts', 'app/api/admin/visitor-analytics/campaigns/route.ts',
+  'app/api/admin/beta-invites/route.ts',
+  'app/api/admin/api-health/route.ts',
   'app/api/admin/chimmy/health/route.ts', 'app/api/admin/monetization/checkout-link-mapping/route.ts',
 ]
 
