@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import type { LeagueTeamSlot, UserLeague } from '@/app/dashboard/types'
 import { isPreseason, useProjectedStandings } from '@/components/decide/useProjectedStandings'
+import { TradeFinder } from '@/components/decide/TradeFinder'
 import {
   buildLeagueHomePulse,
   type LeaguePulseViewModel,
@@ -490,6 +491,9 @@ export function DecideHome({
           </div>
         </div>
       </div>
+
+      {/* ── Trade finder: both-sides offer ideas from real rosters + market ── */}
+      <TradeFinder leagueId={league.id} onOpenTab={onOpenTab} />
 
       <div className="bdx-foot">
         Every number above comes from this league&apos;s synced data or the Decision OS engine — when

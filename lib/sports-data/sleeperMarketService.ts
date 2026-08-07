@@ -26,6 +26,7 @@ const POSITIONS = ['QB', 'RB', 'WR', 'TE', 'K', 'DEF', 'DL', 'LB', 'DB'] as cons
 const WEEK_PREFIX = 'projections:week:v1:'
 const SEASON_PREFIX = 'projections:season:v1:'
 const STATS_PREFIX = 'stats:season:v1:'
+const WEEK_STATS_PREFIX = 'stats:week:v1:'
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000 // 6h
 const COMPLETED_SEASON_TTL_MS = 30 * 24 * 60 * 60 * 1000 // finished seasons don't change
 
@@ -217,6 +218,40 @@ export async function getSeasonStatsBoard(
     `${STATS_PREFIX}${season}`,
     async () => {
       const rows = await fetchRows(`${STATS}/${season}?season_type=regular&${positionQuery()}`)
+      if (!rows) return null
+      const players: Record<string, SeasonStatRow> = {}
+      for (const r of rows) {
+        if (!r.player_id) continue
+        players[r.player_id] = {
+          playerId: r.player_id,
+          name:
+            [r.player?.first_name, r.player?.last_name].filter(Boolean).join(' ').trim() ||
+            r.player_id,
+          position: r.player?.position?.toUpperCase() ?? null,
+          team: r.player?.team ?? null,
+          stats: r.stats ?? {},
+        }
+      }
+      return { version: 1, season, players }
+    },
+    completed ? COMPLETED_SEASON_TTL_MS : CACHE_TTL_MS,
+  )
+}
+
+/**
+ * Actual WEEKLY stat lines — used by tenure-aware trade grading to credit only
+ * the weeks an asset was actually on the roster. Same shape as the season
+ * board (season field keeps the year; the week lives in the cache key).
+ */
+export async function getWeekStatsBoard(
+  season: string,
+  week: number,
+  completed: boolean,
+): Promise<SeasonStatsBoard | null> {
+  return cachedBoard<SeasonStatsBoard>(
+    `${WEEK_STATS_PREFIX}${season}:${week}`,
+    async () => {
+      const rows = await fetchRows(`${STATS}/${season}/${week}?season_type=regular&${positionQuery()}`)
       if (!rows) return null
       const players: Record<string, SeasonStatRow> = {}
       for (const r of rows) {

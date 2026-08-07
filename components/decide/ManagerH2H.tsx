@@ -10,8 +10,14 @@
  */
 
 import { useEffect, useMemo, useState } from 'react'
-import type { H2HManager, LeagueH2HPayload } from '@/lib/league-history/sleeperH2HService'
+import type {
+  H2HManager,
+  LeagueH2HPayload,
+  RecordGame,
+  RecordWeek,
+} from '@/lib/league-history/sleeperH2HService'
 import { sleeperAvatarThumb } from '@/lib/sports-data/headshots'
+import { shareCardImage } from '@/components/decide/shareCard'
 import './broadcast-deck.css'
 
 type ApiResponse =
@@ -36,6 +42,47 @@ function TrendChip({ trend }: { trend: H2HManager['trend'] }) {
   if (trend === 'down') return <span className="bdx-sev crit">▼ down</span>
   if (trend === 'flat') return <span className="bdx-sev info">— flat</span>
   return <span className="k">—</span>
+}
+
+function WeekRecordRow({
+  label,
+  rec,
+  nameOf,
+}: {
+  label: string
+  rec: RecordWeek | null
+  nameOf: (id: string | null | undefined) => string
+}) {
+  if (!rec) return null
+  return (
+    <div className="bdx-row">
+      <span className="k">{label}</span>
+      <span className="x">
+        {nameOf(rec.ownerId)} · {rec.points.toFixed(1)} ({rec.season} wk {rec.week})
+      </span>
+    </div>
+  )
+}
+
+function GameRecordRow({
+  label,
+  rec,
+  nameOf,
+}: {
+  label: string
+  rec: RecordGame | null
+  nameOf: (id: string | null | undefined) => string
+}) {
+  if (!rec) return null
+  return (
+    <div className="bdx-row">
+      <span className="k">{label}</span>
+      <span className="x">
+        {nameOf(rec.winnerOwnerId)} over {nameOf(rec.loserOwnerId)} by {rec.margin.toFixed(1)} (
+        {rec.season} wk {rec.week})
+      </span>
+    </div>
+  )
 }
 
 export function ManagerH2H({ leagueId }: { leagueId: string }) {
@@ -85,6 +132,9 @@ export function ManagerH2H({ leagueId }: { leagueId: string }) {
     [a, bId],
   )
   const b = useMemo(() => h2h?.managers.find((m) => m.ownerId === bId) ?? null, [h2h, bId])
+  const nameOf = (id: string | null | undefined): string =>
+    h2h?.managers.find((m) => m.ownerId === id)?.name ?? 'Manager'
+  const [shareState, setShareState] = useState<'idle' | 'working' | 'shared' | 'downloaded' | 'failed'>('idle')
 
   return (
     <div data-testid="manager-h2h">
@@ -183,7 +233,82 @@ export function ManagerH2H({ leagueId }: { leagueId: string }) {
                 </div>
               )
             ) : null}
+            {a && b ? (
+              <button
+                type="button"
+                className="bdx-btn sec"
+                style={{ marginTop: 10 }}
+                disabled={shareState === 'working'}
+                onClick={() => {
+                  setShareState('working')
+                  void shareCardImage(
+                    `/api/share/rivalry-card?leagueId=${encodeURIComponent(leagueId)}&a=${encodeURIComponent(a.ownerId)}&b=${encodeURIComponent(b.ownerId)}`,
+                    `rivalry-${a.name}-vs-${b.name}.png`,
+                    `${a.name} vs ${b.name} — all-time`,
+                  ).then(setShareState)
+                }}
+              >
+                {shareState === 'working'
+                  ? 'Building card…'
+                  : shareState === 'downloaded'
+                    ? 'Card saved ✓'
+                    : shareState === 'shared'
+                      ? 'Shared ✓'
+                      : shareState === 'failed'
+                        ? 'Retry share card'
+                        : 'Share rivalry card'}
+              </button>
+            ) : null}
           </div>
+
+          {/* ── This week's awards ── */}
+          {h2h.latestWeekAwards ? (
+            <div className="bdx-panelbox" style={{ marginBottom: 12 }}>
+              <h3>
+                Weekly awards · {h2h.latestWeekAwards.season} week {h2h.latestWeekAwards.week}
+              </h3>
+              <div className="bdx-rows">
+                {h2h.latestWeekAwards.topScore ? (
+                  <div className="bdx-row">
+                    <span className="k">🏆 Boom of the week</span>
+                    <span className="x">
+                      {nameOf(h2h.latestWeekAwards.topScore.ownerId)} ·{' '}
+                      {h2h.latestWeekAwards.topScore.points.toFixed(1)}
+                    </span>
+                  </div>
+                ) : null}
+                {h2h.latestWeekAwards.lowScore ? (
+                  <div className="bdx-row">
+                    <span className="k">🥀 Bust of the week</span>
+                    <span className="x">
+                      {nameOf(h2h.latestWeekAwards.lowScore.ownerId)} ·{' '}
+                      {h2h.latestWeekAwards.lowScore.points.toFixed(1)}
+                    </span>
+                  </div>
+                ) : null}
+                {h2h.latestWeekAwards.narrowEscape ? (
+                  <div className="bdx-row">
+                    <span className="k">😅 Narrow escape</span>
+                    <span className="x">
+                      {nameOf(h2h.latestWeekAwards.narrowEscape.winnerOwnerId)} over{' '}
+                      {nameOf(h2h.latestWeekAwards.narrowEscape.loserOwnerId)} by{' '}
+                      {h2h.latestWeekAwards.narrowEscape.margin.toFixed(1)}
+                    </span>
+                  </div>
+                ) : null}
+                {h2h.latestWeekAwards.biggestBlowout ? (
+                  <div className="bdx-row">
+                    <span className="k">🔨 Hammer of the week</span>
+                    <span className="x">
+                      {nameOf(h2h.latestWeekAwards.biggestBlowout.winnerOwnerId)} over{' '}
+                      {nameOf(h2h.latestWeekAwards.biggestBlowout.loserOwnerId)} by{' '}
+                      {h2h.latestWeekAwards.biggestBlowout.margin.toFixed(1)}
+                    </span>
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
 
           {/* ── Scoring profiles ── */}
           <div className="bdx-panelbox">
@@ -224,6 +349,48 @@ export function ManagerH2H({ leagueId }: { leagueId: string }) {
                 ))}
               </tbody>
             </table>
+          </div>
+
+          {/* ── Records book ── */}
+          <div className="bdx-panelbox" style={{ marginTop: 12 }}>
+            <h3>Records book · all-time, every synced week</h3>
+            <div className="bdx-rows">
+              <WeekRecordRow label="🚀 Highest week ever" rec={h2h.records.highestWeek} nameOf={nameOf} />
+              <WeekRecordRow label="🧊 Lowest week ever" rec={h2h.records.lowestWeek} nameOf={nameOf} />
+              <GameRecordRow label="💥 Biggest blowout" rec={h2h.records.biggestBlowout} nameOf={nameOf} />
+              <GameRecordRow label="🪒 Closest game ever" rec={h2h.records.closestGame} nameOf={nameOf} />
+              {h2h.records.longestWinStreak ? (
+                <div className="bdx-row">
+                  <span className="k">🔥 Longest win streak</span>
+                  <span className="x">
+                    {nameOf(h2h.records.longestWinStreak.ownerId)} · {h2h.records.longestWinStreak.length} straight (
+                    {h2h.records.longestWinStreak.fromSeason} wk {h2h.records.longestWinStreak.fromWeek} →{' '}
+                    {h2h.records.longestWinStreak.toSeason} wk {h2h.records.longestWinStreak.toWeek})
+                    {h2h.records.longestWinStreak.active ? ' · ACTIVE' : ''}
+                  </span>
+                </div>
+              ) : null}
+              {h2h.records.longestLossStreak ? (
+                <div className="bdx-row">
+                  <span className="k">🕳 Longest skid</span>
+                  <span className="x">
+                    {nameOf(h2h.records.longestLossStreak.ownerId)} · {h2h.records.longestLossStreak.length} straight (
+                    {h2h.records.longestLossStreak.fromSeason} wk {h2h.records.longestLossStreak.fromWeek} →{' '}
+                    {h2h.records.longestLossStreak.toSeason} wk {h2h.records.longestLossStreak.toWeek})
+                    {h2h.records.longestLossStreak.active ? ' · ACTIVE' : ''}
+                  </span>
+                </div>
+              ) : null}
+              {h2h.records.bestSeasonAvg ? (
+                <div className="bdx-row">
+                  <span className="k">📈 Best season (avg/wk)</span>
+                  <span className="x">
+                    {nameOf(h2h.records.bestSeasonAvg.ownerId)} · {h2h.records.bestSeasonAvg.avg.toFixed(1)} in{' '}
+                    {h2h.records.bestSeasonAvg.season}
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
 
           {h2h.missing.length > 0 ? (

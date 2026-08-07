@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from 'react'
+import { shareCardImage } from '@/components/decide/shareCard'
 import type {
   GradedTrade,
   TradeAsset,
@@ -37,9 +38,22 @@ function TrendMark({ trend }: { trend: TradeSideGrade['trend'] }) {
   return <span className="bdx-sev info">— steady</span>
 }
 
+function DepartChip({ departed }: { departed: TradeAsset['departed'] }) {
+  if (!departed) return null
+  return (
+    <span
+      className="bdx-sev info"
+      title="The value clock stopped here — points after this week don't count toward this grade."
+    >
+      → {departed.via === 'traded' ? 're-traded' : 'dropped'} wk {departed.week} ’{departed.season.slice(2)}
+    </span>
+  )
+}
+
 function PlayerLine({ a, tradeSeason }: { a: TradeAsset; tradeSeason: string }) {
   const src = sleeperPlayerHeadshot(a.playerId)
-  const total = Object.values(a.pointsBySeason).reduce((x, y) => x + y, 0)
+  const credited = Object.values(a.creditedBySeason).reduce((x, y) => x + y, 0)
+  const fullTotal = Object.values(a.pointsBySeason).reduce((x, y) => x + y, 0)
   const missed = a.gamesMissedBySeason[tradeSeason]
   return (
     <div className="bdx-row" style={{ alignItems: 'center' }}>
@@ -63,9 +77,14 @@ function PlayerLine({ a, tradeSeason }: { a: TradeAsset; tradeSeason: string }) 
             ⚕ {missed} gm
           </span>
         ) : null}
+        <DepartChip departed={a.departed} />
       </span>
-      <span className="k" style={{ fontVariantNumeric: 'tabular-nums' }}>
-        {total !== 0 ? `${total.toFixed(1)} pts` : '—'}
+      <span
+        className="k"
+        style={{ fontVariantNumeric: 'tabular-nums' }}
+        title={`credited while held: ${credited.toFixed(1)} · full-season reference: ${fullTotal.toFixed(1)}`}
+      >
+        {credited !== 0 ? `${credited.toFixed(1)} pts` : '—'}
       </span>
     </div>
   )
@@ -73,7 +92,7 @@ function PlayerLine({ a, tradeSeason }: { a: TradeAsset; tradeSeason: string }) 
 
 function PickLine({ p }: { p: TradePickAsset }) {
   const total = p.resolved
-    ? Object.values(p.resolved.pointsBySeason).reduce((x, y) => x + y, 0)
+    ? Object.values(p.resolved.creditedBySeason).reduce((x, y) => x + y, 0)
     : 0
   return (
     <div className="bdx-row" style={{ alignItems: 'center' }}>
@@ -92,6 +111,15 @@ function PickLine({ p }: { p: TradePickAsset }) {
             pending
           </span>
         )}
+        {p.rerouted ? (
+          <span
+            className="bdx-sev info"
+            title="This pick changed hands again before the draft — its outcome belongs to that later trade, so it isn't counted here."
+          >
+            moved again
+          </span>
+        ) : null}
+        {p.resolved ? <DepartChip departed={p.resolved.departed} /> : null}
       </span>
       <span className="k" style={{ fontVariantNumeric: 'tabular-nums' }}>
         {p.resolved && total !== 0 ? `${total.toFixed(1)} pts` : '—'}
@@ -166,6 +194,44 @@ function SideBlock({ side, trade }: { side: TradeSideGrade; trade: GradedTrade }
         </div>
       ) : null}
     </div>
+  )
+}
+
+function ShareTradeButton({
+  leagueId,
+  tradeId,
+  season,
+}: {
+  leagueId: string
+  tradeId: string
+  season: string
+}) {
+  const [state, setState] = useState<'idle' | 'working' | 'shared' | 'downloaded' | 'failed'>('idle')
+  return (
+    <button
+      type="button"
+      className="bdx-btn sec"
+      style={{ padding: '4px 10px', fontSize: 11.5 }}
+      disabled={state === 'working'}
+      onClick={() => {
+        setState('working')
+        void shareCardImage(
+          `/api/share/trade-card?leagueId=${encodeURIComponent(leagueId)}&tradeId=${encodeURIComponent(tradeId)}`,
+          `trade-grade-${season}.png`,
+          'Who won this trade?',
+        ).then(setState)
+      }}
+    >
+      {state === 'working'
+        ? 'Building card…'
+        : state === 'downloaded'
+          ? 'Card saved ✓'
+          : state === 'shared'
+            ? 'Shared ✓'
+            : state === 'failed'
+              ? 'Retry share'
+              : 'Share card'}
+    </button>
   )
 }
 
@@ -257,6 +323,7 @@ export function TradeLedgerGraded({ leagueId }: { leagueId: string }) {
                   {trade.tie ? <span className="bdx-sev info">= TIE (so far)</span> : null}
                   {trade.multiTeam ? <span className="bdx-sev info">multi-team</span> : null}
                   {trade.hasPendingPicks ? <span className="bdx-sev warn">🎟 picks pending</span> : null}
+                  <ShareTradeButton leagueId={leagueId} tradeId={trade.id} season={trade.season} />
                   <span className="bdx-when">{new Date(trade.createdIso).toLocaleDateString()}</span>
                 </div>
                 <div

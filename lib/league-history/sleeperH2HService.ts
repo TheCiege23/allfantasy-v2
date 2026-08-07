@@ -21,7 +21,7 @@ import { prisma } from '@/lib/prisma'
 
 const SLEEPER = 'https://api.sleeper.app/v1'
 const SEASON_PREFIX = 'h2h:season:v1:'
-const AGG_PREFIX = 'h2h:v1:'
+const AGG_PREFIX = 'h2h:v2:'
 const AGG_TTL_MS = 6 * 60 * 60 * 1000
 const COMPLETE_TTL_MS = 365 * 24 * 60 * 60 * 1000
 const MAX_CHAIN = 12
@@ -198,14 +198,53 @@ export type H2HManager = {
   trend: 'up' | 'down' | 'flat' | null
   byOpponent: H2HOpponentRecord[]
 }
+// ── Records book + weekly awards (all counted from synced games) ─────────────
+export type RecordWeek = { ownerId: string; points: number; season: string; week: number }
+export type RecordGame = {
+  winnerOwnerId: string
+  loserOwnerId: string
+  margin: number
+  season: string
+  week: number
+}
+export type RecordStreak = {
+  ownerId: string
+  length: number
+  fromSeason: string
+  fromWeek: number
+  toSeason: string
+  toWeek: number
+  /** Still alive as of the newest synced week. */
+  active: boolean
+}
+export type LeagueRecords = {
+  highestWeek: RecordWeek | null
+  lowestWeek: RecordWeek | null
+  biggestBlowout: RecordGame | null
+  closestGame: RecordGame | null
+  longestWinStreak: RecordStreak | null
+  longestLossStreak: RecordStreak | null
+  bestSeasonAvg: { ownerId: string; season: string; avg: number; games: number } | null
+}
+export type WeeklyAwards = {
+  season: string
+  week: number
+  topScore: RecordWeek | null
+  lowScore: RecordWeek | null
+  narrowEscape: RecordGame | null
+  biggestBlowout: RecordGame | null
+}
+
 export type LeagueH2HPayload = {
-  version: 1
+  version: 2
   fetchedAt: string
   staleAsOf: string | null
   sleeperLeagueId: string
   seasons: string[]
   managers: H2HManager[]
   totalGames: number
+  records: LeagueRecords
+  latestWeekAwards: WeeklyAwards | null
   missing: string[]
 }
 
@@ -217,7 +256,7 @@ export async function getLeagueH2H(sleeperLeagueId: string): Promise<LeagueH2HPa
     cached && cached.data && typeof cached.data === 'object'
       ? (cached.data as unknown as LeagueH2HPayload)
       : null
-  if (cachedPayload?.version === 1 && cached && cached.expiresAt > now) return cachedPayload
+  if (cachedPayload?.version === 2 && cached && cached.expiresAt > now) return cachedPayload
 
   const missing: string[] = []
   const chain: WireLeague[] = []
@@ -232,7 +271,7 @@ export async function getLeagueH2H(sleeperLeagueId: string): Promise<LeagueH2HPa
     cursor = league.previous_league_id ?? null
   }
   if (chain.length === 0) {
-    return cachedPayload?.version === 1 && cached
+    return cachedPayload?.version === 2 && cached
       ? { ...cachedPayload, staleAsOf: cached.expiresAt.toISOString() }
       : null
   }
@@ -341,14 +380,163 @@ export async function getLeagueH2H(sleeperLeagueId: string): Promise<LeagueH2HPa
   })
   managers.sort((a, b) => b.games - a.games || b.avgPoints - a.avgPoints)
 
+  // ── Records book: all-time superlatives from every synced game/week ──
+  const allWeekEntries: RecordWeek[] = []
+  for (const s of syncs) {
+    for (const [ownerId, weeks] of Object.entries(s.weekly)) {
+      for (const w of weeks) {
+        allWeekEntries.push({ ownerId, points: w.points, season: s.season, week: w.week })
+      }
+    }
+  }
+  const highestWeek = allWeekEntries.reduce<RecordWeek | null>(
+    (best, e) => (best == null || e.points > best.points ? e : best),
+    null,
+  )
+  const lowestWeek = allWeekEntries
+    .filter((e) => e.points > 0)
+    .reduce<RecordWeek | null>((worst, e) => (worst == null || e.points < worst.points ? e : worst), null)
+
+  const decidedGames: RecordGame[] = []
+  for (const s of syncs) {
+    for (const g of s.games) {
+      const margin = Math.abs(g.aPoints - g.bPoints)
+      if (margin === 0) continue
+      const aWon = g.aPoints > g.bPoints
+      decidedGames.push({
+        winnerOwnerId: aWon ? g.aOwnerId : g.bOwnerId,
+        loserOwnerId: aWon ? g.bOwnerId : g.aOwnerId,
+        margin: Math.round(margin * 10) / 10,
+        season: g.season,
+        week: g.week,
+      })
+    }
+  }
+  const biggestBlowout = decidedGames.reduce<RecordGame | null>(
+    (best, g) => (best == null || g.margin > best.margin ? g : best),
+    null,
+  )
+  const closestGame = decidedGames.reduce<RecordGame | null>(
+    (best, g) => (best == null || g.margin < best.margin ? g : best),
+    null,
+  )
+
+  // Streaks: chronological W/L runs per manager across the whole chain.
+  type OwnerGame = { season: string; week: number; order: number; result: 'W' | 'L' | 'T' }
+  const gamesByOwner = new Map<string, OwnerGame[]>()
+  syncs.forEach((s, seasonIdx) => {
+    for (const g of s.games) {
+      const order = seasonIdx * 100 + g.week
+      const push = (ownerId: string, result: 'W' | 'L' | 'T') => {
+        const list = gamesByOwner.get(ownerId) ?? []
+        list.push({ season: g.season, week: g.week, order, result })
+        gamesByOwner.set(ownerId, list)
+      }
+      if (g.aPoints > g.bPoints) {
+        push(g.aOwnerId, 'W')
+        push(g.bOwnerId, 'L')
+      } else if (g.aPoints < g.bPoints) {
+        push(g.aOwnerId, 'L')
+        push(g.bOwnerId, 'W')
+      } else {
+        push(g.aOwnerId, 'T')
+        push(g.bOwnerId, 'T')
+      }
+    }
+  })
+  const bestStreak = (want: 'W' | 'L'): RecordStreak | null => {
+    let best: RecordStreak | null = null
+    for (const [ownerId, list] of gamesByOwner) {
+      const sorted = [...list].sort((x, y) => x.order - y.order)
+      let run: OwnerGame[] = []
+      const consider = (endedAtEnd: boolean) => {
+        if (run.length === 0) return
+        if (best == null || run.length > best.length) {
+          best = {
+            ownerId,
+            length: run.length,
+            fromSeason: run[0].season,
+            fromWeek: run[0].week,
+            toSeason: run[run.length - 1].season,
+            toWeek: run[run.length - 1].week,
+            active: endedAtEnd,
+          }
+        }
+      }
+      for (const gm of sorted) {
+        if (gm.result === want) run.push(gm)
+        else {
+          consider(false)
+          run = []
+        }
+      }
+      consider(true)
+    }
+    return best
+  }
+  const longestWinStreak = bestStreak('W')
+  const longestLossStreak = bestStreak('L')
+
+  let bestSeasonAvg: LeagueRecords['bestSeasonAvg'] = null
+  for (const s of syncs) {
+    for (const [ownerId, weeks] of Object.entries(s.weekly)) {
+      if (weeks.length < 3) continue
+      const avg = weeks.reduce((x, w) => x + w.points, 0) / weeks.length
+      if (bestSeasonAvg == null || avg > bestSeasonAvg.avg) {
+        bestSeasonAvg = { ownerId, season: s.season, avg: Math.round(avg * 10) / 10, games: weeks.length }
+      }
+    }
+  }
+
+  // ── Weekly awards: superlatives for the newest played week ──
+  let latestWeekAwards: WeeklyAwards | null = null
+  for (let i = syncs.length - 1; i >= 0 && !latestWeekAwards; i -= 1) {
+    const s = syncs[i]
+    const weeksPlayed = new Set(s.games.map((g) => g.week))
+    if (weeksPlayed.size === 0) continue
+    const week = Math.max(...weeksPlayed)
+    const entries = allWeekEntries.filter((e) => e.season === s.season && e.week === week)
+    const weekGames = decidedGames.filter((g) => g.season === s.season && g.week === week)
+    latestWeekAwards = {
+      season: s.season,
+      week,
+      topScore: entries.reduce<RecordWeek | null>(
+        (best, e) => (best == null || e.points > best.points ? e : best),
+        null,
+      ),
+      lowScore: entries.reduce<RecordWeek | null>(
+        (worst, e) => (worst == null || e.points < worst.points ? e : worst),
+        null,
+      ),
+      narrowEscape: weekGames.reduce<RecordGame | null>(
+        (best, g) => (best == null || g.margin < best.margin ? g : best),
+        null,
+      ),
+      biggestBlowout: weekGames.reduce<RecordGame | null>(
+        (best, g) => (best == null || g.margin > best.margin ? g : best),
+        null,
+      ),
+    }
+  }
+
   const fresh: LeagueH2HPayload = {
-    version: 1,
+    version: 2,
     fetchedAt: new Date().toISOString(),
     staleAsOf: null,
     sleeperLeagueId,
     seasons: syncs.map((s) => s.season),
     managers,
     totalGames,
+    records: {
+      highestWeek,
+      lowestWeek,
+      biggestBlowout,
+      closestGame,
+      longestWinStreak,
+      longestLossStreak,
+      bestSeasonAvg,
+    },
+    latestWeekAwards,
     missing,
   }
   await prisma.sportsDataCache
