@@ -169,6 +169,9 @@ export function LeagueImportFlow({
   const activeImportProvider = tabToImportProvider(tab)
   const supportsAccountDiscovery =
     supportsImportProviderDiscovery(activeImportProvider)
+  // Yahoo discovery lists leagues from the user's CONNECTED Yahoo account
+  // (OAuth) — no account identifier input is shown or required for it.
+  const discoveryUsesConnectedAccount = activeImportProvider === 'yahoo'
   const panelProviders = useMemo<ImportProvider[]>(
     () => [activeImportProvider],
     [activeImportProvider],
@@ -446,8 +449,9 @@ export function LeagueImportFlow({
                         Discover leagues from account
                       </p>
                       <p className="mt-1 text-[12px] text-cyan-50/70">
-                        Use a provider account identifier to find an NFL league,
-                        then preview the canonical import before you commit it.
+                        {discoveryUsesConnectedAccount
+                          ? 'Lists the NFL leagues on your connected Yahoo account. Connect Yahoo in Settings first if you have not yet.'
+                          : 'Use a provider account identifier to find an NFL league, then preview the canonical import before you commit it.'}
                       </p>
                     </div>
                     <span className="rounded-full border border-cyan-400/25 bg-black/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/85">
@@ -456,25 +460,30 @@ export function LeagueImportFlow({
                   </div>
 
                   <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                    <input
-                      value={providerAccountInput}
-                      onChange={(event) =>
-                        setProviderAccountInput(event.target.value)
-                      }
-                      placeholder="Provider username or account identifier"
-                      data-testid="import-discovery-account"
-                      className="h-11 flex-1 rounded-xl border border-cyan-400/35 bg-[#030a20] px-3 text-sm text-white outline-none placeholder:text-white/30"
-                    />
+                    {!discoveryUsesConnectedAccount ? (
+                      <input
+                        value={providerAccountInput}
+                        onChange={(event) =>
+                          setProviderAccountInput(event.target.value)
+                        }
+                        placeholder="Provider username or account identifier"
+                        data-testid="import-discovery-account"
+                        className="h-11 flex-1 rounded-xl border border-cyan-400/35 bg-[#030a20] px-3 text-sm text-white outline-none placeholder:text-white/30"
+                      />
+                    ) : null}
                     <button
                       type="button"
                       disabled={
                         discoveringProvider === activeImportProvider ||
-                        !providerAccountInput.trim()
+                        (!discoveryUsesConnectedAccount &&
+                          !providerAccountInput.trim())
                       }
                       onClick={() =>
                         void runProviderDiscovery(
                           activeImportProvider,
-                          providerAccountInput,
+                          discoveryUsesConnectedAccount
+                            ? ''
+                            : providerAccountInput,
                         )
                       }
                       data-testid="import-discovery-find"
@@ -483,7 +492,9 @@ export function LeagueImportFlow({
                       <Search className="h-4 w-4" />
                       {discoveringProvider === activeImportProvider
                         ? 'Finding leagues...'
-                        : 'Find leagues'}
+                        : discoveryUsesConnectedAccount
+                          ? 'List my Yahoo leagues'
+                          : 'Find leagues'}
                     </button>
                   </div>
 
@@ -530,7 +541,11 @@ export function LeagueImportFlow({
                                   {league.season ?? 'Current season'} |{' '}
                                   {(league.sport ?? 'NFL').toUpperCase()} |{' '}
                                   {league.totalTeams ?? '--'} teams
-                                  {league.isDynasty ? ' | Dynasty' : ' | Redraft'}
+                                  {league.isDynasty === undefined
+                                    ? ''
+                                    : league.isDynasty
+                                      ? ' | Dynasty'
+                                      : ' | Redraft'}
                                 </p>
                                 {thisError ? (
                                   <p className="mt-2 text-[12px] text-red-300">

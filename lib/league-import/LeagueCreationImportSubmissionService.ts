@@ -165,7 +165,9 @@ export async function discoverProviderLeagues(
   }
 
   const trimmed = accountIdentifier?.trim();
-  if (!trimmed) {
+  // Yahoo discovery reads the user's CONNECTED Yahoo account (OAuth) — no
+  // account identifier is needed; every other provider still requires one.
+  if (!trimmed && provider !== 'yahoo') {
     return { ok: false, error: 'Account identifier is required.' };
   }
 
@@ -175,7 +177,7 @@ export async function discoverProviderLeagues(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         provider,
-        accountIdentifier: trimmed,
+        ...(trimmed ? { accountIdentifier: trimmed } : {}),
         ...(options?.season ? { season: options.season } : {}),
         ...(options?.sport ? { sport: options.sport } : {}),
       }),

@@ -25,7 +25,9 @@ export const IMPORT_PROVIDER_UI_OPTIONS: {
 }[] = [
   { provider: 'sleeper', label: 'Sleeper', available: true, supportsDiscovery: true, supportedSports: ['NFL'] },
   { provider: 'espn', label: 'ESPN', available: true, supportedSports: ['NFL'] },
-  { provider: 'yahoo', label: 'Yahoo', available: true, supportedSports: ['NFL'] },
+  // yahoo discovery lists leagues from the user's CONNECTED Yahoo account (OAuth
+  // use_login=1) — no account identifier input; requires Yahoo connected in League Sync.
+  { provider: 'yahoo', label: 'Yahoo', available: true, supportsDiscovery: true, supportedSports: ['NFL'] },
   // fantrax: real CSV-snapshot pipeline, but every fresh upload is currently rejected by its own
   // ownership gate (appUserId is never stamped by the upload route) — unusable end-to-end today.
   { provider: 'fantrax', label: 'Fantrax', available: false, supportedSports: ['NFL', 'NCAAF'] },
