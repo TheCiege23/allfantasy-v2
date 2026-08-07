@@ -39,6 +39,7 @@ const GROUP_BY_TAB: Record<string, LeagueTabGroupId> = {
   'my-picks': 'roster',
 
   // Legacy — history + the AF Legacy product surface
+  legacy: 'legacy',
   history: 'legacy',
   war_room: 'legacy',
   bb_history: 'legacy',

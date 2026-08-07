@@ -85,6 +85,7 @@ import { DecideHome } from '@/components/decide/DecideHome'
 import { LeagueInfoRail } from '@/components/decide/LeagueInfoRail'
 import { ChimmyBubble } from '@/components/decide/ChimmyBubble'
 import { buildLeagueTabGroups, groupForLeagueTab } from '@/components/decide/leagueTabGroups'
+import { LegacyHome } from '@/components/decide/LegacyHome'
 import { ScoresTab } from './tabs/ScoresTab'
 import { WarRoomTab } from './tabs/WarRoomTab'
 import { AICoachingTab } from './tabs/AICoachingTab'
@@ -445,6 +446,9 @@ export function LeagueShell({
     return [
       { id: 'decide', label: 'Decide' },
       ...localizeLeagueTabs(applyMatchupPrimaryTab(withSettings, shouldUseMatchupPrimary), t),
+      // Slice 3: full-chain league history (LegacyHome). Appended for every
+      // general/imported league; the group bar surfaces it as the Legacy group.
+      { id: 'legacy', label: 'Legacy' },
     ]
   }, [
     nflRedraftCore,
@@ -1956,6 +1960,12 @@ function LeagueTabRouter({
       ) : (
         <div className="rounded-xl border border-white/[0.08] bg-[#0a1228]/80 p-6 text-center text-sm text-white/55">
           Commissioner tools only.
+        </div>
+      )
+    case 'legacy':
+      return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 lg:px-6">
+          <LegacyHome league={selectedLeague} leagueId={leagueId} />
         </div>
       )
     case 'decide':

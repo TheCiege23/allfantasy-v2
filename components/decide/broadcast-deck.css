@@ -229,3 +229,21 @@
 }
 .bdx .bdx-rail-brand img { width: 34px; height: 34px; border-radius: 9px; flex: none; }
 .bdx .bdx-rail-brand b { color: var(--bdx-ink-faint); }
+
+/* ── Legacy tab (slice 3) ──────────────────────────────────────── */
+.bdx .bdx-champs { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 16px; }
+.bdx .bdx-champ {
+  border: 1px solid var(--bdx-border); border-radius: 12px; background: var(--bdx-panel);
+  padding: 13px 16px; min-width: 165px; max-width: 240px;
+}
+.bdx .bdx-champ .yr {
+  font-size: 10.5px; color: var(--bdx-ink-faint); font-weight: 900; font-style: italic;
+  text-transform: uppercase; letter-spacing: 0.08em;
+}
+.bdx .bdx-champ .nm { font-size: 15px; font-weight: 800; margin-top: 5px; }
+.bdx .bdx-champ .rec { font-size: 11px; color: var(--bdx-ink-ghost); margin-top: 3px; font-variant-numeric: tabular-nums; }
+.bdx .bdx-stand th {
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--bdx-ink-faint); text-align: left; padding: 5px 4px;
+  border-bottom: 1px solid var(--bdx-border); font-weight: 800;
+}
