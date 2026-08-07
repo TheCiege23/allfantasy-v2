@@ -48,12 +48,8 @@ export function DashboardLiveDrafts({ leagues }: { leagues: UserLeague[] }) {
       : null
 
   return (
-    <div className="bdx" style={{ padding: '10px 12px 4px' }} data-testid="dashboard-live-drafts">
-      <div className="bdx-kick" style={{ marginBottom: 8 }}>
-        <h2 className="bdx-disp" style={{ fontSize: 15 }}>Your drafts</h2>
-        <span className="bdx-sub">all leagues</span>
-      </div>
-      <div className="bdx-rows" style={{ marginBottom: 6 }}>
+    <div className="bdx" style={{ padding: '8px 10px 2px' }} data-testid="dashboard-live-drafts">
+      <div className="bdx-rows" style={{ marginBottom: 4 }}>
         {active.slice(0, 6).map((d) => {
           const af = afLeagueFor(d.leagueId)
           const chip =
@@ -67,26 +63,39 @@ export function DashboardLiveDrafts({ leagues }: { leagues: UserLeague[] }) {
               </span>
             )
           const row = (
-            <div className="bdx-row" style={{ alignItems: 'center' }}>
-              <span className="x" style={{ textAlign: 'left', flex: 1, fontSize: 12.5 }}>
+            <div className="bdx-row" style={{ alignItems: 'center', padding: '5px 0' }}>
+              <span
+                className="x"
+                style={{ textAlign: 'left', flex: 1, fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+              >
                 {af?.name ?? d.name}
               </span>
+              {!af ? (
+                <span
+                  className="bdx-sev warn"
+                  title="This league is on your Sleeper account but not imported to AllFantasy yet — import it to unlock Live Intel, grades, and Chimmy."
+                >
+                  import
+                </span>
+              ) : null}
               {chip}
             </div>
           )
-          return af ? (
+          // Imported → straight into that league's Live Intel.
+          // NOT imported → into the import flow, so a live draft is never a dead end.
+          return (
             <Link
               key={d.draftId}
-              href={`/league/${af.id}?view=draft_intel`}
+              href={af ? `/league/${af.id}?view=draft_intel` : '/import?returnTo=/dashboard'}
               style={{ textDecoration: 'none', color: 'inherit' }}
-              title="Open this league's Live Intel"
+              title={
+                af
+                  ? "Open this league's Live Intel"
+                  : 'Import this league to AllFantasy to unlock its draft cockpit'
+              }
             >
               {row}
             </Link>
-          ) : (
-            <div key={d.draftId} title="This draft's league isn't imported to AllFantasy yet.">
-              {row}
-            </div>
           )
         })}
       </div>

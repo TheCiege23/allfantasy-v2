@@ -306,38 +306,24 @@ export function LeagueListPanel({
 
   return (
     <div className="flex h-full min-w-0 w-full max-w-full flex-col overflow-hidden bg-[#0b0e2a]">
+      {/* Cross-league draft strip — the ONLY place all your drafts appear
+          together. Renders in BOTH modes: a live draft in a league that isn't
+          imported yet must still be reachable (links into the import flow). */}
+      <DashboardLiveDrafts leagues={leagues} />
+
       {!compact ? (
-        <>
-          {/* Broadcast Deck header: heavy italic kicker + league count */}
-          <div className="flex items-baseline gap-2 px-4 pb-1 pt-3">
-            <span className="text-[15px] font-black uppercase italic tracking-wide text-[#f0f2ff]">
-              My Leagues
-            </span>
-            <span className="text-[11px] font-bold uppercase tracking-widest text-[#5d64a3]">
-              {leagues.length || '—'}
-            </span>
-            <span
-              className="ml-1 inline-block h-[3px] w-10 self-center rounded-full"
-              style={{ background: 'linear-gradient(90deg,#ff3d81,#ff8a3d)' }}
+        <div className="border-b border-[#1c2153] px-3 py-3">
+          <div className="flex items-center rounded-xl border border-[#262c6a] bg-[#12163e] px-3 py-2">
+            <Search className="h-4 w-4 flex-shrink-0 text-[#5d64a3]" />
+            <input
+              type="text"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Search leagues..."
+              className="ml-2 w-full bg-transparent text-sm text-white outline-none placeholder:text-[#5d64a3]"
             />
           </div>
-
-          {/* Cross-league draft strip — the ONLY place all your drafts appear together */}
-          <DashboardLiveDrafts leagues={leagues} />
-
-          <div className="border-b border-[#1c2153] px-3 py-3">
-            <div className="flex items-center rounded-xl border border-[#262c6a] bg-[#12163e] px-3 py-2">
-              <Search className="h-4 w-4 flex-shrink-0 text-[#5d64a3]" />
-              <input
-                type="text"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search leagues..."
-                className="ml-2 w-full bg-transparent text-sm text-white outline-none placeholder:text-[#5d64a3]"
-              />
-            </div>
-          </div>
-        </>
+        </div>
       ) : null}
 
       <div

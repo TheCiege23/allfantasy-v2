@@ -137,7 +137,8 @@ export function LeagueSidebarCard({
           <div
             {...dragHandleProps}
             className={[
-              'flex w-3.5 shrink-0 cursor-grab select-none items-center justify-center self-stretch rounded-sm text-white/20 hover:text-white/50 active:cursor-grabbing',
+              // De-noise: the reorder handle only appears on hover/focus.
+              'flex w-3.5 shrink-0 cursor-grab select-none items-center justify-center self-stretch rounded-sm text-white/20 opacity-0 transition-opacity hover:text-white/50 focus-visible:opacity-100 active:cursor-grabbing group-hover:opacity-100',
               dragHandleProps.className,
             ]
               .filter(Boolean)
@@ -215,11 +216,7 @@ export function LeagueSidebarCard({
                 <span className="shrink-0 rounded border border-emerald-500/25 bg-emerald-500/10 px-1 py-0.5 text-[8px] font-semibold text-emerald-400">
                   Paid
                 </span>
-              ) : (
-                <span className="shrink-0 rounded bg-white/[0.05] px-1 py-0.5 text-[8px] font-medium text-white/25">
-                  Free
-                </span>
-              )}
+              ) : null /* de-noise: "Free" on every row said nothing */}
               {league.lifecycleState === 'renewal_pending' && (
                 <span className="shrink-0 rounded border border-amber-500/40 bg-amber-500/15 px-1 py-0.5 text-[8px] font-bold text-amber-300" title="League renewal window is open">
                   RENEW
@@ -272,7 +269,7 @@ export function LeagueSidebarCard({
             }}
             className={`shrink-0 text-white/35 transition hover:text-white/80 ${
               compact ? 'self-center p-0.5' : 'self-start pt-2 text-sm leading-none'
-            }`}
+            } ${isFavorite ? '' : 'opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100'}`}
             aria-label={isFavorite ? 'Remove favorite' : 'Add favorite'}
           >
             {compact ? (
