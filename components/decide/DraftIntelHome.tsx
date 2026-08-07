@@ -93,10 +93,15 @@ export function DraftIntelHome({
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // ── Draft list ──
+  // League pages get ONLY this league's drafts (?leagueId= scope); the
+  // dashboard's cross-league view is the only place all drafts appear together.
   useEffect(() => {
     let cancelled = false
     setListLoading(true)
-    void fetch('/api/draft/intel', { credentials: 'same-origin', cache: 'no-store' })
+    const url = leagueId
+      ? `/api/draft/intel?leagueId=${encodeURIComponent(leagueId)}`
+      : '/api/draft/intel'
+    void fetch(url, { credentials: 'same-origin', cache: 'no-store' })
       .then((res) => res.json() as Promise<ListResponse>)
       .then((payload) => {
         if (cancelled) return
@@ -116,7 +121,7 @@ export function DraftIntelHome({
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [leagueId])
 
   // ── Intel fetch + live polling ──
   const fetchIntel = useCallback((draftId: string, silent: boolean) => {
@@ -276,11 +281,13 @@ export function DraftIntelHome({
         </div>
       ) : drafts.length === 0 ? (
         <div className="bdx-empty">
-          <div className="t">No drafts found this season</div>
+          <div className="t">{leagueId ? 'No drafts found for this league' : 'No drafts found this season'}</div>
           <div className="m">
-            Sleeper reports no {new Date().getFullYear()} drafts for your account
-            {list && 'error' in list && list.error ? ` (${list.error})` : ''}. When one is scheduled
-            or goes live, it appears here automatically.
+            {leagueId
+              ? 'Sleeper reports no drafts for this league yet. Your drafts in OTHER leagues live on the dashboard, not here — each league page shows only its own draft room.'
+              : `Sleeper reports no ${new Date().getFullYear()} drafts for your account`}
+            {list && 'error' in list && list.error ? ` (${list.error})` : ''}
+            {leagueId ? '' : '. When one is scheduled or goes live, it appears here automatically.'}
           </div>
         </div>
       ) : (
@@ -495,6 +502,7 @@ export function DraftIntelHome({
                           ) : null}
                         </span>
                         <span className="k" style={{ fontVariantNumeric: 'tabular-nums' }}>
+                          {p.marketValue != null ? `val ${p.marketValue.toLocaleString()} · ` : ''}
                           ADP {p.adp.toFixed(1)}
                         </span>
                       </div>

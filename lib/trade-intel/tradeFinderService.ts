@@ -26,9 +26,15 @@ import {
   type MarketPlayer,
 } from '@/lib/sports-data/sleeperMarketService'
 import { getTradeGrades } from '@/lib/trade-intel/sleeperTradeGradeService'
+import {
+  getMarketValues,
+  playerValue,
+  type MarketValuesPayload,
+} from '@/lib/trade-intel/marketValueService'
 
 const SLEEPER = 'https://api.sleeper.app/v1'
-const FAIRNESS_BAND = 30 // max ADP gap for a suggested 1-for-1
+const FAIRNESS_BAND = 30 // ADP fallback: max ADP gap for a suggested 1-for-1
+const VALUE_FAIRNESS_PCT = 20 // preferred: max % gap in market value
 const SURPLUS_ADP_CEILING = 200 // bench players ranked worse than this aren't trade bait
 
 async function j<T>(path: string): Promise<T | null> {
@@ -164,9 +170,26 @@ export type TradeProposal = {
     avatar: string | null
     completedTrades: number
   }
-  give: { playerId: string; name: string; position: string | null; team: string | null; adp: number }
-  get: { playerId: string; name: string; position: string | null; team: string | null; adp: number }
+  give: {
+    playerId: string
+    name: string
+    position: string | null
+    team: string | null
+    adp: number
+    /** FantasyCalc market value in this league's format (null = unranked). */
+    marketValue: number | null
+  }
+  get: {
+    playerId: string
+    name: string
+    position: string | null
+    team: string | null
+    adp: number
+    marketValue: number | null
+  }
   adpGap: number
+  /** % gap in market value when both sides are ranked; null = ADP fallback used. */
+  valueGapPct: number | null
   /** Checkable facts only. */
   rationale: string[]
 }
@@ -190,16 +213,18 @@ export async function getTradeFinder(
   const context = await getLeagueContext(sleeperLeagueId)
   if (!context) return null
 
-  const [rosters, users, board, grades] = await Promise.all([
+  const [rosters, users, board, grades, values] = await Promise.all([
     j<WireRoster[]>(`/league/${sleeperLeagueId}/rosters`),
     j<WireUser[]>(`/league/${sleeperLeagueId}/users`),
     getSeasonBoard(context.season),
     getTradeGrades(sleeperLeagueId).catch(() => null),
+    getMarketValues(context).catch(() => null as MarketValuesPayload | null),
   ])
   if (!rosters) return null
   if (!users) missing.push('managers')
   if (!board) missing.push('market ADP board')
   if (!grades) missing.push('trade-activity history')
+  if (!values) missing.push('market value chart (falling back to ADP fairness)')
 
   const usersById = new Map((users ?? []).map((u) => [u.user_id, u]))
   const marketById = new Map(Object.entries(board?.players ?? {}))
@@ -243,13 +268,26 @@ export async function getTradeFinder(
           const giveAdp = adpOf(giveP)
           if (giveAdp == null) continue
           const gap = Math.abs(giveAdp - getAdp)
-          if (gap > FAIRNESS_BAND) continue
+
+          // Fairness: MARKET VALUE first (FantasyCalc, format-matched); ADP fallback.
+          const giveVal = values ? playerValue(values, giveP.playerId) : null
+          const getVal = values ? playerValue(values, getP.playerId) : null
+          let valueGapPct: number | null = null
+          if (giveVal != null && getVal != null && Math.max(giveVal, getVal) > 0) {
+            valueGapPct =
+              Math.round((Math.abs(giveVal - getVal) / Math.max(giveVal, getVal)) * 1000) / 10
+            if (valueGapPct > VALUE_FAIRNESS_PCT) continue
+          } else if (gap > FAIRNESS_BAND) {
+            continue
+          }
 
           const completedTrades = them.ownerId ? tradeCountByOwner.get(them.ownerId) ?? 0 : 0
           const rationale = [
             `${getP.name} fills your ${myFilled} ${me.openSlots.includes(myFilled) ? '(open starter slot)' : '(weakest starter by ADP)'}`,
             `${giveP.name} fills ${them.name}'s ${theirFilled} ${them.openSlots.includes(theirFilled) ? '(open starter slot)' : '(weakest starter by ADP)'}`,
-            `ADP gap ${gap.toFixed(1)} in ${context.adpKeyLabel} — inside the ±${FAIRNESS_BAND} fairness band`,
+            valueGapPct != null
+              ? `market value ${giveVal?.toLocaleString()} vs ${getVal?.toLocaleString()} (${values?.mode} chart) — ${valueGapPct.toFixed(1)}% gap, inside the ±${VALUE_FAIRNESS_PCT}% band`
+              : `ADP gap ${gap.toFixed(1)} in ${context.adpKeyLabel} — inside the ±${FAIRNESS_BAND} fallback band (no market value for one side)`,
           ]
           if (completedTrades > 0) {
             rationale.push(`${them.name} has completed ${completedTrades} trade${completedTrades === 1 ? '' : 's'} in league history`)
@@ -268,6 +306,7 @@ export async function getTradeFinder(
               position: giveP.position,
               team: giveP.team,
               adp: Math.round(giveAdp * 10) / 10,
+              marketValue: giveVal,
             },
             get: {
               playerId: getP.playerId,
@@ -275,8 +314,10 @@ export async function getTradeFinder(
               position: getP.position,
               team: getP.team,
               adp: Math.round(getAdp * 10) / 10,
+              marketValue: getVal,
             },
             adpGap: Math.round(gap * 10) / 10,
+            valueGapPct,
             rationale,
           })
         }
@@ -284,14 +325,17 @@ export async function getTradeFinder(
     }
   }
 
-  // Rank: open-slot fixes first, then most-active partners, then tightest gap.
+  // Rank: open-slot fixes first, then most-active partners, then tightest gap
+  // (value gap when known, ADP gap otherwise).
   proposals.sort((a, b) => {
     const aOpen = a.rationale[0].includes('(open starter slot)') ? 0 : 1
     const bOpen = b.rationale[0].includes('(open starter slot)') ? 0 : 1
+    const aGap = a.valueGapPct ?? a.adpGap
+    const bGap = b.valueGapPct ?? b.adpGap
     return (
       aOpen - bOpen ||
       b.partner.completedTrades - a.partner.completedTrades ||
-      a.adpGap - b.adpGap
+      aGap - bGap
     )
   })
   // One best proposal per partner+get-player, cap at 6.
@@ -303,8 +347,12 @@ export async function getTradeFinder(
   const finalProposals = [...dedup.values()].slice(0, 6)
 
   const contextNotes: string[] = [
-    `Player value = ${context.adpKeyLabel} (RotoWire market data) — a conversation starter, not an AF valuation verdict.`,
+    values
+      ? `Fairness is judged by ${values.source} in ${values.mode} mode (${values.numQbs}QB, ${values.numTeams}-team, ${values.ppr} PPR); ADP (${context.adpKeyLabel}) is the fallback when a player is unranked.`
+      : `Player value = ${context.adpKeyLabel} (RotoWire market data) — the market value chart didn't sync this refresh.`,
   ]
+  if (values?.bestBallNote) contextNotes.push(values.bestBallNote)
+  if (values) contextNotes.push(values.faab.formula)
   if (context.houseRules.pirate?.active) {
     contextNotes.push(
       'Pirate rules declared: favor consistent-floor targets and spreading value — a stolen stud hurts twice.',

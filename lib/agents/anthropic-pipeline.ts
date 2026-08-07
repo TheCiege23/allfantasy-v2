@@ -141,6 +141,10 @@ export interface UserContext {
   conversation?: ConversationTurn[]
   /** G15.10 — optional, privacy-safe commissioner-intelligence grounding (read-only). */
   commissionerGrounding?: string | null
+  /** League-intelligence grounding: synced facts from the league's own engines
+   *  (context envelope, market values, graded trades, H2H records). Additive,
+   *  read-only, same contract as commissionerGrounding. */
+  leagueIntelligenceGrounding?: string | null
   memory?: {
     tone?: 'strategic' | 'casual' | 'analytical'
     detailLevel?: 'concise' | 'standard' | 'detailed'
@@ -376,9 +380,15 @@ function buildRuntimeSystemPrompt(
     },
   })
   // G15.10 — additive commissioner-intelligence grounding (read-only, privacy-safe).
-  const grounded = ctx.commissionerGrounding
+  let grounded = ctx.commissionerGrounding
     ? `${base}\n\n## COMMISSIONER INTELLIGENCE\n${ctx.commissionerGrounding}`
     : base
+  // League-intelligence grounding: the league's own synced engines (context
+  // envelope, market values, graded trades, H2H records). Additive; absent
+  // when no league is attached or nothing resolved in time.
+  if (ctx.leagueIntelligenceGrounding) {
+    grounded = `${grounded}\n\n## LEAGUE INTELLIGENCE (synced facts)\n${ctx.leagueIntelligenceGrounding}`
+  }
   const lang = getAiLanguageInstruction(ctx.language)
   if (lang === 'English') return grounded
   return `${grounded}\n\n## LANGUAGE\nRespond in ${lang}. Use natural sports-app language. Keep team, player, league, and AllFantasy feature names recognizable.`

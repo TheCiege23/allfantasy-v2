@@ -6,6 +6,7 @@ import type { LeagueTradeBlockPanelItem, LeagueTradeHistoryItem, LeagueTradeAsse
 import { listAfLeagueTrades } from '@/lib/league-trade-engine/tradeService'
 import { isElevatedCommissioner } from '@/server/services/permissionService'
 import { getLeagueContext } from '@/lib/league-context/leagueContextService'
+import { getMarketValues } from '@/lib/trade-intel/marketValueService'
 
 export const dynamic = 'force-dynamic'
 
@@ -172,8 +173,12 @@ export async function GET(req: NextRequest) {
   // surface can label HOW its verdicts are framed (IDP scoring, pirate house
   // rules) — flags are facts from settings/declarations, never inferred.
   const context = await getLeagueContext(sleeperLeagueId).catch(() => null)
+  const values = context ? await getMarketValues(context).catch(() => null) : null
   const verdictContext = context
     ? {
+        valuation: values
+          ? { source: values.source, mode: values.mode, faabFormula: values.faab.formula }
+          : null,
         idp: context.variant.idp,
         idpEmphasis: context.scoring.idp.emphasis,
         scoringFormat: context.scoring.format,

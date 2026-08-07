@@ -7,6 +7,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { cookies } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import { resolveChimmyCommissionerGrounding } from '@/lib/intelligence/chimmy/resolveChimmyGrounding'
+import { resolveLeagueIntelligenceGrounding } from '@/lib/intelligence/chimmy/leagueIntelligenceGrounding'
 import { z } from 'zod'
 
 import { POST as postChatChimmy } from '@/app/api/chat/chimmy/route'
@@ -601,6 +602,14 @@ export async function POST(req: NextRequest) {
     userId,
     leagueId: parseResult.data.userContext.leagueId,
     question: parseResult.data.message,
+  })
+  // League-intelligence grounding: the chosen league's own synced engines
+  // (context envelope, format-correct market values incl. picks + FAAB
+  // heuristic, graded trades, H2H records). Access-checked + timeout-bounded
+  // inside; null on any miss so the chat never stalls.
+  anthropicContext.leagueIntelligenceGrounding = await resolveLeagueIntelligenceGrounding({
+    userId,
+    leagueId: parseResult.data.userContext.leagueId,
   })
   const tokenSpendId = gate.tokenSpend?.id ?? null
 

@@ -27,12 +27,14 @@ function PlayerChip({
   position,
   team,
   adp,
+  marketValue = null,
 }: {
   playerId: string
   name: string
   position: string | null
   team: string | null
   adp: number
+  marketValue?: number | null
 }) {
   const src = sleeperPlayerHeadshot(playerId)
   return (
@@ -50,7 +52,8 @@ function PlayerChip({
       <b>{name}</b>
       <span style={{ color: 'var(--bdx-ink-ghost)', fontSize: 11 }}>
         {position ?? ''}
-        {team ? ` · ${team}` : ''} · ADP {adp.toFixed(1)}
+        {team ? ` · ${team}` : ''}
+        {marketValue != null ? ` · val ${marketValue.toLocaleString()}` : ''} · ADP {adp.toFixed(1)}
       </span>
     </span>
   )
@@ -155,7 +158,11 @@ export function TradeFinder({
                   {p.partner.completedTrades > 0 ? (
                     <span className="bdx-sev ok">↔ {p.partner.completedTrades} career trades</span>
                   ) : null}
-                  <span className="bdx-when">ADP gap {p.adpGap.toFixed(1)}</span>
+                  <span className="bdx-when">
+                    {p.valueGapPct != null
+                      ? `value gap ${p.valueGapPct.toFixed(1)}%`
+                      : `ADP gap ${p.adpGap.toFixed(1)}`}
+                  </span>
                 </div>
                 <div className="bdx-line" style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                   <span style={{ color: 'var(--bdx-ink-faint)' }}>You send</span>

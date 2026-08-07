@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { getDraftIntel, listUserDrafts } from '@/lib/draft-intel/sleeperDraftIntelService'
+import {
+  getDraftIntel,
+  listLeagueDrafts,
+  listUserDrafts,
+} from '@/lib/draft-intel/sleeperDraftIntelService'
 
 export const dynamic = 'force-dynamic'
 
@@ -42,6 +46,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ linked: Boolean(sleeperUserId), intel })
   }
 
+  // League-scoped list: ONLY this league's drafts (league pages must never
+  // show the viewer's drafts from other leagues — cross-league lives on the
+  // dashboard). Access-checked against the AF league row.
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  if (leagueId) {
+    const league = await prisma.league.findFirst({
+      where: {
+        id: leagueId,
+        OR: [{ userId: userId }, { teams: { some: { claimedByUserId: userId } } }],
+      },
+      select: { platform: true, platformLeagueId: true },
+    })
+    if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
+    if (league.platform !== 'sleeper' || !league.platformLeagueId) {
+      return NextResponse.json({ linked: Boolean(sleeperUserId), scope: 'league' as const, drafts: [] })
+    }
+    const drafts = await listLeagueDrafts(league.platformLeagueId)
+    if (!drafts) {
+      return NextResponse.json(
+        { linked: Boolean(sleeperUserId), scope: 'league' as const, drafts: null, error: 'Draft list temporarily unavailable' },
+        { status: 502 },
+      )
+    }
+    return NextResponse.json({ linked: Boolean(sleeperUserId), scope: 'league' as const, drafts })
+  }
+
   if (!sleeperUserId) {
     return NextResponse.json({ linked: false as const, drafts: null })
   }
@@ -54,5 +84,5 @@ export async function GET(req: NextRequest) {
       { status: 502 },
     )
   }
-  return NextResponse.json({ linked: true as const, season, drafts })
+  return NextResponse.json({ linked: true as const, scope: 'user' as const, season, drafts })
 }

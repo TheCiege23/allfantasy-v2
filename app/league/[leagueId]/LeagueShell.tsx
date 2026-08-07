@@ -87,6 +87,7 @@ import { ChimmyBubble } from '@/components/decide/ChimmyBubble'
 import { buildLeagueTabGroups, groupForLeagueTab } from '@/components/decide/leagueTabGroups'
 import { LegacyHome } from '@/components/decide/LegacyHome'
 import { DraftIntelHome } from '@/components/decide/DraftIntelHome'
+import { LiveRosterPanel } from '@/components/decide/LiveRosterPanel'
 import { ScoresTab } from './tabs/ScoresTab'
 import { WarRoomTab } from './tabs/WarRoomTab'
 import { AICoachingTab } from './tabs/AICoachingTab'
@@ -1998,17 +1999,24 @@ function LeagueTabRouter({
     case 'roster':
     case 'squad':
       return (
-        <TeamTab
-          league={selectedLeague}
-          userTeam={userTeam}
-          onPlayerClick={onPlayerClick}
-          inviteToken={inviteToken}
-          sport={sport}
-          idpLeagueUi={idpLeagueActive}
-          idpViewMode={idpViewMode}
-          idpPositionMode={idpPositionMode}
-          onUserSettingsClick={() => router.push('/settings')}
-        />
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {/* Draft-aware live roster (Sleeper leagues): current roster incl.
+              in-progress draft picks; renders nothing for other platforms. */}
+          <div className="px-4 pt-4 lg:px-6">
+            <LiveRosterPanel leagueId={leagueId} />
+          </div>
+          <TeamTab
+            league={selectedLeague}
+            userTeam={userTeam}
+            onPlayerClick={onPlayerClick}
+            inviteToken={inviteToken}
+            sport={sport}
+            idpLeagueUi={idpLeagueActive}
+            idpViewMode={idpViewMode}
+            idpPositionMode={idpPositionMode}
+            onUserSettingsClick={() => router.push('/settings')}
+          />
+        </div>
       )
     case 'league':
       return (

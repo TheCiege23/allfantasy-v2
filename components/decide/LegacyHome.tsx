@@ -18,6 +18,7 @@ import type {
   HistorySeason,
   LeagueHistoryPayload,
 } from '@/lib/league-history/sleeperLeagueHistoryService'
+import { DraftReportCards } from '@/components/decide/DraftReportCards'
 import { ManagerH2H } from '@/components/decide/ManagerH2H'
 import { TradeLedgerGraded } from '@/components/decide/TradeLedgerGraded'
 import './broadcast-deck.css'
@@ -302,6 +303,9 @@ export function LegacyHome({ league, leagueId }: { league: UserLeague; leagueId:
               </div>
             </div>
           ) : null}
+
+          {/* ── Draft report cards (feature 5): every draft, graded + re-rated ── */}
+          <DraftReportCards leagueId={leagueId} />
 
           {/* ── Graded trade ledger (every trade, every season, re-graded) ── */}
           <TradeLedgerGraded leagueId={leagueId} />

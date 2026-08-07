@@ -27,6 +27,7 @@ import {
   isIdp,
   isRookie,
 } from '@/lib/sports-data/sleeperMarketService'
+import { getMarketValues, playerValue } from '@/lib/trade-intel/marketValueService'
 
 const SLEEPER = 'https://api.sleeper.app/v1'
 const RUN_WINDOW = 12
@@ -119,6 +120,8 @@ export type DraftBestAvailable = {
   team: string | null
   /** Market ADP in the league's own format column — real RotoWire number. */
   adp: number
+  /** FantasyCalc market value in this league's format (dynasty/redraft/SF aware). */
+  marketValue: number | null
   rookie: boolean
   idp: boolean
   /** Viewer's open starter slots this player can fill (empty = depth pick). */
@@ -182,16 +185,38 @@ function toListItem(d: SleeperDraft): DraftListItem {
   }
 }
 
+const rankDraftStatus = (s: string) =>
+  s === 'drafting' ? 0 : s === 'paused' ? 1 : s === 'pre_draft' ? 2 : 3
+
 export async function listUserDrafts(
   sleeperUserId: string,
   season: string,
 ): Promise<DraftListItem[] | null> {
   const drafts = await j<SleeperDraft[]>(`/user/${sleeperUserId}/drafts/nfl/${season}`)
   if (!drafts) return null
-  const rank = (s: string) => (s === 'drafting' ? 0 : s === 'paused' ? 1 : s === 'pre_draft' ? 2 : 3)
   return drafts
     .map(toListItem)
-    .sort((a, b) => rank(a.status) - rank(b.status) || (a.startTime ?? '').localeCompare(b.startTime ?? ''))
+    .sort(
+      (a, b) =>
+        rankDraftStatus(a.status) - rankDraftStatus(b.status) ||
+        (a.startTime ?? '').localeCompare(b.startTime ?? ''),
+    )
+}
+
+/**
+ * Drafts belonging to ONE league (league pages must never mix in the viewer's
+ * drafts from other leagues — that's the dashboard's cross-league view).
+ */
+export async function listLeagueDrafts(sleeperLeagueId: string): Promise<DraftListItem[] | null> {
+  const drafts = await j<SleeperDraft[]>(`/league/${sleeperLeagueId}/drafts`)
+  if (!drafts) return null
+  return drafts
+    .map(toListItem)
+    .sort(
+      (a, b) =>
+        rankDraftStatus(a.status) - rankDraftStatus(b.status) ||
+        (a.startTime ?? '').localeCompare(b.startTime ?? ''),
+    )
 }
 
 // ── Snake math ───────────────────────────────────────────────────────────────
@@ -408,6 +433,7 @@ export async function getDraftIntel(
   const slotDefFor = (label: string) => SLOT_KEYS.find((s) => s.label === label)
   let bestAvailable: DraftIntelPayload['bestAvailable'] = null
   if (marketBoard && context) {
+    const values = await getMarketValues(context).catch(() => null)
     const pickedIds = new Set((picks ?? []).map((p) => p.player_id).filter(Boolean) as string[])
     const ranked = Object.values(marketBoard.players)
       .filter((pl) => !pickedIds.has(pl.playerId))
@@ -421,6 +447,7 @@ export async function getDraftIntel(
         position: pl.position,
         team: pl.team,
         adp,
+        marketValue: values ? playerValue(values, pl.playerId) : null,
         rookie: isRookie(pl),
         idp: isIdp(pl),
         fillsSlots: openSlots
@@ -433,7 +460,9 @@ export async function getDraftIntel(
     if (ranked.length > 0) {
       bestAvailable = {
         players: ranked,
-        source: `${context.adpKeyLabel} · RotoWire market data via the Sleeper feed`,
+        source: values
+          ? `${context.adpKeyLabel} + ${values.mode} market values (FantasyCalc)`
+          : `${context.adpKeyLabel} · RotoWire market data via the Sleeper feed`,
       }
     }
   }
