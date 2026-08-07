@@ -8,6 +8,7 @@ import { cookies } from 'next/headers'
 import { getServerSession } from 'next-auth'
 import { resolveChimmyCommissionerGrounding } from '@/lib/intelligence/chimmy/resolveChimmyGrounding'
 import { resolveLeagueIntelligenceGrounding } from '@/lib/intelligence/chimmy/leagueIntelligenceGrounding'
+import { resolvePortfolioGrounding } from '@/lib/intelligence/chimmy/portfolioGrounding'
 import { z } from 'zod'
 
 import { POST as postChatChimmy } from '@/app/api/chat/chimmy/route'
@@ -611,6 +612,11 @@ export async function POST(req: NextRequest) {
     userId,
     leagueId: parseResult.data.userContext.leagueId,
   })
+  // No league attached → dashboard-level portfolio grounding instead (the same
+  // Command Center payload the dashboard renders, so chat and UI agree).
+  if (!anthropicContext.leagueIntelligenceGrounding && !parseResult.data.userContext.leagueId) {
+    anthropicContext.leagueIntelligenceGrounding = await resolvePortfolioGrounding({ userId })
+  }
   const tokenSpendId = gate.tokenSpend?.id ?? null
 
   // ── Daily cap check ──────────────────────────────────────────────────────────

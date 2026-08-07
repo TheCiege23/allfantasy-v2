@@ -32,6 +32,7 @@ import { LegacyToolsetGrid } from './LegacyToolsetGrid'
 import { CareerProgressionStrip } from './CareerProgressionStrip'
 import { Crown, Plus } from 'lucide-react'
 import { ActionCenter, countActionItems } from './warroom/ActionCenter'
+import { CommandCenterDeck } from './CommandCenterDeck'
 import { TodayTimeline } from './warroom/TodayTimeline'
 import { MyLeagueCard, rawStage } from './warroom/MyLeagueCard'
 import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
@@ -862,6 +863,13 @@ export function DashboardOverview({
               : 0
           }
         />
+
+        {/* 1b. COMMAND CENTER DECK — cross-league brain: urgency-ranked feed,
+            week-at-a-glance win probabilities, portfolio value. One payload
+            aggregated from every OS engine (Decision OS, LeagueContext, trade
+            engine, draft intel, matchup model, market values, Legacy H2H) —
+            the same payload that grounds Chimmy's dashboard-level chat. */}
+        <CommandCenterDeck userId={userId} />
 
         {/* 2-7. Command-center grid — Dashboard V2 Phase 3.8A. Same components/engines; a
             primary decision column (~2/3) beside a secondary context/portfolio column (~1/3) on
