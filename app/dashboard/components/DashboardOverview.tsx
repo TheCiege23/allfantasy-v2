@@ -33,6 +33,7 @@ import { CareerProgressionStrip } from './CareerProgressionStrip'
 import { Crown, Plus } from 'lucide-react'
 import { ActionCenter, countActionItems } from './warroom/ActionCenter'
 import { CommandCenterDeck } from './CommandCenterDeck'
+import { CareerCardDeck } from './CareerCardDeck'
 import { TodayTimeline } from './warroom/TodayTimeline'
 import { MyLeagueCard, rawStage } from './warroom/MyLeagueCard'
 import { LeagueActivityFeed } from './warroom/LeagueActivityFeed'
@@ -870,6 +871,10 @@ export function DashboardOverview({
             engine, draft intel, matchup model, market values, Legacy H2H) —
             the same payload that grounds Chimmy's dashboard-level chat. */}
         <CommandCenterDeck userId={userId} />
+
+        {/* 1c. MANAGER CAREER CARD — aggregated Legacy identity (history chains,
+            graded trades, graded drafts, records book) with one-tap sharing. */}
+        <CareerCardDeck />
 
         {/* 2-7. Command-center grid — Dashboard V2 Phase 3.8A. Same components/engines; a
             primary decision column (~2/3) beside a secondary context/portfolio column (~1/3) on

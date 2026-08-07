@@ -228,6 +228,64 @@ export function CommandCenterDeck({ userId }: { userId: string }) {
             </WarRoomCard>
           ) : null}
 
+          {/* ── 4. Player exposure ── */}
+          {center.exposure.rows.length > 0 ? (
+            <WarRoomCard className="p-4 sm:p-5">
+              <SectionHeading
+                trailing={
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-white/30">
+                    across {center.exposure.rostersCounted} rosters
+                  </span>
+                }
+              >
+                Player exposure
+              </SectionHeading>
+              <div className="mt-3 space-y-1.5">
+                {center.exposure.rows.map((r) => {
+                  const src = sleeperPlayerHeadshot(r.playerId)
+                  return (
+                    <div key={r.playerId} className="flex items-center gap-2.5" title={r.leagueNames.join(' · ')}>
+                      {src ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={src}
+                          alt=""
+                          loading="lazy"
+                          className="h-6 w-6 shrink-0 rounded-full object-cover"
+                          style={{ background: '#1c2153' }}
+                          onError={(e) => e.currentTarget.style.setProperty('display', 'none')}
+                        />
+                      ) : null}
+                      <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-[#c6cbf5]">
+                        {r.name}
+                        <span className="text-[10px] text-[#5d64a3]"> {r.position ?? ''}</span>
+                        {r.injury ? (
+                          <span
+                            className="bdx-sev warn"
+                            style={{ marginLeft: 6 }}
+                            title={`${r.injury.status}${r.injury.note ? ` — ${r.injury.note}` : ''} · hits: ${r.leagueNames.join(', ')}`}
+                          >
+                            ⚕ {r.injury.status} · hits {r.count} league{r.count === 1 ? '' : 's'}
+                          </span>
+                        ) : null}
+                      </span>
+                      <div className="hidden h-[4px] w-24 overflow-hidden rounded-full bg-[#1c2153] sm:block">
+                        <div
+                          className="h-full"
+                          style={{ width: `${r.exposurePct}%`, background: 'linear-gradient(90deg,#ff3d81,#ff8a3d)' }}
+                        />
+                      </div>
+                      <span className="w-24 text-right text-[11px] font-bold tabular-nums text-[#f0f2ff]">
+                        {r.count} of {center.exposure.rostersCounted} · {r.exposurePct}%
+                      </span>
+                    </div>
+                  )
+                })}
+              </div>
+              <p className="mt-2 text-[10px] leading-snug text-[#5d64a3]">{center.exposure.note}</p>
+            </WarRoomCard>
+          ) : null}
+
           <p className="text-center text-[9.5px] font-semibold uppercase tracking-widest text-[#5d64a3]">
             wired to: {center.engines.join(' · ')} — ask Chimmy anything about the above; it reads the same facts
           </p>
