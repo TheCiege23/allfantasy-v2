@@ -127,6 +127,23 @@ export function LeagueInfoRail({
           ) : null}
         </div>
       </div>
+
+      {/* Parent-brand mark */}
+      <div className="bdx-rail-brand">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/brand/brown-pig-llc.png"
+          alt="Brown Pig LLC"
+          onError={(e) => {
+            ;(e.currentTarget.parentElement as HTMLElement | null)?.style.setProperty('display', 'none')
+          }}
+        />
+        <span>
+          An <b>AllFantasy</b> product
+          <br />
+          built by <b>Brown Pig LLC</b>
+        </span>
+      </div>
     </div>
   )
 }

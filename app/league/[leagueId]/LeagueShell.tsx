@@ -84,6 +84,7 @@ import { TradesTab } from './tabs/TradesTab'
 import { DecideHome } from '@/components/decide/DecideHome'
 import { LeagueInfoRail } from '@/components/decide/LeagueInfoRail'
 import { ChimmyBubble } from '@/components/decide/ChimmyBubble'
+import { buildLeagueTabGroups, groupForLeagueTab } from '@/components/decide/leagueTabGroups'
 import { ScoresTab } from './tabs/ScoresTab'
 import { WarRoomTab } from './tabs/WarRoomTab'
 import { AICoachingTab } from './tabs/AICoachingTab'
@@ -2774,59 +2775,102 @@ function LeagueHeader({
         </div>
       ) : null}
 
+      {/* Slice 2B (Broadcast Deck): the flat 15+ tab strip folds into ordered
+          groups (Decide · Draft · Roster · League · Legacy · Commish) with the
+          active group's tabs as a sub-row. Presentation-only — every tab id,
+          deep link, testid, and the roster-issue badge survive unchanged. */}
       <div className="scrollbar-none mt-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5 sm:pb-3">
-        <div
-          className="scrollbar-none flex snap-x snap-mandatory gap-1 overflow-x-auto scroll-pb-1 rounded-xl border border-cyan-500/[0.16] bg-white/[0.04] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05),0_0_24px_rgba(34,211,238,0.04)] [-webkit-overflow-scrolling:touch]"
-          role="tablist"
-          aria-label="League navigation"
-          data-testid="league-command-center-tabs"
-        >
-          {tabs.map((tab) => {
-            const isActive = activeTab === tab.id
-            const rosterTab = tab.id === 'team' || tab.id === 'roster' || tab.id === 'squad'
-            const showRosterBadge = rosterIssueCount > 0 && rosterTab
-            return (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                aria-selected={isActive}
-                data-testid={`league-tab-${tab.id}`}
-                onClick={() => onTabChange(tab.id)}
-                className={cn(
-                  'touch-manipulation flex snap-start min-h-[44px] min-w-0 shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-2 text-[10px] font-bold uppercase tracking-wide transition-colors sm:min-h-[40px] sm:px-3 sm:text-[11px]',
-                  isActive
-                    ? 'bg-cyan-400 text-[#050814] shadow-sm'
-                    : 'text-cyan-400/95 hover:bg-white/[0.06] hover:text-cyan-300',
-                )}
-              >
-                <LeagueTabNavGlyph
-                  tabId={tab.id}
-                  active={isActive}
-                  className={cn(
-                    'h-3.5 w-3.5 sm:h-4 sm:w-4',
-                    isActive ? 'text-[#050814]' : 'text-cyan-400',
-                  )}
-                />
-                <span className="truncate">{tab.label}</span>
-                {showRosterBadge ? (
-                  <span
-                    className={cn(
-                      'ml-0.5 min-w-[1.125rem] rounded-full px-1 text-center text-[9px] font-extrabold tabular-nums ring-1',
-                      isActive
-                        ? 'bg-amber-500 text-[#050814] ring-amber-700/40'
-                        : 'bg-amber-500/95 text-[#050814] ring-amber-400/30',
-                    )}
-                    aria-label={`${rosterIssueCount} roster issues`}
-                    data-testid={`league-tab-${tab.id}-roster-issues-badge`}
-                  >
-                    {rosterIssueCount > 99 ? '99+' : rosterIssueCount}
-                  </span>
-                ) : null}
-              </button>
-            )
-          })}
-        </div>
+        {(() => {
+          const tabGroups = buildLeagueTabGroups(tabs)
+          const activeGroupId = groupForLeagueTab(activeTab)
+          const activeGroup = tabGroups.find((g) => g.id === activeGroupId) ?? tabGroups[0]
+          return (
+            <div
+              className="rounded-xl border border-[#262c6a] bg-[#0d1132]/85 p-1.5"
+              data-testid="league-command-center-tabs"
+            >
+              {/* Group row */}
+              <div className="scrollbar-none flex snap-x gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch]" aria-label="League sections">
+                {tabGroups.map((group) => {
+                  const isActiveGroup = group.id === activeGroup?.id
+                  return (
+                    <button
+                      key={group.id}
+                      type="button"
+                      aria-pressed={isActiveGroup}
+                      data-testid={`league-tab-group-${group.id}`}
+                      onClick={() => {
+                        const first = group.tabs[0]
+                        if (first) onTabChange(first.id)
+                      }}
+                      className={cn(
+                        'touch-manipulation flex snap-start min-h-[40px] shrink-0 items-center gap-1.5 rounded-lg px-3.5 py-2 text-[11px] font-black italic uppercase tracking-wide transition-colors',
+                        isActiveGroup
+                          ? 'bg-[linear-gradient(90deg,#ff3d81,#ff8a3d)] text-white shadow-sm'
+                          : 'border border-transparent text-[#aab1e0] hover:border-[#262c6a] hover:text-white',
+                      )}
+                    >
+                      {group.id === 'decide' ? <span aria-hidden>⚡</span> : null}
+                      {group.label}
+                    </button>
+                  )
+                })}
+              </div>
+              {/* Sub-row: the active group's tabs (same ids/behavior as before) */}
+              {activeGroup && activeGroup.tabs.length > 0 ? (
+                <div
+                  className="scrollbar-none mt-1 flex snap-x gap-0.5 overflow-x-auto border-t border-[#1c2153] pt-1 [-webkit-overflow-scrolling:touch]"
+                  role="tablist"
+                  aria-label="League navigation"
+                >
+                  {activeGroup.tabs.map((tab) => {
+                    const isActive = activeTab === tab.id
+                    const rosterTab = tab.id === 'team' || tab.id === 'roster' || tab.id === 'squad'
+                    const showRosterBadge = rosterIssueCount > 0 && rosterTab
+                    return (
+                      <button
+                        key={tab.id}
+                        type="button"
+                        role="tab"
+                        aria-selected={isActive}
+                        data-testid={`league-tab-${tab.id}`}
+                        onClick={() => onTabChange(tab.id)}
+                        className={cn(
+                          'touch-manipulation flex snap-start min-h-[38px] min-w-0 shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-wide transition-colors sm:text-[10.5px]',
+                          isActive
+                            ? 'bg-white/[0.07] text-[#ff9d5c]'
+                            : 'text-[#7b83c4] hover:bg-white/[0.04] hover:text-white',
+                        )}
+                      >
+                        <LeagueTabNavGlyph
+                          tabId={tab.id}
+                          active={isActive}
+                          className={cn(
+                            'h-3.5 w-3.5',
+                            isActive ? 'text-[#ff9d5c]' : 'text-[#7b83c4]',
+                          )}
+                        />
+                        <span className="truncate">{tab.label}</span>
+                        {showRosterBadge ? (
+                          <span
+                            className={cn(
+                              'ml-0.5 min-w-[1.125rem] rounded-full px-1 text-center text-[9px] font-extrabold tabular-nums ring-1',
+                              'bg-amber-500 text-[#050814] ring-amber-700/40',
+                            )}
+                            aria-label={`${rosterIssueCount} roster issues`}
+                            data-testid={`league-tab-${tab.id}-roster-issues-badge`}
+                          >
+                            {rosterIssueCount > 99 ? '99+' : rosterIssueCount}
+                          </span>
+                        ) : null}
+                      </button>
+                    )
+                  })}
+                </div>
+              ) : null}
+            </div>
+          )
+        })()}
       </div>
     </div>
   )

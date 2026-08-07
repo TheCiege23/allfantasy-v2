@@ -222,3 +222,10 @@
 .bdx .bdx-rail-link { width: 100%; margin-top: 10px; text-align: center; }
 .bdx .bdx-rail-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
 .bdx .bdx-rail-nav .bdx-btn { text-align: center; padding: 8px 10px; }
+.bdx .bdx-rail-brand {
+  display: flex; align-items: center; gap: 9px;
+  margin-top: 14px; padding: 4px 2px 0;
+  font-size: 10.5px; line-height: 1.5; color: var(--bdx-ink-ghost);
+}
+.bdx .bdx-rail-brand img { width: 34px; height: 34px; border-radius: 9px; flex: none; }
+.bdx .bdx-rail-brand b { color: var(--bdx-ink-faint); }
