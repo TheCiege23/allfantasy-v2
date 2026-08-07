@@ -186,3 +186,39 @@
   .bdx .bdx-trade { grid-template-columns: 1fr; }
   .bdx .bdx-swap { transform: rotate(90deg); justify-self: center; }
 }
+
+/* ── League info rail (slice 2A: replaces the desktop left chat column) ── */
+.bdx.bdx-rail {
+  min-height: 0;
+  height: 100%;
+  overflow-y: auto;
+  border-radius: 0;
+  padding: 16px 14px 22px;
+}
+.bdx .bdx-rail-head { margin-bottom: 14px; }
+.bdx .bdx-rail-name { font-size: 17px; line-height: 1.15; letter-spacing: -0.02em; }
+.bdx .bdx-rail-chips { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.bdx .bdx-chip {
+  font-size: 10.5px; padding: 2px 8px; border-radius: 999px; font-weight: 700;
+  background: #181c44; border: 1px solid #2c3260; color: var(--bdx-ink-dim);
+}
+.bdx .bdx-chip.grad { background: var(--bdx-grad); border: 0; color: #fff; font-style: italic; text-transform: uppercase; }
+.bdx .bdx-rail-sec {
+  border: 1px solid var(--bdx-border);
+  border-radius: 12px;
+  background: var(--bdx-panel);
+  padding: 12px 14px 13px;
+  margin-bottom: 10px;
+}
+.bdx .bdx-rail-sec h3 {
+  margin: 0 0 9px; font-size: 11px; letter-spacing: 0.08em;
+  color: var(--bdx-ink-faint); font-weight: 900; font-style: italic; text-transform: uppercase;
+}
+.bdx .bdx-rail-sec .bdx-row { font-size: 12.5px; padding: 5px 0; }
+.bdx .bdx-rail-sec .bdx-stand { font-size: 12px; }
+.bdx .bdx-rail-sec .bdx-stand td { padding: 4px 3px; }
+.bdx .bdx-rail-sec .bdx-stand .nm { max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bdx .bdx-rail-empty { font-size: 12px; color: var(--bdx-ink-faint); }
+.bdx .bdx-rail-link { width: 100%; margin-top: 10px; text-align: center; }
+.bdx .bdx-rail-nav { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; }
+.bdx .bdx-rail-nav .bdx-btn { text-align: center; padding: 8px 10px; }

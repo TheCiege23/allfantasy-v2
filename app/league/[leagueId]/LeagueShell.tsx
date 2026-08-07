@@ -82,6 +82,8 @@ import { PlayersTab } from './tabs/PlayersTab'
 import { TrendTab } from './tabs/TrendTab'
 import { TradesTab } from './tabs/TradesTab'
 import { DecideHome } from '@/components/decide/DecideHome'
+import { LeagueInfoRail } from '@/components/decide/LeagueInfoRail'
+import { ChimmyBubble } from '@/components/decide/ChimmyBubble'
 import { ScoresTab } from './tabs/ScoresTab'
 import { WarRoomTab } from './tabs/WarRoomTab'
 import { AICoachingTab } from './tabs/AICoachingTab'
@@ -1156,6 +1158,20 @@ export function LeagueShell({
         settings={league.settings}
       />
       <div className="contents" data-league-id={league.id} data-embed-mode={embedMode ? '1' : undefined}>
+        {!embedMode ? (
+          <ChimmyBubble
+            selectedLeague={selectedLeague}
+            activeLeagueId={league.id}
+            userId={userId}
+            userDisplayName={userName}
+            userImage={userImage}
+            leagues={leagueList}
+            discordConnected={discordConnected}
+            commissionerLeagues={commissionerLeagues}
+            zombieChimmyPrefill={zombieChimmyPrefill}
+            initialOpenChat={initialOpenChat}
+          />
+        ) : null}
         <AppShell
           layoutMode="balanced-three-panel"
           immersive={specialtyImmersive}
@@ -1167,18 +1183,15 @@ export function LeagueShell({
           onLeftRailExpand={() => setDesktopChatOpen(true)}
           onLeftRailCollapse={() => setDesktopChatOpen(false)}
           leftPanel={
-          <LeftChatPanel
-            selectedLeague={selectedLeague}
-            activeLeagueId={league.id}
-            userId={userId}
-            userDisplayName={userName}
-            userImage={userImage}
-            rootId="league-left-chat"
-            leagues={leagueList}
-            discordConnected={discordConnected}
-            commissionerLeagues={commissionerLeagues}
-            zombieChimmyPrefill={zombieChimmyPrefill}
-            initialOpenChat={initialOpenChat}
+          /* Slice 2A: the desktop left column is league context now — chat
+             moved into the floating ChimmyBubble (same engine, new housing).
+             The mobile chat sheet below is unchanged. */
+          <LeagueInfoRail
+            league={selectedLeague}
+            teams={teamSlots}
+            userTeamId={userTeam?.id ?? null}
+            isCommissioner={Boolean(isCommissioner)}
+            onOpenTab={handleUserTabChange}
           />
         }
         rightPanel={
