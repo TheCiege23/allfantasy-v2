@@ -228,6 +228,69 @@ export function CommandCenterDeck({ userId }: { userId: string }) {
             </WarRoomCard>
           ) : null}
 
+          {/* ── 3b. Rivalry radar (Legacy H2H vs this week's opponents) ── */}
+          {center.week.matchups.some((m) => m.rivalry) ? (
+            <WarRoomCard className="p-4 sm:p-5">
+              <SectionHeading
+                trailing={
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-white/30">
+                    from every matchup ever synced
+                  </span>
+                }
+              >
+                Rivalry radar — this week&apos;s opponents
+              </SectionHeading>
+              <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                {center.week.matchups
+                  .filter((m) => m.rivalry)
+                  .map((m) => {
+                    const r = m.rivalry!
+                    const leading = r.wins > r.losses
+                    const tied = r.wins === r.losses
+                    return (
+                      <Link
+                        key={m.leagueId}
+                        href={`/league/${m.leagueId}?view=legacy`}
+                        className="rounded-xl border border-[#262c6a] bg-[#12163e]/70 p-3 transition hover:bg-[#12163e]"
+                      >
+                        <div className="flex items-baseline justify-between gap-2">
+                          <span className="truncate text-[12px] font-extrabold text-[#f0f2ff]">
+                            you vs {m.oppName}
+                          </span>
+                          <span
+                            className={`text-[15px] font-black italic tabular-nums ${
+                              tied ? 'text-[#7fb3ff]' : leading ? 'text-[#3ddc97]' : 'text-[#ff6b8b]'
+                            }`}
+                          >
+                            {r.wins}–{r.losses}
+                            {r.ties > 0 ? `–${r.ties}` : ''}
+                          </span>
+                        </div>
+                        <div className="mt-0.5 truncate text-[10px] font-bold uppercase tracking-wide text-[#5d64a3]">
+                          {m.leagueName}
+                          {m.pirate ? ' · ☠ pirate stakes' : ''}
+                        </div>
+                        <div className="mt-1 text-[11px] tabular-nums text-[#8b93cf]">
+                          avg margin {r.avgMargin > 0 ? '+' : ''}
+                          {r.avgMargin.toFixed(1)} for you
+                          {r.closest
+                            ? ` · closest ever: ${r.closest.season} wk ${r.closest.week} (${r.closest.margin > 0 ? '+' : ''}${r.closest.margin.toFixed(1)})`
+                            : ''}
+                        </div>
+                        <div className="mt-1 text-[10px] text-[#5d64a3]">
+                          {tied
+                            ? 'Dead even all-time — this one breaks the tie.'
+                            : leading
+                              ? 'You own this rivalry — keep it that way.'
+                              : 'They own you all-time — statement week.'}
+                        </div>
+                      </Link>
+                    )
+                  })}
+              </div>
+            </WarRoomCard>
+          ) : null}
+
           {/* ── 4. Player exposure ── */}
           {center.exposure.rows.length > 0 ? (
             <WarRoomCard className="p-4 sm:p-5">

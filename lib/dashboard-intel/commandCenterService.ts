@@ -32,7 +32,7 @@ import { listAfLeagueTrades } from '@/lib/league-trade-engine/tradeService'
 import { getNflInjuries, injuryForName } from '@/lib/sports-data/playerAssetsService'
 
 const SLEEPER = 'https://api.sleeper.app/v1'
-const CACHE_PREFIX = 'command-center:v2:'
+const CACHE_PREFIX = 'command-center:v3:'
 const CACHE_TTL_MS = 10 * 60 * 1000
 const MAX_LEAGUES = 12
 
@@ -80,8 +80,14 @@ export type WeekMatchup = {
   oppPoints: number
   myProjected: number | null
   oppProjected: number | null
-  /** Legacy wiring: all-time record vs this opponent from the H2H deep sync. */
-  rivalry: { wins: number; losses: number; ties: number } | null
+  /** Legacy wiring: the full rivalry read vs this opponent from the H2H deep sync. */
+  rivalry: {
+    wins: number
+    losses: number
+    ties: number
+    avgMargin: number
+    closest: { season: string; week: number; margin: number } | null
+  } | null
   pirate: boolean
 }
 
@@ -117,7 +123,7 @@ export type ExposureRow = {
 }
 
 export type CommandCenterPayload = {
-  version: 2
+  version: 3
   fetchedAt: string
   leaguesScanned: number
   feed: FeedItem[]
@@ -382,7 +388,15 @@ async function buildCommandCenter(userId: string): Promise<CommandCenterPayload>
           const h2h = await withTimeout(getLeagueH2H(sid), 3500)
           const meH2H = h2h?.managers.find((m) => m.ownerId === sleeperUserId)
           const rec = meH2H?.byOpponent.find((o) => o.opponentOwnerId === opp.ownerId)
-          if (rec) rivalry = { wins: rec.wins, losses: rec.losses, ties: rec.ties }
+          if (rec) {
+            rivalry = {
+              wins: rec.wins,
+              losses: rec.losses,
+              ties: rec.ties,
+              avgMargin: rec.avgMargin,
+              closest: rec.closest,
+            }
+          }
         }
 
         weekMatchups.push({
@@ -505,7 +519,7 @@ async function buildCommandCenter(userId: string): Promise<CommandCenterPayload>
     .slice(0, 10)
 
   return {
-    version: 2,
+    version: 3,
     fetchedAt: new Date().toISOString(),
     leaguesScanned: leagues.length,
     feed: feed.slice(0, 12),
@@ -560,7 +574,7 @@ export async function getCommandCenter(
     cached && cached.data && typeof cached.data === 'object'
       ? (cached.data as unknown as CommandCenterPayload)
       : null
-  if (!options?.force && cachedPayload?.version === 2 && cached && cached.expiresAt > now) {
+  if (!options?.force && cachedPayload?.version === 3 && cached && cached.expiresAt > now) {
     return cachedPayload
   }
   const fresh = await buildCommandCenter(userId).catch((err) => {
@@ -577,5 +591,5 @@ export async function getCommandCenter(
       .catch(() => null)
     return fresh
   }
-  return cachedPayload?.version === 2 ? cachedPayload : null
+  return cachedPayload?.version === 3 ? cachedPayload : null
 }
