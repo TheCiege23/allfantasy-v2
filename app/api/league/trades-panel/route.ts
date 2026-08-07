@@ -26,7 +26,20 @@ function assetLabel(item: { itemReference: string | null; metadata: unknown }): 
  * without a second round-trip.
  */
 async function buildNativeActiveTrades(leagueId: string, userId: string): Promise<LeagueTradeHistoryItem[]> {
-  const myRoster = await prisma.roster.findFirst({ where: { leagueId, platformUserId: userId }, select: { id: true } })
+  // Resolve the viewer's roster. Native AF leagues store the AF user id in
+  // `platformUserId`; imported Sleeper leagues store the SLEEPER user id there,
+  // so also try the viewer's linked sleeperUserId — otherwise the viewer-role
+  // flags (accept/reject controls) never light up on imported leagues.
+  const profile = await prisma.userProfile
+    .findUnique({ where: { userId }, select: { sleeperUserId: true } })
+    .catch(() => null)
+  const candidateIds = [userId, profile?.sleeperUserId].filter(
+    (v): v is string => typeof v === 'string' && v.length > 0,
+  )
+  const myRoster = await prisma.roster.findFirst({
+    where: { leagueId, platformUserId: { in: candidateIds } },
+    select: { id: true },
+  })
   const myRosterId = myRoster?.id ?? null
 
   const trades = await listAfLeagueTrades(leagueId, { take: 50 })
@@ -143,10 +156,21 @@ export async function GET(req: NextRequest) {
     ownerName: row.createdByUsername?.trim() || 'Manager',
   }))
 
+  // AF-native trades exist for imported leagues too (proposed via the AF Trade
+  // Center on the imported rosters). Previously this branch hardcoded
+  // `activeTrades: []`, so a trade proposed INSIDE AF on a Sleeper league never
+  // appeared in the panel at all. Pending offers made ON Sleeper itself are a
+  // separate concern (not exposed by the read-only public API; completed trades
+  // arrive via the post-import backfill) — but AF's own proposals must show.
+  const activeTrades = await buildNativeActiveTrades(leagueId, userId).catch((err) => {
+    console.error('[trades-panel] native trades for imported league failed', { leagueId, err })
+    return [] as LeagueTradeHistoryItem[]
+  })
+
   return NextResponse.json({
     tradeBlock,
-    activeTrades: [] as unknown[],
-    activeCount: 0,
+    activeTrades,
+    activeCount: activeTrades.length,
     source: 'sleeper' as const,
     leagueName: league.name ?? 'League',
   })

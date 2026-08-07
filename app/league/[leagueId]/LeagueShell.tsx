@@ -81,6 +81,7 @@ import { LeagueTab } from './tabs/LeagueTab'
 import { PlayersTab } from './tabs/PlayersTab'
 import { TrendTab } from './tabs/TrendTab'
 import { TradesTab } from './tabs/TradesTab'
+import { DecideHome } from '@/components/decide/DecideHome'
 import { ScoresTab } from './tabs/ScoresTab'
 import { WarRoomTab } from './tabs/WarRoomTab'
 import { AICoachingTab } from './tabs/AICoachingTab'
@@ -434,7 +435,14 @@ export function LeagueShell({
       base = idx >= 0 ? [...base.slice(0, idx + 1), ...dynastyTabs, ...base.slice(idx + 1)] : [...dynastyTabs, ...base]
     }
     const withSettings = [...base, { id: 'settings', label: 'Settings' }]
-    return localizeLeagueTabs(applyMatchupPrimaryTab(withSettings, shouldUseMatchupPrimary), t)
+    // Broadcast Deck redesign, slice 1: "Decide" — the Decision-OS-first landing
+    // view — is prepended AFTER matchup-primary reordering so it is always the
+    // first tab (and therefore the default landing) for general/imported leagues.
+    // Deep links (?view=…) still land on their requested tab via leagueTabSync.
+    return [
+      { id: 'decide', label: 'Decide' },
+      ...localizeLeagueTabs(applyMatchupPrimaryTab(withSettings, shouldUseMatchupPrimary), t),
+    ]
   }, [
     nflRedraftCore,
     league.sport,
@@ -1934,6 +1942,18 @@ function LeagueTabRouter({
       ) : (
         <div className="rounded-xl border border-white/[0.08] bg-[#0a1228]/80 p-6 text-center text-sm text-white/55">
           Commissioner tools only.
+        </div>
+      )
+    case 'decide':
+      return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 lg:px-6">
+          <DecideHome
+            league={selectedLeague}
+            teams={teamSlots}
+            userTeamId={userTeam?.id ?? null}
+            isCommissioner={Boolean(isCommissioner)}
+            onOpenTab={onSelectTab}
+          />
         </div>
       )
     case 'idp':
