@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import type { LeagueTradeBlockPanelItem, LeagueTradeHistoryItem, LeagueTradeAsset } from '@/components/league/types'
 import { listAfLeagueTrades } from '@/lib/league-trade-engine/tradeService'
 import { isElevatedCommissioner } from '@/server/services/permissionService'
+import { getLeagueContext } from '@/lib/league-context/leagueContextService'
 
 export const dynamic = 'force-dynamic'
 
@@ -167,11 +168,34 @@ export async function GET(req: NextRequest) {
     return [] as LeagueTradeHistoryItem[]
   })
 
+  // Slice 5 wiring: the LeagueContext envelope rides along so every trade
+  // surface can label HOW its verdicts are framed (IDP scoring, pirate house
+  // rules) — flags are facts from settings/declarations, never inferred.
+  const context = await getLeagueContext(sleeperLeagueId).catch(() => null)
+  const verdictContext = context
+    ? {
+        idp: context.variant.idp,
+        idpEmphasis: context.scoring.idp.emphasis,
+        scoringFormat: context.scoring.format,
+        superflex: context.variant.superflex,
+        dynasty: context.variant.dynasty,
+        adpKeyLabel: context.adpKeyLabel,
+        pirate: context.houseRules.pirate
+          ? {
+              active: context.houseRules.pirate.active,
+              source: context.houseRules.pirate.source,
+              lines: context.houseRules.pirate.lines,
+            }
+          : null,
+      }
+    : null
+
   return NextResponse.json({
     tradeBlock,
     activeTrades,
     activeCount: activeTrades.length,
     source: 'sleeper' as const,
     leagueName: league.name ?? 'League',
+    verdictContext,
   })
 }

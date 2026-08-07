@@ -86,6 +86,7 @@ import { LeagueInfoRail } from '@/components/decide/LeagueInfoRail'
 import { ChimmyBubble } from '@/components/decide/ChimmyBubble'
 import { buildLeagueTabGroups, groupForLeagueTab } from '@/components/decide/leagueTabGroups'
 import { LegacyHome } from '@/components/decide/LegacyHome'
+import { DraftIntelHome } from '@/components/decide/DraftIntelHome'
 import { ScoresTab } from './tabs/ScoresTab'
 import { WarRoomTab } from './tabs/WarRoomTab'
 import { AICoachingTab } from './tabs/AICoachingTab'
@@ -445,6 +446,9 @@ export function LeagueShell({
     // Deep links (?view=…) still land on their requested tab via leagueTabSync.
     return [
       { id: 'decide', label: 'Decide' },
+      // Slice 4: live Sleeper draft cockpit. Grouped under Draft by the group
+      // bar; renders honest unlinked/no-draft states when there's nothing live.
+      { id: 'draft_intel', label: 'Live Intel' },
       ...localizeLeagueTabs(applyMatchupPrimaryTab(withSettings, shouldUseMatchupPrimary), t),
       // Slice 3: full-chain league history (LegacyHome). Appended for every
       // general/imported league; the group bar surfaces it as the Legacy group.
@@ -1966,6 +1970,12 @@ function LeagueTabRouter({
       return (
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 lg:px-6">
           <LegacyHome league={selectedLeague} leagueId={leagueId} />
+        </div>
+      )
+    case 'draft_intel':
+      return (
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-4 lg:px-6">
+          <DraftIntelHome league={selectedLeague} leagueId={leagueId} />
         </div>
       )
     case 'decide':

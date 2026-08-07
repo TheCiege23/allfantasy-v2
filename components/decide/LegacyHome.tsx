@@ -18,6 +18,8 @@ import type {
   HistorySeason,
   LeagueHistoryPayload,
 } from '@/lib/league-history/sleeperLeagueHistoryService'
+import { ManagerH2H } from '@/components/decide/ManagerH2H'
+import { TradeLedgerGraded } from '@/components/decide/TradeLedgerGraded'
 import './broadcast-deck.css'
 
 type ApiResponse =
@@ -301,16 +303,11 @@ export function LegacyHome({ league, leagueId }: { league: UserLeague; leagueId:
             </div>
           ) : null}
 
-          {/* ── Deep-sync honesty note ── */}
-          <div className="bdx-empty" style={{ marginTop: 14 }}>
-            <div className="t">Head-to-head manager comparison · not yet</div>
-            <div className="m">
-              Manager-vs-manager scoring (your average against a specific rival, closest games,
-              playoff meetings) needs every week&apos;s matchups across{' '}
-              {history.seasons.length} seasons — that deep sync ships with the LeagueContext slice.
-              Until it runs, this page won&apos;t guess.
-            </div>
-          </div>
+          {/* ── Graded trade ledger (every trade, every season, re-graded) ── */}
+          <TradeLedgerGraded leagueId={leagueId} />
+
+          {/* ── Head-to-head deep sync (the promised manager comparison) ── */}
+          <ManagerH2H leagueId={leagueId} />
 
           <div className="bdx-foot">
             Synced live from your league&apos;s full Sleeper chain · cached 6h ·{' '}

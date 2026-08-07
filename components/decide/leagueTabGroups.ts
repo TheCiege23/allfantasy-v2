@@ -27,6 +27,7 @@ const GROUP_BY_TAB: Record<string, LeagueTabGroupId> = {
   // Draft — live drafts + draft-adjacent views
   draft: 'draft',
   redraft: 'draft',
+  draft_intel: 'draft',
 
   // Roster — my team + roster construction
   team: 'roster',

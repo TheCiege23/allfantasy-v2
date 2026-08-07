@@ -12,6 +12,7 @@
 
 import { useMemo } from 'react'
 import type { LeagueTeamSlot, UserLeague } from '@/app/dashboard/types'
+import { isPreseason, useProjectedStandings } from '@/components/decide/useProjectedStandings'
 import './broadcast-deck.css'
 
 export type LeagueInfoRailProps = {
@@ -40,6 +41,8 @@ export function LeagueInfoRail({
       ),
     [teams],
   )
+  const preseason = useMemo(() => isPreseason(teams), [teams])
+  const projected = useProjectedStandings(league.id ?? null, preseason)
   const record = myTeam
     ? `${myTeam.wins}–${myTeam.losses}${myTeam.ties > 0 ? `–${myTeam.ties}` : ''}`
     : '—'
@@ -72,10 +75,36 @@ export function LeagueInfoRail({
         )}
       </div>
 
-      {/* Standings */}
+      {/* Standings — projected week-1 ranking until real games are played */}
       <div className="bdx-rail-sec">
-        <h3>Standings</h3>
-        {standings.length > 0 ? (
+        <h3>{projected ? `Standings · projected wk ${projected.week}` : 'Standings'}</h3>
+        {projected ? (
+          <>
+            <table className="bdx-stand">
+              <tbody>
+                {projected.rows.slice(0, 8).map((row, i) => (
+                  <tr
+                    key={row.rosterId}
+                    className={
+                      myTeam?.platformUserId && row.ownerId === myTeam.platformUserId ? 'me' : undefined
+                    }
+                  >
+                    <td className="rk">{i + 1}</td>
+                    <td className="nm">{row.teamName || row.name}</td>
+                    <td className="rec">{row.projectedPoints.toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <div className="bdx-rail-empty" style={{ marginTop: 6 }}>
+              Projected week-{projected.week} starter points
+              {projected.scoringMode === 'league-scored'
+                ? ' · your league’s scoring'
+                : ' · format-based projections'}
+              . Real results take over after kickoff.
+            </div>
+          </>
+        ) : standings.length > 0 ? (
           <table className="bdx-stand">
             <tbody>
               {standings.slice(0, 8).map((t, i) => (

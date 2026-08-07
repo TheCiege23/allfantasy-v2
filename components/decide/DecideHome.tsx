@@ -32,6 +32,7 @@ import {
   Info,
 } from 'lucide-react'
 import type { LeagueTeamSlot, UserLeague } from '@/app/dashboard/types'
+import { isPreseason, useProjectedStandings } from '@/components/decide/useProjectedStandings'
 import {
   buildLeagueHomePulse,
   type LeaguePulseViewModel,
@@ -56,7 +57,16 @@ type PanelTrade = {
   viewerIsReceiver: boolean
   viewerIsProposer: boolean
 }
-type TradesPanelPayload = { activeTrades?: PanelTrade[] }
+type VerdictContext = {
+  idp: boolean
+  idpEmphasis: 'tackle-heavy' | 'big-play' | 'balanced' | null
+  scoringFormat: 'ppr' | 'half_ppr' | 'std'
+  superflex: boolean
+  dynasty: boolean
+  adpKeyLabel: string
+  pirate: { active: boolean; source: 'declared' | 'detected'; lines: string[] } | null
+}
+type TradesPanelPayload = { activeTrades?: PanelTrade[]; verdictContext?: VerdictContext | null }
 
 export type DecideHomeProps = {
   league: UserLeague
@@ -125,6 +135,7 @@ export function DecideHome({
   onOpenTab,
 }: DecideHomeProps) {
   const [trades, setTrades] = useState<PanelTrade[] | null>(null)
+  const [verdictContext, setVerdictContext] = useState<VerdictContext | null>(null)
   const [tradesLoading, setTradesLoading] = useState(true)
   const [intel, setIntel] = useState<ManagerIntelligencePayload | null>(null)
   const [intelLoading, setIntelLoading] = useState(true)
@@ -140,6 +151,7 @@ export function DecideHome({
       .then((data) => {
         if (cancelled) return
         setTrades(Array.isArray(data?.activeTrades) ? data.activeTrades : [])
+        setVerdictContext(data?.verdictContext ?? null)
       })
       .catch(() => {
         if (!cancelled) setTrades([])
@@ -220,13 +232,27 @@ export function DecideHome({
   const record = myTeam
     ? `${myTeam.wins}–${myTeam.losses}${myTeam.ties > 0 ? `–${myTeam.ties}` : ''}`
     : '—'
+  // Pre-season: rank by projected week-1 points (labeled), never a wall of ties.
+  const preseason = useMemo(() => isPreseason(teams), [teams])
+  const projected = useProjectedStandings(league.id ?? null, preseason)
+  const projectedMe =
+    projected && myTeam?.platformUserId
+      ? projected.rows.findIndex((r) => r.ownerId === myTeam.platformUserId)
+      : -1
   const rankValue =
-    myTeam?.currentRank != null
-      ? ordinal(myTeam.currentRank)
-      : myRankIndex >= 0
-        ? ordinal(myRankIndex + 1)
+    projected && projectedMe >= 0
+      ? ordinal(projectedMe + 1)
+      : myTeam?.currentRank != null
+        ? ordinal(myTeam.currentRank)
+        : myRankIndex >= 0
+          ? ordinal(myRankIndex + 1)
+          : '—'
+  const pointsFor =
+    projected && projectedMe >= 0
+      ? projected.rows[projectedMe].projectedPoints.toFixed(1)
+      : myTeam != null
+        ? myTeam.pointsFor.toFixed(1)
         : '—'
-  const pointsFor = myTeam != null ? myTeam.pointsFor.toFixed(1) : '—'
   const faab = myTeam?.faabRemaining != null ? `$${myTeam.faabRemaining}` : '—'
 
   const actionableTrades = (trades ?? []).filter((t) => t.status === 'pending' && t.viewerIsReceiver)
@@ -250,12 +276,18 @@ export function DecideHome({
         <div className="bdx-kpi">
           <div className="v">{rankValue}</div>
           <div className="l">Standing</div>
-          <div className="d">of {teams.length || league.teamCount || '—'} teams</div>
+          <div className="d">
+            {projected && projectedMe >= 0
+              ? `projected · wk ${projected.week}`
+              : `of ${teams.length || league.teamCount || '—'} teams`}
+          </div>
         </div>
         <div className="bdx-kpi">
           <div className="v">{pointsFor}</div>
-          <div className="l">Points for</div>
-          <div className="d">season total</div>
+          <div className="l">{projected && projectedMe >= 0 ? 'Proj. points' : 'Points for'}</div>
+          <div className="d">
+            {projected && projectedMe >= 0 ? `week ${projected.week} starters` : 'season total'}
+          </div>
         </div>
         <div className="bdx-kpi">
           <div className="v">{faab}</div>
@@ -282,7 +314,7 @@ export function DecideHome({
           <>
             {/* Incoming trades needing the viewer's decision */}
             {actionableTrades.map((t) => (
-              <TradeCard key={t.id} trade={t} sev="warn" onOpenTab={onOpenTab} />
+              <TradeCard key={t.id} trade={t} sev="warn" onOpenTab={onOpenTab} context={verdictContext} />
             ))}
 
             {/* League Pulse — the Decision OS verdict for this league */}
@@ -392,7 +424,7 @@ export function DecideHome({
 
             {/* Trades in flight (waiting on others / commissioner review) */}
             {otherTrades.map((t) => (
-              <TradeCard key={t.id} trade={t} sev="info" onOpenTab={onOpenTab} />
+              <TradeCard key={t.id} trade={t} sev="info" onOpenTab={onOpenTab} context={verdictContext} />
             ))}
           </>
         )}
@@ -475,10 +507,12 @@ function TradeCard({
   trade,
   sev,
   onOpenTab,
+  context = null,
 }: {
   trade: PanelTrade
   sev: Sev
   onOpenTab: (tabId: string) => void
+  context?: VerdictContext | null
 }) {
   const isYourCall = trade.status === 'pending' && trade.viewerIsReceiver
   const when = new Date(trade.timestamp)
@@ -524,6 +558,30 @@ function TradeCard({
           )}
         </div>
       </div>
+      {context && (context.idp || context.pirate) ? (
+        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+          {context.idp ? (
+            <span
+              className="bdx-sev info"
+              title={`Player value here reads through ${context.adpKeyLabel} and your league's real (IDP) scoring settings.`}
+            >
+              ◆ IDP scoring{context.idpEmphasis ? ` · ${context.idpEmphasis}` : ''}
+            </span>
+          ) : null}
+          {context.pirate?.active ? (
+            <span className="bdx-sev crit" title={context.pirate.lines.join(' ')}>
+              ☠ pirate rules — weekly floor &gt; ceiling
+            </span>
+          ) : context.pirate ? (
+            <span
+              className="bdx-sev warn"
+              title="Name suggests a pirate league — confirm it in Live Intel and every verdict adjusts."
+            >
+              ☠ pirate? unconfirmed
+            </span>
+          ) : null}
+        </div>
+      ) : null}
       <div className="bdx-acts">
         <button type="button" className="bdx-btn pri" onClick={() => onOpenTab('trades')}>
           {isYourCall ? 'Review in Trade Center' : 'Open Trade Center'}
