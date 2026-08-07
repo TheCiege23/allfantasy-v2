@@ -1,36 +1,33 @@
 import type { Metadata } from 'next'
-import dynamic from 'next/dynamic'
 import { Suspense } from 'react'
 import { redirect } from 'next/navigation'
 import { PageJsonLd } from '@/components/seo/JsonLd'
 import { LandingInviteCapture } from '@/components/landing/LandingInviteCapture'
 import { LandingViewBeacon } from '@/components/landing/LandingViewBeacon'
 import { getHomeInitialSession } from '@/lib/landing/get-home-initial-session'
-
-/**
- * Landing page (Nocturne "1a" design). Replaces the legacy scrollytelling
- * `LandingPageClient`, which stays on disk for one-line rollback.
- *
- * Client-only: SSR-bundling this module on Windows Next 14.2 reliably hits
- * webpack-runtime `reading 'call'` at `next/image` and can corrupt `.next-dev-local`
- * manifests (`React Client Manifest` / `entryCSSFiles` / empty JSON).
- */
-const LandingPageClient = dynamic(() => import('@/components/landing/nocturne/LandingNocturne'), {
-  ssr: false,
-  loading: () => (
-    <div
-      className="flex min-h-[40vh] items-center justify-center text-sm"
-      style={{ background: '#161826', color: '#9397ab' }}
-    >
-      Loading…
-    </div>
-  ),
-})
+import LandingNocturne from '@/components/landing/nocturne/LandingNocturne'
 import {
   buildSeoMeta,
   getSoftwareApplicationSchema,
   getWebPageSchema,
 } from '@/lib/seo'
+
+/**
+ * Landing page (Nocturne "1a" design). Replaces the legacy scrollytelling
+ * `LandingPageClient`, which stays on disk for one-line rollback.
+ *
+ * Server-rendered: `LandingNocturne` is a client component but is now STATICALLY
+ * imported (not `dynamic(..., { ssr: false })`), so its full marketing HTML —
+ * headline, platform copy, features, pricing, commissioner content — ships in the
+ * server response for crawlers and link previews instead of a "Loading…" shell.
+ *
+ * The prior `ssr: false` existed only to dodge a Windows Next 14.2 webpack crash
+ * (`reading 'call'` at `next/image`) when SSR-bundling this module. That trigger is
+ * gone: the Nocturne components now use plain <img> for their few brand PNGs rather
+ * than next/image, so the module SSR-bundles cleanly. If that webpack crash ever
+ * resurfaces, the one-line rollback is to wrap this import in
+ * `dynamic(() => import(...), { ssr: false })` again.
+ */
 
 export const metadata: Metadata = buildSeoMeta({
   title: 'AllFantasy.ai — Run Your League. Win Your League. | NFL, NBA, NHL, MLB & More',
@@ -90,7 +87,7 @@ export default async function HomePage() {
         campaign-driven acquisition.
       */}
       <LandingViewBeacon landingPath="/" />
-      <LandingPageClient initialSession={initialSession} />
+      <LandingNocturne initialSession={initialSession} />
     </>
   )
 }
