@@ -34,6 +34,9 @@ import {
 import type { LeagueTeamSlot, UserLeague } from '@/app/dashboard/types'
 import { isPreseason, useProjectedStandings } from '@/components/decide/useProjectedStandings'
 import { TradeFinder } from '@/components/decide/TradeFinder'
+import { MatchupCenter } from '@/components/decide/MatchupCenter'
+import { WaiverIntel } from '@/components/decide/WaiverIntel'
+import { CommissionerPulse } from '@/components/decide/CommissionerPulse'
 import {
   buildLeagueHomePulse,
   type LeaguePulseViewModel,
@@ -492,8 +495,17 @@ export function DecideHome({
         </div>
       </div>
 
+      {/* ── Matchup center: this week's games + projection-model win prob ── */}
+      <MatchupCenter leagueId={league.id} />
+
       {/* ── Trade finder: both-sides offer ideas from real rosters + market ── */}
       <TradeFinder leagueId={league.id} onOpenTab={onOpenTab} />
+
+      {/* ── Waiver intelligence: league bid history + value-anchored bids ── */}
+      <WaiverIntel leagueId={league.id} />
+
+      {/* ── Commissioner pulse: inactivity flags (commissioner only) ── */}
+      {isCommissioner ? <CommissionerPulse leagueId={league.id} /> : null}
 
       <div className="bdx-foot">
         Every number above comes from this league&apos;s synced data or the Decision OS engine — when
