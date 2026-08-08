@@ -308,6 +308,8 @@ export default function NocturneDashboard({
   const [showHistorical, setShowHistorical] = useState(false)
   const [leagueSearch, setLeagueSearch] = useState('')
   const [platformFilter, setPlatformFilter] = useState('all')
+  // Live (full canonical import, has a cockpit) vs History (AF-Legacy career snapshot).
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'live' | 'history'>('all')
   const [view, setView] = useState<'cards' | 'list'>('cards')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
@@ -480,10 +482,15 @@ export default function NocturneDashboard({
     return leagues.filter((l) => {
       if (dashLeagueFilter !== 'all' && l.id !== dashLeagueFilter) return false
       if (platformFilter !== 'all' && l.platform !== platformFilter) return false
+      if (scopeFilter === 'live' && !l.unified) return false
+      if (scopeFilter === 'history' && l.unified) return false
       if (q && !l.name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [leagues, leagueSearch, platformFilter, dashLeagueFilter])
+  }, [leagues, leagueSearch, platformFilter, dashLeagueFilter, scopeFilter])
+  // Live = full canonical import (`hasUnifiedRecord`); History = AF-Legacy snapshot rows.
+  const liveLeagueCount = useMemo(() => filteredLeagues.filter((l) => l.unified).length, [filteredLeagues])
+  const historyLeagueCount = filteredLeagues.length - liveLeagueCount
 
   // Real current week per league. `/api/dashboard/live-scores` already resolves this from
   // RedraftSeason (it returns { scores: [{ leagueId, week, ... }] }), so the timeline needs
@@ -873,12 +880,19 @@ export default function NocturneDashboard({
         {context === 'global' && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
-              <span className="dash-kicker">My leagues ({filteredLeagues.length})</span>
+              <span className="dash-kicker">
+                My leagues · {liveLeagueCount} live{historyLeagueCount > 0 ? ` · ${historyLeagueCount} history` : ''}
+              </span>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <input className="input" style={{ minHeight: 32, padding: '0 10px', fontSize: 12.5, width: 160 }} value={leagueSearch} onChange={(e) => setLeagueSearch(e.target.value)} placeholder="Search leagues..." />
                 <select className="input" value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)} style={{ width: 'auto', minHeight: 32, padding: '0 8px', fontSize: 12.5 }}>
                   <option value="all">All platforms</option>
                   {platformOptions.map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+                </select>
+                <select className="input" value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as 'all' | 'live' | 'history')} aria-label="Live or history leagues" style={{ width: 'auto', minHeight: 32, padding: '0 8px', fontSize: 12.5 }}>
+                  <option value="all">Live + history</option>
+                  <option value="live">Live only</option>
+                  <option value="history">History only</option>
                 </select>
                 <div style={{ display: 'flex', gap: 2, background: 'color-mix(in srgb, var(--color-bg) 55%, transparent)', border: '1px solid var(--color-neutral-800)', borderRadius: 'var(--radius-md)', padding: 2 }}>
                   <button type="button" onClick={() => setView('cards')} aria-label="Cards view" style={{ border: 'none', padding: '5px 8px', borderRadius: 5, cursor: 'pointer', background: view === 'cards' ? 'var(--color-accent)' : 'none', color: view === 'cards' ? '#fff' : 'var(--color-neutral-500)' }}><LayoutGrid size={14} /></button>
@@ -1247,9 +1261,12 @@ export default function NocturneDashboard({
               <span className="afsrc" style={{ width: 44, height: 44, fontSize: 15, background: leagueModal.color }}>{leagueModal.initial}</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 16 }}>{leagueModal.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', textTransform: 'capitalize' }}>
-                  {leagueModal.platform}{leagueModal.season ? ` · ${leagueModal.season} season` : ''}
-                  {(leagueModal.season ?? 0) < currentSeasonYear ? ' · historical' : ''}
+                <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span className={leagueModal.unified ? 'tag tag-live' : 'tag tag-history'}>{leagueModal.unified ? 'LIVE' : 'HISTORY'}</span>
+                  <span>
+                    {leagueModal.platform}{leagueModal.season ? ` · ${leagueModal.season} season` : ''}
+                    {(leagueModal.season ?? 0) < currentSeasonYear ? ' · historical' : ''}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1272,8 +1289,12 @@ export default function NocturneDashboard({
               ) : (
                 <>
                   <p style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', margin: '0 0 10px' }}>
-                    This is an imported {leagueModal.season ?? 'past'}-season snapshot, so it has no live league page. Its history feeds your AF Rank and Legacy tools.
+                    This is an imported {leagueModal.season ?? 'past'}-season history snapshot, so it has no live league page. Its history feeds your AF Rank and Legacy tools.
+                    {upgradeHref(leagueModal) ? ' Upgrade it to a full league to unlock the cockpit, H2H intelligence, and team claims.' : ''}
                   </p>
+                  {upgradeHref(leagueModal) && (
+                    <Link href={upgradeHref(leagueModal)!} className="btn btn-primary btn-block" style={{ width: '100%', marginBottom: 8 }}>Upgrade to full league →</Link>
+                  )}
                   <Link href="/af-legacy" className="btn btn-secondary btn-block" style={{ width: '100%' }}>Open AF Legacy tools →</Link>
                 </>
               )}
@@ -1392,6 +1413,18 @@ function Avatar({ name, image, size }: { name: string; image?: string | null; si
  * generic `/af-legacy` landing page is what made "Open" feel random. The popup then
  * offers the real deep-link for leagues that actually have one.
  */
+/**
+ * History rows (AF-Legacy snapshots) can be upgraded into a full canonical import:
+ * the prefilled import deep-link (`/import?provider=…&leagueId=…`) is the same
+ * contract the draft-HQ tiles use. Sleeper-only today — that's the only platform
+ * whose snapshot rows carry a re-importable platform league id.
+ */
+function upgradeHref(lg: DisplayLeague): string | null {
+  if (lg.unified) return null
+  if (lg.platform !== 'sleeper' || !lg.platformLeagueId) return null
+  return `/import?provider=sleeper&leagueId=${encodeURIComponent(lg.platformLeagueId)}&returnTo=/dashboard`
+}
+
 function LeagueCollection({ leagues, view, onOpen }: { leagues: DisplayLeague[]; view: 'cards' | 'list'; onOpen: (lg: DisplayLeague) => void }) {
   if (view === 'cards') {
     return (
@@ -1415,9 +1448,18 @@ function LeagueCollection({ leagues, view, onOpen }: { leagues: DisplayLeague[];
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {lg.isCommissioner ? <span className="tag tag-accent">Commissioner</span> : <span className="tag tag-neutral">Manager</span>}
-              <span style={{ fontSize: 12, color: 'var(--color-accent-400)' }}>Open →</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span className={lg.unified ? 'tag tag-live' : 'tag tag-history'}>{lg.unified ? 'LIVE' : 'HISTORY'}</span>
+                {lg.isCommissioner ? <span className="tag tag-accent">Commissioner</span> : <span className="tag tag-neutral">Manager</span>}
+              </div>
+              {upgradeHref(lg) ? (
+                <Link href={upgradeHref(lg)!} onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent-400)', whiteSpace: 'nowrap' }}>
+                  Upgrade to full league →
+                </Link>
+              ) : (
+                <span style={{ fontSize: 12, color: 'var(--color-accent-400)' }}>Open →</span>
+              )}
             </div>
           </div>
         ))}
@@ -1437,6 +1479,7 @@ function LeagueCollection({ leagues, view, onOpen }: { leagues: DisplayLeague[];
           <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lg.name}</span>
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', width: 46, flex: 'none' }}>{lg.season ?? '—'}</span>
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', width: 66, flex: 'none', textTransform: 'capitalize' }}>{lg.platform}</span>
+          <span className={lg.unified ? 'tag tag-live' : 'tag tag-history'} style={{ flex: 'none' }}>{lg.unified ? 'LIVE' : 'HISTORY'}</span>
           {lg.isCommissioner ? <span className="tag tag-accent">Comm</span> : <span className="tag tag-neutral">Mgr</span>}
         </button>
       ))}

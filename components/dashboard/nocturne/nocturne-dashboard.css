@@ -219,6 +219,9 @@
 .nocturne-dash .tag-accent { background: rgba(255, 61, 129, 0.16); color: #ff9ec0; }
 .nocturne-dash .tag-neutral { background: #262c6a; color: var(--color-neutral-200); }
 .nocturne-dash .tag-outline { border: 1px solid var(--color-accent); color: var(--color-accent); }
+/* LIVE = full canonical import with a league cockpit; HISTORY = AF-Legacy career snapshot. */
+.nocturne-dash .tag-live { background: rgba(52, 211, 153, 0.14); color: #6ee7b7; }
+.nocturne-dash .tag-history { background: rgba(93, 100, 163, 0.18); color: #9098d4; }
 
 /* ── Buttons — primary is the deck gradient CTA ────────────────────── */
 .nocturne-dash .btn {
