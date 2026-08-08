@@ -473,14 +473,14 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                     onClick={() => setMainTab('user')}
                     className={`flex items-center gap-1.5 rounded-full border px-4 py-2 text-[11px] font-bold tracking-wide transition ${
                       mainTab === 'user'
-                        ? 'border-cyan-500/45 bg-white/[0.12] text-white shadow-[0_0_0_1px_rgba(34,211,238,0.12)]'
+                        ? 'border-[#ff3d81]/45 bg-white/[0.12] text-white shadow-[0_0_0_1px_rgba(255,61,129,0.12)]'
                         : 'border-transparent bg-white/[0.04] text-white/40 hover:bg-white/[0.07] hover:text-white/65'
                     }`}
                     data-testid="league-settings-tab-user"
                     aria-label="User settings"
                   >
                     <User
-                      className={`h-3.5 w-3.5 ${mainTab === 'user' ? 'text-cyan-300' : 'text-white/35'}`}
+                      className={`h-3.5 w-3.5 ${mainTab === 'user' ? 'text-[#ff9ec0]' : 'text-white/35'}`}
                       strokeWidth={2}
                       aria-hidden
                     />
@@ -491,7 +491,7 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                     onClick={() => setMainTab('general')}
                     className={`rounded-full border px-4 py-2 text-[11px] font-bold tracking-wide transition ${
                       mainTab === 'general'
-                        ? 'border-cyan-500/45 bg-white/[0.12] text-white shadow-[0_0_0_1px_rgba(34,211,238,0.12)]'
+                        ? 'border-[#ff3d81]/45 bg-white/[0.12] text-white shadow-[0_0_0_1px_rgba(255,61,129,0.12)]'
                         : 'border-transparent bg-white/[0.04] text-white/40 hover:bg-white/[0.07] hover:text-white/65'
                     }`}
                   >
@@ -569,12 +569,12 @@ export function LeagueSettingsModal(props: LeagueSettingsModalProps) {
                           className={`rounded-xl border p-3 text-left transition ${
                             ai
                               ? 'border-violet-500/25 bg-gradient-to-br from-violet-950/80 via-[#1a1f3a] to-fuchsia-950/50 hover:border-violet-400/35'
-                              : 'border-white/[0.08] bg-[#1a1f3a] hover:border-cyan-500/25 hover:bg-[#1f2544]'
+                              : 'border-white/[0.08] bg-[#1a1f3a] hover:border-[#ff3d81]/25 hover:bg-[#1f2544]'
                           }`}
                         >
                           <div
                             className={`mb-2 flex h-9 w-9 items-center justify-center rounded-lg ${
-                              ai ? 'bg-white/[0.08] text-violet-200' : 'bg-white/[0.06] text-cyan-400/95'
+                              ai ? 'bg-white/[0.08] text-violet-200' : 'bg-white/[0.06] text-[#ff3d81]/95'
                             }`}
                           >
                             <Icon className="h-[18px] w-[18px]" strokeWidth={2} aria-hidden />

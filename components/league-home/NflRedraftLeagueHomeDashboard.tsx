@@ -77,7 +77,7 @@ function Card({
       </div>
       <p className="mt-2 flex-1 text-xs leading-5 text-white/55">{tile.body}</p>
       {tile.meta ? <p className="mt-3 text-[11px] font-bold uppercase tracking-[0.14em] text-violet-200/80">{tile.meta}</p> : null}
-      {tile.cta ? <p className="mt-3 text-xs font-bold text-cyan-200">{tile.cta}</p> : null}
+      {tile.cta ? <p className="mt-3 text-xs font-bold text-[#ffb8d1]">{tile.cta}</p> : null}
     </div>
   )
 
@@ -352,7 +352,7 @@ export function NflRedraftLeagueHomeDashboard({
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-y-auto px-4 py-5 lg:px-6" data-testid="g32-nfl-redraft-home">
-      <section className="relative overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.12] via-[#050814] to-cyan-500/[0.06] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.32)]">
+      <section className="relative overflow-hidden rounded-3xl border border-violet-500/20 bg-gradient-to-br from-violet-500/[0.12] via-[#050814] to-[#ff3d81]/[0.06] p-5 shadow-[0_18px_70px_rgba(0,0,0,0.32)]">
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-3xl">
             <p className="text-[11px] font-black uppercase tracking-[0.2em] text-violet-200/75">
@@ -363,7 +363,7 @@ export function NflRedraftLeagueHomeDashboard({
             <button
               type="button"
               onClick={replayIntro}
-              className="mt-4 inline-flex min-h-9 items-center rounded-xl border border-white/12 bg-white/[0.06] px-3 text-xs font-bold text-white/80 hover:border-cyan-300/40 hover:bg-white/[0.09]"
+              className="mt-4 inline-flex min-h-9 items-center rounded-xl border border-white/12 bg-white/[0.06] px-3 text-xs font-bold text-white/80 hover:border-[#ff9ec0]/40 hover:bg-white/[0.09]"
               data-testid="g32-replay-intro"
             >
               Replay intro
@@ -421,7 +421,7 @@ export function NflRedraftLeagueHomeDashboard({
 
         <div className="rounded-3xl border border-white/[0.08] bg-white/[0.035] p-4" data-testid="g32-chat-visibility-card">
           <div className="flex items-center gap-2">
-            <MessageSquare className="h-5 w-5 text-cyan-200" aria-hidden />
+            <MessageSquare className="h-5 w-5 text-[#ffb8d1]" aria-hidden />
             <h3 className="text-base font-black text-white">League chat</h3>
           </div>
           <p className="mt-2 text-sm leading-6 text-white/55">
@@ -431,7 +431,7 @@ export function NflRedraftLeagueHomeDashboard({
           <button
             type="button"
             onClick={() => onOpenTab('league_chat')}
-            className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-3 text-xs font-bold text-cyan-100 hover:bg-cyan-400/15"
+            className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-[#ff3d81]/30 bg-[#ff3d81]/10 px-3 text-xs font-bold text-[#ffd7e5] hover:bg-[#ff3d81]/15"
           >
             Open League Chat
           </button>
