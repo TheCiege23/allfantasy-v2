@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { getLeagueH2H } from '@/lib/league-history/sleeperH2HService'
 import { createLeagueChatMessage } from '@/lib/league-chat/LeagueChatMessageService'
 import { sendNotificationEmail } from '@/lib/resend-client'
+import { withSyncJobRun } from '@/lib/production-health/syncJobRunTelemetry'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -84,6 +85,88 @@ async function memberEmails(afLeagueId: string, ownerUserId: string): Promise<st
   return Array.from(
     new Set(users.map((u) => u.email).filter((e): e is string => Boolean(e && e.includes('@')))),
   ).slice(0, MAX_RECAP_EMAILS)
+}
+
+/** Deterministic per-league/week template pick — same recap re-render picks the same line. */
+function pick<T>(pool: T[], seedStr: string): T {
+  let h = 0
+  for (let i = 0; i < seedStr.length; i += 1) h = (h * 31 + seedStr.charCodeAt(i)) >>> 0
+  return pool[h % pool.length]
+}
+
+type AwardsShape = NonNullable<NonNullable<Awaited<ReturnType<typeof getLeagueH2H>>>['latestWeekAwards']>
+
+/** Chimmy color commentary — every line is a counted fact wearing a jersey. */
+function chimmyCall(
+  sleeperLeagueId: string,
+  awards: AwardsShape,
+  nameOf: (ownerId: string | null | undefined) => string,
+): string[] {
+  const seed = `${sleeperLeagueId}:${awards.season}:${awards.week}`
+  const out: string[] = []
+
+  if (awards.biggestBlowout && awards.biggestBlowout.margin >= 40) {
+    const w = nameOf(awards.biggestBlowout.winnerOwnerId)
+    const l = nameOf(awards.biggestBlowout.loserOwnerId)
+    const m = awards.biggestBlowout.margin.toFixed(1)
+    out.push(
+      pick(
+        [
+          `${w} didn’t beat ${l} by ${m} — they filed a restraining order.`,
+          `Somebody check on ${l}. Losing by ${m} should come with a support group.`,
+          `${w} put up a ${m}-point beating so loud the neighbors called it in.`,
+        ],
+        seed + ':blowout',
+      ),
+    )
+  }
+
+  if (awards.narrowEscape && awards.narrowEscape.margin <= 3) {
+    const w = nameOf(awards.narrowEscape.winnerOwnerId)
+    const l = nameOf(awards.narrowEscape.loserOwnerId)
+    const m = awards.narrowEscape.margin.toFixed(1)
+    out.push(
+      pick(
+        [
+          `${w} escaped ${l} by ${m}. That’s not a win, that’s a jailbreak.`,
+          `${m} points. ${l} will be replaying one bench decision all week — and they should.`,
+          `${w} by ${m} — cardiologists in this league are eating well.`,
+        ],
+        seed + ':escape',
+      ),
+    )
+  }
+
+  if (out.length < 2 && awards.lowScore) {
+    const l = nameOf(awards.lowScore.ownerId)
+    const p = awards.lowScore.points.toFixed(1)
+    out.push(
+      pick(
+        [
+          `${p} points, ${l}? The waiver wire called — it misses you.`,
+          `${l} scored ${p}. Some lineups are set; that one was abandoned.`,
+          `${p} from ${l}. Chimmy has seen bye weeks score more.`,
+        ],
+        seed + ':low',
+      ),
+    )
+  }
+
+  if (out.length === 0 && awards.topScore) {
+    const w = nameOf(awards.topScore.ownerId)
+    const p = awards.topScore.points.toFixed(1)
+    out.push(
+      pick(
+        [
+          `${w} dropped ${p} and made it look routine. It was not routine.`,
+          `${p} for ${w} — that’s not a lineup, that’s a statement.`,
+        ],
+        seed + ':top',
+      ),
+    )
+  }
+
+  return out.slice(0, 2)
 }
 
 async function postRecapForLeague(
@@ -207,6 +290,17 @@ async function postRecapForLeague(
     lines.push(...broken.map((b) => `  ${b}`))
   }
 
+  // ── Chimmy's call: fact-driven color commentary. Every line restates a
+  //    COUNTED fact with personality — templates vary per league+week via a
+  //    deterministic hash, nothing is invented. (AI-generated commentary can
+  //    slot in here later behind a flag; templated keeps the cron fast, free,
+  //    and inside the honesty contract.)
+  const chimmy = chimmyCall(sleeperLeagueId, awards, nameOf)
+  if (chimmy.length > 0) {
+    lines.push('', '🎙 Chimmy’s call:')
+    lines.push(...chimmy.map((c) => `  ${c}`))
+  }
+
   lines.push('', 'Counted from real matchups — the full records book lives in the Legacy tab.')
 
   const created = await createLeagueChatMessage(afLeagueId, ownerUserId, lines.join('\n'), {
@@ -242,27 +336,55 @@ export async function GET(req: NextRequest) {
   const isCron = Boolean(cronSecret) && authHeader === `Bearer ${cronSecret}`
 
   if (isCron) {
-    const leagues = await prisma.league.findMany({
-      where: { platform: 'sleeper', platformLeagueId: { not: '' } },
-      select: { id: true, name: true, platformLeagueId: true, userId: true },
-      take: 100,
-    })
-    let posted = 0
-    let emailsSent = 0
-    const errors: string[] = []
-    for (const l of leagues) {
-      if (!l.platformLeagueId || !l.userId) continue
-      try {
-        const r = await postRecapForLeague(l.id, l.platformLeagueId, l.userId, l.name)
-        if (r.posted) {
-          posted += 1
-          emailsSent += r.emailsSent
+    // Time budget: this function caps at maxDuration 300s, and a cold league's
+    // first H2H sync is the expensive step. Stop walking with headroom to spare
+    // and report the leftover honestly — the per-week dedupe means the next
+    // fire (or a manual re-run) resumes exactly where this one stopped.
+    const sweep = await withSyncJobRun(
+      { jobName: 'cron-weekly-awards', trigger: 'cron' },
+      async () => {
+        const startedAt = Date.now()
+        const TIME_BUDGET_MS = 240_000
+        const leagues = await prisma.league.findMany({
+          where: { platform: 'sleeper', platformLeagueId: { not: '' } },
+          select: { id: true, name: true, platformLeagueId: true, userId: true },
+          take: 100,
+        })
+        let posted = 0
+        let emailsSent = 0
+        let skippedForTime = 0
+        const errors: string[] = []
+        for (const l of leagues) {
+          if (!l.platformLeagueId || !l.userId) continue
+          if (Date.now() - startedAt > TIME_BUDGET_MS) {
+            skippedForTime += 1
+            continue
+          }
+          try {
+            const r = await postRecapForLeague(l.id, l.platformLeagueId, l.userId, l.name)
+            if (r.posted) {
+              posted += 1
+              emailsSent += r.emailsSent
+            }
+          } catch {
+            errors.push(l.id)
+          }
         }
-      } catch {
-        errors.push(l.id)
-      }
-    }
-    return NextResponse.json({ mode: 'cron' as const, leagues: leagues.length, posted, emailsSent, errors })
+        return { leagues: leagues.length, posted, emailsSent, skippedForTime, errors }
+      },
+      (r) => ({
+        rowsRead: r.leagues,
+        rowsWritten: r.posted,
+        rowsSkipped: r.skippedForTime,
+        errors: r.errors.map((id) => `league ${id}`),
+        warnings: r.skippedForTime > 0 ? [`time budget hit — ${r.skippedForTime} league(s) deferred to the next fire`] : [],
+        metadata: { emailsSent: r.emailsSent },
+      }),
+    )
+    return NextResponse.json({
+      mode: 'cron' as const,
+      ...sweep,
+    })
   }
 
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null

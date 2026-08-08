@@ -4,6 +4,7 @@ import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendNotificationEmail } from '@/lib/resend-client'
 import { getCommandCenter, type CommandCenterPayload } from '@/lib/dashboard-intel/commandCenterService'
+import { withSyncJobRun } from '@/lib/production-health/syncJobRunTelemetry'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -139,15 +140,26 @@ export async function GET(req: NextRequest) {
     const users = await prisma.appUser
       .findMany({ where: { id: { in: userIds } }, select: { id: true, email: true } })
       .catch(() => [] as { id: string; email: string | null }[])
-    let sent = 0
-    let failed = 0
-    for (const u of users) {
-      if (!u.email) continue
-      const r = await sendBriefing(u.id, u.email)
-      if (r === 'sent') sent += 1
-      if (r === 'failed') failed += 1
-    }
-    return NextResponse.json({ mode: 'cron' as const, enabled: true, candidates: users.length, sent, failed })
+    const sweep = await withSyncJobRun(
+      { jobName: 'cron-morning-briefing', trigger: 'cron' },
+      async () => {
+        let sent = 0
+        let failed = 0
+        for (const u of users) {
+          if (!u.email) continue
+          const r = await sendBriefing(u.id, u.email)
+          if (r === 'sent') sent += 1
+          if (r === 'failed') failed += 1
+        }
+        return { candidates: users.length, sent, failed }
+      },
+      (r) => ({
+        rowsRead: r.candidates,
+        rowsWritten: r.sent,
+        errors: r.failed > 0 ? [`${r.failed} briefing email(s) failed to send`] : [],
+      }),
+    )
+    return NextResponse.json({ mode: 'cron' as const, enabled: true, ...sweep })
   }
 
   const session = (await getServerSession(authOptions as never)) as {

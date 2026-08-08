@@ -251,6 +251,44 @@ const filesToKeep = new Set([
   path.join('app', 'api', 'admin', 'monetization', 'checkout-link-mapping', 'route.ts').replace(/\\/g, '/'),
 ])
 
+// ── Cron keep-line guard ─────────────────────────────────────────────────────
+// Twice now a vercel.json cron has pointed at a route this script excludes
+// without a keep-line — Vercel then fires the schedule into a 404 forever
+// (regression #284, and again in the Aug 2026 dispatcher consolidation).
+// Fail the build loudly instead of shipping silently-dead crons.
+;(function assertScheduledCronsSurviveExclusion() {
+  let crons = []
+  try {
+    crons = JSON.parse(fs.readFileSync(path.join(repoRoot, 'vercel.json'), 'utf8')).crons || []
+  } catch {
+    return // no vercel.json → nothing scheduled → nothing to guard
+  }
+  const problems = []
+  for (const cron of crons) {
+    const p = String(cron.path || '').split('?')[0] // cron paths may carry query strings
+    if (!p.startsWith('/')) continue
+    const routeFile = path.join('app', ...p.split('/').filter(Boolean), 'route.ts').replace(/\\/g, '/')
+    if (!fs.existsSync(path.join(repoRoot, routeFile))) {
+      problems.push(`${p} -> ${routeFile} does not exist in the repo`)
+      continue
+    }
+    const excludedByDir = routeDirsToDisable.some((dir) => {
+      const d = String(dir).replace(/\\/g, '/')
+      return routeFile === d || routeFile.startsWith(d + '/')
+    })
+    if (excludedByDir && !filesToKeep.has(routeFile)) {
+      problems.push(`${p} -> ${routeFile} is excluded by this script with NO keep-line (would 404 on every scheduled fire)`)
+    }
+  }
+  if (problems.length > 0) {
+    console.error('[vercel-next-build] FATAL: scheduled vercel.json crons would be dead in this build:')
+    for (const x of problems) console.error('  - ' + x)
+    console.error('[vercel-next-build] Add a keep-line to filesToKeep (or unschedule the cron) before deploying.')
+    process.exit(1)
+  }
+  console.log(`[vercel-next-build] Cron keep-line guard: ${crons.length} scheduled cron(s) verified against exclusions`)
+})()
+
 function directoryExists(targetPath) {
   try {
     return fs.statSync(targetPath).isDirectory()

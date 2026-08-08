@@ -1267,7 +1267,7 @@ export default function NocturneDashboard({
               {leagueModal.unified ? (
                 <>
                   <Link href={`/league/${leagueModal.id}`} className="btn btn-primary btn-block" style={{ width: '100%' }}>Open league →</Link>
-                  <InviteLinkButton leagueId={leagueModal.id} />
+                  <ClaimInvitePanel leagueId={leagueModal.id} />
                 </>
               ) : (
                 <>
@@ -1488,40 +1488,90 @@ function SeasonTimeline({ phaseIndex, week }: { phaseIndex: number; week: number
 }
 
 /**
- * "Invite managers" — fetches the league's shareable claim link and copies it.
- * Every claimed teammate unlocks trades, chat, and career cards for the league,
- * so this is the growth loop's primary affordance.
+ * Claim & invite panel — "N of M teams claimed" progress plus the shareable
+ * claim link. Fetches GET /api/leagues/join?leagueId= on open (link + real
+ * claimed/team counts from LeagueTeam). Every claimed teammate unlocks
+ * trades, chat, recap emails, and career cards for the league — this bar is
+ * the growth loop's scoreboard.
  */
-function InviteLinkButton({ leagueId }: { leagueId: string }) {
-  const [state, setState] = useState<'idle' | 'working' | 'copied' | 'failed'>('idle')
-  return (
-    <button
-      type="button"
-      className="btn btn-secondary btn-block"
-      style={{ width: '100%', marginTop: 8 }}
-      disabled={state === 'working'}
-      data-testid="league-invite-link"
-      onClick={async () => {
-        setState('working')
-        try {
-          const res = await fetch(`/api/leagues/join?leagueId=${encodeURIComponent(leagueId)}`, { cache: 'no-store' })
-          const data = (await res.json()) as { inviteLink?: string }
-          if (!res.ok || !data.inviteLink) throw new Error('no link')
-          await navigator.clipboard.writeText(data.inviteLink)
-          setState('copied')
-        } catch {
-          setState('failed')
+function ClaimInvitePanel({ leagueId }: { leagueId: string }) {
+  const [info, setInfo] = useState<{ inviteLink: string; teamCount: number; claimedCount: number } | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  useEffect(() => {
+    let cancelled = false
+    setInfo(null)
+    setFailed(false)
+    setCopyState('idle')
+    void fetch(`/api/leagues/join?leagueId=${encodeURIComponent(leagueId)}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return
+        if (d?.inviteLink) {
+          setInfo({
+            inviteLink: d.inviteLink as string,
+            teamCount: Number(d.claim?.teamCount ?? 0),
+            claimedCount: Number(d.claim?.claimedCount ?? 0),
+          })
+        } else {
+          setFailed(true)
         }
-      }}
-    >
-      {state === 'working'
-        ? 'Getting link…'
-        : state === 'copied'
-          ? 'Invite link copied ✓ — send it to your leaguemates'
-          : state === 'failed'
-            ? 'Retry invite link'
-            : 'Invite managers — copy claim link'}
-    </button>
+      })
+      .catch(() => { if (!cancelled) setFailed(true) })
+    return () => { cancelled = true }
+  }, [leagueId])
+
+  if (failed) return null
+
+  const pct = info && info.teamCount > 0 ? Math.round((info.claimedCount / info.teamCount) * 100) : 0
+  const unclaimed = info ? Math.max(0, info.teamCount - info.claimedCount) : 0
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {info && info.teamCount > 0 ? (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--color-neutral-500)', marginBottom: 4 }}>
+            <span>{info.claimedCount} of {info.teamCount} teams claimed</span>
+            <span>{pct}%</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: 'var(--color-neutral-900)', overflow: 'hidden', marginBottom: 8 }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: 'var(--deck-gradient, linear-gradient(90deg,#ff3d81,#ff8a3d))' }} />
+          </div>
+        </>
+      ) : null}
+      <button
+        type="button"
+        className="btn btn-secondary btn-block"
+        style={{ width: '100%' }}
+        disabled={!info}
+        data-testid="league-invite-link"
+        onClick={async () => {
+          if (!info) return
+          try {
+            await navigator.clipboard.writeText(info.inviteLink)
+            setCopyState('copied')
+          } catch {
+            setCopyState('failed')
+          }
+        }}
+      >
+        {!info
+          ? 'Loading invite link…'
+          : copyState === 'copied'
+            ? 'Invite link copied ✓ — send it to your leaguemates'
+            : copyState === 'failed'
+              ? 'Retry copy'
+              : unclaimed > 0
+                ? `Invite managers — ${unclaimed} team${unclaimed === 1 ? '' : 's'} still unclaimed`
+                : 'Copy invite link'}
+      </button>
+      {info && unclaimed > 0 && copyState !== 'copied' ? (
+        <p style={{ fontSize: 10.5, color: 'var(--color-neutral-600)', margin: '6px 0 0', textAlign: 'center' }}>
+          Every claimed teammate unlocks trades, chat, recap emails, and career cards for your league.
+        </p>
+      ) : null}
+    </div>
   )
 }
 

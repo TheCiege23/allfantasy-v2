@@ -354,10 +354,18 @@ export async function GET(req: NextRequest) {
 
   if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 })
 
+  // Claim progress — how many of the league's teams have a real AF member
+  // behind them. Powers the "N of M teams claimed" bar next to the invite link.
+  const [teamCount, claimedCount] = await Promise.all([
+    prisma.leagueTeam.count({ where: { leagueId } }).catch(() => 0),
+    prisma.leagueTeam.count({ where: { leagueId, claimedByUserId: { not: null } } }).catch(() => 0),
+  ])
+
   return NextResponse.json({
     leagueName: league.name,
     inviteCode: result.inviteCode,
     inviteLink: result.inviteLink,
     inviteExpiresAt: result.inviteExpiresAt,
+    claim: { teamCount, claimedCount },
   })
 }
