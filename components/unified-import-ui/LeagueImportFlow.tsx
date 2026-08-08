@@ -626,6 +626,11 @@ export function LeagueImportFlow({
                               Tick the authorization box above and run again to include the flagged leagues.
                             </p>
                           ) : null}
+                          <p className="mt-1 text-[11.5px] text-white/55">
+                            Next: open a league from My Leagues and hit <b>Invite managers</b> —
+                            every leaguemate who claims their team unlocks trades, chat, and
+                            career cards for your whole league.
+                          </p>
                           <button
                             type="button"
                             onClick={() => router.push(onCompleteRedirect ?? '/dashboard')}

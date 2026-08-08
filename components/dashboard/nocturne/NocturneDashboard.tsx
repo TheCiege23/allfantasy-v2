@@ -1265,7 +1265,10 @@ export default function NocturneDashboard({
             </div>
             <div style={{ marginTop: 18 }}>
               {leagueModal.unified ? (
-                <Link href={`/league/${leagueModal.id}`} className="btn btn-primary btn-block" style={{ width: '100%' }}>Open league →</Link>
+                <>
+                  <Link href={`/league/${leagueModal.id}`} className="btn btn-primary btn-block" style={{ width: '100%' }}>Open league →</Link>
+                  <InviteLinkButton leagueId={leagueModal.id} />
+                </>
               ) : (
                 <>
                   <p style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', margin: '0 0 10px' }}>
@@ -1481,6 +1484,44 @@ function SeasonTimeline({ phaseIndex, week }: { phaseIndex: number; week: number
         })}
       </div>
     </div>
+  )
+}
+
+/**
+ * "Invite managers" — fetches the league's shareable claim link and copies it.
+ * Every claimed teammate unlocks trades, chat, and career cards for the league,
+ * so this is the growth loop's primary affordance.
+ */
+function InviteLinkButton({ leagueId }: { leagueId: string }) {
+  const [state, setState] = useState<'idle' | 'working' | 'copied' | 'failed'>('idle')
+  return (
+    <button
+      type="button"
+      className="btn btn-secondary btn-block"
+      style={{ width: '100%', marginTop: 8 }}
+      disabled={state === 'working'}
+      data-testid="league-invite-link"
+      onClick={async () => {
+        setState('working')
+        try {
+          const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/invite-link`, { cache: 'no-store' })
+          const data = (await res.json()) as { inviteLink?: string }
+          if (!res.ok || !data.inviteLink) throw new Error('no link')
+          await navigator.clipboard.writeText(data.inviteLink)
+          setState('copied')
+        } catch {
+          setState('failed')
+        }
+      }}
+    >
+      {state === 'working'
+        ? 'Getting link…'
+        : state === 'copied'
+          ? 'Invite link copied ✓ — send it to your leaguemates'
+          : state === 'failed'
+            ? 'Retry invite link'
+            : 'Invite managers — copy claim link'}
+    </button>
   )
 }
 
