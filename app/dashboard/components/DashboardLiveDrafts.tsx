@@ -86,7 +86,7 @@ export function DashboardLiveDrafts({ leagues }: { leagues: UserLeague[] }) {
           return (
             <Link
               key={d.draftId}
-              href={af ? `/league/${af.id}?view=draft_intel` : '/import?returnTo=/dashboard'}
+              href={af ? `/league/${af.id}?view=draft_intel` : d.leagueId ? `/import?provider=sleeper&leagueId=${encodeURIComponent(d.leagueId)}&returnTo=/dashboard` : '/import?returnTo=/dashboard'}
               style={{ textDecoration: 'none', color: 'inherit' }}
               title={
                 af

@@ -75,11 +75,16 @@ export function DraftSeasonHQ({ leagues }: { leagues: UserLeague[] }) {
   const Tile = ({ d }: { d: DraftListItem }) => {
     const af = afLeagueFor(d.leagueId)
     const isLive = d.status === 'drafting'
+    // Un-imported league: deep-link import with the league PRE-FILLED (the
+    // /import page's existing leagueId contract) — landing on a blank form and
+    // re-finding the league by hand is where taps went to die.
     const href = af
       ? d.status === 'complete'
         ? `/league/${af.id}?view=legacy`
         : `/league/${af.id}?view=draft_intel`
-      : '/import?returnTo=/dashboard'
+      : d.leagueId
+        ? `/import?provider=sleeper&leagueId=${encodeURIComponent(d.leagueId)}&returnTo=/dashboard`
+        : '/import?returnTo=/dashboard'
     return (
       <Link
         href={href}
@@ -89,7 +94,11 @@ export function DraftSeasonHQ({ leagues }: { leagues: UserLeague[] }) {
         <div className="truncate text-[11px] font-extrabold text-[#f0f2ff]">{af?.name ?? d.name}</div>
         <div className="mt-1">
           {isLive ? (
-            <span className="bdx-sev ok">● LIVE — open cockpit</span>
+            af ? (
+              <span className="bdx-sev ok">● LIVE — open cockpit</span>
+            ) : (
+              <span className="bdx-sev warn">● LIVE — import to open</span>
+            )
           ) : d.status === 'paused' ? (
             <span className="bdx-sev warn">⏸ paused</span>
           ) : d.status === 'complete' ? (
