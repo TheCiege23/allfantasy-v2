@@ -130,7 +130,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ mode: 'cron' as const, enabled: false, note: 'Set MORNING_BRIEFING_ENABLED=1 to enable the daily sweep.' })
     }
     const owners = await prisma.league.findMany({
-      where: { platform: 'sleeper', platformLeagueId: { not: null } },
+      where: { platform: 'sleeper', platformLeagueId: { not: '' } },
       select: { userId: true },
       distinct: ['userId'],
       take: 100,

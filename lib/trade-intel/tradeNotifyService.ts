@@ -201,7 +201,7 @@ export async function detectAndNotifyLeague(sleeperLeagueId: string): Promise<Le
 /** Sweep every imported Sleeper league (bounded), one contained result each. */
 export async function detectAndNotifyAll(limit = 50): Promise<LeagueNotifyResult[]> {
   const leagues = await prisma.league.findMany({
-    where: { platform: 'sleeper', platformLeagueId: { not: null } },
+    where: { platform: 'sleeper', platformLeagueId: { not: '' } },
     select: { platformLeagueId: true },
     distinct: ['platformLeagueId'],
     take: limit,

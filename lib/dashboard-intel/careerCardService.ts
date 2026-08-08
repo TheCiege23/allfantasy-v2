@@ -83,7 +83,7 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
     ? await prisma.league.findMany({
         where: {
           platform: 'sleeper',
-          platformLeagueId: { not: null },
+          platformLeagueId: { not: '' },
           OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
         },
         select: { id: true, name: true, platformLeagueId: true },

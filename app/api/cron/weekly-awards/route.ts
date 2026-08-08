@@ -243,7 +243,7 @@ export async function GET(req: NextRequest) {
 
   if (isCron) {
     const leagues = await prisma.league.findMany({
-      where: { platform: 'sleeper', platformLeagueId: { not: null } },
+      where: { platform: 'sleeper', platformLeagueId: { not: '' } },
       select: { id: true, name: true, platformLeagueId: true, userId: true },
       take: 100,
     })
