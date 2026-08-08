@@ -123,6 +123,68 @@ export function LeagueImportFlow({
     sourceId: string
     message: string
   } | null>(null)
+  // ── Bulk import ("Import all") over the discovery results ──────────────────
+  // Sequential commits through the SAME /api/leagues/import/commit pipeline as
+  // single imports — same commissioner gate, same normalization/backfill. Each
+  // league's outcome is shown honestly: imported / already imported / needs
+  // commissioner confirmation / failed. Nothing is force-overwritten.
+  type BulkLeagueStatus = 'importing' | 'done' | 'exists' | 'needs-attestation' | 'failed'
+  const [bulkRunning, setBulkRunning] = useState(false)
+  const [bulkDone, setBulkDone] = useState(false)
+  const [bulkAttest, setBulkAttest] = useState(false)
+  const [bulkStatus, setBulkStatus] = useState<Record<string, BulkLeagueStatus>>({})
+
+  async function runBulkImport() {
+    if (bulkRunning || discoveredLeagues.length === 0) return
+    setBulkRunning(true)
+    setBulkDone(false)
+    setBulkStatus({})
+    setPreviewInfo(null)
+    setFormError(null)
+    for (const league of discoveredLeagues) {
+      setBulkStatus((prev) => ({ ...prev, [league.sourceId]: 'importing' }))
+      let result = await submitImportCreation(activeImportProvider, league.sourceId, userId)
+      if (!result.ok && result.requiresAttestation && bulkAttest) {
+        result = await submitImportCreation(activeImportProvider, league.sourceId, userId, {
+          accepted: true,
+          statement: 'Bulk import: I confirm I am authorized to import this league into AllFantasy.',
+        })
+      }
+      const status: BulkLeagueStatus = result.ok
+        ? 'done'
+        : result.status === 409
+          ? 'exists'
+          : result.requiresAttestation
+            ? 'needs-attestation'
+            : 'failed'
+      setBulkStatus((prev) => ({ ...prev, [league.sourceId]: status }))
+    }
+    setBulkRunning(false)
+    setBulkDone(true)
+  }
+
+  const bulkCounts = useMemo(() => {
+    const values = Object.values(bulkStatus)
+    return {
+      done: values.filter((v) => v === 'done').length,
+      exists: values.filter((v) => v === 'exists').length,
+      needsAttestation: values.filter((v) => v === 'needs-attestation').length,
+      failed: values.filter((v) => v === 'failed').length,
+      processed: values.filter((v) => v !== 'importing').length,
+    }
+  }, [bulkStatus])
+
+  function BulkChip({ status }: { status: BulkLeagueStatus }) {
+    if (status === 'importing')
+      return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-200"><Loader2 className="h-3 w-3 animate-spin" />importing…</span>
+    if (status === 'done')
+      return <span className="rounded-full bg-emerald-500/[0.15] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">imported ✓</span>
+    if (status === 'exists')
+      return <span className="rounded-full bg-white/[0.08] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/55">already imported</span>
+    if (status === 'needs-attestation')
+      return <span className="rounded-full bg-amber-500/[0.15] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-200">needs commissioner confirmation</span>
+    return <span className="rounded-full bg-red-500/[0.15] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-red-300">failed</span>
+  }
 
   const previewSectionRef = useRef<HTMLDivElement>(null)
 
@@ -516,15 +578,69 @@ export function LeagueImportFlow({
 
                   {discoveredLeagues.length > 0 ? (
                     <div className="mt-4 space-y-2">
-                      <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-cyan-200/70">
-                        {discoveredAccountLabel
-                          ? `${discoveredAccountLabel} leagues`
-                          : 'Discovered leagues'}
-                      </p>
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-cyan-200/70">
+                          {discoveredAccountLabel
+                            ? `${discoveredAccountLabel} leagues`
+                            : 'Discovered leagues'}
+                        </p>
+                        <button
+                          type="button"
+                          disabled={bulkRunning || previewingSourceId !== null || loadingProvider !== null}
+                          onClick={() => void runBulkImport()}
+                          data-testid="import-all"
+                          className="warroom-pressable inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 text-[13px] font-bold text-black hover:bg-cyan-400 disabled:opacity-50"
+                        >
+                          {bulkRunning ? (
+                            <>
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              Importing {bulkCounts.processed}/{discoveredLeagues.length}…
+                            </>
+                          ) : (
+                            <>Import all ({discoveredLeagues.length}) &amp; update dashboard</>
+                          )}
+                        </button>
+                      </div>
+                      <label className="flex cursor-pointer items-start gap-2 text-[11.5px] leading-snug text-white/55">
+                        <input
+                          type="checkbox"
+                          checked={bulkAttest}
+                          onChange={(e) => setBulkAttest(e.target.checked)}
+                          disabled={bulkRunning}
+                          className="mt-0.5 h-3.5 w-3.5 accent-cyan-400"
+                          data-testid="import-all-attest"
+                        />
+                        Also import leagues where I can&apos;t be auto-verified as commissioner — I
+                        confirm I&apos;m authorized to import them (recorded in the audit trail).
+                      </label>
+                      {bulkDone ? (
+                        <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/[0.06] p-3">
+                          <p className="text-[13px] font-semibold text-cyan-100">
+                            Bulk import finished — {bulkCounts.done} imported
+                            {bulkCounts.exists > 0 ? ` · ${bulkCounts.exists} already in AllFantasy` : ''}
+                            {bulkCounts.needsAttestation > 0 ? ` · ${bulkCounts.needsAttestation} need commissioner confirmation` : ''}
+                            {bulkCounts.failed > 0 ? ` · ${bulkCounts.failed} failed` : ''}.
+                          </p>
+                          {bulkCounts.needsAttestation > 0 && !bulkAttest ? (
+                            <p className="mt-1 text-[11.5px] text-white/55">
+                              Tick the authorization box above and run again to include the flagged leagues.
+                            </p>
+                          ) : null}
+                          <button
+                            type="button"
+                            onClick={() => router.push(onCompleteRedirect ?? '/dashboard')}
+                            data-testid="import-all-go-dashboard"
+                            className="warroom-pressable mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-cyan-500 px-4 text-[13px] font-bold text-black hover:bg-cyan-400"
+                          >
+                            Go to dashboard →
+                          </button>
+                        </div>
+                      ) : null}
                       <div className="space-y-2">
                         {discoveredLeagues.map((league) => {
                           const isThisLoading = previewingSourceId === league.sourceId
-                          const isAnyLoading = previewingSourceId !== null || loadingProvider !== null
+                          const isAnyLoading = previewingSourceId !== null || loadingProvider !== null || bulkRunning
+                          const bulkState = bulkStatus[league.sourceId]
                           const thisError = leaguePreviewError?.sourceId === league.sourceId ? leaguePreviewError.message : null
                           const thisPreviewed = previewInfo?.sourceInput === league.sourceId
 
@@ -557,6 +673,11 @@ export function LeagueImportFlow({
                                   <p className="mt-2 text-[12px] font-semibold text-cyan-300">
                                     Preview loaded — see below
                                   </p>
+                                ) : null}
+                                {bulkState ? (
+                                  <div className="mt-2">
+                                    <BulkChip status={bulkState} />
+                                  </div>
                                 ) : null}
                               </div>
                               <button
