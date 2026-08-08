@@ -104,6 +104,15 @@ export function LeagueImportFlow({
     sourceInput: string
     leagueName: string
     canonical: CanonicalPreview | null
+    /** True when this preview passed the gate via member/commissioner attestation — commit must resend it. */
+    attested?: boolean
+  } | null>(null)
+  /** The gate asked for an explicit confirmation (member import / unverifiable commissioner). */
+  const [attestPrompt, setAttestPrompt] = useState<{
+    provider: ImportProvider
+    sourceInput: string
+    discoverySourceId?: string
+    message: string
   } | null>(null)
   const [committing, setCommitting] = useState(false)
   const [conflict, setConflict] = useState<{ message: string } | null>(null)
@@ -231,6 +240,31 @@ export function LeagueImportFlow({
   const activeImportProvider = tabToImportProvider(tab)
   const supportsAccountDiscovery =
     supportsImportProviderDiscovery(activeImportProvider)
+
+  // Auto-discovery: Sleeper (linked account) and Yahoo (connected OAuth) can
+  // list "your leagues" with no input — run it on tab entry so the league list
+  // and Import All are just THERE. Silent on failure (no linked account →
+  // the manual identifier input still works exactly as before).
+  useEffect(() => {
+    if (!supportsAccountDiscovery) return
+    if (activeImportProvider !== 'sleeper' && activeImportProvider !== 'yahoo') return
+    let cancelled = false
+    void discoverProviderLeagues(activeImportProvider, '', { sport: 'nfl' }).then((result) => {
+      if (cancelled || !result.ok) return
+      const payload = result.data as {
+        account?: { displayName?: string; accountIdentifier?: string }
+        leagues?: ProviderLeagueDiscoveryItem[]
+      }
+      setDiscoveredAccountLabel(
+        payload.account?.displayName?.trim() || payload.account?.accountIdentifier?.trim() || '',
+      )
+      setDiscoveredLeagues(payload.leagues ?? [])
+    })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeImportProvider, supportsAccountDiscovery])
   // Yahoo discovery lists leagues from the user's CONNECTED Yahoo account
   // (OAuth) — no account identifier input is shown or required for it.
   const discoveryUsesConnectedAccount = activeImportProvider === 'yahoo'
@@ -247,17 +281,39 @@ export function LeagueImportFlow({
     } as Partial<Record<ImportProvider, string>>
   }, [activeImportProvider, initialLeagueSourceId])
 
-  async function runPreview(provider: ImportProvider, sourceInput: string, discoverySourceId?: string) {
+  async function runPreview(
+    provider: ImportProvider,
+    sourceInput: string,
+    discoverySourceId?: string,
+    attest = false,
+  ) {
     setLoadingProvider(provider)
     setPreviewingSourceId(discoverySourceId ?? null)
     setFormError(null)
     setLeaguePreviewError(null)
     setPreviewInfo(null)
     setConflict(null)
+    setAttestPrompt(null)
 
     try {
-      const preview = await fetchImportPreview(provider, sourceInput)
+      const preview = await fetchImportPreview(
+        provider,
+        sourceInput,
+        attest ? { accepted: true } : undefined,
+      )
       if (!preview.ok) {
+        // The gate wants an explicit confirmation (verified member importing a
+        // league they don't commission, or a provider that can't auto-verify).
+        // Surface a confirm panel instead of a dead-end error.
+        if (preview.requiresAttestation) {
+          setAttestPrompt({
+            provider,
+            sourceInput,
+            discoverySourceId,
+            message: preview.error || 'Confirm to import this league.',
+          })
+          return
+        }
         throw new Error(preview.error || t('import.error.previewFailed'))
       }
 
@@ -268,7 +324,7 @@ export function LeagueImportFlow({
       const leagueName =
         payload?.league?.name?.trim() || t('import.leagueDefaultName')
       const canonical = payload?.canonical ?? null
-      setPreviewInfo({ provider, sourceInput, leagueName, canonical })
+      setPreviewInfo({ provider, sourceInput, leagueName, canonical, attested: attest })
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : t('import.error.generic')
       if (discoverySourceId) {
@@ -329,7 +385,7 @@ export function LeagueImportFlow({
         previewInfo.provider,
         previewInfo.sourceInput,
         userId,
-        undefined,
+        previewInfo.attested ? { accepted: true } : undefined,
         { force },
       )
 
@@ -734,6 +790,40 @@ export function LeagueImportFlow({
                 loadingProvider={loadingProvider}
                 initialInputs={unifiedInitialInputs}
               />
+              {attestPrompt && attestPrompt.provider === activeImportProvider && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/[0.06] p-4" data-testid="import-attest-prompt">
+                  <p className="text-[13px] font-semibold text-amber-100">Confirmation needed</p>
+                  <p className="mt-1 text-[12.5px] text-white/70">{attestPrompt.message}</p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      data-testid="import-attest-confirm"
+                      onClick={() =>
+                        void runPreview(
+                          attestPrompt.provider,
+                          attestPrompt.sourceInput,
+                          attestPrompt.discoverySourceId,
+                          true,
+                        )
+                      }
+                      className="rounded-xl bg-amber-400 px-4 py-2 text-[13px] font-bold text-black hover:bg-amber-300"
+                    >
+                      I confirm — import this league
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAttestPrompt(null)}
+                      className="rounded-xl border border-white/15 px-4 py-2 text-[13px] font-semibold text-white/70 hover:bg-white/5"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                  <p className="mt-2 text-[11px] text-white/45">
+                    Recorded in the import audit trail. Your leaguemates can claim their teams, and the
+                    commissioner can take over the league later.
+                  </p>
+                </div>
+              )}
               {previewInfo && previewInfo.provider === activeImportProvider && (
                 <div ref={previewSectionRef} className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
                   <p className="mb-1 text-[15px] font-semibold text-cyan-200">

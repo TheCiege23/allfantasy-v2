@@ -165,9 +165,9 @@ export async function discoverProviderLeagues(
   }
 
   const trimmed = accountIdentifier?.trim();
-  // Yahoo discovery reads the user's CONNECTED Yahoo account (OAuth) — no
-  // account identifier is needed; every other provider still requires one.
-  if (!trimmed && provider !== 'yahoo') {
+  // Yahoo reads the CONNECTED Yahoo account (OAuth) and Sleeper falls back to
+  // the caller's own linked Sleeper account — neither needs an identifier.
+  if (!trimmed && provider !== 'yahoo' && provider !== 'sleeper') {
     return { ok: false, error: 'Account identifier is required.' };
   }
 
