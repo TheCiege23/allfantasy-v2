@@ -314,6 +314,23 @@ export default function NocturneDashboard({
   const [playerQuery, setPlayerQuery] = useState('')
   const [playerResults, setPlayerResults] = useState<PlayerResult[]>([])
   const [activePlayer, setActivePlayer] = useState<PlayerResult | null>(null)
+  // Sports-API intelligence for the open player card — headshot / injury /
+  // projection / ADP / market value from /api/players/profile. League-agnostic
+  // by design (the payload's notes say so); null fields render as absent.
+  const [playerProfile, setPlayerProfile] = useState<PlayerProfile | null>(null)
+  useEffect(() => {
+    setPlayerProfile(null)
+    if (!activePlayer) return
+    let cancelled = false
+    const params = new URLSearchParams()
+    if (activePlayer.playerId) params.set('playerId', activePlayer.playerId)
+    if (activePlayer.name) params.set('name', activePlayer.name)
+    void fetch(`/api/players/profile?${params.toString()}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setPlayerProfile(d as PlayerProfile) })
+      .catch(() => { if (!cancelled) setPlayerProfile(null) })
+    return () => { cancelled = true }
+  }, [activePlayer])
   const [today, setToday] = useState<TodayState>(null)
   const [commLeagueId, setCommLeagueId] = useState<string | null>(null)
   const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({})
@@ -1136,9 +1153,50 @@ export default function NocturneDashboard({
           <div className="afcard" style={{ width: '100%', maxWidth: 460, position: 'relative' }} onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={() => setActivePlayer(null)} aria-label="Close" style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', color: 'var(--color-neutral-500)', cursor: 'pointer' }}><X size={16} /></button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--color-accent-900)', display: 'grid', placeItems: 'center', font: '700 12px ui-monospace,Menlo,monospace', color: 'var(--color-accent-400)' }}>{activePlayer.position ?? '—'}</div>
-              <div><div style={{ fontWeight: 600, fontSize: 16 }}>{activePlayer.name ?? 'Unknown player'}</div><div style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>{activePlayer.team ?? '—'}</div></div>
+              {playerProfile?.headshotUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={playerProfile.headshotUrl}
+                  alt=""
+                  width={44}
+                  height={44}
+                  style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', background: 'var(--color-accent-900)', flex: 'none' }}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-accent-900)', display: 'grid', placeItems: 'center', font: '700 12px ui-monospace,Menlo,monospace', color: 'var(--color-accent-400)', flex: 'none' }}>{activePlayer.position ?? '—'}</div>
+              )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 16 }}>{activePlayer.name ?? 'Unknown player'}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                  {activePlayer.position ?? '—'} · {activePlayer.team ?? '—'}
+                </div>
+              </div>
+              {playerProfile?.injury ? (
+                <span className="tag tag-accent" title={playerProfile.injury.note ?? undefined}>
+                  {playerProfile.injury.status}
+                </span>
+              ) : null}
             </div>
+
+            {/* ── Sports-API intelligence — projection / ADP / market value ── */}
+            {playerProfile && (playerProfile.projections || playerProfile.adp || playerProfile.values) ? (
+              <>
+                <div className="dash-kicker" style={{ marginBottom: 8 }}>Market &amp; projection</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, textAlign: 'center', marginBottom: 14 }}>
+                  <Career
+                    value={playerProfile.projections?.ptsHalfPpr ?? playerProfile.projections?.ptsPpr ?? null}
+                    label={playerProfile.projections?.week ? `Proj wk ${playerProfile.projections.week}` : 'Proj'}
+                  />
+                  <Career value={playerProfile.adp?.redraftHalfPpr != null ? playerProfile.adp.redraftHalfPpr.toFixed(1) : null} label="ADP (redraft)" />
+                  <Career
+                    value={playerProfile.values?.redraft ?? playerProfile.values?.dynasty ?? null}
+                    label={playerProfile.values?.dynasty != null && playerProfile.values?.redraft == null ? 'Value (dynasty)' : 'Value (redraft)'}
+                  />
+                </div>
+              </>
+            ) : null}
+
             <div className="dash-kicker" style={{ marginBottom: 8 }}>Your exposure</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, textAlign: 'center' }}>
               <Career value={activePlayer.leagueCount} label="Leagues" />
@@ -1148,6 +1206,11 @@ export default function NocturneDashboard({
             <p style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', margin: '14px 0 0', textAlign: 'center' }}>
               On {activePlayer.leagueCount} of your leagues ({Math.round(activePlayer.exposurePercent * 100)}% exposure).
             </p>
+            {playerProfile ? (
+              <p style={{ fontSize: 10.5, color: 'var(--color-neutral-700)', margin: '10px 0 0', textAlign: 'center' }}>
+                Half-PPR projection · FantasyCalc 12-team 1QB values — league-agnostic; exact numbers live on each league page.
+              </p>
+            ) : null}
           </div>
         </div>
       )}
@@ -1264,6 +1327,16 @@ export default function NocturneDashboard({
 type PlayerResult = {
   playerId: string; name: string | null; position: string | null; team: string | null
   leagueCount: number; startingCount: number; benchCount: number; irTaxiCount: number; exposurePercent: number
+}
+/** /api/players/profile — league-agnostic sports-API card (all fields honest-nullable). */
+type PlayerProfile = {
+  headshotUrl: string | null
+  season: string | null
+  injury: { status: string; note: string | null } | null
+  projections: { week: number | null; ptsPpr: number | null; ptsHalfPpr: number | null; mode: string } | null
+  adp: { redraftHalfPpr: number | null; dynastyHalfPpr: number | null; rookie: number | null } | null
+  values: { redraft: number | null; dynasty: number | null; source: string } | null
+  notes: string[]
 }
 type TodayShape = { lineups: number; waivers: number; trades: number; urgent: number }
 /** 'unavailable' = today-actions failed/degraded (503) — must NOT be shown as "all clear". */
