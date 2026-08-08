@@ -1504,7 +1504,7 @@ function InviteLinkButton({ leagueId }: { leagueId: string }) {
       onClick={async () => {
         setState('working')
         try {
-          const res = await fetch(`/api/leagues/${encodeURIComponent(leagueId)}/invite-link`, { cache: 'no-store' })
+          const res = await fetch(`/api/leagues/join?leagueId=${encodeURIComponent(leagueId)}`, { cache: 'no-store' })
           const data = (await res.json()) as { inviteLink?: string }
           if (!res.ok || !data.inviteLink) throw new Error('no link')
           await navigator.clipboard.writeText(data.inviteLink)

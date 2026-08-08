@@ -304,3 +304,60 @@ export async function POST(req: NextRequest) {
 
   return NextResponse.json(joinResult)
 }
+
+/**
+ * GET /api/leagues/join?leagueId= — the shareable "claim your team" invite
+ * link for a league (rides the existing /join?code=… flow this route's POST
+ * consumes). Lives on this path instead of its own route because the app sits
+ * at Vercel's 2048-route ceiling — adding any new route file fails the deploy
+ * (too_many_routes), so new endpoints must reuse existing paths.
+ *
+ * Any member (owner or claimed team) can fetch it. Imported leagues often have
+ * no invite code yet (settings.inviteCode is only minted by the create flow) —
+ * this mints one on first request using the SAME settings.inviteCode contract
+ * the join validation scans.
+ */
+export async function GET(req: NextRequest) {
+  const session = (await getServerSession(authOptions as any)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const leagueId = req.nextUrl.searchParams?.get('leagueId')?.trim()
+  if (!leagueId) return NextResponse.json({ error: 'Missing leagueId' }, { status: 400 })
+
+  const league = await prisma.league.findFirst({
+    where: {
+      id: leagueId,
+      OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
+    },
+    select: { id: true, name: true, settings: true },
+  })
+  if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
+
+  const { getFantasyInviteLink } = await import('@/lib/league-invite/LeagueInviteService')
+  const baseUrl = req.nextUrl.origin
+
+  let result = await getFantasyInviteLink(leagueId, baseUrl)
+  if (!result.ok && result.error === 'NO_INVITE_CODE') {
+    const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // no 0/O/1/I/L lookalikes
+    const bytes = new Uint8Array(10)
+    crypto.getRandomValues(bytes)
+    let code = ''
+    for (const b of bytes) code += alphabet[b % alphabet.length]
+    const settings = (league.settings as Record<string, unknown> | null) ?? {}
+    await prisma.league.update({
+      where: { id: leagueId },
+      data: { settings: { ...settings, inviteCode: code } },
+    })
+    result = await getFantasyInviteLink(leagueId, baseUrl)
+  }
+
+  if (!result.ok) return NextResponse.json({ error: result.error }, { status: 500 })
+
+  return NextResponse.json({
+    leagueName: league.name,
+    inviteCode: result.inviteCode,
+    inviteLink: result.inviteLink,
+    inviteExpiresAt: result.inviteExpiresAt,
+  })
+}
