@@ -355,7 +355,14 @@ export function LeagueShell({
     if (nflRedraftCore) {
       const core: TabDef[] = [
         { id: 'home', label: 'Home' },
+        // Decision OS + Live draft cockpit + Legacy engines were previously
+        // only reachable on NON-core (general/imported) leagues — core NFL
+        // redraft leagues had no path to them at all. Same render cases, same
+        // engines (league-pulse, manager-intelligence, /api/league/history,
+        // /api/draft/intel), now reachable per league here too.
+        { id: 'decide', label: 'Decide' },
         { id: 'draft', label: 'Draft' },
+        { id: 'draft_intel', label: 'Live Intel' },
         { id: 'roster', label: 'My Team' },
         { id: 'matchups', label: 'Matchups' },
         { id: 'schedule', label: 'Schedule' },
@@ -363,6 +370,7 @@ export function LeagueShell({
         { id: 'waivers', label: 'Waivers' },
         { id: 'trades', label: 'Trades' },
         { id: 'standings', label: 'Standings' },
+        { id: 'legacy', label: 'Legacy' },
         { id: 'league_chat', label: 'League Chat' },
       ]
       if (isCommissioner) core.push({ id: 'commissioner', label: 'Commissioner' })
@@ -1185,7 +1193,9 @@ export function LeagueShell({
         <AppShell
           layoutMode="balanced-three-panel"
           immersive={specialtyImmersive}
-          rootClassName="h-[calc(100dvh-8.5rem)] min-h-0 lg:h-[calc(100dvh-3.5rem)]"
+          // Global top nav + bottom tabs are hidden on /league/* (layout hideHeader),
+          // so the shell owns the full viewport at every breakpoint.
+          rootClassName="h-[100dvh] min-h-0"
           rightRailCollapsed={myLeaguesRail.collapsed}
           onRightRailExpand={() => myLeaguesRail.setCollapsed(false)}
           rightRailCollapsedHint={leagueList.length ? String(leagueList.length) : undefined}
@@ -1511,7 +1521,10 @@ export function LeagueShell({
                   onImport={handleImport}
                   onAfterLeagueNavigate={() => setMobileRightOpen(false)}
                   onSettingsNavigate={() => setMobileRightOpen(false)}
-                  onRailCollapse={() => myLeaguesRail.setCollapsed(true)}
+                  // Close THIS sheet — previously collapsed the desktop rail
+                  // (sessionStorage), so the panel was mysteriously gone when
+                  // the user next visited on desktop.
+                  onRailCollapse={() => setMobileRightOpen(false)}
                 />
               </div>
             </div>
@@ -2531,7 +2544,7 @@ function LeagueHeader({
             <button
               type="button"
               onClick={onGoHome}
-              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] text-white/60 transition hover:border-cyan-400/35 hover:bg-cyan-500/10 hover:text-cyan-100"
+              className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] text-white/60 transition hover:border-[#ff3d81]/40 hover:bg-[#ff3d81]/10 hover:text-[#ff9ec0]"
               aria-label={t('league.header.dashboardHome')}
               data-testid="league-header-home"
             >
@@ -2546,8 +2559,8 @@ function LeagueHeader({
               aria-expanded={memberGearMenu ? memberGearOpen : undefined}
               aria-haspopup={memberGearMenu ? 'menu' : undefined}
               className={cn(
-                'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] transition hover:border-cyan-400/35 hover:bg-cyan-500/10',
-                memberGearOpen ? 'text-cyan-300' : 'text-white/50 hover:text-cyan-100',
+                'flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.12] bg-white/[0.04] transition hover:border-[#ff3d81]/40 hover:bg-[#ff3d81]/10',
+                memberGearOpen ? 'text-[#ff9ec0]' : 'text-white/50 hover:text-[#ff9ec0]',
               )}
               aria-label={memberGearMenu ? t('league.header.leagueMenu') : t('league.header.leagueSettings')}
               data-testid="league-header-settings"
@@ -2817,8 +2830,16 @@ function LeagueHeader({
               className="rounded-xl border border-[#262c6a] bg-[#0d1132]/85 p-1.5"
               data-testid="league-command-center-tabs"
             >
-              {/* Group row */}
-              <div className="scrollbar-none flex snap-x gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch]" aria-label="League sections">
+              {/* ONE combined row: group pills · divider · the active group's tabs.
+                  Previously two stacked rows — merged so the header reads as a
+                  single nav rail (and costs one less row of vertical space on
+                  mobile). Every tab id, testid, deep link, and the roster-issue
+                  badge survive unchanged. */}
+              <div
+                className="scrollbar-none flex snap-x items-center gap-1 overflow-x-auto [-webkit-overflow-scrolling:touch]"
+                role="tablist"
+                aria-label="League navigation"
+              >
                 {tabGroups.map((group) => {
                   const isActiveGroup = group.id === activeGroup?.id
                   return (
@@ -2843,15 +2864,10 @@ function LeagueHeader({
                     </button>
                   )
                 })}
-              </div>
-              {/* Sub-row: the active group's tabs (same ids/behavior as before) */}
-              {activeGroup && activeGroup.tabs.length > 0 ? (
-                <div
-                  className="scrollbar-none mt-1 flex snap-x gap-0.5 overflow-x-auto border-t border-[#1c2153] pt-1 [-webkit-overflow-scrolling:touch]"
-                  role="tablist"
-                  aria-label="League navigation"
-                >
-                  {activeGroup.tabs.map((tab) => {
+                {activeGroup && activeGroup.tabs.length > 1 ? (
+                  <>
+                    <span aria-hidden className="mx-1 h-6 w-px shrink-0 bg-[#262c6a]" />
+                    {activeGroup.tabs.map((tab) => {
                     const isActive = activeTab === tab.id
                     const rosterTab = tab.id === 'team' || tab.id === 'roster' || tab.id === 'squad'
                     const showRosterBadge = rosterIssueCount > 0 && rosterTab
@@ -2893,9 +2909,10 @@ function LeagueHeader({
                         ) : null}
                       </button>
                     )
-                  })}
-                </div>
-              ) : null}
+                    })}
+                  </>
+                ) : null}
+              </div>
             </div>
           )
         })()}

@@ -276,6 +276,10 @@ export function NflRedraftLeagueHomeDashboard({
         : 'AF Pro unlocks Manager Intelligence, personalized insight views, and smarter prep workflows.',
       meta: hasManagerIntelligence ? 'Unlocked' : 'AF Pro preview',
       locked: !hasManagerIntelligence,
+      // Real destination: the Decision OS tab for THIS league (league-pulse +
+      // manager-intelligence engines) — no longer a dead marketing tile.
+      cta: hasManagerIntelligence ? 'Open Decision OS' : undefined,
+      onClick: hasManagerIntelligence ? () => onOpenTab('decide') : undefined,
     },
     {
       title: 'Personal Intelligence panel',
@@ -283,11 +287,17 @@ export function NflRedraftLeagueHomeDashboard({
         ? 'Your personal recommendations stay tied to league settings and your roster context.'
         : 'Preview the shape of smart recommendations without changing the normal league experience.',
       locked: !hasManagerIntelligence,
+      cta: hasManagerIntelligence ? 'Open recommendations' : undefined,
+      onClick: hasManagerIntelligence ? () => onOpenTab('decide') : undefined,
     },
     {
       title: 'Ask Chimmy',
       body: 'Use Chimmy as a league guide or draft guide when you need rule help or quick context.',
       meta: 'League helper',
+      cta: 'Ask Chimmy',
+      onClick: () => {
+        if (typeof window !== 'undefined') window.dispatchEvent(new Event('af-dashboard-open-mobile-left'))
+      },
     },
   ]
 
@@ -299,6 +309,12 @@ export function NflRedraftLeagueHomeDashboard({
         : 'AF Commissioner unlocks League Intelligence, smart recommendations, and workload shortcuts.',
       meta: hasCommissionerIntelligence ? 'Unlocked' : 'AF Commissioner preview',
       locked: !hasCommissionerIntelligence,
+      // The real CommissionerIntelligenceHub route existed but nothing on the
+      // home view linked to it — now it does.
+      cta: hasCommissionerIntelligence ? 'Open Intelligence Hub' : undefined,
+      onClick: hasCommissionerIntelligence
+        ? () => { if (typeof window !== 'undefined') window.location.assign(`/league/${leagueId}/intelligence`) }
+        : undefined,
     },
     {
       title: 'Fair Play Monitoring',
@@ -311,6 +327,8 @@ export function NflRedraftLeagueHomeDashboard({
       title: 'Weekly League Report',
       body: 'Prepare summaries, manager engagement prompts, rivalry/storyline prompts, and commissioner shortcuts.',
       locked: !hasCommissionerIntelligence,
+      cta: hasCommissionerIntelligence ? 'Open Legacy engines' : undefined,
+      onClick: hasCommissionerIntelligence ? () => onOpenTab('legacy') : undefined,
     },
   ]
 

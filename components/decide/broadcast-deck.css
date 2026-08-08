@@ -187,6 +187,15 @@
   .bdx .bdx-swap { transform: rotate(90deg); justify-self: center; }
 }
 
+/* ── Strip variant — compact inline strips (e.g. the My Leagues live-draft
+   strip) that borrow the deck chip language but must NOT claim the 60vh
+   canvas floor. Fixes the giant dead gap in the My Leagues side panel. ── */
+.bdx.bdx-strip {
+  min-height: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 /* ── League info rail (slice 2A: replaces the desktop left chat column) ── */
 .bdx.bdx-rail {
   min-height: 0;

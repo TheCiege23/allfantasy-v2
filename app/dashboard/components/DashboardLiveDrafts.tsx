@@ -48,7 +48,7 @@ export function DashboardLiveDrafts({ leagues }: { leagues: UserLeague[] }) {
       : null
 
   return (
-    <div className="bdx" style={{ padding: '8px 10px 2px' }} data-testid="dashboard-live-drafts">
+    <div className="bdx bdx-strip" style={{ padding: "8px 10px 2px" }} data-testid="dashboard-live-drafts">
       <div className="bdx-rows" style={{ marginBottom: 4 }}>
         {active.slice(0, 6).map((d) => {
           const af = afLeagueFor(d.leagueId)
