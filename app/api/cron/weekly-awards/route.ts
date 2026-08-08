@@ -96,6 +96,14 @@ async function postRecapForLeague(
   const awards = h2h?.latestWeekAwards
   if (!h2h || !awards) return { posted: false, reason: 'no completed week synced yet', emailsSent: 0 }
 
+  // Freshness guard: only recap the CURRENT NFL season. In preseason the newest
+  // synced games are LAST season's — without this, the first cron fire of a new
+  // season would post a stale "final week of last year" recap to every league.
+  const state = await j<{ season?: string }>(`/state/nfl`)
+  if (state?.season && String(state.season) !== awards.season) {
+    return { posted: false, reason: `no completed week this season yet (newest synced: ${awards.season})`, emailsSent: 0 }
+  }
+
   const seenKey = `${SEEN_PREFIX}${sleeperLeagueId}:${awards.season}:${awards.week}`
   if (await alreadyPosted(seenKey)) return { posted: false, reason: 'already posted', emailsSent: 0 }
 
