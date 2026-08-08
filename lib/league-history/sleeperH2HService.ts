@@ -239,7 +239,10 @@ export type LeagueH2HPayload = {
   version: 2
   fetchedAt: string
   staleAsOf: string | null
+  /** For source 'sleeper' this is the Sleeper league id; for 'imported-facts' it is the AllFantasy league id. */
   sleeperLeagueId: string
+  /** Where the games came from. Absent on older cached payloads (which are all Sleeper). */
+  source?: 'sleeper' | 'imported-facts'
   seasons: string[]
   managers: H2HManager[]
   totalGames: number
@@ -248,41 +251,28 @@ export type LeagueH2HPayload = {
   missing: string[]
 }
 
-export async function getLeagueH2H(sleeperLeagueId: string): Promise<LeagueH2HPayload | null> {
-  const cacheKey = `${AGG_PREFIX}${sleeperLeagueId}`
-  const now = new Date()
-  const cached = await prisma.sportsDataCache.findUnique({ where: { cacheKey } }).catch(() => null)
-  const cachedPayload =
-    cached && cached.data && typeof cached.data === 'object'
-      ? (cached.data as unknown as LeagueH2HPayload)
-      : null
-  if (cachedPayload?.version === 2 && cached && cached.expiresAt > now) return cachedPayload
+/**
+ * One season of head-to-head input, source-agnostic: Sleeper's chain walk and
+ * the imported-league facts warehouse (Yahoo/ESPN/etc.) both produce this.
+ * `ownerId` keys are Sleeper user ids for Sleeper leagues and provider team
+ * keys for imported leagues — the aggregation only needs them to be stable.
+ */
+export type H2HSeasonData = {
+  season: string
+  games: H2HGame[]
+  weekly: Record<string, { week: number; points: number; topHalf: boolean }[]>
+  managers: Record<string, { name: string; avatar: string | null; teamName: string | null }>
+}
 
-  const missing: string[] = []
-  const chain: WireLeague[] = []
-  let cursor: string | null = sleeperLeagueId
-  for (let i = 0; i < MAX_CHAIN && cursor; i += 1) {
-    const league = await j<WireLeague>(`/league/${cursor}`)
-    if (!league) {
-      missing.push('part of the league chain')
-      break
-    }
-    chain.unshift(league)
-    cursor = league.previous_league_id ?? null
-  }
-  if (chain.length === 0) {
-    return cachedPayload?.version === 2 && cached
-      ? { ...cachedPayload, staleAsOf: cached.expiresAt.toISOString() }
-      : null
-  }
-
-  const syncs: SeasonSync[] = []
-  for (const league of chain) {
-    const sync = await syncSeason(league)
-    if (sync) syncs.push(sync)
-    else missing.push(`${league.season}: matchups`)
-  }
-
+/**
+ * Pure aggregation: seasons of games → manager profiles, pair records, the
+ * records book, and latest-week awards. Extracted so imported (non-Sleeper)
+ * leagues get EXACTLY the same math over their persisted matchup facts.
+ * Seasons must be ordered oldest → newest (trend uses the last entry).
+ */
+export function aggregateH2HSeasons(
+  syncs: H2HSeasonData[],
+): Pick<LeagueH2HPayload, 'seasons' | 'managers' | 'totalGames' | 'records' | 'latestWeekAwards'> {
   // Merge manager identities (newest season wins name/avatar).
   const identity = new Map<string, { name: string; avatar: string | null; teamName: string | null }>()
   for (const s of syncs) {
@@ -519,11 +509,7 @@ export async function getLeagueH2H(sleeperLeagueId: string): Promise<LeagueH2HPa
     }
   }
 
-  const fresh: LeagueH2HPayload = {
-    version: 2,
-    fetchedAt: new Date().toISOString(),
-    staleAsOf: null,
-    sleeperLeagueId,
+  return {
     seasons: syncs.map((s) => s.season),
     managers,
     totalGames,
@@ -537,6 +523,53 @@ export async function getLeagueH2H(sleeperLeagueId: string): Promise<LeagueH2HPa
       bestSeasonAvg,
     },
     latestWeekAwards,
+  }
+}
+
+export async function getLeagueH2H(sleeperLeagueId: string): Promise<LeagueH2HPayload | null> {
+  const cacheKey = `${AGG_PREFIX}${sleeperLeagueId}`
+  const now = new Date()
+  const cached = await prisma.sportsDataCache.findUnique({ where: { cacheKey } }).catch(() => null)
+  const cachedPayload =
+    cached && cached.data && typeof cached.data === 'object'
+      ? (cached.data as unknown as LeagueH2HPayload)
+      : null
+  if (cachedPayload?.version === 2 && cached && cached.expiresAt > now) return cachedPayload
+
+  const missing: string[] = []
+  const chain: WireLeague[] = []
+  let cursor: string | null = sleeperLeagueId
+  for (let i = 0; i < MAX_CHAIN && cursor; i += 1) {
+    const league = await j<WireLeague>(`/league/${cursor}`)
+    if (!league) {
+      missing.push('part of the league chain')
+      break
+    }
+    chain.unshift(league)
+    cursor = league.previous_league_id ?? null
+  }
+  if (chain.length === 0) {
+    return cachedPayload?.version === 2 && cached
+      ? { ...cachedPayload, staleAsOf: cached.expiresAt.toISOString() }
+      : null
+  }
+
+  const syncs: SeasonSync[] = []
+  for (const league of chain) {
+    const sync = await syncSeason(league)
+    if (sync) syncs.push(sync)
+    else missing.push(`${league.season}: matchups`)
+  }
+
+  const agg = aggregateH2HSeasons(syncs)
+
+  const fresh: LeagueH2HPayload = {
+    version: 2,
+    fetchedAt: new Date().toISOString(),
+    staleAsOf: null,
+    sleeperLeagueId,
+    source: 'sleeper',
+    ...agg,
     missing,
   }
   await prisma.sportsDataCache

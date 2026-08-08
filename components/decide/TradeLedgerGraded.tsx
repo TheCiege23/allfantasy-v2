@@ -20,12 +20,14 @@ import type {
   TradePickAsset,
   TradeSideGrade,
 } from '@/lib/trade-intel/sleeperTradeGradeService'
+import type { ImportedTradeLedgerPayload } from '@/lib/trade-intel/importedTradeLedgerService'
 import { sleeperAvatarThumb, sleeperPlayerHeadshot } from '@/lib/sports-data/headshots'
 import './broadcast-deck.css'
 
 type ApiResponse =
   | { supported: false; platform: string }
   | { supported: true; viewerSleeperUserId: string | null; grades: TradeGradesPayload | null; error?: string }
+  | { supported: true; graded: false; viewerSleeperUserId: string | null; ledger: ImportedTradeLedgerPayload }
 
 function GradePill({ letter }: { letter: string }) {
   const cls = letter === 'A' || letter === 'B' ? 'ok' : letter === 'C' ? 'info' : 'crit'
@@ -261,21 +263,78 @@ export function TradeLedgerGraded({ leagueId }: { leagueId: string }) {
     }
   }, [leagueId])
 
-  const grades = data && data.supported ? data.grades : null
+  const grades = data && data.supported && 'grades' in data ? data.grades : null
+  const ledger = data && data.supported && 'ledger' in data ? data.ledger : null
 
   return (
     <div data-testid="trade-ledger-graded">
       <div className="bdx-kick" style={{ marginTop: 22 }}>
-        <h2 className="bdx-disp">Graded trade ledger</h2>
+        <h2 className="bdx-disp">{ledger ? 'Trade ledger' : 'Graded trade ledger'}</h2>
         <span className="bdx-sub">
-          {grades
-            ? `${grades.trades.length} trade${grades.trades.length === 1 ? '' : 's'} since ${grades.seasonsScanned[0] ?? '—'} · re-graded every season`
-            : 'every trade since the league was created'}
+          {ledger
+            ? `${ledger.trades.length} trade${ledger.trades.length === 1 ? '' : 's'} from the imported ${ledger.platform} history · listed, not graded`
+            : grades
+              ? `${grades.trades.length} trade${grades.trades.length === 1 ? '' : 's'} since ${grades.seasonsScanned[0] ?? '—'} · re-graded every season`
+              : 'every trade since the league was created'}
         </span>
       </div>
 
       {loading ? (
         <div className="bdx-skel" />
+      ) : ledger ? (
+        <>
+          <div className="bdx-empty" style={{ marginBottom: 12 }}>
+            <div className="m">
+              {ledger.notes.map((n) => (
+                <span key={n}>
+                  {n}
+                  <br />
+                </span>
+              ))}
+            </div>
+          </div>
+          {ledger.trades.length === 0 ? (
+            <div className="bdx-empty">
+              <div className="t">No trades found in this league&apos;s imported history</div>
+              <div className="m">Re-running the import refreshes the transaction log.</div>
+            </div>
+          ) : (
+            ledger.trades.map((trade) => (
+              <div className="bdx-card c-info" style={{ marginBottom: 12 }} key={trade.id}>
+                <div className="bdx-head">
+                  <span className="bdx-kind">{trade.season ?? 'season unknown'}</span>
+                  <span className="bdx-sev info">imported · ungraded</span>
+                  {trade.dateIso ? (
+                    <span className="bdx-when">{new Date(trade.dateIso).toLocaleDateString()}</span>
+                  ) : null}
+                </div>
+                <div
+                  className="bdx-support"
+                  style={{
+                    gridTemplateColumns: trade.sides.length > 2 ? '1fr 1fr 1fr' : '1fr 1fr',
+                    marginTop: 8,
+                  }}
+                >
+                  {trade.sides.map((side) => (
+                    <div key={side.teamId}>
+                      <div className="bdx-row k" style={{ marginBottom: 4 }}>
+                        {side.managerName} received
+                      </div>
+                      {side.received.map((p) => (
+                        <div className="bdx-row" key={p.playerId}>
+                          <span>
+                            {p.name ?? `Player #${p.playerId}`}
+                            {p.position ? <span className="x"> · {p.position}</span> : null}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))
+          )}
+        </>
       ) : !grades ? (
         <div className="bdx-empty">
           <div className="t">Trade grading temporarily unavailable</div>

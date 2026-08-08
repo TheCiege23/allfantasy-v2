@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getTradeGrades } from '@/lib/trade-intel/sleeperTradeGradeService'
+import { getImportedTradeLedger } from '@/lib/trade-intel/importedTradeLedgerService'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60 // first build walks every season's transactions
@@ -35,6 +36,19 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'League not found' }, { status: 404 })
   }
   if (league.platform !== 'sleeper' || !league.platformLeagueId) {
+    // Imported leagues (Yahoo/ESPN/…): serve the honest UNGRADED ledger from
+    // the persisted transaction facts. Grades need per-player historical
+    // scoring, which imported provider data doesn't include — the payload
+    // says so explicitly instead of guessing letters.
+    const ledger = await getImportedTradeLedger(league.id, league.platform ?? 'imported')
+    if (ledger) {
+      return NextResponse.json({
+        supported: true as const,
+        graded: false as const,
+        viewerSleeperUserId: null,
+        ledger,
+      })
+    }
     return NextResponse.json({ supported: false as const, platform: league.platform })
   }
 

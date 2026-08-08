@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getLeagueH2H } from '@/lib/league-history/sleeperH2HService'
+import { getImportedLeagueH2H } from '@/lib/league-history/importedFactsH2HService'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -80,11 +81,12 @@ export async function GET(req: NextRequest) {
     select: { id: true, name: true, platform: true, platformLeagueId: true },
   })
   if (!league) return NextResponse.json({ error: 'League not found' }, { status: 404 })
-  if (league.platform !== 'sleeper' || !league.platformLeagueId) {
-    return NextResponse.json({ error: 'Sleeper leagues only (for now)' }, { status: 400 })
-  }
-
-  const h2h = await getLeagueH2H(league.platformLeagueId)
+  // Sleeper leagues use the live chain sync; imported leagues (Yahoo/ESPN/…)
+  // use the same aggregation over their persisted matchup facts.
+  const h2h =
+    league.platform === 'sleeper' && league.platformLeagueId
+      ? await getLeagueH2H(league.platformLeagueId)
+      : await getImportedLeagueH2H(league.id)
   const a = h2h?.managers.find((m) => m.ownerId === aId)
   const b = h2h?.managers.find((m) => m.ownerId === bId)
   if (!h2h || !a || !b) {

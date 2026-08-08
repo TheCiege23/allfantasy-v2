@@ -51,6 +51,10 @@ import type { WaiverDashboardResponse } from '@/app/dashboard/dashboardStripApiT
 import { StartSitLauncher } from '@/components/dashboard/StartSitLauncher'
 import { FloatingCommunications } from '@/app/dashboard/components/FloatingCommunications'
 import { LineupIssuesModal, type LineupCheckPayload } from '@/app/dashboard/components/LineupIssuesModal'
+import { CommandCenterDeck } from '@/app/dashboard/components/CommandCenterDeck'
+import { DecisionInbox } from '@/app/dashboard/components/DecisionInbox'
+import { DraftSeasonHQ } from '@/app/dashboard/components/DraftSeasonHQ'
+import { CareerCardDeck } from '@/app/dashboard/components/CareerCardDeck'
 import { WaiverRecommendationsModal } from '@/app/dashboard/components/WaiverRecommendationsModal'
 import { PendingTradesModal } from '@/app/dashboard/components/PendingTradesModal'
 import { useGeoRestriction } from '@/lib/geo/useGeoRestriction'
@@ -615,7 +619,9 @@ export default function NocturneDashboard({
   return (
     <div className="nocturne-dash" style={{ minHeight: '100vh' }}>
       {/* ═══ TOP BAR ═══ */}
-      <div style={{ borderBottom: '1px solid color-mix(in srgb, var(--color-text) 7%, transparent)', background: 'var(--color-surface)', position: 'sticky', top: 0, zIndex: 5 }}>
+      <div style={{ borderBottom: '1px solid #1c2153', background: 'var(--color-surface)', position: 'sticky', top: 0, zIndex: 5 }}>
+        {/* Broadcast Deck signature rail — same gradient as the league page. */}
+        <div aria-hidden style={{ height: 3, background: 'linear-gradient(90deg,#ff3d81,#ff8a3d)' }} />
         <div style={{ maxWidth: 1400, margin: '0 auto', padding: '12px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 14, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' }}>
             <Image src="/brand/allfantasy-wordmark-transparent.png" alt="AllFantasy" width={1198} height={306} priority style={{ height: 24, width: 'auto' }} />
@@ -714,7 +720,7 @@ export default function NocturneDashboard({
 
         {/* ═══ HERO ═══ */}
         <div>
-          <h1 style={{ fontSize: 24, fontWeight: 600, letterSpacing: '-0.01em', margin: '0 0 6px' }}>{heroTitle}</h1>
+          <h1 style={{ fontSize: 26, fontWeight: 900, fontStyle: 'italic', letterSpacing: '-0.01em', margin: '0 0 6px', color: '#f0f2ff', textShadow: '0 2px 24px rgba(255,61,129,0.18)' }}>{heroTitle}</h1>
           <p style={{ fontSize: 14, color: 'var(--color-neutral-500)', margin: '0 0 16px' }}>{heroSubtitle}</p>
           <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
             <StatChip icon={<AlertCircle size={18} style={{ color: 'var(--color-accent-400)' }} />} value={String(urgentCount)} label="Need attention" />
@@ -832,6 +838,18 @@ export default function NocturneDashboard({
             <Filter size={18} style={{ color: 'var(--color-accent-400)' }} />
             <span style={{ fontSize: 13 }}>Showing this dashboard scoped to <strong>{dashFilterLeagueName}</strong> only.</span>
           </div>
+        )}
+
+        {/* ═══ INTELLIGENCE DECK (global) — the cross-league engines from the league
+            dashboard, mounted on the main page: Draft Season HQ (auto-hides outside
+            draft season), the Command Feed (Chimmy Intelligence / Decision OS / Legacy
+            engines), the one-tap trade Decision Inbox, and the Manager Career Card. ═══ */}
+        {context === 'global' && !isVisitor && (
+          <>
+            <DraftSeasonHQ leagues={leagues} />
+            <CommandCenterDeck userId={userId} />
+            <DecisionInbox />
+          </>
         )}
 
         {/* ═══ CONTEXT: GLOBAL — MY LEAGUES ═══ */}
@@ -1030,6 +1048,10 @@ export default function NocturneDashboard({
             )}
           </div>
         )}
+
+        {/* ═══ MANAGER CAREER CARD (global) — all-time record, trade report, records
+            held, aggregated across every imported league; shareable. ═══ */}
+        {context === 'global' && !isVisitor && <CareerCardDeck />}
 
         {/* ═══ TOOLS ═══ */}
         {context === 'global' && !isVisitor && (
@@ -1366,7 +1388,7 @@ function SeasonTimeline({ phaseIndex, week }: { phaseIndex: number; week: number
                   style={{
                     width: 28, height: 28, borderRadius: '50%', display: 'grid', placeItems: 'center',
                     fontSize: 11, fontWeight: 700, flex: 'none',
-                    background: reached ? 'var(--color-accent)' : 'transparent',
+                    background: active ? 'linear-gradient(90deg,#ff3d81,#ff8a3d)' : reached ? 'var(--color-accent)' : 'transparent',
                     color: reached ? '#fff' : 'var(--color-neutral-600)',
                     border: reached ? 'none' : '1.5px solid var(--color-neutral-700)',
                     boxShadow: active ? '0 0 0 4px color-mix(in srgb, var(--color-accent) 22%, transparent)' : 'none',
