@@ -361,7 +361,7 @@ export async function GET(req: NextRequest) {
             continue
           }
           try {
-            const r = await postRecapForLeague(l.id, l.platformLeagueId, l.userId, l.name)
+            const r = await postRecapForLeague(l.id, l.platformLeagueId, l.userId, l.name ?? 'League')
             if (r.posted) {
               posted += 1
               emailsSent += r.emailsSent
@@ -404,6 +404,6 @@ export async function GET(req: NextRequest) {
   if (league.platform !== 'sleeper' || !league.platformLeagueId || !league.userId) {
     return NextResponse.json({ supported: false as const, platform: league.platform })
   }
-  const result = await postRecapForLeague(league.id, league.platformLeagueId, league.userId, league.name)
+  const result = await postRecapForLeague(league.id, league.platformLeagueId, league.userId, league.name ?? 'League')
   return NextResponse.json({ mode: 'manual' as const, ...result })
 }

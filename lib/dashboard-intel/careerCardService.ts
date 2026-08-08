@@ -21,7 +21,7 @@ import { getImportedLeagueH2H } from '@/lib/league-history/importedFactsH2HServi
 import { getTradeGrades, type GradeLetter } from '@/lib/trade-intel/sleeperTradeGradeService'
 import { getDraftReport } from '@/lib/draft-intel/draftReportService'
 
-const CACHE_PREFIX = 'career-card:v2:'
+const CACHE_PREFIX = 'career-card:v3:'
 const CACHE_TTL_MS = 60 * 60 * 1000
 const MAX_LEAGUES = 10
 
@@ -67,8 +67,24 @@ export type CareerCardPayload = {
     losses: number
     titles: number
   }[]
+  /**
+   * Per-year aggregation across every included league (same standings rows the
+   * allTime block sums — this is the year-by-year view of the same data).
+   * Sorted newest first; `leagues` counts leagues contributing that year.
+   */
+  seasonTotals: {
+    season: number
+    wins: number
+    losses: number
+    ties: number
+    pointsFor: number
+    titles: number
+    leagues: number
+  }[]
   missing: string[]
 }
+
+type SeasonAgg = CareerCardPayload['seasonTotals'][number]
 
 const emptyGrades = (): GradeCounts => ({ A: 0, B: 0, C: 0, D: 0, F: 0 })
 
@@ -123,6 +139,18 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
   let draftValueOver = 0
   const recordsHeld: string[] = []
   const perLeague: CareerCardPayload['perLeague'] = []
+  const seasonMap = new Map<number, SeasonAgg>()
+  const bumpSeason = (yr: number, d: Partial<Omit<SeasonAgg, 'season'>>) => {
+    if (!Number.isFinite(yr) || yr < 1990) return
+    const agg = seasonMap.get(yr) ?? { season: yr, wins: 0, losses: 0, ties: 0, pointsFor: 0, titles: 0, leagues: 0 }
+    agg.wins += d.wins ?? 0
+    agg.losses += d.losses ?? 0
+    agg.ties += d.ties ?? 0
+    agg.pointsFor += d.pointsFor ?? 0
+    agg.titles += d.titles ?? 0
+    agg.leagues += d.leagues ?? 0
+    seasonMap.set(yr, agg)
+  }
   let included = 0
 
   for (const league of leagues) {
@@ -149,10 +177,25 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
         avatar = row.avatar ?? avatar
         perLeague.push({
           leagueId: league.id,
-          leagueName: league.name,
+          leagueName: league.name ?? 'League',
           wins: row.wins,
           losses: row.losses,
           titles: row.titles,
+        })
+      }
+      // Year-by-year: the same standings rows the allTime block was built from,
+      // just kept per season instead of collapsed.
+      for (const season of history.seasons) {
+        const yr = Number.parseInt(season.season, 10)
+        const srow = season.standings.find((s) => s.ownerId === me)
+        if (!srow) continue
+        bumpSeason(yr, {
+          wins: srow.wins,
+          losses: srow.losses,
+          ties: srow.ties,
+          pointsFor: srow.pointsFor,
+          titles: season.champion?.ownerId === me ? 1 : 0,
+          leagues: 1,
         })
       }
     } else {
@@ -220,16 +263,19 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
       continue
     }
 
-    const [standings, titles, h2h] = await Promise.all([
+    const [standings, championSeasons, h2h] = await Promise.all([
       prisma.seasonStandingFact
         .findMany({
           where: { leagueId: league.id, teamId: myTeam.externalId },
           select: { season: true, wins: true, losses: true, ties: true, pointsFor: true },
         })
         .catch(() => []),
-      prisma.leagueSeason.count({ where: { leagueId: league.id, championTeamId: myTeam.id } }).catch(() => 0),
+      prisma.leagueSeason
+        .findMany({ where: { leagueId: league.id, championTeamId: myTeam.id }, select: { season: true } })
+        .catch(() => [] as { season: number }[]),
       withTimeout(getImportedLeagueH2H(league.id), 5000),
     ])
+    const titles = championSeasons.length
 
     if (standings.length === 0 && !h2h) {
       missing.push(`${league.name}: imported history not backfilled yet`)
@@ -238,6 +284,7 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
 
     let leagueWins = 0
     let leagueLosses = 0
+    const titleYears = new Set(championSeasons.map((c) => c.season))
     for (const row of standings) {
       leagueWins += row.wins
       leagueLosses += row.losses
@@ -246,6 +293,14 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
       allTime.ties += row.ties
       allTime.pointsFor += row.pointsFor
       allTime.seasons += 1
+      bumpSeason(row.season, {
+        wins: row.wins,
+        losses: row.losses,
+        ties: row.ties,
+        pointsFor: row.pointsFor,
+        titles: titleYears.has(row.season) ? 1 : 0,
+        leagues: 1,
+      })
     }
     allTime.titles += titles
 
@@ -268,7 +323,7 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
 
     perLeague.push({
       leagueId: league.id,
-      leagueName: league.name,
+      leagueName: league.name ?? 'League',
       wins: leagueWins,
       losses: leagueLosses,
       titles,
@@ -302,6 +357,9 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
     },
     recordsHeld,
     perLeague: perLeague.sort((a, b) => b.wins - a.wins),
+    seasonTotals: [...seasonMap.values()]
+      .map((s) => ({ ...s, pointsFor: Math.round(s.pointsFor) }))
+      .sort((a, b) => b.season - a.season),
     missing,
   }
 }

@@ -92,7 +92,7 @@ async function sleeperLiveScores(userId: string): Promise<DashboardLiveScore[]> 
 
       scores.push({
         leagueId: league.id,
-        leagueName: league.name,
+        leagueName: league.name ?? 'League',
         sport: 'NFL',
         week,
         myPts: Math.round((mine?.points ?? 0) * 100) / 100,

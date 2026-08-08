@@ -185,7 +185,7 @@ export function LeagueImportFlow({
 
   function BulkChip({ status }: { status: BulkLeagueStatus }) {
     if (status === 'importing')
-      return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-cyan-200"><Loader2 className="h-3 w-3 animate-spin" />importing…</span>
+      return <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#ffb8d1]"><Loader2 className="h-3 w-3 animate-spin" />importing…</span>
     if (status === 'done')
       return <span className="rounded-full bg-emerald-500/[0.15] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">imported ✓</span>
     if (status === 'exists')
@@ -452,7 +452,7 @@ export function LeagueImportFlow({
   const rootShellClassName =
     mode === 'embedded'
       ? ''
-      : 'af-import-shell min-h-screen bg-gradient-to-b from-slate-950 to-slate-900 py-12 sm:py-20'
+      : 'af-import-shell min-h-screen bg-gradient-to-b from-[#0b0e2a] to-[#12163e] py-12 sm:py-20'
 
   return (
     <div className={rootShellClassName}>
@@ -482,13 +482,13 @@ export function LeagueImportFlow({
 
         <div className="warroom-fade-in-stagger relative mb-10">
           <div className="mx-auto mb-4 inline-flex w-full items-center justify-center">
-            <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/25 bg-cyan-500/[0.06] px-3 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-cyan-300/85">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-cyan-400 shadow-[0_0_10px_rgba(34,211,238,0.6)]" aria-hidden />
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-[#ff3d81]/25 bg-[#ff3d81]/[0.06] px-3 py-1 text-[11px] font-black uppercase tracking-[0.24em] text-[#ff9ec0]/85">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-[#ff3d81] shadow-[0_0_10px_rgba(255,61,129,0.6)]" aria-hidden />
               Step 1 · Choose Platform
             </span>
           </div>
-          <h1 className="relative text-center text-4xl font-bold text-transparent sm:text-5xl">
-            <span className="bg-gradient-to-r from-cyan-400 via-purple-400 to-pink-400 bg-clip-text">
+          <h1 className="relative text-center text-4xl font-black italic text-transparent sm:text-5xl">
+            <span className="bg-gradient-to-r from-[#ff3d81] via-[#ff6b5e] to-[#ff8a3d] bg-clip-text">
               Connect your league
             </span>
           </h1>
@@ -501,7 +501,7 @@ export function LeagueImportFlow({
             Connect provider credentials in{' '}
             <Link
               href="/settings"
-              className="text-cyan-400 underline hover:text-cyan-300"
+              className="text-[#ff3d81] underline hover:text-[#ff9ec0]"
             >
               Settings
             </Link>{' '}
@@ -509,8 +509,8 @@ export function LeagueImportFlow({
           </p>
         </div>
 
-        <div className="warroom-card warroom-fade-in-stagger relative overflow-hidden rounded-3xl border border-white/10 bg-white/5 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
-          <div className="h-1 bg-gradient-to-r from-cyan-400/60 via-purple-400/60 to-cyan-400/60" />
+        <div className="warroom-card warroom-fade-in-stagger relative overflow-hidden rounded-3xl border border-[#262c6a] bg-[#12163e]/70 shadow-[0_20px_60px_rgba(0,0,0,0.45)]">
+          <div className="h-1 bg-gradient-to-r from-[#ff3d81] to-[#ff8a3d]" />
           <div className="p-6 sm:p-8">
             <h2 className="text-2xl font-bold text-white">
               Choose your platform
@@ -535,7 +535,7 @@ export function LeagueImportFlow({
                   }}
                   className={`warroom-pressable relative min-w-[100px] flex-1 rounded-xl px-2 py-2.5 text-sm font-semibold transition ${
                     tab === id
-                      ? 'border border-cyan-400/50 bg-gradient-to-r from-cyan-500/30 to-purple-500/30 text-white'
+                      ? 'border border-[#ff3d81]/50 bg-gradient-to-r from-[#ff3d81]/30 to-[#ff8a3d]/30 text-white'
                       : 'border border-white/10 bg-black/30 text-white/60 hover:border-white/25 hover:text-white'
                   }`}
                   data-testid={`import-tab-${id}`}
@@ -560,19 +560,19 @@ export function LeagueImportFlow({
                 step.
               </p>
               {supportsAccountDiscovery ? (
-                <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/[0.05] p-4">
+                <div className="rounded-2xl border border-[#ff3d81]/20 bg-[#ff3d81]/[0.05] p-4">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-cyan-100">
+                      <p className="text-sm font-semibold text-[#ffd7e5]">
                         Discover leagues from account
                       </p>
-                      <p className="mt-1 text-[12px] text-cyan-50/70">
+                      <p className="mt-1 text-[12px] text-[#ffe9f1]/70">
                         {discoveryUsesConnectedAccount
                           ? 'Lists the NFL leagues on your connected Yahoo account. Connect Yahoo in Settings first if you have not yet.'
                           : 'Use a provider account identifier to find an NFL league, then preview the canonical import before you commit it.'}
                       </p>
                     </div>
-                    <span className="rounded-full border border-cyan-400/25 bg-black/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-cyan-200/85">
+                    <span className="rounded-full border border-[#ff3d81]/25 bg-black/20 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#ffb8d1]/85">
                       {getImportProviderLabel(activeImportProvider)}
                     </span>
                   </div>
@@ -586,7 +586,7 @@ export function LeagueImportFlow({
                         }
                         placeholder="Provider username or account identifier"
                         data-testid="import-discovery-account"
-                        className="h-11 flex-1 rounded-xl border border-cyan-400/35 bg-[#030a20] px-3 text-sm text-white outline-none placeholder:text-white/30"
+                        className="h-11 flex-1 rounded-xl border border-[#ff3d81]/35 bg-[#0b0e2a] px-3 text-sm text-white outline-none placeholder:text-white/30"
                       />
                     ) : null}
                     <button
@@ -605,7 +605,7 @@ export function LeagueImportFlow({
                         )
                       }
                       data-testid="import-discovery-find"
-                      className="warroom-pressable inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-cyan-300/40 px-4 text-sm font-semibold text-cyan-100 hover:bg-cyan-300/10 disabled:opacity-40"
+                      className="warroom-pressable inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-[#ff9ec0]/40 px-4 text-sm font-semibold text-[#ffd7e5] hover:bg-[#ff9ec0]/10 disabled:opacity-40"
                     >
                       <Search className="h-4 w-4" />
                       {discoveringProvider === activeImportProvider
@@ -635,7 +635,7 @@ export function LeagueImportFlow({
                   {discoveredLeagues.length > 0 ? (
                     <div className="mt-4 space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-cyan-200/70">
+                        <p className="text-[12px] font-semibold uppercase tracking-[0.16em] text-[#ffb8d1]/70">
                           {discoveredAccountLabel
                             ? `${discoveredAccountLabel} leagues`
                             : 'Discovered leagues'}
@@ -645,7 +645,7 @@ export function LeagueImportFlow({
                           disabled={bulkRunning || previewingSourceId !== null || loadingProvider !== null}
                           onClick={() => void runBulkImport()}
                           data-testid="import-all"
-                          className="warroom-pressable inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-cyan-500 px-4 text-[13px] font-bold text-black hover:bg-cyan-400 disabled:opacity-50"
+                          className="warroom-pressable inline-flex h-9 items-center justify-center gap-2 rounded-xl bg-[#ff3d81] px-4 text-[13px] font-bold text-black hover:bg-[#ff3d81] disabled:opacity-50"
                         >
                           {bulkRunning ? (
                             <>
@@ -663,15 +663,15 @@ export function LeagueImportFlow({
                           checked={bulkAttest}
                           onChange={(e) => setBulkAttest(e.target.checked)}
                           disabled={bulkRunning}
-                          className="mt-0.5 h-3.5 w-3.5 accent-cyan-400"
+                          className="mt-0.5 h-3.5 w-3.5 accent-[#ff3d81]"
                           data-testid="import-all-attest"
                         />
                         Also import leagues where I can&apos;t be auto-verified as commissioner — I
                         confirm I&apos;m authorized to import them (recorded in the audit trail).
                       </label>
                       {bulkDone ? (
-                        <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/[0.06] p-3">
-                          <p className="text-[13px] font-semibold text-cyan-100">
+                        <div className="rounded-xl border border-[#ff3d81]/25 bg-[#ff3d81]/[0.06] p-3">
+                          <p className="text-[13px] font-semibold text-[#ffd7e5]">
                             Bulk import finished — {bulkCounts.done} imported
                             {bulkCounts.exists > 0 ? ` · ${bulkCounts.exists} already in AllFantasy` : ''}
                             {bulkCounts.needsAttestation > 0 ? ` · ${bulkCounts.needsAttestation} need commissioner confirmation` : ''}
@@ -691,7 +691,7 @@ export function LeagueImportFlow({
                             type="button"
                             onClick={() => router.push(onCompleteRedirect ?? '/dashboard')}
                             data-testid="import-all-go-dashboard"
-                            className="warroom-pressable mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-cyan-500 px-4 text-[13px] font-bold text-black hover:bg-cyan-400"
+                            className="warroom-pressable mt-2 inline-flex h-9 items-center justify-center rounded-xl bg-[#ff3d81] px-4 text-[13px] font-bold text-black hover:bg-[#ff3d81]"
                           >
                             Go to dashboard →
                           </button>
@@ -731,7 +731,7 @@ export function LeagueImportFlow({
                                   </p>
                                 ) : null}
                                 {thisPreviewed && !thisError ? (
-                                  <p className="mt-2 text-[12px] font-semibold text-cyan-300">
+                                  <p className="mt-2 text-[12px] font-semibold text-[#ff9ec0]">
                                     Preview loaded — see below
                                   </p>
                                 ) : null}
@@ -754,8 +754,8 @@ export function LeagueImportFlow({
                                 }
                                 className={`warroom-pressable inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl px-4 text-sm font-semibold text-black ${
                                   isThisLoading
-                                    ? 'bg-cyan-500/60'
-                                    : 'bg-cyan-500 hover:bg-cyan-400 disabled:opacity-50'
+                                    ? 'bg-[#ff3d81]/60'
+                                    : 'bg-[#ff3d81] hover:bg-[#ff3d81] disabled:opacity-50'
                                 }`}
                               >
                                 {isThisLoading ? (
@@ -825,8 +825,8 @@ export function LeagueImportFlow({
                 </div>
               )}
               {previewInfo && previewInfo.provider === activeImportProvider && (
-                <div ref={previewSectionRef} className="rounded-xl border border-cyan-500/25 bg-cyan-500/5 p-4">
-                  <p className="mb-1 text-[15px] font-semibold text-cyan-200">
+                <div ref={previewSectionRef} className="rounded-xl border border-[#ff3d81]/25 bg-[#ff3d81]/5 p-4">
+                  <p className="mb-1 text-[15px] font-semibold text-[#ffb8d1]">
                     {t('import.previewLoaded')}
                   </p>
                   <p className="mb-3 text-[13px] text-white/75">
@@ -845,7 +845,7 @@ export function LeagueImportFlow({
                       disabled={committing}
                       data-testid="import-commit"
                       onClick={() => void handleCommit(false)}
-                      className="rounded-xl bg-cyan-500 px-4 py-2 text-[13px] font-bold text-black hover:bg-cyan-400 disabled:opacity-40"
+                      className="rounded-xl bg-[#ff3d81] px-4 py-2 text-[13px] font-bold text-black hover:bg-[#ff3d81] disabled:opacity-40"
                     >
                       {committing ? t('import.importing') : t('import.commitImport')}
                     </button>

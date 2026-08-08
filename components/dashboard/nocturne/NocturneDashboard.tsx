@@ -557,13 +557,49 @@ export default function NocturneDashboard({
     const sevRank: Record<string, number> = { critical: 0, warning: 1, info: 2 }
     const urgRank: Record<string, number> = { urgent: 0, soon: 1, normal: 2, low: 3 }
 
-    const rows: Array<{ key: string; label: string; league: string; severity: string; sev: number; urg: number; count: number }> = []
+    type IssueRow = {
+      key: string; label: string; league: string; severity: string; sev: number; urg: number; count: number
+      /** The specific fix — the engine's own recommendedAction verbatim when present, else a deterministic per-reason next step. */
+      rec: string | null
+      /** Which engine produced it (Decision OS module / lineup scan / trade inbox). */
+      source: string | null
+      /** Real expectedGain off the action row, when the engine scored one. */
+      gain: number | null
+      kind: 'lineup' | 'trade'
+    }
+    const rows: IssueRow[] = []
+
+    // Which brain produced the signal — real sourceModule values off the action rows.
+    const MODULE_LABEL: Record<string, string> = {
+      StartSit: 'Decision OS · Start/Sit',
+      Waiver: 'Decision OS · Waivers',
+      MatchupPrep: 'Decision OS · Matchup prep',
+      InjuryImpact: 'Decision OS · Injury impact',
+      AFWarRoom: 'AF War Room',
+      lineup_scan: 'Lineup scan',
+    }
+    // Deterministic next step per reasonType — used ONLY when the engine didn't
+    // ship its own recommendedAction. Action verbs, never invented stats.
+    const REASON_REC: Record<string, (player: string | null, slot: string | null) => string> = {
+      empty_starter: (_p, s) => (s ? `Slot an active player into ${s} — open the lineup fixer` : 'Fill the empty starter slot — open the lineup fixer'),
+      injured_starter: (p) => (p ? `Replace ${p} (injured) before lock` : 'Replace your injured starter before lock'),
+      questionable_starter: (p) => (p ? `Check ${p}'s pregame status and line up a pivot` : 'Verify your questionable starter pregame'),
+      doubtful_starter: (p) => (p ? `Bench ${p} (doubtful) for your best healthy option` : 'Bench the doubtful starter for a healthy option'),
+      illegal_slot: (p, s) => (p ? `${p} isn't eligible ${s ? `for ${s}` : 'there'} — swap in an eligible player` : 'Swap in an eligible player for this slot'),
+      native_starter_gap: () => 'Set your starters for this week',
+      ai_start_sit: (p) => (p ? `Start/sit call on ${p} — open the review` : 'Open the start/sit review'),
+      ai_waiver: (p) => (p ? `Add ${p} off waivers before the run` : 'File the recommended waiver claim'),
+      matchup_prep: () => 'Run matchup prep before kickoff',
+      injury_impact: () => 'Review the injury ripple through your lineup',
+      war_room: () => 'Open the War Room priority',
+      weather_risk: (p) => (p ? `Weather risk on ${p} — consider the pivot` : 'Check the weather-risk pivot'),
+    }
 
     // Lineup actions are per-slot, so one underlying problem ("Missing N starter slots")
     // arrives as N identical messages. Collapse identical (league, message) pairs into a
     // single row with a count — otherwise a Top 10 list is just the same line ten times.
     const actions = ((todayFull?.lineup as { actions?: Array<Record<string, unknown>> } | undefined)?.actions) ?? []
-    const grouped = new Map<string, { label: string; league: string; severity: string; sev: number; urg: number; count: number }>()
+    const grouped = new Map<string, Omit<IssueRow, 'key'>>()
     for (const a of actions) {
       const leagueId = str(a.leagueId)
       if (!leagueId || !inScope(leagueId)) continue
@@ -572,6 +608,12 @@ export default function NocturneDashboard({
       const severity = str(a.severity) ?? 'info'
       const sev = sevRank[severity] ?? 2
       const urg = urgRank[str(a.urgency) ?? 'normal'] ?? 2
+      const reasonType = str(a.reasonType)
+      const rec =
+        str(a.recommendedAction) ??
+        (reasonType && REASON_REC[reasonType] ? REASON_REC[reasonType](str(a.playerName), str(a.slotLabel)) : null)
+      const source = MODULE_LABEL[str(a.sourceModule) ?? ''] ?? null
+      const gain = num(a.expectedGain)
       const key = `lineup:${leagueId}:${message}`
       const hit = grouped.get(key)
       if (hit) {
@@ -580,8 +622,10 @@ export default function NocturneDashboard({
         hit.sev = Math.min(hit.sev, sev)
         hit.urg = Math.min(hit.urg, urg)
         if (sev < (sevRank[hit.severity] ?? 2)) hit.severity = severity
+        if (!hit.rec && rec) { hit.rec = rec; hit.source = source }
+        if (gain != null && (hit.gain == null || gain > hit.gain)) hit.gain = gain
       } else {
-        grouped.set(key, { label: message, league: nameOf(leagueId), severity, sev, urg, count: 1 })
+        grouped.set(key, { label: message, league: nameOf(leagueId), severity, sev, urg, count: 1, rec, source, gain, kind: 'lineup' })
       }
     }
     for (const [key, v] of grouped) rows.push({ key, ...v })
@@ -600,6 +644,10 @@ export default function NocturneDashboard({
         sev: 1,
         urg: 0,
         count: 1,
+        rec: 'Review the offer and respond — open the trade inbox',
+        source: 'Decision Inbox',
+        gain: null,
+        kind: 'trade',
       })
     }
 
@@ -622,7 +670,10 @@ export default function NocturneDashboard({
   )
 
   const dashFilterLeagueName = dashLeagueFilter === 'all' ? null : leagues.find((l) => l.id === dashLeagueFilter)?.name ?? null
-  const commissionedCount = scopedLeagues.filter((l) => l.isCommissioner).length
+  // Current-season only: with 500+ imported career snapshots also carrying the
+  // commissioner flag, counting them all reads "You commission 42 leagues" when
+  // the real number of leagues being RUN this year is a handful.
+  const commissionedCount = scopedLeagues.filter((l) => l.isCommissioner && isCurrentSeasonLeague(l, currentSeasonYear)).length
 
   // Time-of-day greeting, matching the design. Uses the existing warroom greeting keys so
   // the language switcher keeps working (EN + ES already translated) instead of hardcoding
@@ -840,18 +891,38 @@ export default function NocturneDashboard({
             </div>
             <div className="afcard" style={{ padding: 6 }}>
               {outstandingIssues.map((iss) => (
-                <div key={iss.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 'var(--radius-md)' }}>
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 8, height: 8, borderRadius: '50%', flex: 'none',
-                      background: iss.severity === 'critical' ? '#e5675f' : iss.severity === 'warning' ? '#d8a657' : 'var(--color-accent-500)',
-                    }}
-                  />
-                  <span style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{iss.label}</span>
-                  {iss.count > 1 && <span className="tag tag-neutral" style={{ flex: 'none' }}>×{iss.count}</span>}
-                  <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', flex: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{iss.league}</span>
-                </div>
+                <button
+                  key={iss.key}
+                  type="button"
+                  onClick={() => setOpenModal(iss.kind === 'trade' ? 'trade' : 'lineup')}
+                  style={{ display: 'block', width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-md)', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 8, height: 8, borderRadius: '50%', flex: 'none',
+                        background: iss.severity === 'critical' ? '#e5675f' : iss.severity === 'warning' ? '#d8a657' : 'var(--color-accent-500)',
+                      }}
+                    />
+                    <span style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{iss.label}</span>
+                    {iss.count > 1 && <span className="tag tag-neutral" style={{ flex: 'none' }}>×{iss.count}</span>}
+                    <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', flex: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{iss.league}</span>
+                  </div>
+                  {iss.rec && (
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '3px 0 0 18px', minWidth: 0 }}>
+                      <span style={{ fontSize: 12, color: 'var(--color-accent-300, #ff9ec0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                        → {iss.rec}
+                        {iss.gain != null && iss.gain > 0 ? ` (+${iss.gain.toFixed(1)} proj pts)` : ''}
+                      </span>
+                      {iss.source && (
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', color: 'var(--color-neutral-600)', flex: 'none' }}>
+                          {iss.source}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </button>
               ))}
             </div>
           </div>
@@ -870,7 +941,10 @@ export default function NocturneDashboard({
             engines), the one-tap trade Decision Inbox, and the Manager Career Card. ═══ */}
         {context === 'global' && !isVisitor && (
           <>
-            <DraftSeasonHQ leagues={leagues} />
+            {/* userLeagues (UserLeague[]) — DisplayLeague lacks sleeperLeagueId, which
+                broke the imported-league match and made every draft tile say
+                "not imported" even for imported leagues. */}
+            <DraftSeasonHQ leagues={userLeagues} />
             <CommandCenterDeck userId={userId} />
             <DecisionInbox />
           </>

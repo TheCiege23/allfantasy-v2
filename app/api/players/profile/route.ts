@@ -59,7 +59,12 @@ async function getNflState(): Promise<{ season: string; week: number } | null> {
 
 /** FantasyCalc default-board context (12-team 1QB Half-PPR) — printed in notes. */
 const DEFAULT_CONTEXT = {
-  scoring: { format: 'half_ppr' as const },
+  scoring: {
+    settings: {} as Record<string, number>,
+    receptionWeight: 0.5,
+    format: 'half_ppr' as const,
+    idp: { present: false, tacklePts: 0, sackPts: 0, intPts: 0, emphasis: null },
+  },
   teams: 12,
 }
 

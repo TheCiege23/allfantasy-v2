@@ -49,7 +49,7 @@ export async function GET(_req: NextRequest) {
     method = pulse.method
     rows.push({
       leagueId: league.id,
-      leagueName: league.name,
+      leagueName: league.name ?? 'League',
       flaggedCount: pulse.flaggedCount,
       teamCount: pulse.managers.length,
       flagged: pulse.managers.filter((m) => m.flagged),
