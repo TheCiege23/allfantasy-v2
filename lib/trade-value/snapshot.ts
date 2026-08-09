@@ -36,6 +36,9 @@ function internalValueFor(asset: EnrichedTradeAsset, currentSeason: number | nul
         projection: asset.sources.projectionValue,
         adp: asset.sources.adpValue,
         position: asset.position,
+        // Slice 14: the captured market value is finally consumed (fallback
+        // basis only — see normalizedPlayerValue).
+        marketValue: asset.sources.fantasyCalcValue,
       })
     case 'draft_pick':
       return normalizedPickValue({ round: asset.pickRound, pickSeason: asset.pickSeason, currentSeason })

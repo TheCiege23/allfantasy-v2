@@ -56,17 +56,42 @@ export function scarcityFor(position: string | null | undefined): number {
   return POSITION_SCARCITY[position.toUpperCase()] ?? 1.0
 }
 
+/**
+ * Slice 14 — MARKET FALLBACK. `AssetValueSnapshot.sources.fantasyCalcValue` has
+ * always existed on the contract but was hardcoded `null` at every write site
+ * ("deferred"), so the canonical engine could only price assets that carried a
+ * projection. Surfaces whose only real value signal is market data — af-legacy
+ * runs entirely on FantasyCalc — priced every player at 0, which after the
+ * slice-11 honesty pass means "not gradeable at all".
+ *
+ * Market value is used ONLY when there is no usable projection. It is NOT
+ * multiplied by positional scarcity: FantasyCalc values already embed
+ * positional market demand, so applying scarcity again would double-count it.
+ * The scale matches by construction — this module's 0–10000 range follows the
+ * FantasyCalc convention (see the module docstring).
+ *
+ * Strictly additive: when a projection exists the result is byte-identical to
+ * the pre-slice-14 formula.
+ */
 export function normalizedPlayerValue(input: {
   projection: number | null | undefined
   adp?: number | null
   position?: string | null
+  /** Market value (FantasyCalc convention, 0–10000). Fallback basis only. */
+  marketValue?: number | null
 }): number {
-  const base = Number.isFinite(input.projection as number) ? Math.max(0, input.projection as number) : 0
-  const scarcity = scarcityFor(input.position)
+  const hasProjection = Number.isFinite(input.projection as number) && (input.projection as number) > 0
   let adpPremium = 0
   if (input.adp != null && Number.isFinite(input.adp)) {
     adpPremium = clamp((ADP_PIVOT - input.adp) * ADP_SLOPE, ADP_PREMIUM_MIN, ADP_PREMIUM_MAX)
   }
+
+  if (!hasProjection && input.marketValue != null && Number.isFinite(input.marketValue) && input.marketValue > 0) {
+    return clamp(Math.round(input.marketValue), 0, 10000)
+  }
+
+  const base = Number.isFinite(input.projection as number) ? Math.max(0, input.projection as number) : 0
+  const scarcity = scarcityFor(input.position)
   return clamp(Math.round(base * PROJ_TO_VALUE * scarcity + adpPremium), 0, 10000)
 }
 

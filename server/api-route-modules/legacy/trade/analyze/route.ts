@@ -12,9 +12,9 @@ import { buildTradeHubIntelBlock, parseTradeIntelBlockMeta } from '@/lib/trade-e
 import { recordTradeSurfaceShadow } from '@/lib/decision-os/trade/surfaceShadow'
 import {
   buildSurfaceParity,
-  engineVerdictToAdvantage,
   legacyVerdictToAdvantage,
 } from '@/lib/decision-os/trade/legacyParity'
+import { buildLegacyCanonicalGrade } from '@/lib/decision-os/trade/legacyCanonicalGrade'
 import { fetchPlayerNewsFromGrok } from '@/lib/ai-gm-intelligence'
 import { buildRuntimeConstraints, formatConstraintsForPrompt, DEFAULT_TRADE_CONSTRAINTS, getPickValueWithRange, getPickRange } from '@/lib/trade-constraints'
 import { buildHistoricalTradeContext, getDataInfo } from '@/lib/historical-values'
@@ -2945,16 +2945,39 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
       engineAnalysis = await runTradeAnalysis(engineReq)
     } catch {}
 
-    // Slice 13 — parity instrumentation for the HIGHEST-TRAFFIC trade surface.
-    // Legacy already runs the deterministic engine above (engineAnalysis) and
-    // then ignores it: the grade users see is the LLM's, constrained by
-    // FantasyCalc. Nothing is changed here — we simply record how often the
-    // two disagree, so the Phase 3 flip gate stops being blind to this path.
-    // Flag-gated (DECISION_OS_TRADE_SHADOW_LEGACY, default OFF) and fully
-    // guarded: instrumentation can never affect the response.
+    // ─────────────────────────────────────────────────────────────────────────
+    // Slice 13/14 — CANONICAL CONVERGENCE for the highest-traffic trade surface.
+    //
+    // Legacy's grade has always been an LLM output constrained by FantasyCalc.
+    // Here we compute the CANONICAL grade for the same trade (the
+    // buildTradeValueSnapshot → gradeTrade engine the Decision Registry names
+    // authoritative), fed from the same real FantasyCalc values legacy already
+    // loaded, via the market-value basis completed in slice 14.
+    //
+    //   • Always: record parity (canonical vs legacy) so divergence is measured.
+    //   • DECISION_OS_TRADE_LIVE_LEGACY=true: the canonical grade/verdict is
+    //     what the user sees. Default OFF — flipping is an env change.
+    //   • NEVER override on insufficientData: if the canonical engine cannot
+    //     grade, legacy's existing answer stands rather than blanking a working
+    //     surface.
+    // Fully guarded — convergence can never throw into the legacy response.
+    let canonicalGradeApplied = false
     try {
+      const canonical = buildLegacyCanonicalGrade({
+        assetsA: assetsA as never[],
+        assetsB: assetsB as never[],
+        marketValueFor: (name: string) => {
+          const row = newsAdjustedCalcMap.get(name.toLowerCase()) as { value?: number } | undefined
+          return typeof row?.value === 'number' && Number.isFinite(row.value) ? row.value : null
+        },
+        sport: 'NFL',
+        format: format || 'dynasty',
+        currentSeason: new Date().getFullYear(),
+      })
+
       const legacyAdvantage = legacyVerdictToAdvantage((data as { verdict?: string })?.verdict)
-      const engineAdvantage = engineAnalysis ? engineVerdictToAdvantage(engineAnalysis.verdict) : null
+      const canonicalAdvantage = canonical.verdict ? legacyVerdictToAdvantage(canonical.verdict) : null
+
       recordTradeSurfaceShadow({
         surface: 'legacy',
         leagueId: leagueId || null,
@@ -2962,18 +2985,29 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
         assetsGet: assetsA.length,
         surfaceVerdict: (data as { verdict?: string })?.verdict ?? null,
         surfaceAnalysisMode: (data as { grade?: string })?.grade ?? 'llm_grade',
-        comparison: engineAnalysis
-          ? buildSurfaceParity({
-              surfaceAdvantage: legacyAdvantage,
-              engineAdvantage,
-              engineGrade: engineAnalysis?.fairness?.score != null ? String(engineAnalysis.fairness.score) : null,
-              engineFairnessScore: engineAnalysis?.fairness?.score ?? null,
-              engineValueDifference: engineAnalysis?.fairness?.delta ?? null,
-            })
-          : null,
+        comparison: buildSurfaceParity({
+          surfaceAdvantage: legacyAdvantage,
+          engineAdvantage: canonicalAdvantage,
+          engineGrade: canonical.grade,
+          engineFairnessScore: canonical.fairnessScore,
+          engineConfidenceScore: canonical.confidenceScore,
+          engineValueDifference: canonical.valueDifference,
+        }),
       })
+
+      const liveLegacy =
+        String(process.env['DECISION_OS_TRADE_LIVE_LEGACY'] ?? '').trim().toLowerCase() === 'true'
+      if (liveLegacy && !canonical.insufficientData && canonical.grade && canonical.verdict) {
+        const target = data as Record<string, unknown>
+        target.grade = canonical.grade
+        target.verdict = canonical.verdict
+        target.fairnessScore = canonical.fairnessScore
+        target.confidenceScore = canonical.confidenceScore
+        target.gradeSource = 'canonical_value_engine'
+        canonicalGradeApplied = true
+      }
     } catch {
-      // Instrumentation must never break the legacy response.
+      // Convergence must never break the legacy response.
     }
 
     const leagueStatus = league?.status || ''
@@ -2990,6 +3024,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
       success: true,
       result: {
         ...data,
+        // Slice 14 — provenance: which engine produced the grade the user sees.
+        gradeSource: canonicalGradeApplied ? 'canonical_value_engine' : 'legacy_llm_fantasycalc',
         notes: finalNotes,
         _leagueSize: numTeams,
         _scarcityMultiplier: scarcityMultiplier,
