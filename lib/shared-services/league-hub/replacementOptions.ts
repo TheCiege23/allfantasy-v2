@@ -44,6 +44,8 @@ export interface ReplacementOptionsResult {
   benchOptions: ReplacementCandidate[]
   freeAgentOptions: ReplacementCandidate[]
   claimTarget: ClaimTarget
+  /** Slice 9 — where a bench chip can take the user to adjust their lineup. */
+  lineupTarget: ClaimTarget
   /** Non-null when the lists are empty for a structural reason. */
   limitation: 'no_projection_data' | 'no_user_roster' | null
 }
@@ -65,6 +67,30 @@ export function resolveClaimTarget(league: {
       kind: 'provider',
       provider: 'sleeper',
       url: `https://sleeper.com/leagues/${encodeURIComponent(league.platformLeagueId)}/players`,
+    }
+  }
+  return { kind: 'none' }
+}
+
+/**
+ * Slice 9 — where a BENCH chip can take the user to actually change their
+ * lineup. Native leagues → the league's own Team tab; Sleeper → the
+ * provider's team page (see-and-advise). Same shape as ClaimTarget.
+ */
+export function resolveLineupTarget(league: {
+  id: string
+  platform: string | null
+  platformLeagueId: string | null
+}): ClaimTarget {
+  const platform = (league.platform ?? '').trim().toLowerCase()
+  if (NATIVE_PLATFORMS.has(platform)) {
+    return { kind: 'native', url: `/leagues/${encodeURIComponent(league.id)}?tab=Team` }
+  }
+  if (platform === 'sleeper' && league.platformLeagueId) {
+    return {
+      kind: 'provider',
+      provider: 'sleeper',
+      url: `https://sleeper.com/leagues/${encodeURIComponent(league.platformLeagueId)}/team`,
     }
   }
   return { kind: 'none' }
@@ -103,6 +129,7 @@ export async function resolveReplacementOptions(args: {
   if (!league) return null
 
   const claimTarget = resolveClaimTarget(league)
+  const lineupTarget = resolveLineupTarget(league)
 
   const [platformUserIds, rosters] = await Promise.all([
     resolveLinkedPlatformUserIds(appUserId),
@@ -145,6 +172,7 @@ export async function resolveReplacementOptions(args: {
       benchOptions: [],
       freeAgentOptions: [],
       claimTarget,
+      lineupTarget,
       limitation: 'no_user_roster',
     }
   }
@@ -168,6 +196,7 @@ export async function resolveReplacementOptions(args: {
       benchOptions: [],
       freeAgentOptions: [],
       claimTarget,
+      lineupTarget,
       limitation: 'no_projection_data',
     }
   }
@@ -237,6 +266,7 @@ export async function resolveReplacementOptions(args: {
     benchOptions: rankReplacementCandidates(benchCandidates, affectedProjection, 3),
     freeAgentOptions: rankReplacementCandidates(freeAgentCandidates, affectedProjection, 3),
     claimTarget,
+    lineupTarget,
     limitation: null,
   }
 }

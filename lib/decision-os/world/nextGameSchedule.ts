@@ -33,7 +33,7 @@ export interface TeamNextGameContext {
   gameStatus: string | null
   /** Real schedule density: games in the 7 days from `now` (streaming/lineup-lock signal for daily sports). */
   gamesNext7Days: number
-  provenance: { sourceModel: 'FantasyScheduleGame' | 'GameSchedule' | null; source: string | null }
+  provenance: { sourceModel: 'FantasyScheduleGame' | 'GameSchedule' | 'SportsGame' | null; source: string | null }
   freshness: NextGameFreshness
   warnings: string[]
 }

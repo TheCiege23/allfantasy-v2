@@ -100,6 +100,7 @@ interface ReplacementsResponse {
   benchOptions?: ReplacementCandidate[]
   freeAgentOptions?: ReplacementCandidate[]
   claimTarget?: ClaimTarget
+  lineupTarget?: ClaimTarget
   limitation?: string | null
 }
 
@@ -172,7 +173,9 @@ function CandidateRow({
   if (options.length === 0) return null
   const hint =
     claimTarget?.kind === "native"
-      ? "tap to claim"
+      ? label.toLowerCase().includes("bench")
+        ? "open your lineup"
+        : "tap to claim"
       : claimTarget?.kind === "provider"
         ? `opens ${claimTarget.provider}`
         : null
@@ -273,7 +276,7 @@ function ReplacementPanel({
       {reps.projectionWeek != null && (
         <div className="mt-2 text-[10px] text-white/35">Week {reps.projectionWeek} projections</div>
       )}
-      <CandidateRow label="Best on your bench" options={reps.benchOptions ?? []} />
+      <CandidateRow label="Best on your bench" options={reps.benchOptions ?? []} claimTarget={reps.lineupTarget} />
       <CandidateRow label="Best available" options={reps.freeAgentOptions ?? []} claimTarget={reps.claimTarget} />
       {empty && <div className="mt-1.5 text-[11px] text-white/40">No clearly better options found at this position.</div>}
     </div>

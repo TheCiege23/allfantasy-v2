@@ -56,8 +56,13 @@ import {
   type UserRosterWaiverInfo,
 } from './waiverWorldState'
 
-/** Week/bye schedule model (scheduleBye.ts) — NFL only; byes are a weekly-sport concept. */
-const SCHEDULE_SUPPORTED_SPORTS = new Set(['NFL'])
+/**
+ * Week/bye schedule model (scheduleBye.ts) — weekly sports. Slice 9 adds
+ * NCAAF: its api_sports schedule sync (syncAPISportsGamesToDb) writes
+ * SportsGame rows with real week numbers, now readable since SportsGame
+ * joined the schedule read port.
+ */
+const SCHEDULE_SUPPORTED_SPORTS = new Set(['NFL', 'NCAAF'])
 
 /**
  * Slice 6 — daily-cadence sports get NEXT-GAME schedule context instead
@@ -66,7 +71,7 @@ const SCHEDULE_SUPPORTED_SPORTS = new Set(['NFL'])
  * Sports in neither set still get real roster/exposure aggregation, honestly
  * reported via `unsupportedSports`.
  */
-const NEXT_GAME_SUPPORTED_SPORTS = new Set(['NBA', 'MLB', 'NHL'])
+const NEXT_GAME_SUPPORTED_SPORTS = new Set(['NBA', 'MLB', 'NHL', 'NCAAB', 'SOCCER'])
 
 export type RosterStatus = 'starter' | 'bench' | 'ir' | 'taxi' | 'reserve' | 'minor' | 'inactive' | 'unknown'
 
