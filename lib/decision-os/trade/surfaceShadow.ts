@@ -62,6 +62,19 @@ export interface TradeSurfaceObservation {
   surfaceConfidence?: number | null
   surfaceValueDeltaPct?: number | null
   surfaceAnalysisMode?: string | null
+  /**
+   * Slice 10 — a REAL cross-engine comparison (canonical value engine vs the
+   * surface's own verdict). When present the event is `ran: true` with reason
+   * 'value_engine_compare' — the sample stream the Phase 3 flip gate counts.
+   */
+  comparison?: {
+    canonicalGrade: string
+    canonicalFairnessScore: number
+    canonicalConfidenceScore: number
+    canonicalValueDifference: number
+    canonicalAdvantage: string
+    agreement: boolean | null
+  } | null
 }
 
 /**
@@ -88,8 +101,14 @@ export function recordTradeSurfaceShadow(
     emitShadowParity('manager.trade.evaluate', {
       shadow: true,
       surface: obs.surface,
-      ran: false,
-      reason: canonicalInputSkipReason(obs),
+      ran: Boolean(obs.comparison),
+      reason: obs.comparison ? 'value_engine_compare' : canonicalInputSkipReason(obs),
+      canonicalGrade: obs.comparison?.canonicalGrade ?? null,
+      canonicalFairnessScore: obs.comparison?.canonicalFairnessScore ?? null,
+      canonicalConfidenceScore: obs.comparison?.canonicalConfidenceScore ?? null,
+      canonicalValueDifference: obs.comparison?.canonicalValueDifference ?? null,
+      canonicalAdvantage: obs.comparison?.canonicalAdvantage ?? null,
+      agreement: obs.comparison ? obs.comparison.agreement : null,
       leagueScoped: Boolean(obs.leagueId),
       authenticated: Boolean(obs.userId),
       assetsGive: obs.assetsGive ?? null,
