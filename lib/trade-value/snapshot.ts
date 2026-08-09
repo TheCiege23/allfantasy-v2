@@ -11,7 +11,12 @@ import {
   type TradeValueContext,
   type TradeValueSnapshot,
 } from './types'
-import { normalizedFaabValue, normalizedPickValue, normalizedPlayerValue } from './valueEngine'
+import {
+  normalizedFaabValue,
+  normalizedPickValue,
+  normalizedPlayerValue,
+  type ScoringContext,
+} from './valueEngine'
 import { gradeTrade } from './grader'
 
 export interface EnrichedTradeAsset {
@@ -29,7 +34,11 @@ export interface EnrichedTradeAsset {
   sources: AssetValueSnapshot['sources']
 }
 
-function internalValueFor(asset: EnrichedTradeAsset, currentSeason: number | null): number {
+function internalValueFor(
+  asset: EnrichedTradeAsset,
+  currentSeason: number | null,
+  scoring?: ScoringContext | null,
+): number {
   switch (asset.kind) {
     case 'player':
       return normalizedPlayerValue({
@@ -39,6 +48,8 @@ function internalValueFor(asset: EnrichedTradeAsset, currentSeason: number | nul
         // Slice 14: the captured market value is finally consumed (fallback
         // basis only — see normalizedPlayerValue).
         marketValue: asset.sources.fantasyCalcValue,
+        // Slice 16: real league scoring settings (superflex / TE premium / PPR).
+        scoring,
       })
     case 'draft_pick':
       return normalizedPickValue({ round: asset.pickRound, pickSeason: asset.pickSeason, currentSeason })
@@ -57,6 +68,8 @@ export function buildTradeValueSnapshot(input: {
   context: TradeValueContext
   currentSeason?: number | null
   profiles?: { a?: TeamProfile; b?: TeamProfile }
+  /** Slice 16 — real league scoring settings. Omitted ⇒ standard 1-QB redraft. */
+  scoring?: ScoringContext | null
 }): TradeValueSnapshot {
   const currentSeason = input.currentSeason ?? null
 
@@ -73,7 +86,7 @@ export function buildTradeValueSnapshot(input: {
     pickLabel: a.pickLabel ?? null,
     faabAmount: a.faabAmount ?? null,
     sources: a.sources,
-    internalValue: internalValueFor(a, currentSeason),
+    internalValue: internalValueFor(a, currentSeason, input.scoring),
   }))
 
   const sideFor = (rosterId: string): SideTotals => {

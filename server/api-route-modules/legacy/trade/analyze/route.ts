@@ -2673,6 +2673,13 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
           probability: result.probability,
           liquidityAdjusted: result.liquidityAdjusted,
           counterRequired: result.counterRequired,
+          // Slice 16 — how much of the model actually ran. Four of its six
+          // features have no producer in this codebase, so this number is
+          // built from fairness + volatility alone; consumers must be able to
+          // see that rather than treating it as a full-confidence estimate.
+          featureCoverage: result.featureCoverage,
+          missingFeatures: result.missingFeatures,
+          degraded: result.degraded,
         }
       }
 
