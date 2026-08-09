@@ -1,4 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
+import { assertLeagueMember } from "@/lib/league/league-access";
+import { rateLimit, getClientIp } from "@/lib/rate-limit";
 import { runTradeAnalysis } from "@/lib/engine/trade";
 import type {
   TradeEngineRequest,
@@ -8,6 +12,12 @@ import type {
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+// Authenticated replacement for the deleted no-auth route
+// app/api/engine/trade/analyze/route.ts (AF_TRADE_UNIFICATION_BRIEF Phase 0).
+// Auth: session required (401), leagueId required + league membership (403),
+// IP rate limit (429). The request/response shape of the old route is preserved
+// so the /api/app proxies keep working unchanged.
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -208,6 +218,23 @@ function buildTradeRequest(body: Record<string, unknown>): AnalyzeTradeRouteRequ
 
 export async function POST(req: NextRequest) {
   try {
+    const session = (await getServerSession(authOptions as never)) as {
+      user?: { id?: string };
+    } | null;
+    const userId = session?.user?.id;
+    if (!userId) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const ip = getClientIp(req) || "unknown";
+    const rl = rateLimit(`trades-analyze:${ip}`, 20, 60_000);
+    if (!rl.success) {
+      return NextResponse.json(
+        { error: "Too many requests. Try again shortly." },
+        { status: 429 }
+      );
+    }
+
     const rawBody: unknown = await req.json();
 
     if (!isRecord(rawBody)) {
@@ -218,6 +245,22 @@ export async function POST(req: NextRequest) {
         },
         { status: 400 }
       );
+    }
+
+    // League scope: from the body (old route contract) or the query string
+    // (how both /api/app proxies pass it). Required — every trade evaluation
+    // must be scoped to a league the caller belongs to.
+    const bodyLeagueId =
+      toStringValue(rawBody.leagueId) ?? toStringValue(rawBody.league_id);
+    const queryLeagueId = req.nextUrl.searchParams?.get("leagueId")?.trim() || undefined;
+    const leagueId = bodyLeagueId ?? queryLeagueId;
+    if (!leagueId) {
+      return NextResponse.json({ error: "leagueId required" }, { status: 400 });
+    }
+
+    const gate = await assertLeagueMember(leagueId, userId);
+    if (!gate.ok) {
+      return NextResponse.json({ error: "Forbidden" }, { status: gate.status });
     }
 
     const payload = buildTradeRequest(rawBody);
@@ -239,7 +282,7 @@ export async function POST(req: NextRequest) {
       result,
     });
   } catch (error: unknown) {
-    console.error("[trade/analyze] error:", error);
+    console.error("[trades/analyze] error:", error);
 
     const message =
       error instanceof Error ? error.message : "Failed to analyze trade.";

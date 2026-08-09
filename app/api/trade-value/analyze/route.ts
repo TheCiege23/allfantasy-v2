@@ -8,6 +8,7 @@ import { runTradeConsoleAnalysis } from '@/lib/trade-value-console/runTradeConso
 import { SUPPORTED_SPORTS } from '@/lib/sport-scope'
 import type { TradeConsoleAnalyzeInput } from '@/lib/trade-value-console/types'
 import { httpStatusForLeagueToolCode } from '@/lib/ai-tools/league-tool-access-messages'
+import { recordTradeSurfaceShadow } from '@/lib/decision-os/trade/surfaceShadow'
 
 const assetSchema = z.discriminatedUnion('kind', [
   z.object({
@@ -63,12 +64,35 @@ export const POST = withApiUsage({ endpoint: '/api/trade-value/analyze', tool: '
         return NextResponse.json({ error: 'Invalid request', details: parsed.error.flatten() }, { status: 400 })
       }
 
+      // AF_TRADE_UNIFICATION_BRIEF Phase 2 (console): league-scoped analysis
+      // requires an authenticated session. Anonymous use remains allowed for
+      // league-less (global) analysis only.
+      if (parsed.data.leagueId && !userId) {
+        return NextResponse.json(
+          { error: 'Sign in to analyze trades in a league context.' },
+          { status: 401 },
+        )
+      }
+
       const payload: TradeConsoleAnalyzeInput = {
         ...parsed.data,
         userId,
         sportFilter: parsed.data.sportFilter as TradeConsoleAnalyzeInput['sportFilter'],
       }
       const out = await runTradeConsoleAnalysis(payload)
+
+      // Phase 2 shadow instrumentation (flag-gated, never affects the response).
+      recordTradeSurfaceShadow({
+        surface: 'console',
+        userId,
+        leagueId: parsed.data.leagueId ?? null,
+        assetsGive: parsed.data.sideGive.length,
+        assetsGet: parsed.data.sideGet.length,
+        surfaceVerdict: out.ok ? out.labels.sideAdvantage : `error:${out.code ?? 'unknown'}`,
+        surfaceConfidence: out.ok ? out.confidenceScore : null,
+        surfaceValueDeltaPct: out.ok ? out.percentDiff : null,
+        surfaceAnalysisMode: out.ok ? out.analysisMode : null,
+      })
 
       if (!out.ok) {
         const status =
