@@ -644,6 +644,17 @@ export function LeagueShell({
     const sportU = String(league.sport ?? '').toUpperCase()
     const intelligenceFallback = sportU === 'NFL' || sportU === 'NCAAF' ? 'trend' : 'players'
     const map: Record<string, string> = {
+      // Broadcast Deck tabs — without these aliases, a remount or external
+      // ?view=decide/legacy/… deep link silently fell through to nothing and
+      // the shell snapped back to its default tab.
+      decide: 'decide',
+      draft_intel: 'draft_intel',
+      live_intel: 'draft_intel',
+      legacy: 'legacy',
+      league_chat: 'league_chat',
+      chat: 'league_chat',
+      commissioner: 'commissioner',
+      commish: 'commissioner',
       home: 'home',
       team: nflRedraftCore ? 'roster' : 'team',
       roster: nflRedraftCore ? 'roster' : 'team',
@@ -735,8 +746,14 @@ export function LeagueShell({
     if (next.get('view') === activeTab) return
 
     next.set('view', activeTab)
-    router.replace(`${pathname}?${next.toString()}`, { scroll: false })
-  }, [activeTab, nflRedraftCore, pathname, router, searchParams, tabDefs])
+    // SHALLOW update (native history, Next 14.1+ keeps useSearchParams in sync).
+    // router.replace on this force-dynamic page triggered a full RSC re-render +
+    // loading.tsx remount on EVERY tab click — the shell's state (activeTab,
+    // userPickedTabRef) reset mid-click and the landing/deep-link effects then
+    // bounced the user to a different tab. Tab switching is pure client state;
+    // the URL mirror is only for shareable deep links and back/forward.
+    window.history.replaceState(null, '', `${pathname}?${next.toString()}`)
+  }, [activeTab, nflRedraftCore, pathname, searchParams, tabDefs])
 
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
@@ -997,9 +1014,10 @@ export function LeagueShell({
     if (changed) {
       const q = params.toString()
       const base = pathname ?? `/league/${league.id}`
-      router.replace(q ? `${base}?${q}` : base, { scroll: false })
+      // Shallow — a router.replace here remounts the force-dynamic page.
+      window.history.replaceState(null, '', q ? `${base}?${q}` : base)
     }
-  }, [activeTab, league.id, nflRedraftCore, pathname, router, searchParams, tabDefs])
+  }, [activeTab, league.id, nflRedraftCore, pathname, searchParams, tabDefs])
 
   const blockConceptIntroForInvitePrefill =
     defaultShowInvite && inviteAutoOpenedForLeague.current !== league.id
@@ -1015,8 +1033,9 @@ export function LeagueShell({
     params.delete('tab')
     const q = params.toString()
     const base = pathname ?? `/league/${league.id}`
-    router.replace(q ? `${base}?${q}` : base, { scroll: false })
-  }, [nflRedraftCore, searchParams, pathname, router, league.id, openLeagueSettingsModal])
+    // Shallow — a router.replace here remounted the page and wiped the modal state.
+    window.history.replaceState(null, '', q ? `${base}?${q}` : base)
+  }, [nflRedraftCore, searchParams, pathname, league.id, openLeagueSettingsModal])
 
   const settingsPanelDeepLinkRef = useRef<string | null>(null)
   /** Deep-link from draft room gear: `/league/{id}?settingsPanel=draft` opens Draft settings panel. */
@@ -1033,8 +1052,9 @@ export function LeagueShell({
     params.delete('settingsPanel')
     const q = params.toString()
     const base = pathname ?? `/league/${league.id}`
-    router.replace(q ? `${base}?${q}` : base, { scroll: false })
-  }, [searchParams, pathname, router, league.id, openLeagueSettingsModal])
+    // Shallow — a router.replace here remounted the page and wiped the modal state.
+    window.history.replaceState(null, '', q ? `${base}?${q}` : base)
+  }, [searchParams, pathname, league.id, openLeagueSettingsModal])
 
   /**
    * Slice H - listen for the navigation-free `af-pre-draft-fix-action`
