@@ -36,7 +36,7 @@ function makeItem(overrides: {
     injury: overrides.injuryStatus ? { status: overrides.injuryStatus, freshness: { state: "fresh", lastSyncedAt: null } } : null,
     schedule:
       overrides.nextGameAt !== undefined
-        ? { byeWeek: null, nextOpponent: "CHI", nextGameAt: overrides.nextGameAt, freshness: { state: "fresh", lastSyncedAt: null } }
+        ? { byeWeek: null, nextOpponent: "CHI", nextGameAt: overrides.nextGameAt, gamesNext7Days: null, freshness: { state: "fresh", lastSyncedAt: null } }
         : null,
     exposure: {
       leagueCount: overrides.appearances.length,

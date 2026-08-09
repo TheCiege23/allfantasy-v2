@@ -55,7 +55,7 @@ interface Item {
   professionalTeam: string | null
   headshotUrl: string | null
   injury: { status: string } | null
-  schedule: { byeWeek: number | null; nextOpponent: string | null; nextGameAt: string | null } | null
+  schedule: { byeWeek: number | null; nextOpponent: string | null; nextGameAt: string | null; gamesNext7Days: number | null } | null
   projection: { projectedPoints: number; week: number; season: string; source: string } | null
   exposure: { leagueCount: number; starterCount: number; benchCount: number }
   leagueAppearances: Appearance[]
@@ -373,6 +373,9 @@ export default function PlayerCommandCenterClient() {
                         {item.exposure.starterCount > 0 ? ` · starting in ${item.exposure.starterCount}` : ""}
                       </span>
                       {item.projection && <span>proj {item.projection.projectedPoints.toFixed(1)} (wk {item.projection.week})</span>}
+                      {item.schedule?.gamesNext7Days != null && item.schedule.gamesNext7Days > 0 && (
+                        <span>{item.schedule.gamesNext7Days} game{item.schedule.gamesNext7Days !== 1 ? "s" : ""} next 7d</span>
+                      )}
                       {lock && <span className="text-amber-300/80">{lock}</span>}
                     </div>
                   </div>
