@@ -49,6 +49,11 @@ import { assembleUserOsRecommendations } from './userOsRecommendations'
 import { getPlayerImage } from '@/lib/players/getPlayerImage'
 import type { LeagueHubProvider, LeagueRecommendation, SyncFreshness } from './types'
 import { deriveSyncFreshness } from './syncFreshness'
+import {
+  resolveLeagueWaiverWorldStates,
+  type LeagueWaiverWorldState,
+  type UserRosterWaiverInfo,
+} from './waiverWorldState'
 
 /** The only sport this phase computes real injury/schedule/bye signals for — see `CROSS_LEAGUE_PLAYER_SUPPORT_MATRIX.md`. Every other sport still gets real roster/exposure aggregation, just no schedule/bye. */
 const SCHEDULE_SUPPORTED_SPORTS = new Set(['NFL'])
@@ -172,6 +177,20 @@ export interface CrossLeaguePlayerPortfolioItem {
     freshness: FreshnessMetadata
   } | null
 
+  /**
+   * Slice 4 — the latest REAL weekly projection available for this player
+   * (FantasyProjection, same table the war-room contexts read). "Latest" =
+   * highest week, then most recently fetched, for the player's season(s).
+   * Null when no real projection row exists — never invented.
+   */
+  projection: {
+    projectedPoints: number
+    week: number
+    season: string
+    source: string
+    fetchedAt: string
+  } | null
+
   exposure: {
     leagueCount: number
     rosterCount: number
@@ -195,6 +214,12 @@ export interface CrossLeaguePlayerPortfolioResult {
   items: CrossLeaguePlayerPortfolioItem[]
   connectedLeagueCount: number
   unsupportedSports: string[]
+  /**
+   * Slice 4 — per-league waiver world state (waiver type, FAAB, priority,
+   * last/next run, the user's pending claims). League-level, so it lives on
+   * the result rather than being duplicated into every player's appearances.
+   */
+  waiverWorldByLeague: Record<string, LeagueWaiverWorldState>
 }
 
 interface RawRosterRow {
@@ -260,14 +285,19 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
   requestTime?: Date
 }): Promise<CrossLeaguePlayerPortfolioResult> {
   const platformUserIds = await resolveLinkedPlatformUserIds(args.appUserId)
-  if (platformUserIds.length === 0) return { items: [], connectedLeagueCount: 0, unsupportedSports: [] }
+  if (platformUserIds.length === 0) {
+    return { items: [], connectedLeagueCount: 0, unsupportedSports: [], waiverWorldByLeague: {} }
+  }
 
   const rosters = await prisma.roster.findMany({
     where: { platformUserId: { in: platformUserIds } },
     select: {
+      id: true,
       leagueId: true,
       platformUserId: true,
       playerData: true,
+      faabRemaining: true,
+      waiverPriority: true,
       league: {
         select: { id: true, name: true, platform: true, sport: true, season: true, lastSyncedAt: true, syncStatus: true, scoring: true },
       },
@@ -275,7 +305,9 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
   })
 
   const connectedLeagueIds = new Set(rosters.map((r) => r.leagueId))
-  if (connectedLeagueIds.size === 0) return { items: [], connectedLeagueCount: 0, unsupportedSports: [] }
+  if (connectedLeagueIds.size === 0) {
+    return { items: [], connectedLeagueCount: 0, unsupportedSports: [], waiverWorldByLeague: {} }
+  }
 
   const rosterLeagueIds = Array.from(connectedLeagueIds)
   const teams = await prisma.leagueTeam.findMany({
@@ -393,6 +425,55 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
     recommendationsByLeagueId.set(leagueId, all)
   }
 
+  // Slice 4 — per-league waiver world state, from the rosters already loaded.
+  const userRosterByLeague = new Map<string, UserRosterWaiverInfo>()
+  for (const roster of filteredRosters) {
+    if (!userRosterByLeague.has(roster.leagueId)) {
+      userRosterByLeague.set(roster.leagueId, {
+        rosterId: roster.id,
+        faabRemaining: roster.faabRemaining ?? null,
+        waiverPriority: roster.waiverPriority ?? null,
+      })
+    }
+  }
+  const requestNow = args.requestTime ?? new Date()
+  const waiverWorld = await resolveLeagueWaiverWorldStates({
+    leagueIds: Array.from(userRosterByLeague.keys()),
+    userRosterByLeague,
+    now: requestNow,
+  }).catch(() => new Map<string, LeagueWaiverWorldState>())
+
+  // Slice 4 — latest real weekly projections (FantasyProjection), batched by
+  // sport + the seasons actually present in the user's leagues. Best-effort.
+  const projectionByPlayerId = new Map<
+    string,
+    { projectedPoints: number; week: number; season: string; source: string; fetchedAt: string }
+  >()
+  for (const [sport, ids] of idsBySport) {
+    const seasons = Array.from(
+      new Set(allRows.filter((r) => r.sport === sport).map((r) => String(r.season))),
+    )
+    if (ids.size === 0 || seasons.length === 0) continue
+    const rows = await prisma.fantasyProjection
+      .findMany({
+        where: { sport, season: { in: seasons }, playerId: { in: Array.from(ids) } },
+        orderBy: [{ week: 'desc' }, { fetchedAt: 'desc' }],
+        select: { playerId: true, projectedPoints: true, week: true, season: true, source: true, fetchedAt: true },
+      })
+      .catch(() => [])
+    for (const row of rows) {
+      if (!projectionByPlayerId.has(row.playerId)) {
+        projectionByPlayerId.set(row.playerId, {
+          projectedPoints: row.projectedPoints,
+          week: row.week,
+          season: row.season,
+          source: row.source,
+          fetchedAt: row.fetchedAt.toISOString(),
+        })
+      }
+    }
+  }
+
   const unsupportedSportsSeen = new Set<string>()
   const items: CrossLeaguePlayerPortfolioItem[] = Array.from(byCanonicalId.values()).map((acc) => {
     const leagueIds = new Set(acc.rows.map((r) => r.canonicalLeagueId))
@@ -456,6 +537,10 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
       ? getPlayerImage({ id: imageSourceRow.playerId, name: acc.displayName, imageUrl: imageSourceRow.imageUrl }, acc.sport)
       : null
 
+    // Slice 4 — same multi-provider-id lookup strategy as injury: try each
+    // real row's provider id until one has a projection row.
+    const projection = acc.rows.map((r) => projectionByPlayerId.get(r.playerId)).find(Boolean) ?? null
+
     return {
       canonicalPlayerId: acc.canonicalPlayerId,
       displayName: acc.displayName,
@@ -464,6 +549,7 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
       professionalTeam: acc.professionalTeam,
       identityConfidence: acc.identityConfidence,
       headshotUrl,
+      projection,
       injury: injuryContext
         ? {
             status: toInjuryStatus(injuryContext.status, injuryContext.availabilityCategory),
@@ -499,6 +585,7 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
     items,
     connectedLeagueCount: connectedLeagueIds.size,
     unsupportedSports: Array.from(unsupportedSportsSeen),
+    waiverWorldByLeague: Object.fromEntries(waiverWorld),
   }
 }
 

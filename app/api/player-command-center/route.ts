@@ -84,6 +84,7 @@ export async function GET(req: NextRequest) {
       generatedAt: now.toISOString(),
       connectedLeagueCount: portfolio.connectedLeagueCount,
       unsupportedSports: portfolio.unsupportedSports,
+      waiverWorldByLeague: portfolio.waiverWorldByLeague,
       totalPlayers: items.length,
       urgentPlayerCount: items.filter((i) => i.urgency.urgentLeagueCount > 0).length,
       items,

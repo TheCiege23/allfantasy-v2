@@ -32,6 +32,7 @@ function makeItem(overrides: {
     professionalTeam: "DET",
     identityConfidence: "verified",
     headshotUrl: null,
+    projection: null,
     injury: overrides.injuryStatus ? { status: overrides.injuryStatus, freshness: { state: "fresh", lastSyncedAt: null } } : null,
     schedule:
       overrides.nextGameAt !== undefined
