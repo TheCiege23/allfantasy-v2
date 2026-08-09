@@ -5,6 +5,10 @@
       "schedule": "*/10 * * * *"
     },
     {
+      "path": "/api/cron/decision-os-snapshot-capture?discover=1",
+      "schedule": "30 7 * * *"
+    },
+    {
       "path": "/api/cron/fantasy-os-exec-sync",
       "schedule": "*/30 * * * *"
     },

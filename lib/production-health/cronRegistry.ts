@@ -91,6 +91,8 @@ const CRON_METADATA: Record<string, CronMetadata> = {
   "/api/cron/weekly-awards": { jobName: "cron-weekly-awards", category: "ai", staleAfterH: 192, instrumented: true },
   "/api/cron/trade-grade-notify": { jobName: "cron-trade-grade-notify", category: "ai", staleAfterH: 2, instrumented: true },
   "/api/cron/morning-briefing": { jobName: "cron-morning-briefing", category: "ai", staleAfterH: 30, instrumented: true },
+  // Decision OS behavioral snapshot daily discovery walk (Aug 2026).
+  "/api/cron/decision-os-snapshot-capture": { jobName: "cron-decision-os-snapshot-capture", category: "ai", staleAfterH: 30, instrumented: true },
 }
 
 function deriveCategory(pathname: string): CronCategory {
