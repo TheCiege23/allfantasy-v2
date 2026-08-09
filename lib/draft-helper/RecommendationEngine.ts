@@ -131,6 +131,18 @@ function getAdp(p: RecommendationPlayer, overall: number, aiAdpByKey?: Record<st
   return p.adp != null ? Number(p.adp) : overall + 20
 }
 
+/**
+ * HONESTY PASS: `getAdp` falls back to `overall + 20` for players with no real
+ * ADP. That synthetic value is fine as an internal ordering prior, but it must
+ * never be SPOKEN as market knowledge — the engine was emitting
+ * "typically drafted later (ADP ~87), this is a reach at pick 67" off a number
+ * it invented. This reports whether a row's ADP is real.
+ */
+function hasRealAdp(p: RecommendationPlayer, aiAdpByKey?: Record<string, number>, key?: string): boolean {
+  if (key && aiAdpByKey && aiAdpByKey[key] != null) return true
+  return p.adp != null && Number.isFinite(Number(p.adp))
+}
+
 function defaultTargetsForSport(sport: string): Record<string, { starter: number; ideal: number }> {
   switch (normalizeToSupportedSport(sport)) {
     case 'NBA':
@@ -450,6 +462,8 @@ export type DraftPlayerRankingRow = {
   needScore: number
   adpEdge: number
   adp: number
+  /** False when `adp` is the synthetic `overall + 20` prior, not a real market value. */
+  adpIsReal: boolean
   confidence: number
   /** Real projected points from the caller's pool, when present. */
   projectedPoints: number | null
@@ -617,6 +631,7 @@ export function computeDraftPlayerRankings(input: RecommendationInput): {
     }
     const key = playerKey(p)
     const adp = getAdp(p, overall, aiAdpByKey, key)
+    const adpIsReal = hasRealAdp(p, aiAdpByKey, key)
     const adpEdge = clamp((overall - adp) * 1.4, -20, 25)
     let formatBoost = 0
     if (normalizedSport === 'NFL' && isSF && pos === 'QB') formatBoost += 14
@@ -664,6 +679,7 @@ export function computeDraftPlayerRankings(input: RecommendationInput): {
       needScore,
       adpEdge,
       adp,
+      adpIsReal,
       confidence,
       projectedPoints,
       replacementProjection,
@@ -765,10 +781,14 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
     }
   }
 
+  // Honesty pass: reach/value claims assert what the MARKET does. Only say
+  // them when the ADP behind them is real — never off the synthetic prior.
   let reachWarning: string | null = null
   let valueWarning: string | null = null
-  if (best.adp > overall + 4) reachWarning = `${best.player.name} is typically drafted later (ADP ~${Math.round(best.adp)}). This is a reach at pick ${overall}.`
-  else if (best.adp < overall - 4) valueWarning = `Strong value: ${best.player.name} usually goes before pick ${overall} (ADP ~${Math.round(best.adp)}).`
+  if (best.adpIsReal) {
+    if (best.adp > overall + 4) reachWarning = `${best.player.name} is typically drafted later (ADP ~${Math.round(best.adp)}). This is a reach at pick ${overall}.`
+    else if (best.adp < overall - 4) valueWarning = `Strong value: ${best.player.name} usually goes before pick ${overall} (ADP ~${Math.round(best.adp)}).`
+  }
 
   const pos = String(best.player.position || '').toUpperCase()
   const samePosCount = available.filter((a) => String(a.position || '').toUpperCase() === pos).length
@@ -807,7 +827,7 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
   const reasonParts: string[] = []
   if ((needs[pos] ?? 0) >= 70) reasonParts.push(`fills critical ${pos} need`)
   else if ((needs[pos] ?? 0) >= 40) reasonParts.push(`improves ${pos} depth`)
-  if (best.adpEdge > 5) reasonParts.push('good value vs ADP')
+  if (best.adpEdge > 5 && best.adpIsReal) reasonParts.push('good value vs ADP')
   if ((normalizedSport === 'NFL' || normalizedSport === 'NCAAF') && isSF && pos === 'QB') reasonParts.push('Superflex QB premium')
   if ((normalizedSport === 'NFL' || normalizedSport === 'NCAAF') && is2QB && pos === 'QB') reasonParts.push('2QB format premium')
   const reason = reasonParts.length ? reasonParts.join('; ') : 'Best fit for roster and draft position'
@@ -823,7 +843,10 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
   const evidence = [
     `Context: Round ${round}, Pick ${pick} (overall ${overall}).`,
     `Need score (${pos}): ${Math.round(best.needScore)}/100.`,
-    `Market edge: ${adpDelta >= 0 ? '+' : ''}${adpDelta} picks vs ADP.`,
+    // Honesty pass: never present a synthetic ADP as a "market edge".
+    best.adpIsReal
+      ? `Market edge: ${adpDelta >= 0 ? '+' : ''}${adpDelta} picks vs ADP.`
+      : `Market edge: unavailable — no ADP data for ${best.player.name}.`,
     `Position supply in pool: ${samePosCount} ${pos} candidates.`,
   ]
   if (best.vorp != null) {

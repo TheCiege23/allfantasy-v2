@@ -68,11 +68,12 @@ export interface TradeSurfaceObservation {
    * 'value_engine_compare' — the sample stream the Phase 3 flip gate counts.
    */
   comparison?: {
-    canonicalGrade: string
-    canonicalFairnessScore: number
+    /** Null when the canonical engine refused to grade (insufficient value data). */
+    canonicalGrade: string | null
+    canonicalFairnessScore: number | null
     canonicalConfidenceScore: number
     canonicalValueDifference: number
-    canonicalAdvantage: string
+    canonicalAdvantage: string | null
     agreement: boolean | null
   } | null
 }

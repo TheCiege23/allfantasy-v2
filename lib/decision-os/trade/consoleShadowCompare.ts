@@ -37,12 +37,14 @@ export interface ConsoleComparableAsset {
 export type ConsoleAdvantage = 'even' | 'you' | 'opponent'
 
 export interface ConsoleShadowComparison {
-  canonicalGrade: string
-  canonicalFairnessScore: number
+  /** Null when the canonical engine refused to grade (no resolvable value). */
+  canonicalGrade: string | null
+  canonicalFairnessScore: number | null
   canonicalConfidenceScore: number
   /** giveTotal − getTotal in canonical internal value (positive = you sent more away). */
   canonicalValueDifference: number
-  canonicalAdvantage: ConsoleAdvantage
+  /** Null when the canonical engine refused to grade — no advantage to assert. */
+  canonicalAdvantage: ConsoleAdvantage | null
   /** Null when the console said 'mixed' (multi-sport) — not comparable to a two-sided grade. */
   agreement: boolean | null
 }
@@ -117,6 +119,20 @@ export function compareConsoleVerdictWithCanonicalGrade(input: {
     context,
     currentSeason: input.currentSeason ?? null,
   })
+
+  // Honesty pass: an ungradeable trade has no canonical advantage to compare —
+  // reporting 'even' here would manufacture agreement out of missing data and
+  // poison the Phase 3 parity gate.
+  if (snapshot.grade.insufficientData || snapshot.grade.fairnessScore == null) {
+    return {
+      canonicalGrade: null,
+      canonicalFairnessScore: null,
+      canonicalConfidenceScore: snapshot.grade.confidenceScore,
+      canonicalValueDifference: snapshot.grade.valueDifference,
+      canonicalAdvantage: null,
+      agreement: null,
+    }
+  }
 
   // valueDifference = you-sent − you-received. Positive → you gave more away
   // → the opponent gained. The grader's own ≥88 fairness boundary defines

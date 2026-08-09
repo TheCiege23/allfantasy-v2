@@ -48,6 +48,22 @@ Status: Phases 0, 0.5, 1 and 2 (instrumentation) EXECUTED — commit pending —
 - **Visibility: `/api/admin/decision-os/parity-readiness`** — per decision-type/surface: comparisons, agreement rate, skip-reason breakdown, and the gate verdict (ready / accumulating / no_signal; params minComparisons/minAgreementRate). Same double admin gate as the raw telemetry route; dev/staging surface by design (prod windows come from log drains).
 - Flip flow is now: enable `DECISION_OS_TRADE_SHADOW_CONSOLE` (+`DECISION_OS_DRAFT_SHADOW`) → traffic accumulates comparisons → parity-readiness says "ready" → flip the surface live.
 
+---
+
+## Honesty pass (Slice 11, 2026-08-09) — stop stating things that aren't true
+
+A four-agent correctness audit found the system emitting confident, real-looking numbers derived from missing data. Tier-0 fixes landed:
+
+1. **Grader refuses to grade at zero data.** `gradeTrade` previously computed `|0−0| / max(0,0,1)` → `fairnessScore 100` → **"A+ / within normal market range"**, with `reviewRecommended: false`. Now returns `insufficientData: true`, `grade: null`, `fairnessScore: null`, and **`reviewRecommended: true`** (ungradeable ≠ approved). `TradeGrade.grade`/`fairnessScore` and `CommissionerReview.fairnessScore`/`similarValueRange` are now nullable. `snapshotToEvaluation` returns `leanedTo: null` + `unsupportedReason: 'insufficient_value_data'` instead of asserting 'even'. `consoleShadowCompare` returns a null advantage/agreement so ungradeable trades can't manufacture parity agreement.
+   - DB note: `RedraftTradeValueSnapshot.grade/fairnessScore` are non-nullable columns, so an ungradeable capture writes sentinel `'NOT_GRADED'` / `0` (fails toward *review*, not approval) and logs a warning; `payload` carries the truthful nulls. **Follow-up: additive migration to make those two columns nullable and drop the sentinel.**
+2. **No more fabricated $1,200 player value.** `sportsRecordToPricedAsset` returned a hardcoded `1200` (then derived "impact" and "vorp" from it) for any player without dynasty value or projection — which is most non-NFL players, making every player identical and every trade "even". Now returns `null`; the caller records a real `dataGaps` entry naming the player.
+3. **No more invented FAAB budget.** Waiver wire seeded `$100` and used `||`, which also swallowed a genuine `$0`. Balance is now `number | null` (nullish-coalesced), renders "unavailable", skips client-side validation when unknown (server remains authority), and hides the max-bid shortcut.
+4. **Synthetic ADP can no longer speak as market data.** `getAdp` falls back to `overall + 20`; that prior still orders the board, but rows now carry `adpIsReal`, and reach/value warnings, "good value vs ADP" reasons, the "Market edge" evidence line, and Live Draft Brain's reach/value notes are suppressed when it's synthetic ("Market edge: unavailable — no ADP data for X"). Real ADP behavior is unchanged.
+
+Verification: 54/54 across the honesty, VORP, console-compare, urgency, replacement, schedule and prompt suites + scoped tsc clean.
+
+**Remaining from the audit (not yet built), in priority order:** ground the ungrounded LLM verdict routes (`/api/ai/trade-analysis`, `matchup-preview`, `waiver-recs`); close Chimmy grounding-gate gaps (`draft_help` exempt, regex misses draft/pick/keeper/add/drop, `{players}`-only passes as "league grounded", LLM overriding deterministic risk/alternatives); instrument legacy + war rooms so the parity gate isn't blind to the highest-traffic surface; fix wrong-row joins (name-only injury fallback, first-fuzzy-hit binding, projection namespace mismatch); scoring-settings-aware valuation.
+
 **Phase 2 outcome (2026-08-09):** `lib/decision-os/trade/surfaceShadow.ts` — per-surface shadow instrumentation wired into all four surfaces (console / dynasty / keeper / draftpick), flags `DECISION_OS_TRADE_SHADOW_<SURFACE>` default OFF. Design: structured skip events name the FIRST missing canonical input (league → rosters → snapshot) and carry each surface's own deterministic verdict — the telemetry IS the convergence roadmap and the Phase 3 sample stream. Console additionally now requires session for league-scoped analysis (anonymous global analysis still allowed). FINDING: `lib/keeper/ai/keeperTradeAnalyzer.ts` is a hardcoded placeholder (B/B/counter for every trade, behind a paid entitlement) — marked `placeholder_stub` in telemetry; needs a product decision (honest empty-state vs wiring to canonical trade decision).
 Owner: Guap
 
