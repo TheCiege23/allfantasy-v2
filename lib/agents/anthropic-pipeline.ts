@@ -25,6 +25,7 @@ import {
 import { buildCompressedSystemPrompt } from '@/lib/agents/prompt-compression'
 import { getChimmyCrossLeaguePlayerSummary } from '@/lib/shared-services/league-hub/crossLeaguePlayerPortfolio'
 import { resolveReplacementOptions } from '@/lib/shared-services/league-hub/replacementOptions'
+import { isLeagueGroundedContext, requiresLeagueGroundingFor } from '@/lib/agents/leagueGroundingGate'
 import { routeTextCall, routeStreamCall } from '@/lib/ai/providerRouter'
 import {
   buildAiCacheKey,
@@ -1097,24 +1098,29 @@ function isPlayerMovementIntent(intent: IntentType, userMessage: string): boolea
   )
 }
 
+/**
+ * HONESTY PASS (slice 12): rules live in lib/agents/leagueGroundingGate.ts so
+ * they are unit-tested. Two holes were letting ungrounded advice through:
+ * `draft_help` was exempt, and the keyword pattern missed the most common
+ * decision verbs (add, drop, claim, pick up, keep, flex, "should I" …).
+ */
 function requiresLeagueGrounding(intent: IntentType, userMessage: string, ctx: UserContext): boolean {
-  const source = String(ctx.source ?? '').toLowerCase()
-  const message = userMessage.toLowerCase()
+  return requiresLeagueGroundingFor({
+    intent,
+    userMessage,
+    source: ctx.source ?? null,
+    teamId: ctx.teamId ?? null,
+  })
+}
 
-  if (ctx.teamId) return true
-  if (
-    ['trade_evaluation', 'waiver_wire', 'matchup_simulator', 'dynasty_legacy', 'player_comparison'].includes(
-      intent
-    )
-  ) {
-    return true
-  }
-  if (source.includes('trade') || source.includes('waiver') || source.includes('lineup')) {
-    return true
-  }
-  return /\b(trade|waiver|lineup|start|sit|bench|my team|my roster|future|next season|for my team)\b/.test(
-    message
-  )
+/**
+ * HONESTY PASS (slice 12): a structured context is only LEAGUE grounding if it
+ * carries the league block. `buildStructuredFantasyContext` returns a
+ * players-only object when the league row can't be loaded — truthy, so the old
+ * `!structuredFantasyContext` check let team-specific advice through ungrounded.
+ */
+function hasLeagueGrounding(structuredFantasyContext: StructuredFantasyContext): boolean {
+  return isLeagueGroundedContext(structuredFantasyContext as Record<string, unknown> | null)
 }
 
 function buildLeagueGroundingRequiredResponse(intent: IntentType): AgentResponse {
@@ -1847,7 +1853,7 @@ export async function runAgentPipeline(
         : null
       if (
         requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) &&
-        !structuredFantasyContext
+        !hasLeagueGrounding(structuredFantasyContext)
       ) {
         return {
           result:
@@ -1900,7 +1906,7 @@ export async function runAgentPipeline(
     }
     if (
       requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) &&
-      !structuredFantasyContext
+      !hasLeagueGrounding(structuredFantasyContext)
     ) {
       return {
         result:
@@ -2024,7 +2030,7 @@ export async function streamAgentPipeline(
         : null
       if (
         requiresLeagueGrounding('quick_ask', trimmedMessage, ctx) &&
-        !structuredFantasyContext
+        !hasLeagueGrounding(structuredFantasyContext)
       ) {
         const blocked: AgentResponse = {
           result:
@@ -2091,7 +2097,7 @@ export async function streamAgentPipeline(
     }
     if (
       requiresLeagueGrounding(classification.result.intent, trimmedMessage, ctx) &&
-      !structuredFantasyContext
+      !hasLeagueGrounding(structuredFantasyContext)
     ) {
       const blocked: AgentResponse = {
         result:
