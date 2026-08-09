@@ -9,6 +9,12 @@ import { trackLegacyToolUsage } from '@/lib/analytics-server'
 import { evaluateTrade, formatEvaluationForAI, TradeAsset as TierTradeAsset, LeagueSettings, detectIDPFromRosterPositions, detectSFFromRosterPositions } from '@/lib/dynasty-tiers'
 import { getPlayerValuesForNames, formatValuesForPrompt, FantasyCalcSettings, calculateTradeBalance, getPickValue } from '@/lib/fantasycalc'
 import { buildTradeHubIntelBlock, parseTradeIntelBlockMeta } from '@/lib/trade-engine/trade-analyzer-intel'
+import { recordTradeSurfaceShadow } from '@/lib/decision-os/trade/surfaceShadow'
+import {
+  buildSurfaceParity,
+  engineVerdictToAdvantage,
+  legacyVerdictToAdvantage,
+} from '@/lib/decision-os/trade/legacyParity'
 import { fetchPlayerNewsFromGrok } from '@/lib/ai-gm-intelligence'
 import { buildRuntimeConstraints, formatConstraintsForPrompt, DEFAULT_TRADE_CONSTRAINTS, getPickValueWithRange, getPickRange } from '@/lib/trade-constraints'
 import { buildHistoricalTradeContext, getDataInfo } from '@/lib/historical-values'
@@ -2938,6 +2944,37 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
       engineReqSaved = engineReq
       engineAnalysis = await runTradeAnalysis(engineReq)
     } catch {}
+
+    // Slice 13 — parity instrumentation for the HIGHEST-TRAFFIC trade surface.
+    // Legacy already runs the deterministic engine above (engineAnalysis) and
+    // then ignores it: the grade users see is the LLM's, constrained by
+    // FantasyCalc. Nothing is changed here — we simply record how often the
+    // two disagree, so the Phase 3 flip gate stops being blind to this path.
+    // Flag-gated (DECISION_OS_TRADE_SHADOW_LEGACY, default OFF) and fully
+    // guarded: instrumentation can never affect the response.
+    try {
+      const legacyAdvantage = legacyVerdictToAdvantage((data as { verdict?: string })?.verdict)
+      const engineAdvantage = engineAnalysis ? engineVerdictToAdvantage(engineAnalysis.verdict) : null
+      recordTradeSurfaceShadow({
+        surface: 'legacy',
+        leagueId: leagueId || null,
+        assetsGive: assetsB.length,
+        assetsGet: assetsA.length,
+        surfaceVerdict: (data as { verdict?: string })?.verdict ?? null,
+        surfaceAnalysisMode: (data as { grade?: string })?.grade ?? 'llm_grade',
+        comparison: engineAnalysis
+          ? buildSurfaceParity({
+              surfaceAdvantage: legacyAdvantage,
+              engineAdvantage,
+              engineGrade: engineAnalysis?.fairness?.score != null ? String(engineAnalysis.fairness.score) : null,
+              engineFairnessScore: engineAnalysis?.fairness?.score ?? null,
+              engineValueDifference: engineAnalysis?.fairness?.delta ?? null,
+            })
+          : null,
+      })
+    } catch {
+      // Instrumentation must never break the legacy response.
+    }
 
     const leagueStatus = league?.status || ''
     const isOffseason = leagueStatus === 'complete' || leagueStatus === 'pre_draft'

@@ -23,14 +23,42 @@
 import { emitShadowParity } from '@/lib/decision-os/core/parity'
 import { shouldRunShadow } from '@/lib/decision-os/core/shadow'
 
-export type TradeSurface = 'console' | 'dynasty' | 'keeper' | 'draftpick'
+/**
+ * Slice 13: `legacy` and the five `warroom_*` surfaces joined the taxonomy.
+ * Until they did, the Phase 3 flip gate could report "ready" while excluding
+ * the HIGHEST-TRAFFIC trade surface in the product — the Nocturne dashboard's
+ * "Trade Analyzer" tile routes into /af-legacy, not the console.
+ */
+export type TradeSurface =
+  | 'console'
+  | 'dynasty'
+  | 'keeper'
+  | 'draftpick'
+  | 'legacy'
+  | 'warroom_redraft'
+  | 'warroom_dynasty'
+  | 'warroom_keeper'
+  | 'warroom_bestball'
+  | 'warroom_guillotine'
 
 const SURFACE_FLAGS: Record<TradeSurface, string> = {
   console: 'DECISION_OS_TRADE_SHADOW_CONSOLE',
   dynasty: 'DECISION_OS_TRADE_SHADOW_DYNASTY',
   keeper: 'DECISION_OS_TRADE_SHADOW_KEEPER',
   draftpick: 'DECISION_OS_TRADE_SHADOW_DRAFTPICK',
+  legacy: 'DECISION_OS_TRADE_SHADOW_LEGACY',
+  // All five war rooms share one operational flag — they share one verdict
+  // rule — but stay distinct surfaces because they use different value bases,
+  // so each converges (or diverges) on its own.
+  warroom_redraft: 'DECISION_OS_TRADE_SHADOW_WARROOM',
+  warroom_dynasty: 'DECISION_OS_TRADE_SHADOW_WARROOM',
+  warroom_keeper: 'DECISION_OS_TRADE_SHADOW_WARROOM',
+  warroom_bestball: 'DECISION_OS_TRADE_SHADOW_WARROOM',
+  warroom_guillotine: 'DECISION_OS_TRADE_SHADOW_WARROOM',
 }
+
+/** Every trade surface that must be instrumented. Coverage is test-enforced. */
+export const ALL_TRADE_SURFACES: readonly TradeSurface[] = Object.keys(SURFACE_FLAGS) as TradeSurface[]
 
 export function tradeSurfaceFlagEnvVar(surface: TradeSurface): string {
   return SURFACE_FLAGS[surface]
