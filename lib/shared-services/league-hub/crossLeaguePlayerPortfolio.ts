@@ -142,6 +142,8 @@ export interface CrossLeaguePlayerAppearance {
   canonicalLeagueId: string
   leagueName: string
   provider: LeagueHubProvider
+  /** The raw provider-scoped player id on THIS league's roster (Slice 5 — what the replacements endpoint keys on). */
+  playerId: string
   sport: string
   season: number
   canonicalTeamId: string | null
@@ -500,6 +502,7 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
         canonicalLeagueId: row.canonicalLeagueId,
         leagueName: row.leagueName,
         provider: row.provider,
+        playerId: row.playerId,
         sport: row.sport,
         season: row.season,
         canonicalTeamId: team?.id ?? null,

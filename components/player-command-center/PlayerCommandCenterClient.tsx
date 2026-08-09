@@ -39,6 +39,7 @@ interface Appearance {
   canonicalLeagueId: string
   leagueName: string
   provider: string
+  playerId: string
   rosterStatus: string
   record: string | null
   standing: number | null
@@ -78,6 +79,24 @@ interface ApiResponse {
   items?: Item[]
 }
 
+interface ReplacementCandidate {
+  playerId: string
+  name: string
+  position: string | null
+  projectedPoints: number
+  delta: number | null
+}
+
+interface ReplacementsResponse {
+  ok: boolean
+  error?: string
+  affectedProjection?: number | null
+  projectionWeek?: number | null
+  benchOptions?: ReplacementCandidate[]
+  freeAgentOptions?: ReplacementCandidate[]
+  limitation?: string | null
+}
+
 const URGENCY_STYLES: Record<UrgencyLevel, string> = {
   critical: "bg-rose-500/20 text-rose-300 border-rose-500/40",
   high: "bg-amber-500/20 text-amber-300 border-amber-500/40",
@@ -112,6 +131,92 @@ function initials(name: string): string {
     .slice(0, 2)
     .join("")
     .toUpperCase()
+}
+
+function CandidateRow({ label, options }: { label: string; options: ReplacementCandidate[] }) {
+  if (options.length === 0) return null
+  return (
+    <div className="mt-1.5">
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-white/40">{label}</div>
+      <div className="mt-1 flex flex-wrap gap-1.5">
+        {options.map((c) => (
+          <span
+            key={c.playerId}
+            className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-100"
+          >
+            {c.name}
+            {c.position ? ` (${c.position})` : ""} · {c.projectedPoints.toFixed(1)}
+            {c.delta != null && (
+              <span className={c.delta >= 0 ? "text-emerald-300" : "text-rose-300"}>
+                {" "}
+                {c.delta >= 0 ? "+" : ""}
+                {c.delta.toFixed(1)}
+              </span>
+            )}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ReplacementPanel({
+  leagueId,
+  playerId,
+  rosterPlayerId,
+}: {
+  leagueId: string
+  playerId: string
+  rosterPlayerId: string
+}) {
+  const [state, setState] = React.useState<"idle" | "loading" | "done" | "error">("idle")
+  const [reps, setReps] = React.useState<ReplacementsResponse | null>(null)
+
+  const load = React.useCallback(async () => {
+    setState("loading")
+    try {
+      const res = await fetch(
+        `/api/player-command-center/replacements?leagueId=${encodeURIComponent(leagueId)}&playerId=${encodeURIComponent(rosterPlayerId)}`,
+      )
+      const json = (await res.json()) as ReplacementsResponse
+      if (!res.ok || !json.ok) {
+        setState("error")
+      } else {
+        setReps(json)
+        setState("done")
+      }
+    } catch {
+      setState("error")
+    }
+  }, [leagueId, rosterPlayerId])
+
+  if (state === "idle") {
+    return (
+      <button
+        type="button"
+        onClick={() => void load()}
+        className="mt-2 rounded-lg border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-1 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-400/20"
+      >
+        Show replacement options
+      </button>
+    )
+  }
+  if (state === "loading") return <div className="mt-2 text-[11px] text-white/40">Finding replacements…</div>
+  if (state === "error" || !reps) return <div className="mt-2 text-[11px] text-rose-300/70">Could not load replacements.</div>
+  if (reps.limitation === "no_projection_data") {
+    return <div className="mt-2 text-[11px] text-white/40">No projection data available for this league yet.</div>
+  }
+  const empty = (reps.benchOptions?.length ?? 0) === 0 && (reps.freeAgentOptions?.length ?? 0) === 0
+  return (
+    <div key={playerId}>
+      {reps.projectionWeek != null && (
+        <div className="mt-2 text-[10px] text-white/35">Week {reps.projectionWeek} projections</div>
+      )}
+      <CandidateRow label="Best on your bench" options={reps.benchOptions ?? []} />
+      <CandidateRow label="Best available" options={reps.freeAgentOptions ?? []} />
+      {empty && <div className="mt-1.5 text-[11px] text-white/40">No clearly better options found at this position.</div>}
+    </div>
+  )
 }
 
 function WaiverLine({ world }: { world: WaiverWorld | undefined }) {
@@ -319,6 +424,13 @@ export default function PlayerCommandCenterClient() {
                             </ul>
                           )}
                           <WaiverLine world={world} />
+                          {u?.actionRequired && (
+                            <ReplacementPanel
+                              leagueId={a.canonicalLeagueId}
+                              playerId={item.canonicalPlayerId}
+                              rosterPlayerId={a.playerId}
+                            />
+                          )}
                           {a.syncFreshness.state === "stale" && (
                             <div className="mt-1 text-[10px] text-amber-300/60">League data may be stale — refresh before acting.</div>
                           )}

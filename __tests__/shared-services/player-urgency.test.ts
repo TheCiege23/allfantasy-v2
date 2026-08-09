@@ -51,6 +51,7 @@ function makeItem(overrides: {
       canonicalLeagueId: a.leagueId,
       leagueName: `League ${a.leagueId}`,
       provider: "sleeper",
+      playerId: "raw-1",
       sport: "NFL",
       season: 2026,
       canonicalTeamId: null,
