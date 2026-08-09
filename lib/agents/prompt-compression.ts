@@ -225,6 +225,59 @@ function buildCrossLeagueSection(structuredFantasyContext: StructuredFantasyCont
   return lines.length > 2 ? lines.join('\n') : ''
 }
 
+/**
+ * Slice 8 — deterministic replacement options for a mentioned rostered player
+ * (from lib/shared-services/league-hub/replacementOptions.ts, the same engine
+ * the Player Command Center serves). Rendered as data + a hard instruction so
+ * prose answers cite these real deltas instead of inventing alternatives.
+ * Absent key → empty string, zero prompt change.
+ */
+function buildReplacementOptionsSection(structuredFantasyContext: StructuredFantasyContext): string {
+  const root = asRecord(structuredFantasyContext)
+  const reps = asRecord(root.replacementOptions)
+  if (Object.keys(reps).length === 0) return ''
+
+  const playerName = String(reps.playerName ?? 'the player')
+  const lines = [`## REPLACEMENT OPTIONS — ${playerName} (deterministic; cite these numbers, do not invent alternatives)`]
+
+  if (reps.limitation === 'no_projection_data') {
+    lines.push('- No real projection data exists for this league yet — say so rather than estimating.')
+    return lines.join('\n')
+  }
+
+  const week = reps.projectionWeek
+  const affected = reps.affectedProjection
+  if (typeof affected === 'number') {
+    lines.push(`- ${playerName} projects ${affected.toFixed(1)}${week != null ? ` (week ${String(week)})` : ''}`)
+  }
+
+  const renderList = (value: unknown, label: string) => {
+    if (!Array.isArray(value) || value.length === 0) return
+    const rendered = value
+      .slice(0, 3)
+      .map((raw) => {
+        const c = asRecord(raw)
+        const delta = typeof c.delta === 'number' ? ` (${c.delta >= 0 ? '+' : ''}${c.delta.toFixed(1)})` : ''
+        const pos = c.position ? ` ${String(c.position)}` : ''
+        const proj = typeof c.projectedPoints === 'number' ? ` ${c.projectedPoints.toFixed(1)} proj` : ''
+        return `${String(c.name ?? 'Unknown')}${pos}${proj}${delta}`
+      })
+      .join('; ')
+    lines.push(`- ${label}: ${rendered}`)
+  }
+  renderList(reps.benchOptions, 'Best on their bench')
+  renderList(reps.freeAgentOptions, 'Best available (unrostered)')
+
+  const claim = asRecord(reps.claimTarget)
+  if (claim.kind === 'native') {
+    lines.push('- Claims for this league happen on the AllFantasy waiver wire (link the user there when relevant).')
+  } else if (claim.kind === 'provider') {
+    lines.push(`- This league lives on ${String(claim.provider ?? 'another platform')} — AllFantasy advises but cannot execute the claim.`)
+  }
+
+  return lines.length > 1 ? lines.join('\n') : ''
+}
+
 export function buildCompressedSystemPrompt(args: {
   rawPrompt: string
   structuredFantasyContext?: StructuredFantasyContext
@@ -237,6 +290,7 @@ export function buildCompressedSystemPrompt(args: {
     buildLeagueContextSection(args.structuredFantasyContext),
     buildUserContextSection(args.structuredFantasyContext, args.ctx),
     buildCrossLeagueSection(args.structuredFantasyContext),
+    buildReplacementOptionsSection(args.structuredFantasyContext),
   ].filter(Boolean)
 
   return sections.join('\n\n').trim()

@@ -24,6 +24,7 @@ import {
 } from '@/lib/agents/cache'
 import { buildCompressedSystemPrompt } from '@/lib/agents/prompt-compression'
 import { getChimmyCrossLeaguePlayerSummary } from '@/lib/shared-services/league-hub/crossLeaguePlayerPortfolio'
+import { resolveReplacementOptions } from '@/lib/shared-services/league-hub/replacementOptions'
 import { routeTextCall, routeStreamCall } from '@/lib/ai/providerRouter'
 import {
   buildAiCacheKey,
@@ -1540,7 +1541,49 @@ async function buildStructuredFantasyContext(
           .join(', ')
       : null
 
+  // Slice 8 — deterministic replacement grounding: when the user mentions a
+  // player THEY roster in this league, attach the exact replacement options
+  // the Player Command Center serves (bench + best-unrostered with real
+  // projection deltas), so Chimmy's prose answers cite real numbers instead
+  // of improvising. Exact full-name match only — never fuzzy-guessed; any
+  // miss or timeout degrades to the pre-Slice-8 context unchanged.
+  let replacementOptions: Record<string, unknown> | null = null
+  if (playerNames.length > 0 && ctx.leagueId && userRoster) {
+    const wanted = new Set(playerNames.map((n) => n.trim().toLowerCase()).filter(Boolean))
+    let affected: { id: string; name: string } | null = null
+    for (const [id, meta] of userPlayerNameMap) {
+      const name = meta?.name?.trim()
+      if (name && wanted.has(name.toLowerCase())) {
+        affected = { id, name }
+        break
+      }
+    }
+    if (affected) {
+      const result = await withTimeout(
+        resolveReplacementOptions({
+          appUserId: ctx.userId,
+          leagueId: ctx.leagueId,
+          affectedPlayerId: affected.id,
+        }),
+        STRUCTURED_CONTEXT_TIMEOUT_MS,
+        'Replacement options timed out.'
+      ).catch(() => null)
+      if (result) {
+        replacementOptions = {
+          playerName: affected.name,
+          affectedProjection: result.affectedProjection,
+          projectionWeek: result.projectionWeek,
+          benchOptions: result.benchOptions,
+          freeAgentOptions: result.freeAgentOptions,
+          claimTarget: result.claimTarget,
+          limitation: result.limitation,
+        }
+      }
+    }
+  }
+
   return compactRecord({
+    replacementOptions,
     league: compactRecord({
       id: league.id,
       name: league.name ?? null,
