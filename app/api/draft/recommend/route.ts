@@ -79,6 +79,14 @@ export async function POST(req: NextRequest) {
     team: p.team ?? null,
     adp: p.adp ?? p.rank ?? null,
     byeWeek: p.byeWeek ?? null,
+    // Draft VORP slice: real projections from the client pool when present
+    // (draft room pool rows carry projectedPoints). Never invented.
+    projectedPoints:
+      typeof p.projectedPoints === 'number' && Number.isFinite(p.projectedPoints)
+        ? p.projectedPoints
+        : typeof p.projPts === 'number' && Number.isFinite(p.projPts)
+          ? p.projPts
+          : null,
   }))
 
   try {

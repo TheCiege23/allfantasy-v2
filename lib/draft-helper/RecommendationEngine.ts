@@ -37,6 +37,13 @@ export interface RecommendationPlayer {
   byeWeek?: number | null
   /** Real player age, when resolved (Phase 29: powers Dynasty-league scoring). */
   age?: number | null
+  /**
+   * Real season-long projected fantasy points, when the caller's pool carries
+   * projections (the live draft room pool does — draftSportStatColumns
+   * 'proj_pts'). Optional and honest: when absent, VORP falls back to the
+   * ADP-gap tier signal and never invents a projection.
+   */
+  projectedPoints?: number | null
 }
 
 export interface RecommendationInput {
@@ -77,6 +84,18 @@ export interface RecommendationInput {
    */
   auctionContext?: { remainingBudget: number; rosterSlotsRemaining: number }
   mode?: 'needs' | 'bpa'
+  /**
+   * VORP (Value Over Replacement) rollout mode (AF_TRADE_UNIFICATION follow-on:
+   * Draft VORP slice).
+   *   'off'     — VORP fields are null/zero; identical to the pre-VORP engine.
+   *   'observe' — VORP fields are computed and exposed on every ranking row but
+   *               NEVER included in totalScore (shadow-style observability; the
+   *               default, so every existing consumer's scoring is unchanged).
+   *   'active'  — vorpScore/tierDropoffScore join totalScore.
+   * When omitted, resolved from env DRAFT_VORP_MODE ('off'|'observe'|'active'),
+   * defaulting to 'observe'.
+   */
+  vorpMode?: 'off' | 'observe' | 'active'
   /** When set, need weights ignore positions outside this starter-eligible set (same as draft pool). */
   draftEligiblePositions?: ReadonlySet<string>
   /** Optional AI-adjusted ADP by player key (e.g. "name|position|team") */
@@ -432,6 +451,100 @@ export type DraftPlayerRankingRow = {
   adpEdge: number
   adp: number
   confidence: number
+  /** Real projected points from the caller's pool, when present. */
+  projectedPoints: number | null
+  /**
+   * Projection of the best same-position player expected to still be available
+   * at this manager's next turn (replacement level). Null when the position
+   * lacks real projection coverage.
+   */
+  replacementProjection: number | null
+  /** projectedPoints − replacementProjection. The core VORP quantity. */
+  vorp: number | null
+  /** Scaled VORP contribution. 0 unless vorpMode==='active' AND a projection signal exists. */
+  vorpScore: number
+  /** ADP gap to the next same-position available player (tier-cliff signal). */
+  tierDropoff: number | null
+  /** Scaled tier-cliff contribution. 0 unless vorpMode==='active' AND the fallback signal applies. */
+  tierDropoffScore: number
+  /** Which value signal produced vorp/tier fields for this row. */
+  valueSignal: 'projection' | 'adp_gap' | 'none'
+}
+
+export type VorpMode = 'off' | 'observe' | 'active'
+
+function resolveVorpMode(explicit: VorpMode | undefined, env: NodeJS.ProcessEnv = process.env): VorpMode {
+  if (explicit === 'off' || explicit === 'observe' || explicit === 'active') return explicit
+  const raw = String(env['DRAFT_VORP_MODE'] ?? '').trim().toLowerCase()
+  if (raw === 'off' || raw === 'observe' || raw === 'active') return raw
+  return 'observe'
+}
+
+/**
+ * Per-position VORP context computed once per ranking pass (Draft VORP slice).
+ *
+ * Replacement level is defined against the manager's NEXT turn: among the
+ * same-position players still available, how many are likely gone within one
+ * full snake/linear cycle (~totalTeams picks, the average gap between turns)?
+ * The best-projected player AFTER those is the replacement — drafting anyone
+ * is only worth their edge over what would have been available anyway. This is
+ * Value Over Next Available, the standard draft-room formulation of VORP, and
+ * it uses ONLY real inputs already in the pool (projections + ADP); nothing is
+ * invented. Positions with fewer than 3 real projections fall back to the
+ * ADP-gap tier-cliff signal.
+ */
+function buildVorpContext(
+  available: RecommendationPlayer[],
+  normalizedSport: string,
+  overall: number,
+  totalTeams: number,
+): {
+  replacementByPos: Record<string, number | null>
+  nextAdpGapFor: (pos: string, adp: number) => number | null
+} {
+  const byPos: Record<string, RecommendationPlayer[]> = {}
+  for (const p of available) {
+    const pos = normalizeSlot(p.position, normalizedSport)
+    if (!pos) continue
+    ;(byPos[pos] ??= []).push(p)
+  }
+
+  const picksUntilNextTurn = Math.max(1, totalTeams)
+  const replacementByPos: Record<string, number | null> = {}
+  const adpSortedByPos: Record<string, number[]> = {}
+
+  for (const [pos, players] of Object.entries(byPos)) {
+    const withProj = players
+      .filter((p) => typeof p.projectedPoints === 'number' && Number.isFinite(p.projectedPoints))
+      .sort((a, b) => (b.projectedPoints as number) - (a.projectedPoints as number))
+
+    if (withProj.length >= 3) {
+      const likelyGone = players.filter((p) => {
+        const adp = p.adp != null ? Number(p.adp) : null
+        return adp != null && Number.isFinite(adp) && adp <= overall + picksUntilNextTurn
+      }).length
+      const idx = Math.min(likelyGone, withProj.length - 1)
+      replacementByPos[pos] = withProj[idx]?.projectedPoints ?? null
+    } else {
+      replacementByPos[pos] = null
+    }
+
+    adpSortedByPos[pos] = players
+      .map((p) => (p.adp != null ? Number(p.adp) : NaN))
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => a - b)
+  }
+
+  const nextAdpGapFor = (pos: string, adp: number): number | null => {
+    const list = adpSortedByPos[pos]
+    if (!list || list.length < 2 || !Number.isFinite(adp)) return null
+    for (const candidate of list) {
+      if (candidate > adp) return candidate - adp
+    }
+    return null
+  }
+
+  return { replacementByPos, nextAdpGapFor }
 }
 
 /**
@@ -464,8 +577,10 @@ export function computeDraftPlayerRankings(input: RecommendationInput): {
     mode = 'needs',
     aiAdpByKey,
     draftEligiblePositions,
+    vorpMode: vorpModeInput,
   } = input
   if (available.length === 0) return null
+  const vorpMode = resolveVorpMode(vorpModeInput)
 
   const caveats: string[] = []
   if (available.length < 10) caveats.push('Player pool is small; recommendation may be limited.')
@@ -491,7 +606,10 @@ export function computeDraftPlayerRankings(input: RecommendationInput): {
         : new Set(draftEligiblePositions)
       : null
 
-  const scored: DraftPlayerRankingRow[] = available.slice(0, 80).map((p) => {
+  const pool = available.slice(0, 80)
+  const vorpContext = vorpMode === 'off' ? null : buildVorpContext(pool, normalizedSport, overall, totalTeams)
+
+  const scored: DraftPlayerRankingRow[] = pool.map((p) => {
     const pos = normalizeSlot(p.position, normalizedSport)
     let needScore = needs[pos] ?? 20
     if (draftEligibleAsSet && !draftPoolRowMatchesEligiblePositions(p.position, draftEligibleAsSet)) {
@@ -508,7 +626,37 @@ export function computeDraftPlayerRankings(input: RecommendationInput): {
     const dynastyBoost = dynastyAgeAdjustment(p.age, isDynasty)
     const auctionAdjustment = auctionAffordabilityAdjustment(adp, auctionContext)
     const modeAdjustment = mode === 'bpa' ? 0 : needScore * 0.55
-    const totalScore = modeAdjustment + adpEdge * 0.9 + formatBoost + dynastyBoost + auctionAdjustment
+
+    // Draft VORP slice: replacement value + tier cliff. Computed whenever
+    // vorpMode !== 'off' (observability), but joins totalScore ONLY in
+    // 'active' mode — 'observe' (the default) leaves every existing
+    // consumer's scoring bit-identical to the pre-VORP engine.
+    const projectedPoints =
+      typeof p.projectedPoints === 'number' && Number.isFinite(p.projectedPoints) ? p.projectedPoints : null
+    let replacementProjection: number | null = null
+    let vorp: number | null = null
+    let vorpScore = 0
+    let tierDropoff: number | null = null
+    let tierDropoffScore = 0
+    let valueSignal: DraftPlayerRankingRow['valueSignal'] = 'none'
+    if (vorpContext) {
+      replacementProjection = vorpContext.replacementByPos[pos] ?? null
+      if (projectedPoints != null && replacementProjection != null) {
+        vorp = projectedPoints - replacementProjection
+        valueSignal = 'projection'
+        if (vorpMode === 'active') vorpScore = clamp(vorp * 0.3, -8, 30)
+      } else {
+        tierDropoff = vorpContext.nextAdpGapFor(pos, adp)
+        if (tierDropoff != null) {
+          valueSignal = 'adp_gap'
+          // Only reward standing at a real cliff (gap beyond normal spacing).
+          if (vorpMode === 'active') tierDropoffScore = clamp((tierDropoff - 4) * 0.6, 0, 12)
+        }
+      }
+    }
+
+    const totalScore =
+      modeAdjustment + adpEdge * 0.9 + formatBoost + dynastyBoost + auctionAdjustment + vorpScore + tierDropoffScore
     const confidence = clamp(Math.round(55 + totalScore * 0.6), 40, 92)
     return {
       player: p,
@@ -517,6 +665,13 @@ export function computeDraftPlayerRankings(input: RecommendationInput): {
       adpEdge,
       adp,
       confidence,
+      projectedPoints,
+      replacementProjection,
+      vorp,
+      vorpScore,
+      tierDropoff,
+      tierDropoffScore,
+      valueSignal,
     }
   })
 
@@ -671,6 +826,16 @@ export function computeDraftRecommendation(input: RecommendationInput): Recommen
     `Market edge: ${adpDelta >= 0 ? '+' : ''}${adpDelta} picks vs ADP.`,
     `Position supply in pool: ${samePosCount} ${pos} candidates.`,
   ]
+  if (best.vorp != null) {
+    const v = Number(best.vorp.toFixed(1))
+    evidence.push(
+      `Replacement value: ${v >= 0 ? '+' : ''}${v} projected pts vs the best ${pos} likely available at your next pick.`,
+    )
+  } else if (best.tierDropoff != null && best.tierDropoff > 4) {
+    evidence.push(
+      `Tier cliff: next available ${pos} goes ~${Math.round(best.tierDropoff)} picks later by ADP.`,
+    )
+  }
   if (stackInsight) evidence.push(`Stack signal: ${stackInsight}`)
   if (formatInsight) evidence.push(`Format signal: ${formatInsight}`)
   const uncertainty =
