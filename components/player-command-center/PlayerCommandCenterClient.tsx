@@ -87,6 +87,11 @@ interface ReplacementCandidate {
   delta: number | null
 }
 
+type ClaimTarget =
+  | { kind: "native"; url: string }
+  | { kind: "provider"; provider: string; url: string }
+  | { kind: "none" }
+
 interface ReplacementsResponse {
   ok: boolean
   error?: string
@@ -94,6 +99,7 @@ interface ReplacementsResponse {
   projectionWeek?: number | null
   benchOptions?: ReplacementCandidate[]
   freeAgentOptions?: ReplacementCandidate[]
+  claimTarget?: ClaimTarget
   limitation?: string | null
 }
 
@@ -133,28 +139,83 @@ function initials(name: string): string {
     .toUpperCase()
 }
 
-function CandidateRow({ label, options }: { label: string; options: ReplacementCandidate[] }) {
+function CandidateChipBody({ c }: { c: ReplacementCandidate }) {
+  return (
+    <>
+      {c.name}
+      {c.position ? ` (${c.position})` : ""} · {c.projectedPoints.toFixed(1)}
+      {c.delta != null && (
+        <span className={c.delta >= 0 ? "text-emerald-300" : "text-rose-300"}>
+          {" "}
+          {c.delta >= 0 ? "+" : ""}
+          {c.delta.toFixed(1)}
+        </span>
+      )}
+    </>
+  )
+}
+
+const CHIP_CLASS =
+  "rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-100"
+const LINK_CHIP_CLASS = `${CHIP_CLASS} hover:bg-emerald-400/20 hover:border-emerald-400/40 cursor-pointer`
+
+function CandidateRow({
+  label,
+  options,
+  claimTarget,
+}: {
+  label: string
+  options: ReplacementCandidate[]
+  /** When set, chips link to the claim surface (Slice 7). */
+  claimTarget?: ClaimTarget
+}) {
   if (options.length === 0) return null
+  const hint =
+    claimTarget?.kind === "native"
+      ? "tap to claim"
+      : claimTarget?.kind === "provider"
+        ? `opens ${claimTarget.provider}`
+        : null
   return (
     <div className="mt-1.5">
-      <div className="text-[10px] font-semibold uppercase tracking-wide text-white/40">{label}</div>
+      <div className="text-[10px] font-semibold uppercase tracking-wide text-white/40">
+        {label}
+        {hint && <span className="ml-1.5 normal-case tracking-normal text-cyan-200/60">({hint})</span>}
+      </div>
       <div className="mt-1 flex flex-wrap gap-1.5">
-        {options.map((c) => (
-          <span
-            key={c.playerId}
-            className="rounded-full border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[11px] text-emerald-100"
-          >
-            {c.name}
-            {c.position ? ` (${c.position})` : ""} · {c.projectedPoints.toFixed(1)}
-            {c.delta != null && (
-              <span className={c.delta >= 0 ? "text-emerald-300" : "text-rose-300"}>
-                {" "}
-                {c.delta >= 0 ? "+" : ""}
-                {c.delta.toFixed(1)}
-              </span>
-            )}
-          </span>
-        ))}
+        {options.map((c) => {
+          if (claimTarget?.kind === "native") {
+            return (
+              <a
+                key={c.playerId}
+                href={`${claimTarget.url}&playerId=${encodeURIComponent(c.playerId)}`}
+                className={LINK_CHIP_CLASS}
+                title={`Open the waiver wire with ${c.name} preselected`}
+              >
+                <CandidateChipBody c={c} />
+              </a>
+            )
+          }
+          if (claimTarget?.kind === "provider") {
+            return (
+              <a
+                key={c.playerId}
+                href={claimTarget.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={LINK_CHIP_CLASS}
+                title={`Open this league on ${claimTarget.provider} to claim ${c.name}`}
+              >
+                <CandidateChipBody c={c} />
+              </a>
+            )
+          }
+          return (
+            <span key={c.playerId} className={CHIP_CLASS}>
+              <CandidateChipBody c={c} />
+            </span>
+          )
+        })}
       </div>
     </div>
   )
@@ -213,7 +274,7 @@ function ReplacementPanel({
         <div className="mt-2 text-[10px] text-white/35">Week {reps.projectionWeek} projections</div>
       )}
       <CandidateRow label="Best on your bench" options={reps.benchOptions ?? []} />
-      <CandidateRow label="Best available" options={reps.freeAgentOptions ?? []} />
+      <CandidateRow label="Best available" options={reps.freeAgentOptions ?? []} claimTarget={reps.claimTarget} />
       {empty && <div className="mt-1.5 text-[11px] text-white/40">No clearly better options found at this position.</div>}
     </div>
   )

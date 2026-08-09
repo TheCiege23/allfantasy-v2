@@ -27,11 +27,13 @@ interface WaiverClaim {
 
 interface WaiverWireClientProps {
   leagueId: string
+  /** Slice 7 (Player Command Center deep-link): auto-open the claim panel for this player once the pool loads. */
+  preselectPlayerId?: string | null
 }
 
 type TabType = "available" | "myClaims" | "recommendations" | "watchlist"
 
-export function WaiverWireClient({ leagueId }: WaiverWireClientProps) {
+export function WaiverWireClient({ leagueId, preselectPlayerId = null }: WaiverWireClientProps) {
   const router = useRouter()
   const [players, setPlayers] = useState<Player[]>([])
   const [claims, setClaims] = useState<WaiverClaim[]>([])
@@ -93,6 +95,16 @@ export function WaiverWireClient({ leagueId }: WaiverWireClientProps) {
 
         console.log(`Loaded ${safePlayers.length} players`)
         setPlayers(safePlayers)
+
+        // Slice 7 — Command Center deep-link: auto-open the claim panel for
+        // the linked player when they're actually in this league's pool.
+        if (preselectPlayerId) {
+          const match = safePlayers.find((p: { id: string }) => p.id === preselectPlayerId)
+          if (match) {
+            setSelectedPlayer(match)
+            setActiveTab("available")
+          }
+        }
 
         const userClaims = claimsData.claims || []
         setClaims(userClaims)

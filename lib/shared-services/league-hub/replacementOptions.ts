@@ -24,6 +24,18 @@ export interface ReplacementCandidate {
   delta: number | null
 }
 
+/**
+ * Slice 7 — where a free-agent chip can take the user to actually claim.
+ *  - native:   AllFantasy's own waiver wire page (append &playerId=<candidate>).
+ *  - provider: the provider's own league page (we can see imported leagues but
+ *              never execute on them — honest scope, per the see-and-advise rule).
+ *  - none:     no known claim surface for this league's platform.
+ */
+export type ClaimTarget =
+  | { kind: 'native'; url: string }
+  | { kind: 'provider'; provider: string; url: string }
+  | { kind: 'none' }
+
 export interface ReplacementOptionsResult {
   leagueId: string
   affectedPlayerId: string
@@ -31,8 +43,31 @@ export interface ReplacementOptionsResult {
   projectionWeek: number | null
   benchOptions: ReplacementCandidate[]
   freeAgentOptions: ReplacementCandidate[]
+  claimTarget: ClaimTarget
   /** Non-null when the lists are empty for a structural reason. */
   limitation: 'no_projection_data' | 'no_user_roster' | null
+}
+
+const NATIVE_PLATFORMS = new Set(['', 'allfantasy', 'af', 'manual', 'native'])
+
+/** Exported for unit tests — deterministic platform → claim-target mapping. */
+export function resolveClaimTarget(league: {
+  id: string
+  platform: string | null
+  platformLeagueId: string | null
+}): ClaimTarget {
+  const platform = (league.platform ?? '').trim().toLowerCase()
+  if (NATIVE_PLATFORMS.has(platform)) {
+    return { kind: 'native', url: `/waiver-wire?leagueId=${encodeURIComponent(league.id)}` }
+  }
+  if (platform === 'sleeper' && league.platformLeagueId) {
+    return {
+      kind: 'provider',
+      provider: 'sleeper',
+      url: `https://sleeper.com/leagues/${encodeURIComponent(league.platformLeagueId)}/players`,
+    }
+  }
+  return { kind: 'none' }
 }
 
 /** Pure ranking helper (unit-tested): sort by projection desc, attach deltas, cap. */
@@ -60,9 +95,14 @@ export async function resolveReplacementOptions(args: {
   const { appUserId, leagueId, affectedPlayerId } = args
 
   const league = await prisma.league
-    .findUnique({ where: { id: leagueId }, select: { id: true, sport: true, season: true } })
+    .findUnique({
+      where: { id: leagueId },
+      select: { id: true, sport: true, season: true, platform: true, platformLeagueId: true },
+    })
     .catch(() => null)
   if (!league) return null
+
+  const claimTarget = resolveClaimTarget(league)
 
   const [platformUserIds, rosters] = await Promise.all([
     resolveLinkedPlatformUserIds(appUserId),
@@ -104,6 +144,7 @@ export async function resolveReplacementOptions(args: {
       projectionWeek: null,
       benchOptions: [],
       freeAgentOptions: [],
+      claimTarget,
       limitation: 'no_user_roster',
     }
   }
@@ -126,6 +167,7 @@ export async function resolveReplacementOptions(args: {
       projectionWeek: null,
       benchOptions: [],
       freeAgentOptions: [],
+      claimTarget,
       limitation: 'no_projection_data',
     }
   }
@@ -194,6 +236,7 @@ export async function resolveReplacementOptions(args: {
     projectionWeek: week,
     benchOptions: rankReplacementCandidates(benchCandidates, affectedProjection, 3),
     freeAgentOptions: rankReplacementCandidates(freeAgentCandidates, affectedProjection, 3),
+    claimTarget,
     limitation: null,
   }
 }

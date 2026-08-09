@@ -2,7 +2,7 @@
  * Player Command Center (Slice 5) — replacement candidate ranking (pure).
  */
 import { describe, expect, it } from "vitest"
-import { rankReplacementCandidates } from "@/lib/shared-services/league-hub/replacementOptions"
+import { rankReplacementCandidates, resolveClaimTarget } from "@/lib/shared-services/league-hub/replacementOptions"
 
 const pool = [
   { playerId: "a", name: "Alpha", position: "WR", projectedPoints: 11.2 },
@@ -30,5 +30,28 @@ describe("rankReplacementCandidates", () => {
     const before = pool.map((p) => p.playerId)
     rankReplacementCandidates(pool, 10, 4)
     expect(pool.map((p) => p.playerId)).toEqual(before)
+  })
+})
+
+describe("resolveClaimTarget (Slice 7 deep-links)", () => {
+  it("native platforms link to AllFantasy's own waiver wire", () => {
+    for (const platform of ["manual", "allfantasy", "af", "native", ""]) {
+      const target = resolveClaimTarget({ id: "L1", platform, platformLeagueId: null })
+      expect(target).toEqual({ kind: "native", url: "/waiver-wire?leagueId=L1" })
+    }
+  })
+
+  it("sleeper leagues link out to the provider's players page (see-and-advise: never execute)", () => {
+    const target = resolveClaimTarget({ id: "L1", platform: "Sleeper", platformLeagueId: "998877" })
+    expect(target).toEqual({
+      kind: "provider",
+      provider: "sleeper",
+      url: "https://sleeper.com/leagues/998877/players",
+    })
+  })
+
+  it("is honest about platforms with no known claim surface", () => {
+    expect(resolveClaimTarget({ id: "L1", platform: "espn", platformLeagueId: "x" })).toEqual({ kind: "none" })
+    expect(resolveClaimTarget({ id: "L1", platform: "sleeper", platformLeagueId: null })).toEqual({ kind: "none" })
   })
 })
