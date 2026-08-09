@@ -206,6 +206,8 @@ const filesToKeep = new Set([
   // Decision OS behavioral snapshot capture — daily discovery walk (30 7 * * *). Scheduled Aug 2026;
   // same keep-line class as every other vercel.json cron (guard fails the build without it).
   path.join('app', 'api', 'cron', 'decision-os-snapshot-capture', 'route.ts').replace(/\\/g, '/'),
+  // Decision OS imported-activity ingestion — daily Sleeper walk (0 7 * * *), feeds the 07:30 snapshots.
+  path.join('app', 'api', 'cron', 'decision-os-activity-ingest', 'route.ts').replace(/\\/g, '/'),
   // Trade-grade notifier (*/30), weekly league recap (Tue), morning briefing (daily) — all three are
   // scheduled in vercel.json but NEVER had keep-lines, so they 404'd on every scheduled fire since
   // they shipped. Same regression class as #284: every vercel.json cron needs a keep-line here.

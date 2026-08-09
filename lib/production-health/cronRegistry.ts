@@ -93,6 +93,7 @@ const CRON_METADATA: Record<string, CronMetadata> = {
   "/api/cron/morning-briefing": { jobName: "cron-morning-briefing", category: "ai", staleAfterH: 30, instrumented: true },
   // Decision OS behavioral snapshot daily discovery walk (Aug 2026).
   "/api/cron/decision-os-snapshot-capture": { jobName: "cron-decision-os-snapshot-capture", category: "ai", staleAfterH: 30, instrumented: true },
+  "/api/cron/decision-os-activity-ingest": { jobName: "cron-decision-os-activity-ingest", category: "data-import", staleAfterH: 30, instrumented: true },
 }
 
 function deriveCategory(pathname: string): CronCategory {
