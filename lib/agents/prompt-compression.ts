@@ -180,6 +180,51 @@ function buildUserContextSection(structuredFantasyContext: StructuredFantasyCont
   return lines.join('\n')
 }
 
+/**
+ * Player Command Center (Slice 3) — renders the cross-league player summary
+ * (ChimmyCrossLeaguePlayerSummary from crossLeaguePlayerPortfolio.ts) when the
+ * pipeline attached one under `crossLeague`. Curated and compact by design:
+ * injured players, bye-week players, overexposure, and leagues needing action —
+ * never the full portfolio. Absent key → empty string, zero prompt change.
+ */
+function buildCrossLeagueSection(structuredFantasyContext: StructuredFantasyContext): string {
+  const root = asRecord(structuredFantasyContext)
+  const summary = asRecord(root.crossLeague)
+  if (Object.keys(summary).length === 0) return ''
+
+  const lines = ['## CROSS-LEAGUE PORTFOLIO (all connected leagues)']
+  lines.push(`- Connected leagues: ${String(summary.connectedLeagueCount ?? 'Unknown')}`)
+
+  const renderRefs = (value: unknown, label: string, detail: (r: Record<string, unknown>) => string) => {
+    if (!Array.isArray(value) || value.length === 0) return
+    const rendered = value
+      .slice(0, 6)
+      .map((raw) => {
+        const r = asRecord(raw)
+        const leagues = asStringArray(r.leagueNames)
+        const leagueNote = leagues.length > 0 ? ` [${joinList(leagues, 3)}]` : ''
+        return `${String(r.displayName ?? 'Unknown')}${detail(r)}${leagueNote}`
+      })
+      .join('; ')
+    lines.push(`- ${label}: ${rendered}`)
+  }
+
+  renderRefs(summary.injuredPlayers, 'Injured rostered players', (r) => ` (${String(r.injuryStatus ?? 'unknown')})`)
+  renderRefs(summary.byeWeekPlayers, 'On bye', (r) => ` (week ${String(r.byeWeek ?? '?')})`)
+  renderRefs(
+    summary.overexposedPlayers,
+    'Overexposed',
+    (r) => ` (${Math.round(Number(r.percentageOfUserLeagues ?? 0) * 100)}% of leagues)`,
+  )
+  renderRefs(
+    summary.playersNeedingAction,
+    'Needing action',
+    (r) => ` (${String(r.criticalCount ?? 0)} critical / ${String(r.highCount ?? 0)} high)`,
+  )
+
+  return lines.length > 2 ? lines.join('\n') : ''
+}
+
 export function buildCompressedSystemPrompt(args: {
   rawPrompt: string
   structuredFantasyContext?: StructuredFantasyContext
@@ -191,6 +236,7 @@ export function buildCompressedSystemPrompt(args: {
     buildFormatRulesSection(activeFormats),
     buildLeagueContextSection(args.structuredFantasyContext),
     buildUserContextSection(args.structuredFantasyContext, args.ctx),
+    buildCrossLeagueSection(args.structuredFantasyContext),
   ].filter(Boolean)
 
   return sections.join('\n\n').trim()

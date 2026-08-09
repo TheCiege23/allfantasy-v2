@@ -23,6 +23,7 @@ import {
   type AgentCacheTier,
 } from '@/lib/agents/cache'
 import { buildCompressedSystemPrompt } from '@/lib/agents/prompt-compression'
+import { getChimmyCrossLeaguePlayerSummary } from '@/lib/shared-services/league-hub/crossLeaguePlayerPortfolio'
 import { routeTextCall, routeStreamCall } from '@/lib/ai/providerRouter'
 import {
   buildAiCacheKey,
@@ -1267,8 +1268,23 @@ async function buildStructuredFantasyContext(
   ).catch(() => ({}))
 
   if (!ctx.leagueId) {
-    const players = await playerContextPromise
-    return Object.keys(players).length > 0 ? { players } : null
+    // Player Command Center (Slice 3): with no single-league scope, ground
+    // Chimmy in the user's CROSS-LEAGUE portfolio instead — injured/bye/
+    // overexposed/action-needed players across every connected league.
+    // Timeout-guarded and additive: on any failure this degrades to the
+    // players-only behavior that existed before this slice.
+    const [players, crossLeague] = await Promise.all([
+      playerContextPromise,
+      withTimeout(
+        getChimmyCrossLeaguePlayerSummary({ appUserId: ctx.userId }),
+        STRUCTURED_CONTEXT_TIMEOUT_MS,
+        'Cross-league summary timed out.'
+      ).catch(() => null),
+    ])
+    const sections: Record<string, unknown> = {}
+    if (Object.keys(players).length > 0) sections.players = players
+    if (crossLeague && crossLeague.connectedLeagueCount > 0) sections.crossLeague = crossLeague
+    return Object.keys(sections).length > 0 ? sections : null
   }
 
   const [league, rosters, teams] = await Promise.all([
