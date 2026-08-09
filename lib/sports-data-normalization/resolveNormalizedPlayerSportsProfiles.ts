@@ -26,6 +26,7 @@ import {
 import { applyInjuryNewsToNormalizedProjection } from '@/lib/news-injury-aggregation/applyInjuryNewsProjection'
 import { resolvePlayerInjuryNewsBatch } from '@/lib/news-injury-aggregation/resolveBatch'
 import { fetchWeatherForTeamHomeWindow } from '@/lib/weather/venueResolver'
+import { buildNameIndex, findVerified } from '@/lib/player-match/verifiedNameMatch'
 import type { NormalizedWeather } from '@/lib/weather/weatherService'
 import type {
   NormalizedActualPerformance,
@@ -204,7 +205,14 @@ export async function resolveNormalizedPlayerSportsProfiles(args: {
     batchDataGaps.push('Rolling Insights returned no player rows for the requested names (cache or API).')
   }
 
-  const riByName = new Map(ri.players.map((p) => [p.name.toLowerCase(), p]))
+  // Slice 15 (wrong-row joins): this was a lowercased-NAME map, and the matched
+  // row then SUPPLIED position/team/projections downstream — so a name
+  // collision didn't just mislabel a player, it propagated another athlete's
+  // identity and stats. The caller's own `sportsPlayerRow` carries position and
+  // team, so collisions are now verified rather than resolved by map order.
+  const riIndex = buildNameIndex(
+    ri.players.map((p) => ({ name: p.name, position: p.position ?? null, team: p.team ?? null, row: p })),
+  )
 
   let csIndex = { byName: new Map<string, Record<string, unknown>>(), byId: new Map<string, Record<string, unknown>>() }
   const useCs = args.includeClearSportsProjections !== false
@@ -228,7 +236,11 @@ export async function resolveNormalizedPlayerSportsProfiles(args: {
     if (!name) continue
 
     const row = entry.sportsPlayerRow ?? null
-    const riRow = riByName.get(name.toLowerCase())
+    const riRow = findVerified(riIndex, {
+      name,
+      position: row?.position ?? null,
+      team: row?.team ?? null,
+    })?.row
 
     const position = row?.position ?? riRow?.position ?? null
     const team: NormalizedTeamRef = {

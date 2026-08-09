@@ -94,7 +94,19 @@ Verification: 13/13 new + existing decision-os suites, scoped tsc clean, and a d
 
 Verification: 81/81 across every closure suite (the market-basis change regressed nothing) + scoped tsc clean.
 
-**Remaining from the audit, in priority order:** fix wrong-row joins (name-only injury fallback, first-fuzzy-hit binding, projection namespace mismatch, injury join missing sport filter); trade acceptance-probability placeholder features (all default `50`); draft war room LLM overriding deterministic risk/alternatives; scoring-settings-aware valuation; verify the knowledge-graph signal hooks actually write (assemblers read a store nothing may be writing to).
+## Slice 15 — wrong-row joins: stop binding the wrong athlete
+
+Real pools contain genuine name collisions across positions and sports (QB Josh Allen vs LB Josh Allen). Several joins bound by lowercased NAME alone and took the first hit, so one athlete's injury, projection, or market value could be attached to another — silently, with full confidence downstream.
+
+- **New `lib/player-match/verifiedNameMatch.ts`** — pure, in-memory counterpart to the DB-backed `player-identity` resolver. Index candidates by normalized name (case/accents/punctuation/generational suffixes; `A.J. Brown` ≡ `AJ Brown`), then require POSITION and/or TEAM agreement and **refuse the bind when still ambiguous**. Refusing is the point: a missing injury badge is a gap, the wrong player's injury badge is a false statement.
+- **Missing `sport` filters added** to three injury joins that could match another sport's athlete: `userOsContext.ts` (lineup injuries — every sibling query was already scoped), `getCanonicalPlayer.ts` (API-Sports ids are NOT globally unique across sports), `league-rankings-v2.ts` (also name-keyed; now sport-parameterized with an honest NFL default for this Sleeper-only path).
+- **`findPlayerByName` (fantasycalc) no longer takes the first substring hit.** It feeds trade valuation, waiver scoring and player outlook. Now: exact matches disambiguate by position/team hints, a substring match is accepted **only when unique**, and ambiguity returns null. Backward compatible for unique names (the overwhelming majority).
+- **Projection-enrichment joins verified** at all three sites — the root (`resolveNormalizedPlayerSportsProfiles`, where the mis-bound row also *supplied* position/team/stats downstream) plus both consumers (`tradeProjectionEnrichment`, `waiverProjectionEnrichment`). All three had position/team in hand and were discarding it.
+- **Draft-board name-only injury tier now refuses collisions.** The id → name+team → name-only ladder kept its first two tiers; the last tier tracks colliding names and binds nothing for them instead of "first wins".
+
+Verification: 94/94 across every closure suite + scoped tsc clean.
+
+**Remaining from the audit, in priority order:** (name-only injury fallback, first-fuzzy-hit binding, projection namespace mismatch, injury join missing sport filter); trade acceptance-probability placeholder features (all default `50`); draft war room LLM overriding deterministic risk/alternatives; scoring-settings-aware valuation; verify the knowledge-graph signal hooks actually write (assemblers read a store nothing may be writing to).
 
 **Phase 2 outcome (2026-08-09):** `lib/decision-os/trade/surfaceShadow.ts` — per-surface shadow instrumentation wired into all four surfaces (console / dynasty / keeper / draftpick), flags `DECISION_OS_TRADE_SHADOW_<SURFACE>` default OFF. Design: structured skip events name the FIRST missing canonical input (league → rosters → snapshot) and carry each surface's own deterministic verdict — the telemetry IS the convergence roadmap and the Phase 3 sample stream. Console additionally now requires session for league-scoped analysis (anonymous global analysis still allowed). FINDING: `lib/keeper/ai/keeperTradeAnalyzer.ts` is a hardcoded placeholder (B/B/counter for every trade, behind a paid entitlement) — marked `placeholder_stub` in telemetry; needs a product decision (honest empty-state vs wiring to canonical trade decision).
 Owner: Guap
