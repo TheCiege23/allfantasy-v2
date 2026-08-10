@@ -85,6 +85,11 @@ export async function GET(req: NextRequest) {
       connectedLeagueCount: portfolio.connectedLeagueCount,
       unsupportedSports: portfolio.unsupportedSports,
       waiverWorldByLeague: portfolio.waiverWorldByLeague,
+      // Slice 18 — injury source health: ambiguous name collisions the injury
+      // read port refused to bind, plus feed-level staleness. Reported, never
+      // swallowed — a missing badge is a gap; the wrong player's badge is a
+      // falsehood.
+      injuryPort: portfolio.injuryPort,
       totalPlayers: items.length,
       urgentPlayerCount: items.filter((i) => i.urgency.urgentLeagueCount > 0).length,
       items,

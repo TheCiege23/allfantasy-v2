@@ -44,6 +44,8 @@ import { getNormalizedLineupSections, type RosterSectionKey } from '@/lib/roster
 import { resolvePlayers } from '@/lib/shared-services/player-identity'
 import type { ProviderPlayerRef, ResolutionConfidence } from '@/lib/shared-services/player-identity'
 import { resolveInjuryContext, type InjuryContext } from '@/lib/decision-os/world/injuryEnrichedWorld'
+import { resolveInjuryFacts, type InjuryResolution } from '@/lib/injuries/injuryReadPort'
+import { normalizeMatchName } from '@/lib/player-match/verifiedNameMatch'
 import { resolveScheduleContext } from '@/lib/decision-os/world/scheduleBye'
 import { resolveNextGameScheduleContext, type NextGameScheduleResult } from '@/lib/decision-os/world/nextGameSchedule'
 import { assembleUserOsRecommendations } from './userOsRecommendations'
@@ -96,50 +98,73 @@ const RESOLUTION_TO_IDENTITY_CONFIDENCE: Record<ResolutionConfidence, IdentityCo
 export type InjuryStatus = 'healthy' | 'questionable' | 'doubtful' | 'out' | 'ir' | 'suspended' | 'day_to_day' | 'unknown'
 
 /**
- * `deriveAvailabilityCategory`'s real 4-category output has no
- * `questionable`/`doubtful`/`out`/`ir`/`suspended`/`day_to_day` split (the
- * richer fields are honestly null at the source — see
- * `ADR_F2_3_INJURY_STATUS.md`). Mapping `uncertain`→`questionable` and
- * `unavailable`→`out` is the most defensible single choice without
- * fabricating a distinction the source data doesn't actually make —
- * disclosed here and in the freshness/support matrix docs, not hidden.
+ * Slice 18 — Rolling Insights injury designations (the vocabulary
+ * `lib/injuries/rollingInsightsInjuries.ts` parses: Out / Doubtful /
+ * Questionable / Probable / IR / Day-To-Day, plus raw DB strings) mapped onto
+ * this module's `InjuryStatus`. 'Probable' states the player is expected to
+ * play — 'healthy' is the closest existing bucket (urgency severity 'none')
+ * without expanding a union every consumer switches on.
  */
-const AVAILABILITY_TO_INJURY_STATUS: Record<string, InjuryStatus> = {
-  available: 'healthy',
-  uncertain: 'questionable',
-  unavailable: 'out',
-  unknown: 'unknown',
+const DESIGNATION_TO_INJURY_STATUS: Record<string, InjuryStatus> = {
+  out: 'out',
+  doubtful: 'doubtful',
+  questionable: 'questionable',
+  probable: 'healthy',
+  ir: 'ir',
+  'day-to-day': 'day_to_day',
+  day_to_day: 'day_to_day',
+  dtd: 'day_to_day',
+  sus: 'suspended',
+  suspended: 'suspended',
+  suspension: 'suspended',
 }
 
 /**
- * Real defect found and fixed during Part 21 physical validation: mapping only via the collapsed
- * 4-category `availabilityCategory` made `'ir'`/`'suspended'`/`'doubtful'`/`'day_to_day'` permanently
- * unreachable even though `InjuryStatus` declares them — every real IR player surfaced as generic
- * `'out'`. The real, raw `SportsPlayer.status` string IS already distinguishable for these cases (the
- * same real tokens `injuryEnrichedWorld.ts`'s own `UNAVAILABLE_STATUSES` set already recognizes: 'ir',
- * 'sus'/'suspended', 'o'/'out') — this maps from that raw string first, falling back to the collapsed
- * category only when the raw token isn't one of the known ones.
+ * An RI injury row with `status: null` means the ingest could not parse a
+ * designation out of the prose — "no designation stated", NOT healthy (see
+ * `parseInjuryDesignation`). The row itself is still real news, so it surfaces
+ * as 'unknown' rather than being hidden or coerced.
  */
-function toInjuryStatus(rawStatus: string | null, availabilityCategory: string): InjuryStatus {
+function designationToInjuryStatus(status: string | null): InjuryStatus {
+  if (status == null) return 'unknown'
+  return DESIGNATION_TO_INJURY_STATUS[status.trim().toLowerCase()] ?? 'unknown'
+}
+
+/**
+ * FALLBACK ONLY — consulted when the injury read port has no row for the
+ * player. `SportsPlayerRecord.injuryStatus` was measured in prod
+ * (scripts/audit-player-injury-status.cjs, 2026-08-10) to be ~92% ROSTER
+ * designation, not injury data: INACT 7,159 / ACT 2,305 / Active 200 / NA 65
+ * vs Questionable 422 / IR 3 / Suspension 3 / Out 1. Only genuine injury
+ * tokens may produce a status. Roster tokens (INACT/ACT/Active/NA) and
+ * anything unrecognized are explicitly IGNORED — the previous
+ * availability-category fallback coerced 'NA' → 'unavailable' → 'out' (a
+ * false medical claim about 65 healthy players) and 'ACT' → 'healthy' (a
+ * health claim roster bookkeeping cannot support). Returning null means "no
+ * designation stated", which is NOT "healthy" — it is absence of news, and
+ * the item renders no injury block at all.
+ */
+const FALLBACK_GENUINE_INJURY_TOKENS: Record<string, InjuryStatus> = {
+  ir: 'ir',
+  pup: 'ir',
+  o: 'out',
+  out: 'out',
+  sus: 'suspended',
+  suspended: 'suspended',
+  suspension: 'suspended',
+  d: 'doubtful',
+  doubtful: 'doubtful',
+  q: 'questionable',
+  questionable: 'questionable',
+  dtd: 'day_to_day',
+  day_to_day: 'day_to_day',
+  'day-to-day': 'day_to_day',
+}
+
+function fallbackInjuryStatus(rawStatus: string | null): InjuryStatus | null {
   const key = (rawStatus ?? '').trim().toLowerCase()
-  const RAW_STATUS_MAP: Record<string, InjuryStatus> = {
-    ir: 'ir',
-    o: 'out',
-    out: 'out',
-    sus: 'suspended',
-    suspended: 'suspended',
-    d: 'doubtful',
-    doubtful: 'doubtful',
-    q: 'questionable',
-    questionable: 'questionable',
-    dtd: 'day_to_day',
-    day_to_day: 'day_to_day',
-    'day-to-day': 'day_to_day',
-    active: 'healthy',
-    healthy: 'healthy',
-    act: 'healthy',
-  }
-  return RAW_STATUS_MAP[key] ?? AVAILABILITY_TO_INJURY_STATUS[availabilityCategory] ?? 'unknown'
+  if (!key) return null
+  return FALLBACK_GENUINE_INJURY_TOKENS[key] ?? null
 }
 
 export interface FreshnessMetadata {
@@ -239,6 +264,19 @@ export interface CrossLeaguePlayerPortfolioResult {
    * the result rather than being duplicated into every player's appearances.
    */
   waiverWorldByLeague: Record<string, LeagueWaiverWorldState>
+  /**
+   * Slice 18 — injury source health from the canonical injury read port
+   * (`lib/injuries/injuryReadPort.ts`). `ambiguousPlayers` are name collisions
+   * the port REFUSED to bind (reported, never silently swallowed — RI injury
+   * rows carry no position, so a genuine collision often cannot be split).
+   * `feedStale` is true only when NO sport's feed is fresh — per-item
+   * staleness is carried on each item's `injury.freshness`.
+   */
+  injuryPort: {
+    ambiguousPlayers: string[]
+    feedStale: boolean
+    newestFetchedAt: string | null
+  }
 }
 
 interface RawRosterRow {
@@ -303,9 +341,10 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
   season?: number
   requestTime?: Date
 }): Promise<CrossLeaguePlayerPortfolioResult> {
+  const emptyInjuryPort = { ambiguousPlayers: [], feedStale: true, newestFetchedAt: null }
   const platformUserIds = await resolveLinkedPlatformUserIds(args.appUserId)
   if (platformUserIds.length === 0) {
-    return { items: [], connectedLeagueCount: 0, unsupportedSports: [], waiverWorldByLeague: {} }
+    return { items: [], connectedLeagueCount: 0, unsupportedSports: [], waiverWorldByLeague: {}, injuryPort: emptyInjuryPort }
   }
 
   const rosters = await prisma.roster.findMany({
@@ -325,7 +364,7 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
 
   const connectedLeagueIds = new Set(rosters.map((r) => r.leagueId))
   if (connectedLeagueIds.size === 0) {
-    return { items: [], connectedLeagueCount: 0, unsupportedSports: [], waiverWorldByLeague: {} }
+    return { items: [], connectedLeagueCount: 0, unsupportedSports: [], waiverWorldByLeague: {}, injuryPort: emptyInjuryPort }
   }
 
   const rosterLeagueIds = Array.from(connectedLeagueIds)
@@ -409,6 +448,36 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
     injuryBySport.set(sport, result?.byId ?? new Map())
   }
 
+  // Slice 18 — the canonical injury read port is the PRIMARY injury source.
+  // `SportsPlayerRecord.injuryStatus` (what `resolveInjuryContext` reads) was
+  // measured in prod to be ~92% roster designation: the entire NFL carried ONE
+  // 'Out' while Rolling Insights reported 311 live injuries, so urgency was
+  // effectively blind. Position/team are passed for disambiguation only —
+  // ambiguous name collisions are refused by the port and reported on the
+  // result, never guessed.
+  const requestNow = args.requestTime ?? new Date()
+  const injuryLookupsBySport = new Map<string, Array<{ name: string; position: string | null; team: string | null }>>()
+  for (const acc of byCanonicalId.values()) {
+    const list = injuryLookupsBySport.get(acc.sport) ?? []
+    list.push({ name: acc.displayName, position: acc.position, team: acc.professionalTeam })
+    injuryLookupsBySport.set(acc.sport, list)
+  }
+  const injuryFactsBySport = new Map<string, InjuryResolution>()
+  for (const [sport, players] of injuryLookupsBySport) {
+    const facts = await resolveInjuryFacts({ sport, players, now: requestNow }).catch(() => null)
+    if (facts) injuryFactsBySport.set(sport, facts)
+  }
+  const injuryAmbiguous = new Set<string>()
+  let injuryNewestFetchedAt: Date | null = null
+  let anyInjuryFeedFresh = false
+  for (const facts of injuryFactsBySport.values()) {
+    for (const name of facts.ambiguous) injuryAmbiguous.add(name)
+    if (!facts.feedStale) anyInjuryFeedFresh = true
+    if (facts.newestFetchedAt && (!injuryNewestFetchedAt || facts.newestFetchedAt > injuryNewestFetchedAt)) {
+      injuryNewestFetchedAt = facts.newestFetchedAt
+    }
+  }
+
   // Part 7 — schedule enrichment. NFL = week/bye model; NBA/MLB/NHL = next-game
   // model (Slice 6). Same persisted caches underneath both.
   const teamsBySport = new Map<string, Set<string>>()
@@ -468,7 +537,6 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
       })
     }
   }
-  const requestNow = args.requestTime ?? new Date()
   const waiverWorld = await resolveLeagueWaiverWorldStates({
     leagueIds: Array.from(userRosterByLeague.keys()),
     userRosterByLeague,
@@ -580,6 +648,33 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
     // real row's provider id until one has a projection row.
     const projection = acc.rows.map((r) => projectionByPlayerId.get(r.playerId)).find(Boolean) ?? null
 
+    // Slice 18 — injury precedence: a real RI injury row wins outright; the
+    // player-record token is a fallback consulted only for genuine injury
+    // tokens (roster tokens are ignored, never coerced). A stale RI row is
+    // carried but FLAGGED — a two-week-old "Questionable" rendered plainly is
+    // a false statement, not old data. No RI row + no genuine fallback token
+    // = null: "no news", which is NOT "healthy".
+    const sportInjuryFacts = injuryFactsBySport.get(acc.sport)
+    const riFact = sportInjuryFacts?.byPlayer.get(normalizeMatchName(acc.displayName))
+    const fallbackStatus = injuryContext ? fallbackInjuryStatus(injuryContext.status) : null
+    const injury: CrossLeaguePlayerPortfolioItem['injury'] = riFact
+      ? {
+          status: designationToInjuryStatus(typeof riFact.status === 'string' ? riFact.status : null),
+          freshness: {
+            state: riFact.stale || sportInjuryFacts?.feedStale ? 'stale' : 'fresh',
+            lastSyncedAt: riFact.fetchedAt.toISOString(),
+          },
+        }
+      : fallbackStatus != null && injuryContext
+        ? {
+            status: fallbackStatus,
+            freshness: {
+              state: injuryContext.freshness.isStale ? 'stale' : injuryContext.freshness.isStale === false ? 'fresh' : 'unknown',
+              lastSyncedAt: injuryContext.freshness.updatedAt,
+            },
+          }
+        : null
+
     return {
       canonicalPlayerId: acc.canonicalPlayerId,
       displayName: acc.displayName,
@@ -589,15 +684,7 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
       identityConfidence: acc.identityConfidence,
       headshotUrl,
       projection,
-      injury: injuryContext
-        ? {
-            status: toInjuryStatus(injuryContext.status, injuryContext.availabilityCategory),
-            freshness: {
-              state: injuryContext.freshness.isStale ? 'stale' : injuryContext.freshness.isStale === false ? 'fresh' : 'unknown',
-              lastSyncedAt: injuryContext.freshness.updatedAt,
-            },
-          }
-        : null,
+      injury,
       schedule: teamSchedule
         ? {
             byeWeek: teamSchedule.byeWeek,
@@ -637,6 +724,11 @@ export async function assembleCrossLeaguePlayerPortfolio(args: {
     connectedLeagueCount: connectedLeagueIds.size,
     unsupportedSports: Array.from(unsupportedSportsSeen),
     waiverWorldByLeague: Object.fromEntries(waiverWorld),
+    injuryPort: {
+      ambiguousPlayers: Array.from(injuryAmbiguous),
+      feedStale: !anyInjuryFeedFresh,
+      newestFetchedAt: injuryNewestFetchedAt ? injuryNewestFetchedAt.toISOString() : null,
+    },
   }
 }
 

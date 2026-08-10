@@ -17,6 +17,7 @@ vi.mock('@/lib/prisma', () => ({
 import {
   INJURY_STALE_AFTER_HOURS,
   getInjuryFeedHealth,
+  listInjuryFacts,
   resolveInjuryFacts,
 } from '@/lib/injuries/injuryReadPort'
 
@@ -132,6 +133,62 @@ describe('resolveInjuryFacts', () => {
     const res = await resolveInjuryFacts({ sport: 'NFL', players: [], now: NOW })
     expect(res.byPlayer.size).toBe(0)
     expect(mocks.findMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('listInjuryFacts (Slice 18 follow-on — list-shaped surfaces)', () => {
+  beforeEach(() => vi.clearAllMocks())
+
+  it('collapses multi-provider duplicates to ONE row per player, freshest source winning', async () => {
+    mocks.findMany.mockResolvedValue([
+      row({ id: 'ri-1', source: 'rolling_insights', status: 'Questionable', fetchedAt: hoursAgo(1) }),
+      row({ id: 'as-1', source: 'api_sports', status: 'Out', fetchedAt: hoursAgo(17 * 24) }),
+      row({ id: 'ri-2', playerName: 'Other Guy', team: 'MIA', status: 'Out', fetchedAt: hoursAgo(2) }),
+    ])
+    const res = await listInjuryFacts({ sport: 'NFL', now: NOW })
+    expect(res.facts).toHaveLength(2)
+    const ty = res.facts.find((f) => f.playerName === 'Ty Johnson')
+    expect(ty?.status).toBe('Questionable')
+    expect(ty?.source).toBe('rolling_insights')
+  })
+
+  it('keeps BOTH sides of a same-name collision on different teams — a list has no lookup to mis-bind', async () => {
+    mocks.findMany.mockResolvedValue([
+      row({ id: 'a', playerName: 'Josh Allen', team: 'BUF', status: 'Questionable' }),
+      row({ id: 'b', playerName: 'Josh Allen', team: 'JAX', status: 'Out' }),
+    ])
+    const res = await listInjuryFacts({ sport: 'NFL', now: NOW })
+    expect(res.facts).toHaveLength(2)
+  })
+
+  it('returns stale rows FLAGGED, never hidden, and reports feedStale', async () => {
+    mocks.findMany.mockResolvedValue([row({ id: 'a', fetchedAt: hoursAgo(INJURY_STALE_AFTER_HOURS + 10) })])
+    const res = await listInjuryFacts({ sport: 'NFL', now: NOW })
+    expect(res.facts[0]?.stale).toBe(true)
+    expect(res.feedStale).toBe(true)
+  })
+
+  it('sorts freshest-first and respects the limit AFTER dedup', async () => {
+    mocks.findMany.mockResolvedValue([
+      row({ id: 'a', playerName: 'A', team: 'BUF', fetchedAt: hoursAgo(3) }),
+      row({ id: 'b', playerName: 'B', team: 'MIA', fetchedAt: hoursAgo(1) }),
+      row({ id: 'c', playerName: 'C', team: 'KC', fetchedAt: hoursAgo(2) }),
+    ])
+    const res = await listInjuryFacts({ sport: 'NFL', now: NOW, limit: 2 })
+    expect(res.facts.map((f) => f.playerName)).toEqual(['B', 'C'])
+  })
+
+  it('carries team/position/id through for ticker rendering', async () => {
+    mocks.findMany.mockResolvedValue([row({ id: 'ri-9', position: 'RB' })])
+    const res = await listInjuryFacts({ sport: 'NFL', now: NOW })
+    expect(res.facts[0]).toMatchObject({ id: 'ri-9', team: 'Buffalo Bills', position: 'RB' })
+  })
+
+  it('degrades to empty on a query failure rather than throwing', async () => {
+    mocks.findMany.mockRejectedValue(new Error('db down'))
+    const res = await listInjuryFacts({ sport: 'NFL', now: NOW })
+    expect(res.facts).toEqual([])
+    expect(res.feedStale).toBe(true)
   })
 })
 
