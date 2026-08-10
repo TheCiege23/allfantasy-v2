@@ -308,12 +308,31 @@ export default function NocturneDashboard({
   const [showHistorical, setShowHistorical] = useState(false)
   const [leagueSearch, setLeagueSearch] = useState('')
   const [platformFilter, setPlatformFilter] = useState('all')
+  // Live (full canonical import, has a cockpit) vs History (AF-Legacy career snapshot).
+  const [scopeFilter, setScopeFilter] = useState<'all' | 'live' | 'history'>('all')
   const [view, setView] = useState<'cards' | 'list'>('cards')
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [playerQuery, setPlayerQuery] = useState('')
   const [playerResults, setPlayerResults] = useState<PlayerResult[]>([])
   const [activePlayer, setActivePlayer] = useState<PlayerResult | null>(null)
+  // Sports-API intelligence for the open player card — headshot / injury /
+  // projection / ADP / market value from /api/players/profile. League-agnostic
+  // by design (the payload's notes say so); null fields render as absent.
+  const [playerProfile, setPlayerProfile] = useState<PlayerProfile | null>(null)
+  useEffect(() => {
+    setPlayerProfile(null)
+    if (!activePlayer) return
+    let cancelled = false
+    const params = new URLSearchParams()
+    if (activePlayer.playerId) params.set('playerId', activePlayer.playerId)
+    if (activePlayer.name) params.set('name', activePlayer.name)
+    void fetch(`/api/players/profile?${params.toString()}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (!cancelled && d) setPlayerProfile(d as PlayerProfile) })
+      .catch(() => { if (!cancelled) setPlayerProfile(null) })
+    return () => { cancelled = true }
+  }, [activePlayer])
   const [today, setToday] = useState<TodayState>(null)
   const [commLeagueId, setCommLeagueId] = useState<string | null>(null)
   const [checkedActions, setCheckedActions] = useState<Record<string, boolean>>({})
@@ -463,10 +482,15 @@ export default function NocturneDashboard({
     return leagues.filter((l) => {
       if (dashLeagueFilter !== 'all' && l.id !== dashLeagueFilter) return false
       if (platformFilter !== 'all' && l.platform !== platformFilter) return false
+      if (scopeFilter === 'live' && !l.unified) return false
+      if (scopeFilter === 'history' && l.unified) return false
       if (q && !l.name.toLowerCase().includes(q)) return false
       return true
     })
-  }, [leagues, leagueSearch, platformFilter, dashLeagueFilter])
+  }, [leagues, leagueSearch, platformFilter, dashLeagueFilter, scopeFilter])
+  // Live = full canonical import (`hasUnifiedRecord`); History = AF-Legacy snapshot rows.
+  const liveLeagueCount = useMemo(() => filteredLeagues.filter((l) => l.unified).length, [filteredLeagues])
+  const historyLeagueCount = filteredLeagues.length - liveLeagueCount
 
   // Real current week per league. `/api/dashboard/live-scores` already resolves this from
   // RedraftSeason (it returns { scores: [{ leagueId, week, ... }] }), so the timeline needs
@@ -533,13 +557,49 @@ export default function NocturneDashboard({
     const sevRank: Record<string, number> = { critical: 0, warning: 1, info: 2 }
     const urgRank: Record<string, number> = { urgent: 0, soon: 1, normal: 2, low: 3 }
 
-    const rows: Array<{ key: string; label: string; league: string; severity: string; sev: number; urg: number; count: number }> = []
+    type IssueRow = {
+      key: string; label: string; league: string; severity: string; sev: number; urg: number; count: number
+      /** The specific fix — the engine's own recommendedAction verbatim when present, else a deterministic per-reason next step. */
+      rec: string | null
+      /** Which engine produced it (Decision OS module / lineup scan / trade inbox). */
+      source: string | null
+      /** Real expectedGain off the action row, when the engine scored one. */
+      gain: number | null
+      kind: 'lineup' | 'trade'
+    }
+    const rows: IssueRow[] = []
+
+    // Which brain produced the signal — real sourceModule values off the action rows.
+    const MODULE_LABEL: Record<string, string> = {
+      StartSit: 'Decision OS · Start/Sit',
+      Waiver: 'Decision OS · Waivers',
+      MatchupPrep: 'Decision OS · Matchup prep',
+      InjuryImpact: 'Decision OS · Injury impact',
+      AFWarRoom: 'AF War Room',
+      lineup_scan: 'Lineup scan',
+    }
+    // Deterministic next step per reasonType — used ONLY when the engine didn't
+    // ship its own recommendedAction. Action verbs, never invented stats.
+    const REASON_REC: Record<string, (player: string | null, slot: string | null) => string> = {
+      empty_starter: (_p, s) => (s ? `Slot an active player into ${s} — open the lineup fixer` : 'Fill the empty starter slot — open the lineup fixer'),
+      injured_starter: (p) => (p ? `Replace ${p} (injured) before lock` : 'Replace your injured starter before lock'),
+      questionable_starter: (p) => (p ? `Check ${p}'s pregame status and line up a pivot` : 'Verify your questionable starter pregame'),
+      doubtful_starter: (p) => (p ? `Bench ${p} (doubtful) for your best healthy option` : 'Bench the doubtful starter for a healthy option'),
+      illegal_slot: (p, s) => (p ? `${p} isn't eligible ${s ? `for ${s}` : 'there'} — swap in an eligible player` : 'Swap in an eligible player for this slot'),
+      native_starter_gap: () => 'Set your starters for this week',
+      ai_start_sit: (p) => (p ? `Start/sit call on ${p} — open the review` : 'Open the start/sit review'),
+      ai_waiver: (p) => (p ? `Add ${p} off waivers before the run` : 'File the recommended waiver claim'),
+      matchup_prep: () => 'Run matchup prep before kickoff',
+      injury_impact: () => 'Review the injury ripple through your lineup',
+      war_room: () => 'Open the War Room priority',
+      weather_risk: (p) => (p ? `Weather risk on ${p} — consider the pivot` : 'Check the weather-risk pivot'),
+    }
 
     // Lineup actions are per-slot, so one underlying problem ("Missing N starter slots")
     // arrives as N identical messages. Collapse identical (league, message) pairs into a
     // single row with a count — otherwise a Top 10 list is just the same line ten times.
     const actions = ((todayFull?.lineup as { actions?: Array<Record<string, unknown>> } | undefined)?.actions) ?? []
-    const grouped = new Map<string, { label: string; league: string; severity: string; sev: number; urg: number; count: number }>()
+    const grouped = new Map<string, Omit<IssueRow, 'key'>>()
     for (const a of actions) {
       const leagueId = str(a.leagueId)
       if (!leagueId || !inScope(leagueId)) continue
@@ -548,6 +608,12 @@ export default function NocturneDashboard({
       const severity = str(a.severity) ?? 'info'
       const sev = sevRank[severity] ?? 2
       const urg = urgRank[str(a.urgency) ?? 'normal'] ?? 2
+      const reasonType = str(a.reasonType)
+      const rec =
+        str(a.recommendedAction) ??
+        (reasonType && REASON_REC[reasonType] ? REASON_REC[reasonType](str(a.playerName), str(a.slotLabel)) : null)
+      const source = MODULE_LABEL[str(a.sourceModule) ?? ''] ?? null
+      const gain = num(a.expectedGain)
       const key = `lineup:${leagueId}:${message}`
       const hit = grouped.get(key)
       if (hit) {
@@ -556,8 +622,10 @@ export default function NocturneDashboard({
         hit.sev = Math.min(hit.sev, sev)
         hit.urg = Math.min(hit.urg, urg)
         if (sev < (sevRank[hit.severity] ?? 2)) hit.severity = severity
+        if (!hit.rec && rec) { hit.rec = rec; hit.source = source }
+        if (gain != null && (hit.gain == null || gain > hit.gain)) hit.gain = gain
       } else {
-        grouped.set(key, { label: message, league: nameOf(leagueId), severity, sev, urg, count: 1 })
+        grouped.set(key, { label: message, league: nameOf(leagueId), severity, sev, urg, count: 1, rec, source, gain, kind: 'lineup' })
       }
     }
     for (const [key, v] of grouped) rows.push({ key, ...v })
@@ -576,6 +644,10 @@ export default function NocturneDashboard({
         sev: 1,
         urg: 0,
         count: 1,
+        rec: 'Review the offer and respond — open the trade inbox',
+        source: 'Decision Inbox',
+        gain: null,
+        kind: 'trade',
       })
     }
 
@@ -598,7 +670,10 @@ export default function NocturneDashboard({
   )
 
   const dashFilterLeagueName = dashLeagueFilter === 'all' ? null : leagues.find((l) => l.id === dashLeagueFilter)?.name ?? null
-  const commissionedCount = scopedLeagues.filter((l) => l.isCommissioner).length
+  // Current-season only: with 500+ imported career snapshots also carrying the
+  // commissioner flag, counting them all reads "You commission 42 leagues" when
+  // the real number of leagues being RUN this year is a handful.
+  const commissionedCount = scopedLeagues.filter((l) => l.isCommissioner && isCurrentSeasonLeague(l, currentSeasonYear)).length
 
   // Time-of-day greeting, matching the design. Uses the existing warroom greeting keys so
   // the language switcher keeps working (EN + ES already translated) instead of hardcoding
@@ -816,18 +891,38 @@ export default function NocturneDashboard({
             </div>
             <div className="afcard" style={{ padding: 6 }}>
               {outstandingIssues.map((iss) => (
-                <div key={iss.key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 10px', borderRadius: 'var(--radius-md)' }}>
-                  <span
-                    aria-hidden
-                    style={{
-                      width: 8, height: 8, borderRadius: '50%', flex: 'none',
-                      background: iss.severity === 'critical' ? '#e5675f' : iss.severity === 'warning' ? '#d8a657' : 'var(--color-accent-500)',
-                    }}
-                  />
-                  <span style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{iss.label}</span>
-                  {iss.count > 1 && <span className="tag tag-neutral" style={{ flex: 'none' }}>×{iss.count}</span>}
-                  <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', flex: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{iss.league}</span>
-                </div>
+                <button
+                  key={iss.key}
+                  type="button"
+                  onClick={() => setOpenModal(iss.kind === 'trade' ? 'trade' : 'lineup')}
+                  style={{ display: 'block', width: '100%', padding: '9px 10px', borderRadius: 'var(--radius-md)', background: 'none', border: 'none', color: 'inherit', cursor: 'pointer', textAlign: 'left' }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <span
+                      aria-hidden
+                      style={{
+                        width: 8, height: 8, borderRadius: '50%', flex: 'none',
+                        background: iss.severity === 'critical' ? '#e5675f' : iss.severity === 'warning' ? '#d8a657' : 'var(--color-accent-500)',
+                      }}
+                    />
+                    <span style={{ fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{iss.label}</span>
+                    {iss.count > 1 && <span className="tag tag-neutral" style={{ flex: 'none' }}>×{iss.count}</span>}
+                    <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', flex: 'none', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{iss.league}</span>
+                  </div>
+                  {iss.rec && (
+                    <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, margin: '3px 0 0 18px', minWidth: 0 }}>
+                      <span style={{ fontSize: 12, color: 'var(--color-accent-300, #ff9ec0)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                        → {iss.rec}
+                        {iss.gain != null && iss.gain > 0 ? ` (+${iss.gain.toFixed(1)} proj pts)` : ''}
+                      </span>
+                      {iss.source && (
+                        <span style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.03em', color: 'var(--color-neutral-600)', flex: 'none' }}>
+                          {iss.source}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </button>
               ))}
             </div>
           </div>
@@ -846,7 +941,10 @@ export default function NocturneDashboard({
             engines), the one-tap trade Decision Inbox, and the Manager Career Card. ═══ */}
         {context === 'global' && !isVisitor && (
           <>
-            <DraftSeasonHQ leagues={leagues} />
+            {/* userLeagues (UserLeague[]) — DisplayLeague lacks sleeperLeagueId, which
+                broke the imported-league match and made every draft tile say
+                "not imported" even for imported leagues. */}
+            <DraftSeasonHQ leagues={userLeagues} />
             <CommandCenterDeck userId={userId} />
             <DecisionInbox />
           </>
@@ -856,12 +954,19 @@ export default function NocturneDashboard({
         {context === 'global' && (
           <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 12 }}>
-              <span className="dash-kicker">My leagues ({filteredLeagues.length})</span>
+              <span className="dash-kicker">
+                My leagues · {liveLeagueCount} live{historyLeagueCount > 0 ? ` · ${historyLeagueCount} history` : ''}
+              </span>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
                 <input className="input" style={{ minHeight: 32, padding: '0 10px', fontSize: 12.5, width: 160 }} value={leagueSearch} onChange={(e) => setLeagueSearch(e.target.value)} placeholder="Search leagues..." />
                 <select className="input" value={platformFilter} onChange={(e) => setPlatformFilter(e.target.value)} style={{ width: 'auto', minHeight: 32, padding: '0 8px', fontSize: 12.5 }}>
                   <option value="all">All platforms</option>
                   {platformOptions.map((p) => <option key={p} value={p}>{p.charAt(0).toUpperCase() + p.slice(1)}</option>)}
+                </select>
+                <select className="input" value={scopeFilter} onChange={(e) => setScopeFilter(e.target.value as 'all' | 'live' | 'history')} aria-label="Live or history leagues" style={{ width: 'auto', minHeight: 32, padding: '0 8px', fontSize: 12.5 }}>
+                  <option value="all">Live + history</option>
+                  <option value="live">Live only</option>
+                  <option value="history">History only</option>
                 </select>
                 <div style={{ display: 'flex', gap: 2, background: 'color-mix(in srgb, var(--color-bg) 55%, transparent)', border: '1px solid var(--color-neutral-800)', borderRadius: 'var(--radius-md)', padding: 2 }}>
                   <button type="button" onClick={() => setView('cards')} aria-label="Cards view" style={{ border: 'none', padding: '5px 8px', borderRadius: 5, cursor: 'pointer', background: view === 'cards' ? 'var(--color-accent)' : 'none', color: view === 'cards' ? '#fff' : 'var(--color-neutral-500)' }}><LayoutGrid size={14} /></button>
@@ -1136,9 +1241,50 @@ export default function NocturneDashboard({
           <div className="afcard" style={{ width: '100%', maxWidth: 460, position: 'relative' }} onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={() => setActivePlayer(null)} aria-label="Close" style={{ position: 'absolute', top: 12, right: 12, background: 'none', border: 'none', color: 'var(--color-neutral-500)', cursor: 'pointer' }}><X size={16} /></button>
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 16 }}>
-              <div style={{ width: 40, height: 40, borderRadius: '50%', background: 'var(--color-accent-900)', display: 'grid', placeItems: 'center', font: '700 12px ui-monospace,Menlo,monospace', color: 'var(--color-accent-400)' }}>{activePlayer.position ?? '—'}</div>
-              <div><div style={{ fontWeight: 600, fontSize: 16 }}>{activePlayer.name ?? 'Unknown player'}</div><div style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>{activePlayer.team ?? '—'}</div></div>
+              {playerProfile?.headshotUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={playerProfile.headshotUrl}
+                  alt=""
+                  width={44}
+                  height={44}
+                  style={{ width: 44, height: 44, borderRadius: '50%', objectFit: 'cover', background: 'var(--color-accent-900)', flex: 'none' }}
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }}
+                />
+              ) : (
+                <div style={{ width: 44, height: 44, borderRadius: '50%', background: 'var(--color-accent-900)', display: 'grid', placeItems: 'center', font: '700 12px ui-monospace,Menlo,monospace', color: 'var(--color-accent-400)', flex: 'none' }}>{activePlayer.position ?? '—'}</div>
+              )}
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontWeight: 600, fontSize: 16 }}>{activePlayer.name ?? 'Unknown player'}</div>
+                <div style={{ fontSize: 12, color: 'var(--color-neutral-600)' }}>
+                  {activePlayer.position ?? '—'} · {activePlayer.team ?? '—'}
+                </div>
+              </div>
+              {playerProfile?.injury ? (
+                <span className="tag tag-accent" title={playerProfile.injury.note ?? undefined}>
+                  {playerProfile.injury.status}
+                </span>
+              ) : null}
             </div>
+
+            {/* ── Sports-API intelligence — projection / ADP / market value ── */}
+            {playerProfile && (playerProfile.projections || playerProfile.adp || playerProfile.values) ? (
+              <>
+                <div className="dash-kicker" style={{ marginBottom: 8 }}>Market &amp; projection</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, textAlign: 'center', marginBottom: 14 }}>
+                  <Career
+                    value={playerProfile.projections?.ptsHalfPpr ?? playerProfile.projections?.ptsPpr ?? null}
+                    label={playerProfile.projections?.week ? `Proj wk ${playerProfile.projections.week}` : 'Proj'}
+                  />
+                  <Career value={playerProfile.adp?.redraftHalfPpr != null ? playerProfile.adp.redraftHalfPpr.toFixed(1) : null} label="ADP (redraft)" />
+                  <Career
+                    value={playerProfile.values?.redraft ?? playerProfile.values?.dynasty ?? null}
+                    label={playerProfile.values?.dynasty != null && playerProfile.values?.redraft == null ? 'Value (dynasty)' : 'Value (redraft)'}
+                  />
+                </div>
+              </>
+            ) : null}
+
             <div className="dash-kicker" style={{ marginBottom: 8 }}>Your exposure</div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 10, textAlign: 'center' }}>
               <Career value={activePlayer.leagueCount} label="Leagues" />
@@ -1148,6 +1294,11 @@ export default function NocturneDashboard({
             <p style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', margin: '14px 0 0', textAlign: 'center' }}>
               On {activePlayer.leagueCount} of your leagues ({Math.round(activePlayer.exposurePercent * 100)}% exposure).
             </p>
+            {playerProfile ? (
+              <p style={{ fontSize: 10.5, color: 'var(--color-neutral-700)', margin: '10px 0 0', textAlign: 'center' }}>
+                Half-PPR projection · FantasyCalc 12-team 1QB values — league-agnostic; exact numbers live on each league page.
+              </p>
+            ) : null}
           </div>
         </div>
       )}
@@ -1184,9 +1335,12 @@ export default function NocturneDashboard({
               <span className="afsrc" style={{ width: 44, height: 44, fontSize: 15, background: leagueModal.color }}>{leagueModal.initial}</span>
               <div style={{ minWidth: 0 }}>
                 <div style={{ fontWeight: 600, fontSize: 16 }}>{leagueModal.name}</div>
-                <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', textTransform: 'capitalize' }}>
-                  {leagueModal.platform}{leagueModal.season ? ` · ${leagueModal.season} season` : ''}
-                  {(leagueModal.season ?? 0) < currentSeasonYear ? ' · historical' : ''}
+                <div style={{ fontSize: 12, color: 'var(--color-neutral-600)', textTransform: 'capitalize', display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <span className={leagueModal.unified ? 'tag tag-live' : 'tag tag-history'}>{leagueModal.unified ? 'LIVE' : 'HISTORY'}</span>
+                  <span>
+                    {leagueModal.platform}{leagueModal.season ? ` · ${leagueModal.season} season` : ''}
+                    {(leagueModal.season ?? 0) < currentSeasonYear ? ' · historical' : ''}
+                  </span>
                 </div>
               </div>
             </div>
@@ -1202,12 +1356,19 @@ export default function NocturneDashboard({
             </div>
             <div style={{ marginTop: 18 }}>
               {leagueModal.unified ? (
-                <Link href={`/league/${leagueModal.id}`} className="btn btn-primary btn-block" style={{ width: '100%' }}>Open league →</Link>
+                <>
+                  <Link href={`/league/${leagueModal.id}`} className="btn btn-primary btn-block" style={{ width: '100%' }}>Open league →</Link>
+                  <ClaimInvitePanel leagueId={leagueModal.id} />
+                </>
               ) : (
                 <>
                   <p style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', margin: '0 0 10px' }}>
-                    This is an imported {leagueModal.season ?? 'past'}-season snapshot, so it has no live league page. Its history feeds your AF Rank and Legacy tools.
+                    This is an imported {leagueModal.season ?? 'past'}-season history snapshot, so it has no live league page. Its history feeds your AF Rank and Legacy tools.
+                    {upgradeHref(leagueModal) ? ' Upgrade it to a full league to unlock the cockpit, H2H intelligence, and team claims.' : ''}
                   </p>
+                  {upgradeHref(leagueModal) && (
+                    <Link href={upgradeHref(leagueModal)!} className="btn btn-primary btn-block" style={{ width: '100%', marginBottom: 8 }}>Upgrade to full league →</Link>
+                  )}
                   <Link href="/af-legacy" className="btn btn-secondary btn-block" style={{ width: '100%' }}>Open AF Legacy tools →</Link>
                 </>
               )}
@@ -1265,6 +1426,16 @@ type PlayerResult = {
   playerId: string; name: string | null; position: string | null; team: string | null
   leagueCount: number; startingCount: number; benchCount: number; irTaxiCount: number; exposurePercent: number
 }
+/** /api/players/profile — league-agnostic sports-API card (all fields honest-nullable). */
+type PlayerProfile = {
+  headshotUrl: string | null
+  season: string | null
+  injury: { status: string; note: string | null } | null
+  projections: { week: number | null; ptsPpr: number | null; ptsHalfPpr: number | null; mode: string } | null
+  adp: { redraftHalfPpr: number | null; dynastyHalfPpr: number | null; rookie: number | null } | null
+  values: { redraft: number | null; dynasty: number | null; source: string } | null
+  notes: string[]
+}
 type TodayShape = { lineups: number; waivers: number; trades: number; urgent: number }
 /** 'unavailable' = today-actions failed/degraded (503) — must NOT be shown as "all clear". */
 type TodayState = TodayShape | 'unavailable' | null
@@ -1316,6 +1487,18 @@ function Avatar({ name, image, size }: { name: string; image?: string | null; si
  * generic `/af-legacy` landing page is what made "Open" feel random. The popup then
  * offers the real deep-link for leagues that actually have one.
  */
+/**
+ * History rows (AF-Legacy snapshots) can be upgraded into a full canonical import:
+ * the prefilled import deep-link (`/import?provider=…&leagueId=…`) is the same
+ * contract the draft-HQ tiles use. Sleeper-only today — that's the only platform
+ * whose snapshot rows carry a re-importable platform league id.
+ */
+function upgradeHref(lg: DisplayLeague): string | null {
+  if (lg.unified) return null
+  if (lg.platform !== 'sleeper' || !lg.platformLeagueId) return null
+  return `/import?provider=sleeper&leagueId=${encodeURIComponent(lg.platformLeagueId)}&returnTo=/dashboard`
+}
+
 function LeagueCollection({ leagues, view, onOpen }: { leagues: DisplayLeague[]; view: 'cards' | 'list'; onOpen: (lg: DisplayLeague) => void }) {
   if (view === 'cards') {
     return (
@@ -1339,9 +1522,18 @@ function LeagueCollection({ leagues, view, onOpen }: { leagues: DisplayLeague[];
                 </div>
               </div>
             </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              {lg.isCommissioner ? <span className="tag tag-accent">Commissioner</span> : <span className="tag tag-neutral">Manager</span>}
-              <span style={{ fontSize: 12, color: 'var(--color-accent-400)' }}>Open →</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+                <span className={lg.unified ? 'tag tag-live' : 'tag tag-history'}>{lg.unified ? 'LIVE' : 'HISTORY'}</span>
+                {lg.isCommissioner ? <span className="tag tag-accent">Commissioner</span> : <span className="tag tag-neutral">Manager</span>}
+              </div>
+              {upgradeHref(lg) ? (
+                <Link href={upgradeHref(lg)!} onClick={(e) => e.stopPropagation()} style={{ fontSize: 12, fontWeight: 600, color: 'var(--color-accent-400)', whiteSpace: 'nowrap' }}>
+                  Upgrade to full league →
+                </Link>
+              ) : (
+                <span style={{ fontSize: 12, color: 'var(--color-accent-400)' }}>Open →</span>
+              )}
             </div>
           </div>
         ))}
@@ -1361,6 +1553,7 @@ function LeagueCollection({ leagues, view, onOpen }: { leagues: DisplayLeague[];
           <span style={{ fontWeight: 600, fontSize: 13, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{lg.name}</span>
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', width: 46, flex: 'none' }}>{lg.season ?? '—'}</span>
           <span style={{ fontSize: 11.5, color: 'var(--color-neutral-600)', width: 66, flex: 'none', textTransform: 'capitalize' }}>{lg.platform}</span>
+          <span className={lg.unified ? 'tag tag-live' : 'tag tag-history'} style={{ flex: 'none' }}>{lg.unified ? 'LIVE' : 'HISTORY'}</span>
           {lg.isCommissioner ? <span className="tag tag-accent">Comm</span> : <span className="tag tag-neutral">Mgr</span>}
         </button>
       ))}
@@ -1407,6 +1600,94 @@ function SeasonTimeline({ phaseIndex, week }: { phaseIndex: number; week: number
           )
         })}
       </div>
+    </div>
+  )
+}
+
+/**
+ * Claim & invite panel — "N of M teams claimed" progress plus the shareable
+ * claim link. Fetches GET /api/leagues/join?leagueId= on open (link + real
+ * claimed/team counts from LeagueTeam). Every claimed teammate unlocks
+ * trades, chat, recap emails, and career cards for the league — this bar is
+ * the growth loop's scoreboard.
+ */
+function ClaimInvitePanel({ leagueId }: { leagueId: string }) {
+  const [info, setInfo] = useState<{ inviteLink: string; teamCount: number; claimedCount: number } | null>(null)
+  const [failed, setFailed] = useState(false)
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
+
+  useEffect(() => {
+    let cancelled = false
+    setInfo(null)
+    setFailed(false)
+    setCopyState('idle')
+    void fetch(`/api/leagues/join?leagueId=${encodeURIComponent(leagueId)}`, { cache: 'no-store' })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (cancelled) return
+        if (d?.inviteLink) {
+          setInfo({
+            inviteLink: d.inviteLink as string,
+            teamCount: Number(d.claim?.teamCount ?? 0),
+            claimedCount: Number(d.claim?.claimedCount ?? 0),
+          })
+        } else {
+          setFailed(true)
+        }
+      })
+      .catch(() => { if (!cancelled) setFailed(true) })
+    return () => { cancelled = true }
+  }, [leagueId])
+
+  if (failed) return null
+
+  const pct = info && info.teamCount > 0 ? Math.round((info.claimedCount / info.teamCount) * 100) : 0
+  const unclaimed = info ? Math.max(0, info.teamCount - info.claimedCount) : 0
+
+  return (
+    <div style={{ marginTop: 10 }}>
+      {info && info.teamCount > 0 ? (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11.5, color: 'var(--color-neutral-500)', marginBottom: 4 }}>
+            <span>{info.claimedCount} of {info.teamCount} teams claimed</span>
+            <span>{pct}%</span>
+          </div>
+          <div style={{ height: 6, borderRadius: 3, background: 'var(--color-neutral-900)', overflow: 'hidden', marginBottom: 8 }}>
+            <div style={{ height: '100%', width: `${pct}%`, background: 'var(--deck-gradient, linear-gradient(90deg,#ff3d81,#ff8a3d))' }} />
+          </div>
+        </>
+      ) : null}
+      <button
+        type="button"
+        className="btn btn-secondary btn-block"
+        style={{ width: '100%' }}
+        disabled={!info}
+        data-testid="league-invite-link"
+        onClick={async () => {
+          if (!info) return
+          try {
+            await navigator.clipboard.writeText(info.inviteLink)
+            setCopyState('copied')
+          } catch {
+            setCopyState('failed')
+          }
+        }}
+      >
+        {!info
+          ? 'Loading invite link…'
+          : copyState === 'copied'
+            ? 'Invite link copied ✓ — send it to your leaguemates'
+            : copyState === 'failed'
+              ? 'Retry copy'
+              : unclaimed > 0
+                ? `Invite managers — ${unclaimed} team${unclaimed === 1 ? '' : 's'} still unclaimed`
+                : 'Copy invite link'}
+      </button>
+      {info && unclaimed > 0 && copyState !== 'copied' ? (
+        <p style={{ fontSize: 10.5, color: 'var(--color-neutral-600)', margin: '6px 0 0', textAlign: 'center' }}>
+          Every claimed teammate unlocks trades, chat, recap emails, and career cards for your league.
+        </p>
+      ) : null}
     </div>
   )
 }

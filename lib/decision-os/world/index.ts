@@ -5,9 +5,10 @@
  * {@link CanonicalWorldPort} (default: prisma find* only) and hands them to the pure
  * {@link assembleCanonicalWorld}. It returns null when the league row is missing.
  *
- * STATUS: substrate only. No Decision OS slice (lineup / waiver / trade / commissioner) consumes this
- * in production or shadow routes yet. This is the shared, origin-blind fact layer those future
- * assemblers will build on. Nothing here writes.
+ * STATUS: consumed. The lineup slice's canonical bridge (`lineup/canonicalBridge.ts`) and the trade
+ * slice's canonical shadow (`trade/canonicalShadow.ts`) both resolve this world in their shadow/live
+ * paths; the F2-layer signal projectors feed the lineup memo via `lineup/signalFacts.ts` and the
+ * trade market seam via `trade/enrichmentPort.ts` (F2.5). Nothing here writes.
  *
  * CRITICAL-DEBT NOTE (read-only identity resolution): the legacy redraft path resolves a roster's
  * owner via `resolveRedraftRosterLookup`, which performs owner repair with `prisma.redraftRoster.update`

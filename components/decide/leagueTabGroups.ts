@@ -66,6 +66,33 @@ export type LeagueTabGroup<T extends LeagueTabLike> = {
 }
 
 /** Fold an ordered tab list into ordered, non-empty groups (tab order preserved within each). */
+/**
+ * Preferred landing tab per group. Clicking a group pill opens the group's
+ * FIRST tab, but tabDefs assembly can put variant hubs ahead of the primary
+ * view — e.g. dynasty leagues prepend dynasty/taxi/picks when the base tab
+ * list has no `redraft` anchor, so the ROSTER pill landed on the Dynasty hub
+ * instead of the manager's actual roster. This stable-reorders each bucket so
+ * the primary view leads (and is therefore the pill's landing tab) while
+ * every other tab keeps its relative order. Presentation-only.
+ */
+const GROUP_LANDING_PREFERENCE: Partial<Record<LeagueTabGroupId, string[]>> = {
+  roster: ['roster', 'team', 'squad'],
+  draft: ['draft'],
+  decide: ['decide'],
+  legacy: ['legacy'],
+}
+
+function leadWithPreferred<T extends LeagueTabLike>(gid: LeagueTabGroupId, tabs: T[]): T[] {
+  const pref = GROUP_LANDING_PREFERENCE[gid]
+  if (!pref) return tabs
+  const rank = (t: T) => {
+    const i = pref.indexOf(t.id)
+    return i === -1 ? pref.length : i
+  }
+  // Stable: Array.prototype.sort is stable in modern JS — non-preferred tabs keep their order.
+  return [...tabs].sort((a, b) => rank(a) - rank(b))
+}
+
 export function buildLeagueTabGroups<T extends LeagueTabLike>(tabs: T[]): LeagueTabGroup<T>[] {
   const buckets = new Map<LeagueTabGroupId, T[]>()
   for (const tab of tabs) {
@@ -77,6 +104,6 @@ export function buildLeagueTabGroups<T extends LeagueTabLike>(tabs: T[]): League
   return LEAGUE_TAB_GROUP_ORDER.filter((g) => buckets.has(g.id)).map((g) => ({
     id: g.id,
     label: g.label,
-    tabs: buckets.get(g.id) as T[],
+    tabs: leadWithPreferred(g.id, buckets.get(g.id) as T[]),
   }))
 }

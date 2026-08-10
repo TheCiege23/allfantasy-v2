@@ -190,7 +190,7 @@ async function buildCommandCenter(userId: string): Promise<CommandCenterPayload>
   const leaguesRaw = await prisma.league.findMany({
     where: {
       platform: 'sleeper',
-      platformLeagueId: { not: null },
+      platformLeagueId: { not: '' },
       OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
     },
     select: {

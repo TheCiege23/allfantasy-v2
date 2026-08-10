@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireVerifiedUser } from '@/lib/auth-guard'
+import { prisma } from '@/lib/prisma'
 import { resolveProvider } from '@/lib/league-import/ImportProviderResolver'
 import {
   getImportProviderLabel,
@@ -111,6 +112,51 @@ export async function POST(req: NextRequest) {
               ? error.message
               : 'Failed to discover Yahoo leagues.',
         },
+        { status: 500 },
+      )
+    }
+  }
+
+  // ── Sleeper self-discovery: with no identifier, use the caller's own linked
+  // Sleeper account — this is what lets the import page show "your leagues"
+  // (and the Import All button) without typing anything.
+  if (!accountIdentifier && provider === 'sleeper') {
+    const profile = await prisma.userProfile
+      .findUnique({ where: { userId: auth.userId }, select: { sleeperUserId: true, sleeperUsername: true } })
+      .catch(() => null)
+    if (!profile?.sleeperUserId) {
+      return NextResponse.json(
+        { error: 'accountIdentifier is required (no linked Sleeper account on your profile)' },
+        { status: 400 },
+      )
+    }
+    try {
+      const leagues = await getUserLeagues(profile.sleeperUserId, sport, season)
+      return NextResponse.json({
+        provider,
+        sport,
+        season,
+        account: {
+          providerUserId: profile.sleeperUserId,
+          accountIdentifier: profile.sleeperUsername ?? profile.sleeperUserId,
+          displayName: profile.sleeperUsername ?? 'Your Sleeper account',
+        },
+        leagues: leagues.map((league) => ({
+          sourceId: league.league_id,
+          name: league.name,
+          sport: league.sport,
+          season: league.season,
+          status: league.status,
+          totalTeams: league.total_rosters,
+          isDynasty: league.settings?.type === 2,
+          avatarUrl: league.avatar
+            ? `https://sleepercdn.com/avatars/thumbs/${league.avatar}`
+            : null,
+        })),
+      })
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Failed to discover your Sleeper leagues.' },
         { status: 500 },
       )
     }

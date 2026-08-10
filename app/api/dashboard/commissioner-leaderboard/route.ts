@@ -35,7 +35,7 @@ export async function GET(_req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
   const leagues = await prisma.league.findMany({
-    where: { userId, platform: 'sleeper', platformLeagueId: { not: null } },
+    where: { userId, platform: 'sleeper', platformLeagueId: { not: '' } },
     select: { id: true, name: true, platformLeagueId: true },
     take: 10,
   })
@@ -49,7 +49,7 @@ export async function GET(_req: NextRequest) {
     method = pulse.method
     rows.push({
       leagueId: league.id,
-      leagueName: league.name,
+      leagueName: league.name ?? 'League',
       flaggedCount: pulse.flaggedCount,
       teamCount: pulse.managers.length,
       flagged: pulse.managers.filter((m) => m.flagged),
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
 
   // Nudges are a commissioner power: league OWNER only.
   const league = await prisma.league.findFirst({
-    where: { id: leagueId, userId, platform: 'sleeper', platformLeagueId: { not: null } },
+    where: { id: leagueId, userId, platform: 'sleeper', platformLeagueId: { not: '' } },
     select: { id: true, platformLeagueId: true, userId: true },
   })
   if (!league) {

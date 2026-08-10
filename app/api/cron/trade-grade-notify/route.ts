@@ -6,6 +6,7 @@ import {
   detectAndNotifyAll,
   detectAndNotifyLeague,
 } from '@/lib/trade-intel/tradeNotifyService'
+import { withSyncJobRun } from '@/lib/production-health/syncJobRunTelemetry'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 300
@@ -25,7 +26,16 @@ export async function GET(req: NextRequest) {
   const isCron = Boolean(cronSecret) && authHeader === `Bearer ${cronSecret}`
 
   if (isCron) {
-    const results = await detectAndNotifyAll()
+    const results = await withSyncJobRun(
+      { jobName: 'cron-trade-grade-notify', trigger: 'cron' },
+      () => detectAndNotifyAll(),
+      (rs) => ({
+        rowsRead: rs.length,
+        rowsWritten: rs.reduce((a, r) => a + r.emailsSent, 0),
+        errors: rs.filter((r) => r.error).map((r) => `${r.sleeperLeagueId}: ${r.error}`),
+        metadata: { newTrades: rs.reduce((a, r) => a + r.newTrades, 0), bootstrapped: rs.filter((r) => r.bootstrap).length },
+      }),
+    )
     return NextResponse.json({
       mode: 'cron' as const,
       leagues: results.length,
