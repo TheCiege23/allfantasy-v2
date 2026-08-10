@@ -173,14 +173,33 @@ function buildRestPathCandidates(
     players: [`player-info/${sportCode}`],
     injuries: [`injuries/${sportCode}`],
     teams: [`team-info/${sportCode}`],
+    /**
+     * Rolling Insights has NO projections feed. Verified 2026-08-10 against the
+     * official NFL docs (schedule, live feed, team info, team stats, player info,
+     * player stats, injuries, depth charts, DK fantasy points, play-by-play) and
+     * by probing every candidate below — only `player-stats` resolves, and it
+     * returns HISTORICAL production, not a forecast.
+     *
+     * `player-stats` was previously the FIRST candidate here, which made the
+     * `projections` dataType silently resolve to last season's actuals. It never
+     * shipped bad numbers only because those rows carry no
+     * projectedPoints/points/fpts field for persistProjectionRows() to read, and
+     * because the current-season lookup 304s before kickoff. Both are accidents,
+     * not safeguards.
+     *
+     * Do NOT re-add player-stats here. It is an INPUT to the AF projection engine
+     * (see AF_PROJECTIONS_ENGINE_BRIEF.md), consumed under the `player_stats`
+     * dataType and written to AFProjectionSnapshot after computation — never
+     * echoed straight into a field the product labels "projected".
+     */
     projections: [
-      `player-stats/${year}/${sportCode}`,
-      `player-stats/${sportCode}`,
       `projections/${year}/${sportCode}`,
       `projection-stats/${year}/${sportCode}`,
       `projected-stats/${year}/${sportCode}`,
       `fantasy-projections/${year}/${sportCode}`,
     ],
+    /** Historical production — the projection engine's base. Confirmed 2182 NFL rows for 2025. */
+    player_stats: [`player-stats/${year}/${sportCode}`, `player-stats/${sportCode}`],
     adp: [
       `adp/${sportCode}`,
       `adp/${year}/${sportCode}`,

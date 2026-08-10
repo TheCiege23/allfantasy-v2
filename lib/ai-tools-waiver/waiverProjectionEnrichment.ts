@@ -73,7 +73,10 @@ export async function enrichWaiverCandidatesWithProjections(args: {
     batch.players.map((p) => ({
       name: p.player.name,
       position: p.player.position?.code ?? null,
-      team: p.player.team ?? null,
+      // NormalizedTeamRef is an object ({externalId, abbrev, name}) — passing it
+      // whole stringified to "[OBJECT OBJECT]" for every row, so team narrowing
+      // never matched and ambiguous collisions produced no enrichment.
+      team: p.player.team?.abbrev ?? null,
       profile: p,
     })),
   )

@@ -540,7 +540,9 @@ export async function getLeagueH2H(sleeperLeagueId: string): Promise<LeagueH2HPa
   const chain: WireLeague[] = []
   let cursor: string | null = sleeperLeagueId
   for (let i = 0; i < MAX_CHAIN && cursor; i += 1) {
-    const league = await j<WireLeague>(`/league/${cursor}`)
+    // Explicit annotation breaks a circular inference: `cursor` builds the URL
+    // that yields `league`, and `league.previous_league_id` reassigns `cursor`.
+    const league: WireLeague | null = await j<WireLeague>(`/league/${cursor}`)
     if (!league) {
       missing.push('part of the league chain')
       break

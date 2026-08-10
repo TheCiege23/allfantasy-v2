@@ -339,7 +339,9 @@ async function buildTradeGrades(sleeperLeagueId: string): Promise<TradeGradesPay
   const chain: WireLeague[] = []
   let cursor: string | null = sleeperLeagueId
   for (let i = 0; i < MAX_CHAIN && cursor; i += 1) {
-    const league = await j<WireLeague>(`/league/${cursor}`)
+    // Explicit annotation breaks a circular inference: `cursor` builds the URL
+    // that yields `league`, and `league.previous_league_id` reassigns `cursor`.
+    const league: WireLeague | null = await j<WireLeague>(`/league/${cursor}`)
     if (!league) {
       missing.push('part of the league chain (an older season did not load)')
       break
@@ -424,7 +426,16 @@ async function buildTradeGrades(sleeperLeagueId: string): Promise<TradeGradesPay
     const cached = stintCache.get(key)
     if (cached) return cached
     const dep = findDeparture(playerId, rosterId, startIdx, startCreated)
-    const windows = stintWindows(seasons, startIdx, startWeek, dep, dynastyLike)
+    // `findDeparture` returns { idx, departure: AssetDeparture }, but
+    // `stintWindows` only needs { idx, week } — project rather than widening its
+    // signature, so the window logic stays independent of AssetDeparture's shape.
+    const windows = stintWindows(
+      seasons,
+      startIdx,
+      startWeek,
+      dep ? { idx: dep.idx, week: dep.departure.week } : null,
+      dynastyLike,
+    )
     for (const w of windows) {
       if (w.mode !== 'weeks') continue
       const set = weeklyNeeds.get(w.season) ?? new Set<number>()

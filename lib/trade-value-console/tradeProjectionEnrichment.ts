@@ -69,7 +69,12 @@ export async function enrichTradeConsolePlayerLines(args: {
     batch.players.map((p) => ({
       name: p.player.name,
       position: p.player.position?.code ?? null,
-      team: p.player.team ?? null,
+      // `player.team` is a NormalizedTeamRef ({externalId, abbrev, name}), not a
+      // string. Passing the object made normalizeToken() stringify it to
+      // "[OBJECT OBJECT]" for every row, so team narrowing could never match —
+      // collisions that position alone could not split fell through to
+      // `ambiguous` and produced no enrichment at all.
+      team: p.player.team?.abbrev ?? null,
       profile: p,
     })),
   )

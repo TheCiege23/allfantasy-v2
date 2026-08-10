@@ -293,7 +293,9 @@ async function buildHistory(sleeperLeagueId: string): Promise<LeagueHistoryPaylo
   const chain: SleeperLeague[] = []
   let cursor: string | null = sleeperLeagueId
   while (cursor && chain.length < MAX_CHAIN) {
-    const league = await j<SleeperLeague>(`/league/${cursor}`)
+    // Explicit annotation breaks a circular inference: `cursor` builds the URL
+    // that yields `league`, and `league.previous_league_id` reassigns `cursor`.
+    const league: SleeperLeague | null = await j<SleeperLeague>(`/league/${cursor}`)
     if (!league) break
     chain.push(league)
     cursor = league.previous_league_id

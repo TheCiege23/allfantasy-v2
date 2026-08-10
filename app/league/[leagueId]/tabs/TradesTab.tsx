@@ -68,6 +68,9 @@ export function TradesTab({ league, teams }: TradesTabProps) {
   const [tradeBlock, setTradeBlock] = useState<LeagueTradeBlockPanelItem[]>([])
   const [activeTrades, setActiveTrades] = useState<LeagueTradeHistoryItem[]>([])
   const [activeCount, setActiveCount] = useState(0)
+  /** Pending trades proposed ON the provider (Sleeper). Read-only in AllFantasy. */
+  const [providerPending, setProviderPending] = useState(0)
+  const [providerUrl, setProviderUrl] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [err, setErr] = useState<string | null>(null)
   const [watch, setWatch] = useState<Set<string>>(() => readWatchSet(league.id))
@@ -108,6 +111,8 @@ export function TradesTab({ league, teams }: TradesTabProps) {
         tradeBlock?: LeagueTradeBlockPanelItem[]
         activeTrades?: LeagueTradeHistoryItem[]
         activeCount?: number
+        providerPendingCount?: number
+        providerLeagueUrl?: string
         error?: string
       } | null
       if (!res.ok) {
@@ -115,16 +120,22 @@ export function TradesTab({ league, teams }: TradesTabProps) {
         setTradeBlock([])
         setActiveTrades([])
         setActiveCount(0)
+        setProviderPending(0)
+        setProviderUrl(null)
         return
       }
       setTradeBlock(Array.isArray(data?.tradeBlock) ? data.tradeBlock : [])
       setActiveTrades(Array.isArray(data?.activeTrades) ? (data.activeTrades as LeagueTradeHistoryItem[]) : [])
       setActiveCount(typeof data?.activeCount === 'number' ? data.activeCount : 0)
+      setProviderPending(typeof data?.providerPendingCount === 'number' ? data.providerPendingCount : 0)
+      setProviderUrl(typeof data?.providerLeagueUrl === 'string' ? data.providerLeagueUrl : null)
     } catch {
       setErr('Could not load trades.')
       setTradeBlock([])
       setActiveTrades([])
       setActiveCount(0)
+      setProviderPending(0)
+      setProviderUrl(null)
     } finally {
       setLoading(false)
     }
@@ -244,6 +255,34 @@ export function TradesTab({ league, teams }: TradesTabProps) {
               </span>
             </div>
           </div>
+
+          {/* Pending trades proposed ON Sleeper are surfaced read-only: the
+              provider's public API has no write endpoint, so AllFantasy can
+              show and analyze them but the manager must respond in Sleeper. */}
+          {!loading && providerPending > 0 ? (
+            <div className="mx-4 mt-3 rounded-xl border border-amber-400/25 bg-amber-400/10 px-3 py-2">
+              <div className="text-[11px] font-semibold text-amber-200">
+                {providerPending} pending {providerPending === 1 ? 'trade' : 'trades'} from Sleeper
+              </div>
+              <p className="mt-0.5 text-[11px] leading-snug text-amber-100/70">
+                Shown here for analysis. Accept or reject them in Sleeper —
+                AllFantasy can&apos;t respond on your behalf.
+                {providerUrl ? (
+                  <>
+                    {' '}
+                    <a
+                      href={providerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="font-semibold text-amber-200 underline hover:text-amber-100"
+                    >
+                      Open in Sleeper
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            </div>
+          ) : null}
 
           <div className="flex gap-2 px-4 pt-3">
             <button

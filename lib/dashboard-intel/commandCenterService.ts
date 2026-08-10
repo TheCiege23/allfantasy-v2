@@ -162,6 +162,14 @@ type LeagueRow = {
   teamCount: number | null
   status: string | null
   lifecycleState: string | null
+  /**
+   * No model in the schema has a `draftDate` column, so this was NEVER
+   * populated — the invalid select key voided the whole projection and any
+   * consumer reading it got undefined. Kept in the contract (11 downstream
+   * call sites depend on the field existing) but now explicitly supplied as
+   * null at the boundary rather than silently absent. Sourcing a real draft
+   * date means reading the draft records, which is its own change.
+   */
   draftDate: Date | null
   isCommissioner: boolean
   teams: {
@@ -175,8 +183,13 @@ type LeagueRow = {
     losses: number | null
     ties: number | null
     pointsFor: number | null
-    faabRemaining: number | null
-    waiverPriority: number | null
+    /**
+     * `faabRemaining` / `waiverPriority` were declared here to match a select
+     * that could never resolve — both fields live on `Roster`, not `LeagueTeam`.
+     * Dropped alongside the select. Restoring them means joining through to
+     * Roster, which is the real fix for `userFaabRemaining` reading null across
+     * every connected league.
+     */
   }[]
 }
 
@@ -198,12 +211,27 @@ async function buildCommandCenter(userId: string): Promise<CommandCenterPayload>
       name: true,
       platformLeagueId: true,
       sport: true,
-      format: true,
+      /**
+       * `format: true` was here, but League has NO `format` column (closest are
+       * `scoring` and `isDynasty`). Prisma rejects an unknown key, which voided
+       * this entire `select` — note the error reported the result as the full
+       * model with "152 more" properties. Selecting real columns and deriving
+       * `format` in the map below.
+       */
+      scoring: true,
+      isDynasty: true,
       platform: true,
-      teamCount: true,
+      /**
+       * `teamCount: true` and `draftDate: true` were also invalid here.
+       * League stores team count as `leagueSize` (schema:5351) — `teamCount`
+       * exists on six OTHER models but not this one — and `draftDate` exists on
+       * no model at all. Each invalid key alone voids the whole select, so this
+       * query has never returned the projection it appears to describe.
+       * `lifecycleState` (schema:5522) is real and stays.
+       */
+      leagueSize: true,
       status: true,
       lifecycleState: true,
-      draftDate: true,
       userId: true,
       teams: {
         select: {
@@ -217,8 +245,19 @@ async function buildCommandCenter(userId: string): Promise<CommandCenterPayload>
           losses: true,
           ties: true,
           pointsFor: true,
-          faabRemaining: true,
-          waiverPriority: true,
+          /**
+           * `faabRemaining` and `waiverPriority` were selected here but they do
+           * NOT exist on LeagueTeam — they live on `Roster` (schema ~7127/7130).
+           * Prisma validates selects at runtime, so this could not have been
+           * returning FAAB; it is almost certainly why `userFaabRemaining` reads
+           * null across all 62 connected leagues.
+           *
+           * Removed rather than papered over, because the correct fix is to join
+           * through to Roster and that is a deliberate change with its own
+           * verification (does every LeagueTeam have a resolvable Roster? which
+           * side wins when both carry a value?). Restoring FAAB is tracked
+           * separately — see the waiver-state gap in AF_PROJECTIONS_ENGINE_BRIEF.
+           */
         },
       },
     },
@@ -226,7 +265,23 @@ async function buildCommandCenter(userId: string): Promise<CommandCenterPayload>
   })
   const leagues: LeagueRow[] = leaguesRaw
     .filter((l): l is typeof l & { platformLeagueId: string } => Boolean(l.platformLeagueId))
-    .map((l) => ({ ...l, isCommissioner: l.userId === userId }))
+    .map((l) => ({
+      ...l,
+      // Derived, not stored: dynasty is an explicit flag, otherwise fall back to
+      // the scoring preset. Null when neither is known — never guessed.
+      format: l.isDynasty ? 'dynasty' : (l.scoring ?? null),
+      // League stores this as `leagueSize`; the LeagueRow contract calls it
+      // `teamCount`. Renamed at the boundary rather than in the query.
+      teamCount: l.leagueSize ?? null,
+      // League.name is nullable in the schema but the LeagueRow contract (and
+      // its consumers) treat it as a string. Coerce once here rather than
+      // making 11 call sites null-aware.
+      name: l.name ?? '',
+      // No `draftDate` column exists on any model — supply null explicitly so
+      // the field is honestly empty rather than undefined-by-omission.
+      draftDate: null,
+      isCommissioner: l.userId === userId,
+    }))
 
   const feed: FeedItem[] = []
   const weekMatchups: WeekMatchup[] = []
