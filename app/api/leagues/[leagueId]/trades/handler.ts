@@ -102,7 +102,18 @@ export async function POST(
   }
 
   try {
-    const { id, governance } = await createAfLeagueTrade({
+    /**
+     * `governance` was destructured here but `createAfLeagueTrade` returns
+     * `Promise<{ id: string }>` and never computes it — the word does not appear
+     * anywhere in tradeService.ts. So the value was always `undefined`, and
+     * JSON.stringify dropped the key: this endpoint has never once returned a
+     * `governance` field. Removing the dead expectation rather than inventing a
+     * payload for it. Echoing effective governance back on create is a
+     * reasonable feature (see the prohibited-fields guard above, which already
+     * treats governance as league-settings-owned) but it has to be built
+     * deliberately, not faked to satisfy a destructure.
+     */
+    const { id } = await createAfLeagueTrade({
       leagueId,
       proposedByUserId: userId,
       proposerRosterId: body.proposerRosterId,
@@ -112,7 +123,7 @@ export async function POST(
       expiresInHours: body.expiresInHours,
       metadata: body.metadata,
     })
-    return NextResponse.json({ ok: true, tradeId: id, governance, ...(sportsDataDecision ? { sportsDataDecision } : {}) })
+    return NextResponse.json({ ok: true, tradeId: id, ...(sportsDataDecision ? { sportsDataDecision } : {}) })
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e)
     return NextResponse.json({ error: msg }, { status: 400 })

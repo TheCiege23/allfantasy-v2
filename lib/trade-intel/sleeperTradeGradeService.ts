@@ -426,7 +426,16 @@ async function buildTradeGrades(sleeperLeagueId: string): Promise<TradeGradesPay
     const cached = stintCache.get(key)
     if (cached) return cached
     const dep = findDeparture(playerId, rosterId, startIdx, startCreated)
-    const windows = stintWindows(seasons, startIdx, startWeek, dep, dynastyLike)
+    // `findDeparture` returns { idx, departure: AssetDeparture }, but
+    // `stintWindows` only needs { idx, week } — project rather than widening its
+    // signature, so the window logic stays independent of AssetDeparture's shape.
+    const windows = stintWindows(
+      seasons,
+      startIdx,
+      startWeek,
+      dep ? { idx: dep.idx, week: dep.departure.week } : null,
+      dynastyLike,
+    )
     for (const w of windows) {
       if (w.mode !== 'weeks') continue
       const set = weeklyNeeds.get(w.season) ?? new Set<number>()
