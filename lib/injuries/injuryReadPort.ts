@@ -237,6 +237,116 @@ export async function resolveInjuryFacts(args: {
   }
 }
 
+export interface InjuryFactListItem extends InjuryFact {
+  /** SportsInjury row id — kept so list consumers (tickers) have a stable key. */
+  id: string
+  team: string | null
+  position: string | null
+}
+
+export interface InjuryFactList {
+  facts: InjuryFactListItem[]
+  newestFetchedAt: Date | null
+  /** True when the whole feed is stale, i.e. ingestion itself has stopped. */
+  feedStale: boolean
+}
+
+/**
+ * Canonical LIST reader — for surfaces that render "current injuries" without
+ * a player set to resolve against (tickers, league-wide injury tables,
+ * insights digests). Same guarantees as `resolveInjuryFacts`: TTL-respected,
+ * ONE row per player (freshest source wins deterministically), staleness
+ * RETURNED rather than hidden. Exists so those surfaces stop running their
+ * own inconsistent `sportsInjury.findMany` variants (no recency filter /
+ * 48h / order-by-date-desc — the ordering that let a 17-day-old api_sports
+ * row outrank a fresh rolling_insights one).
+ */
+export async function listInjuryFacts(args: {
+  sport: string
+  now?: Date
+  /** Exact team abbreviation filter (already-normalized by the caller). */
+  team?: string | null
+  /** Case-insensitive substring match on player name. */
+  playerNameContains?: string | null
+  /** Only rows fetched within this many hours (e.g. 48 for news tickers). */
+  maxAgeHours?: number | null
+  /** Only these designations (exact match against stored status). */
+  statuses?: readonly string[] | null
+  limit?: number
+}): Promise<InjuryFactList> {
+  const now = args.now ?? new Date()
+  const sport = args.sport.toUpperCase()
+  const limit = Math.max(1, Math.min(args.limit ?? 300, 1000))
+  const empty: InjuryFactList = { facts: [], newestFetchedAt: null, feedStale: true }
+
+  let rows: Array<InjuryRow & { id: string }> = []
+  try {
+    rows = (await prisma.sportsInjury.findMany({
+      where: {
+        sport,
+        expiresAt: { gt: now },
+        ...(args.team ? { team: args.team } : {}),
+        ...(args.playerNameContains
+          ? { playerName: { contains: args.playerNameContains, mode: 'insensitive' } }
+          : {}),
+        ...(args.maxAgeHours != null
+          ? { fetchedAt: { gte: new Date(now.getTime() - args.maxAgeHours * 3_600_000) } }
+          : {}),
+        ...(args.statuses && args.statuses.length > 0 ? { status: { in: [...args.statuses] } } : {}),
+      },
+      select: {
+        id: true,
+        playerName: true,
+        status: true,
+        type: true,
+        description: true,
+        date: true,
+        week: true,
+        source: true,
+        fetchedAt: true,
+        team: true,
+        position: true,
+      },
+      orderBy: { fetchedAt: 'desc' },
+      take: 5000,
+    })) as Array<InjuryRow & { id: string }>
+  } catch {
+    return empty
+  }
+
+  if (rows.length === 0) return empty
+
+  const newestFetchedAt = rows.reduce<Date | null>(
+    (acc, r) => (!acc || r.fetchedAt > acc ? r.fetchedAt : acc),
+    null,
+  )
+  const feedAgeHours = newestFetchedAt ? (now.getTime() - newestFetchedAt.getTime()) / 3_600_000 : Infinity
+
+  // One row per player — same collapse rule as resolveInjuryFacts.
+  const bestByExact = new Map<string, InjuryRow & { id: string }>()
+  for (const r of rows) {
+    const key = `${normalizeMatchName(r.playerName)}|${(r.team ?? '').toUpperCase()}`
+    const existing = bestByExact.get(key)
+    bestByExact.set(key, existing ? (preferred(existing, r) as InjuryRow & { id: string }) : r)
+  }
+
+  const facts = [...bestByExact.values()]
+    .sort((a, b) => b.fetchedAt.getTime() - a.fetchedAt.getTime())
+    .slice(0, limit)
+    .map((r) => ({
+      ...toFact(r, now),
+      id: r.id,
+      team: r.team,
+      position: r.position,
+    }))
+
+  return {
+    facts,
+    newestFetchedAt,
+    feedStale: feedAgeHours > INJURY_STALE_AFTER_HOURS,
+  }
+}
+
 /**
  * Feed-level health, for the control room / per-feed health chip and for any
  * surface that needs to caveat itself before rendering injury data at all.

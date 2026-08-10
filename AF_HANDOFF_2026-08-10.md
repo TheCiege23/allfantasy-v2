@@ -174,9 +174,20 @@ against the schema — this class of drift is mechanical to catch.
 - **`SportsPlayerRecord.projections`** was being filled from RI `player-stats` — historical
   data in a field named "projections". Phase 0 severed that. Audit who READS it and whether
   any surface presents it as a forecast (task #64).
-- **No consumer uses the injury read port yet.** `start-sit/injuries` (no recency filter),
-  `news-crawl` (48h), `community-insights` (48h), `draft/player-detail`, `sports/injuries`
-  all still run their own inconsistent queries.
+- **~~No consumer uses the injury read port yet.~~ DONE (Slice 18 + follow-on, 2026-08-10,
+  UNVERIFIED — no shell this session):** the portfolio/urgency path plus all six ad-hoc
+  consumers now go through the port — `start-sit/injuries` (port-first; its old primary,
+  `injuryReportRecord` via `getInjuryReport`, was 103.8d stale), `news-crawl`,
+  `community-insights`, `draft/player-detail` (verified name match, ambiguity refused),
+  `sports/injuries`, and `sports?dataType=injuries` (both via new `listInjuryFacts`).
+  REMAINING: `app/api/redraft/roster/route.ts` still does name-only first-hit injury
+  binding (the slice-15 wrong-row-join hazard) — needs verified matching, not migrated yet.
+- **`/api/player-portfolio` (list + detail) did not exist in the tree** while
+  `app/my-players/MyPlayersClient.tsx` fetched it — the My Players page was 404ing.
+  Found 2026-08-10 because its two test suites failed to import the routes. REBUILT from
+  the contracts those suites pin (session-only appUserId, probe-safe 404s, SortKey set).
+  Verify /my-players renders after deploy; if the original routes exist on some unmerged
+  branch, diff against these rather than assuming either is canonical.
 - **`import-projections` will now return HTTP 500** on every run until the AF engine exists.
   That is correct and intentional — the first honest signal that job has ever sent. Do not
   "fix" it by restoring the false `ok: true`.
