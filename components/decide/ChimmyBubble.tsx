@@ -33,7 +33,7 @@ export function ChimmyBubble(props: ChimmyBubbleProps) {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="pointer-events-none fixed bottom-5 right-5 z-[70] hidden lg:block" data-testid="chimmy-bubble">
+    <div className="pointer-events-none fixed bottom-5 right-5 z-[70] hidden md:block" data-testid="chimmy-bubble">
       {open ? (
         <div
           className="pointer-events-auto flex h-[min(72vh,680px)] w-[420px] flex-col overflow-hidden rounded-2xl border border-[#262c6a] bg-[#0b0e2a] shadow-[0_24px_80px_rgba(0,0,0,0.6)]"

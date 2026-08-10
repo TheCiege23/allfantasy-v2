@@ -187,6 +187,27 @@
   .bdx .bdx-swap { transform: rotate(90deg); justify-self: center; }
 }
 
+/* ── League page canvas — resolve the shell tokens to the deck ground so
+   EVERY tab (home, matchups, players, waivers, trades, standings, commish…)
+   sits on the same Broadcast Deck canvas as the Decide tab, not a foreign
+   near-black. AppShell paints background: var(--bg) / var(--panel2) inline,
+   so overriding the vars here re-skins all three columns at once. ── */
+.af-league-deck-ground {
+  --bg: #0b0e2a;
+  --panel: #12163e;
+  --panel2: #0d1132;
+  --border: #262c6a;
+}
+
+/* ── Strip variant — compact inline strips (e.g. the My Leagues live-draft
+   strip) that borrow the deck chip language but must NOT claim the 60vh
+   canvas floor. Fixes the giant dead gap in the My Leagues side panel. ── */
+.bdx.bdx-strip {
+  min-height: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
 /* ── League info rail (slice 2A: replaces the desktop left chat column) ── */
 .bdx.bdx-rail {
   min-height: 0;

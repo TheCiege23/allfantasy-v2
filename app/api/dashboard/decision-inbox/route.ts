@@ -62,7 +62,7 @@ export async function GET(_req: NextRequest) {
     if (league.platform === 'sleeper' && league.platformLeagueId) {
       sleeperLeagues.push({
         leagueId: league.id,
-        leagueName: league.name,
+        leagueName: league.name ?? 'League',
         sleeperLeagueId: league.platformLeagueId,
       })
     }
@@ -99,7 +99,7 @@ export async function GET(_req: NextRequest) {
         inbox.push({
           tradeId: t.id,
           leagueId: league.id,
-          leagueName: league.name,
+          leagueName: league.name ?? 'League',
           partnerName: nameByRosterId.get(t.proposerRosterId) ?? 'Manager',
           createdAt: t.createdAt.toISOString(),
           youSend: t.items.filter((i) => i.fromRosterId === myRoster.id).map(assetLabel),

@@ -92,7 +92,44 @@ export function CareerCardDeck() {
               {card.leaguesIncluded} leagues · {card.allTime.seasons} seasons synced
             </span>
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+          {/* ── This season — the year you're playing right now, isolated ── */}
+          {(() => {
+            const seasons = card.seasonTotals ?? []
+            const nowYear = new Date().getFullYear()
+            const thisSeason = seasons.find((s) => s.season === nowYear) ?? null
+            return (
+              <div className="mt-3">
+                <div className="text-[9.5px] font-black uppercase italic tracking-wide text-[#ff8a3d]">
+                  This season · {nowYear}
+                </div>
+                {thisSeason ? (
+                  <div className="mt-1.5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+                    {[
+                      { l: 'Record', v: `${thisSeason.wins}–${thisSeason.losses}${thisSeason.ties > 0 ? `–${thisSeason.ties}` : ''}` },
+                      { l: 'Titles', v: `${thisSeason.titles > 0 ? '🏆 ' : ''}${thisSeason.titles}` },
+                      { l: 'Points for', v: thisSeason.pointsFor.toLocaleString() },
+                      { l: 'Leagues', v: `${thisSeason.leagues}` },
+                    ].map((k) => (
+                      <div key={k.l} className="rounded-xl border border-[#3a2a5e] bg-[#171c4d]/80 px-3 py-2.5" style={{ borderColor: 'rgba(255,138,61,0.35)' }}>
+                        <div className="text-[18px] font-black italic tabular-nums text-[#f0f2ff]">{k.v}</div>
+                        <div className="mt-0.5 text-[9.5px] font-bold uppercase tracking-wide text-[#5d64a3]">{k.l}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="mt-1.5 rounded-xl border border-[#262c6a] bg-[#12163e]/70 px-3 py-2.5 text-[11px] text-[#5d64a3]">
+                    No synced {nowYear} games yet — this fills in as your leagues play.
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* ── Total overall — every synced season combined ── */}
+          <div className="mt-3 text-[9.5px] font-black uppercase italic tracking-wide text-[#ff3d81]">
+            Total overall · {card.allTime.seasons} seasons
+          </div>
+          <div className="mt-1.5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
               { l: 'All-time record', v: `${card.allTime.wins}–${card.allTime.losses}${card.allTime.ties > 0 ? `–${card.allTime.ties}` : ''}` },
               { l: 'Titles', v: `${card.allTime.titles > 0 ? '🏆 ' : ''}${card.allTime.titles}` },
@@ -105,6 +142,44 @@ export function CareerCardDeck() {
               </div>
             ))}
           </div>
+
+          {/* ── Past seasons — year-by-year, newest first, same rows the totals sum ── */}
+          {(() => {
+            const nowYear = new Date().getFullYear()
+            const past = (card.seasonTotals ?? []).filter((s) => s.season !== nowYear)
+            if (past.length === 0) return null
+            return (
+              <details className="mt-3 rounded-xl border border-[#262c6a] bg-[#12163e]/70 px-3 py-2.5" open={past.length <= 6}>
+                <summary className="cursor-pointer text-[9.5px] font-black uppercase italic tracking-wide text-[#5d64a3]">
+                  Past seasons by year · {past.length}
+                </summary>
+                <div className="mt-2 max-h-56 overflow-y-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="text-[9px] font-bold uppercase tracking-wide text-[#5d64a3]">
+                        <th className="py-1 pr-2">Year</th>
+                        <th className="py-1 pr-2">Record</th>
+                        <th className="py-1 pr-2">Points for</th>
+                        <th className="py-1 pr-2">Titles</th>
+                        <th className="py-1">Leagues</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {past.map((s) => (
+                        <tr key={s.season} className="border-t border-[#1c2158] text-[12px] tabular-nums text-[#c6cbf5]">
+                          <td className="py-1.5 pr-2 font-extrabold text-[#f0f2ff]">{s.season}</td>
+                          <td className="py-1.5 pr-2">{s.wins}–{s.losses}{s.ties > 0 ? `–${s.ties}` : ''}</td>
+                          <td className="py-1.5 pr-2">{s.pointsFor.toLocaleString()}</td>
+                          <td className="py-1.5 pr-2">{s.titles > 0 ? `🏆 ${s.titles}` : '—'}</td>
+                          <td className="py-1.5">{s.leagues}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </details>
+            )
+          })()}
           <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-[#262c6a] bg-[#12163e]/70 px-3 py-2.5">
               <div className="text-[9.5px] font-bold uppercase tracking-wide text-[#5d64a3]">

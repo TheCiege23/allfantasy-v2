@@ -59,7 +59,7 @@ function positionAccent(pos: string): { border: string; label: string } {
   if (['DB', 'CB', 'S', 'SS', 'FS'].includes(p)) return { border: 'border-indigo-400/65', label: 'text-indigo-300/90' }
   if (p === 'K') return { border: 'border-yellow-400/55', label: 'text-yellow-200/85' }
   if (p === 'DEF' || p === 'DST') return { border: 'border-slate-400/60', label: 'text-slate-300/90' }
-  return { border: 'border-cyan-400/50', label: 'text-cyan-300/85' }
+  return { border: 'border-[#ff3d81]/50', label: 'text-[#ff9ec0]/85' }
 }
 
 export function TradesTab({ league, teams }: TradesTabProps) {
@@ -225,7 +225,7 @@ export function TradesTab({ league, teams }: TradesTabProps) {
           <button
             type="button"
             onClick={() => setProposeOpen(true)}
-            className="rounded-xl border border-cyan-500/35 bg-cyan-500/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-cyan-100 hover:bg-cyan-500/20"
+            className="rounded-xl border border-[#ff3d81]/35 bg-[#ff3d81]/10 px-3 py-2 text-[11px] font-bold uppercase tracking-wide text-[#ffd7e5] hover:bg-[#ff3d81]/20"
             data-testid="trades-tab-propose-trade-header"
           >
             Propose a Trade
@@ -239,7 +239,7 @@ export function TradesTab({ league, teams }: TradesTabProps) {
           <div className="flex items-center justify-between gap-2 border-b border-white/[0.05] px-4 py-3">
             <div className="flex items-center gap-2">
               <h2 className="text-[13px] font-bold tracking-tight text-white">Active Trades</h2>
-              <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-cyan-500/20 px-1.5 text-[11px] font-bold text-cyan-300">
+              <span className="flex h-6 min-w-[1.5rem] items-center justify-center rounded-full bg-[#ff3d81]/20 px-1.5 text-[11px] font-bold text-[#ff9ec0]">
                 {loading ? '—' : badgeCount}
               </span>
             </div>
@@ -311,7 +311,7 @@ export function TradesTab({ league, teams }: TradesTabProps) {
                     <button
                       type="button"
                       onClick={() => setProposeOpen(true)}
-                      className="mt-4 text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-400 transition hover:text-cyan-300"
+                      className="mt-4 text-[11px] font-bold uppercase tracking-[0.14em] text-[#ff3d81] transition hover:text-[#ff9ec0]"
                       data-testid="trades-tab-propose-trade"
                     >
                       Propose a trade
@@ -319,7 +319,7 @@ export function TradesTab({ league, teams }: TradesTabProps) {
                   ) : (
                     <Link
                       href={tradeFinderHref}
-                      className="mt-4 text-[11px] font-bold uppercase tracking-[0.14em] text-cyan-400 transition hover:text-cyan-300"
+                      className="mt-4 text-[11px] font-bold uppercase tracking-[0.14em] text-[#ff3d81] transition hover:text-[#ff9ec0]"
                       data-testid="trades-tab-propose-trade"
                     >
                       Propose a trade
@@ -463,7 +463,7 @@ export function TradesTab({ league, teams }: TradesTabProps) {
                       <p className="mt-2 truncate text-[12px] font-bold leading-tight text-white">
                         {shortDisplayName(item.name)}
                       </p>
-                      <p className="mt-auto truncate pt-2 text-[10px] text-cyan-200/45">{item.ownerName}</p>
+                      <p className="mt-auto truncate pt-2 text-[10px] text-[#ffb8d1]/45">{item.ownerName}</p>
                     </div>
                   )
                 })}

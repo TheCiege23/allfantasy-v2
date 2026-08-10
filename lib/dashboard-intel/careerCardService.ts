@@ -17,10 +17,11 @@ import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { getSleeperLeagueHistory } from '@/lib/league-history/sleeperLeagueHistoryService'
 import { getLeagueH2H } from '@/lib/league-history/sleeperH2HService'
+import { getImportedLeagueH2H } from '@/lib/league-history/importedFactsH2HService'
 import { getTradeGrades, type GradeLetter } from '@/lib/trade-intel/sleeperTradeGradeService'
 import { getDraftReport } from '@/lib/draft-intel/draftReportService'
 
-const CACHE_PREFIX = 'career-card:v1:'
+const CACHE_PREFIX = 'career-card:v3:'
 const CACHE_TTL_MS = 60 * 60 * 1000
 const MAX_LEAGUES = 10
 
@@ -66,8 +67,24 @@ export type CareerCardPayload = {
     losses: number
     titles: number
   }[]
+  /**
+   * Per-year aggregation across every included league (same standings rows the
+   * allTime block sums — this is the year-by-year view of the same data).
+   * Sorted newest first; `leagues` counts leagues contributing that year.
+   */
+  seasonTotals: {
+    season: number
+    wins: number
+    losses: number
+    ties: number
+    pointsFor: number
+    titles: number
+    leagues: number
+  }[]
   missing: string[]
 }
+
+type SeasonAgg = CareerCardPayload['seasonTotals'][number]
 
 const emptyGrades = (): GradeCounts => ({ A: 0, B: 0, C: 0, D: 0, F: 0 })
 
@@ -77,18 +94,38 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
     .findUnique({ where: { userId }, select: { sleeperUserId: true } })
     .catch(() => null)
   const me = profile?.sleeperUserId ?? null
-  if (!me) return null
 
-  const leagues = await prisma.league.findMany({
+  const leagues = me
+    ? await prisma.league.findMany({
+        where: {
+          platform: 'sleeper',
+          platformLeagueId: { not: '' },
+          OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
+        },
+        select: { id: true, name: true, platformLeagueId: true },
+        take: MAX_LEAGUES,
+      })
+    : []
+
+  // Imported (Yahoo/ESPN/…) leagues count too, via the persisted-facts H2H —
+  // the viewer's team is their claimed LeagueTeam, or (for the importer) the
+  // provider-side commissioner team. Unmappable leagues land in `missing`.
+  const importedLeagues = await prisma.league.findMany({
     where: {
-      platform: 'sleeper',
-      platformLeagueId: { not: null },
+      platform: { notIn: ['sleeper'] },
       OR: [{ userId }, { teams: { some: { claimedByUserId: userId } } }],
     },
-    select: { id: true, name: true, platformLeagueId: true },
+    select: {
+      id: true,
+      name: true,
+      platform: true,
+      userId: true,
+      teams: { select: { id: true, externalId: true, claimedByUserId: true, isCommissioner: true } },
+    },
     take: MAX_LEAGUES,
   })
-  if (leagues.length === 0) return null
+
+  if (leagues.length === 0 && importedLeagues.length === 0) return null
 
   let managerName = 'Manager'
   let avatar: string | null = null
@@ -102,6 +139,18 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
   let draftValueOver = 0
   const recordsHeld: string[] = []
   const perLeague: CareerCardPayload['perLeague'] = []
+  const seasonMap = new Map<number, SeasonAgg>()
+  const bumpSeason = (yr: number, d: Partial<Omit<SeasonAgg, 'season'>>) => {
+    if (!Number.isFinite(yr) || yr < 1990) return
+    const agg = seasonMap.get(yr) ?? { season: yr, wins: 0, losses: 0, ties: 0, pointsFor: 0, titles: 0, leagues: 0 }
+    agg.wins += d.wins ?? 0
+    agg.losses += d.losses ?? 0
+    agg.ties += d.ties ?? 0
+    agg.pointsFor += d.pointsFor ?? 0
+    agg.titles += d.titles ?? 0
+    agg.leagues += d.leagues ?? 0
+    seasonMap.set(yr, agg)
+  }
   let included = 0
 
   for (const league of leagues) {
@@ -128,10 +177,25 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
         avatar = row.avatar ?? avatar
         perLeague.push({
           leagueId: league.id,
-          leagueName: league.name,
+          leagueName: league.name ?? 'League',
           wins: row.wins,
           losses: row.losses,
           titles: row.titles,
+        })
+      }
+      // Year-by-year: the same standings rows the allTime block was built from,
+      // just kept per season instead of collapsed.
+      for (const season of history.seasons) {
+        const yr = Number.parseInt(season.season, 10)
+        const srow = season.standings.find((s) => s.ownerId === me)
+        if (!srow) continue
+        bumpSeason(yr, {
+          wins: srow.wins,
+          losses: srow.losses,
+          ties: srow.ties,
+          pointsFor: srow.pointsFor,
+          titles: season.champion?.ownerId === me ? 1 : 0,
+          leagues: 1,
         })
       }
     } else {
@@ -185,6 +249,89 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
 
     if (touched) included += 1
   }
+
+  // ── Imported leagues: standings facts (exact W/L/T/PF), titles from
+  //    LeagueSeason champions, records held from the facts-based H2H. Trade and
+  //    draft GRADES are intentionally absent for these — imported provider data
+  //    has no per-player scoring, and this card never re-derives or guesses.
+  for (const league of importedLeagues) {
+    const myTeam =
+      league.teams.find((t) => t.claimedByUserId === userId) ??
+      (league.userId === userId ? league.teams.find((t) => t.isCommissioner) : undefined)
+    if (!myTeam?.externalId) {
+      missing.push(`${league.name}: claim your team to count this imported league`)
+      continue
+    }
+
+    const [standings, championSeasons, h2h] = await Promise.all([
+      prisma.seasonStandingFact
+        .findMany({
+          where: { leagueId: league.id, teamId: myTeam.externalId },
+          select: { season: true, wins: true, losses: true, ties: true, pointsFor: true },
+        })
+        .catch(() => []),
+      prisma.leagueSeason
+        .findMany({ where: { leagueId: league.id, championTeamId: myTeam.id }, select: { season: true } })
+        .catch(() => [] as { season: number }[]),
+      withTimeout(getImportedLeagueH2H(league.id), 5000),
+    ])
+    const titles = championSeasons.length
+
+    if (standings.length === 0 && !h2h) {
+      missing.push(`${league.name}: imported history not backfilled yet`)
+      continue
+    }
+
+    let leagueWins = 0
+    let leagueLosses = 0
+    const titleYears = new Set(championSeasons.map((c) => c.season))
+    for (const row of standings) {
+      leagueWins += row.wins
+      leagueLosses += row.losses
+      allTime.wins += row.wins
+      allTime.losses += row.losses
+      allTime.ties += row.ties
+      allTime.pointsFor += row.pointsFor
+      allTime.seasons += 1
+      bumpSeason(row.season, {
+        wins: row.wins,
+        losses: row.losses,
+        ties: row.ties,
+        pointsFor: row.pointsFor,
+        titles: titleYears.has(row.season) ? 1 : 0,
+        leagues: 1,
+      })
+    }
+    allTime.titles += titles
+
+    if (h2h) {
+      const r = h2h.records
+      const meKey = myTeam.externalId
+      if (r.highestWeek?.ownerId === meKey) {
+        recordsHeld.push(`Highest week ever in ${league.name} (${r.highestWeek.points.toFixed(1)})`)
+      }
+      if (r.longestWinStreak?.ownerId === meKey) {
+        recordsHeld.push(`Longest win streak in ${league.name} (${r.longestWinStreak.length} straight${r.longestWinStreak.active ? ', ACTIVE' : ''})`)
+      }
+      if (r.biggestBlowout?.winnerOwnerId === meKey) {
+        recordsHeld.push(`Biggest blowout in ${league.name} (by ${r.biggestBlowout.margin.toFixed(1)})`)
+      }
+      if (r.bestSeasonAvg?.ownerId === meKey) {
+        recordsHeld.push(`Best season avg in ${league.name} (${r.bestSeasonAvg.avg.toFixed(1)}/wk, ${r.bestSeasonAvg.season})`)
+      }
+    }
+
+    perLeague.push({
+      leagueId: league.id,
+      leagueName: league.name ?? 'League',
+      wins: leagueWins,
+      losses: leagueLosses,
+      titles,
+    })
+    missing.push(`${league.name}: trade/draft grades unavailable for imported leagues (no per-player scoring)`)
+    included += 1
+  }
+
   if (included === 0) return null
 
   return {
@@ -210,6 +357,9 @@ async function buildCareerCard(userId: string): Promise<CareerCardPayload | null
     },
     recordsHeld,
     perLeague: perLeague.sort((a, b) => b.wins - a.wins),
+    seasonTotals: [...seasonMap.values()]
+      .map((s) => ({ ...s, pointsFor: Math.round(s.pointsFor) }))
+      .sort((a, b) => b.season - a.season),
     missing,
   }
 }
