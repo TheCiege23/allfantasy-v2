@@ -152,6 +152,58 @@ is not an active correctness bug.
 
 ---
 
+## Production ingest health (measured 2026-08-10) — read this before Phase 1
+
+| Table | Rows | Newest | Verdict |
+| --- | --- | --- | --- |
+| `sportsPlayerRecord` | 88,446 | 8.6h | OK |
+| `sportsGame` | 4,283 | 11.6h | OK |
+| `sportsDataCache` | 2,256 | 2.4h | OK |
+| `sportsInjury` | 3,581 | **17.2 DAYS** | STALE — cron runs every 15 min |
+| `injuryReportRecord` | 1,358 | **103.7 days** | STALE |
+| `gameSchedule` | 0 | never | empty (likely legacy — `sportsGame` is the live table) |
+| `fantasyScheduleGame` | 0 | never | empty (likely legacy) |
+| `fantasyStatLine` | 0 | never | **EMPTY — this is the projection base** |
+| `fantasyProjection` | 43 | 34.4 days | seed fixtures only |
+| `aFProjectionSnapshot` | 0 | never | expected (Phase 2 target) |
+
+### 🔴 Injuries are BROKEN differently — and worse — than projections
+
+Projections degrade to `null` (honestly absent). Stale injuries render **confidently wrong**: a player
+out for two weeks still shows healthy, and `playerUrgency.ts` — the "OUT and still starting, N minutes
+to lock" detection that is the core of the Player Command Center — computes off it.
+
+**Root cause (probed, not inferred):** `import-injuries` uses API-Sports, not Rolling Insights, and the
+account is on the **Free** plan:
+
+```
+plan: Free   active: true   requests: 36/100
+/injuries?team=1&season=2025 -> {"plan":"Free plans do not have access to this season, try from 2022 to 2024."}
+/injuries?team=1&season=2026 -> same
+```
+
+Not quota. Not cadence. Not code. The plan cannot serve 2025+ at all, so injuries have been impossible
+since the 2025 season opened.
+
+**Fix without spending anything:** Rolling Insights already serves injuries — `injuries/NFL` returns
+HTTP 200 with 32 team rows (`{team, team_id, injuries[]}`) on the credentials we verified working.
+Migrate `syncAPISportsInjuriesToDb` onto RI.
+
+Secondary benefit: `fetchAPISportsInjuriesViaTeamFanout` loops 32 teams, and the cron runs every 15
+minutes — ~3,072 requests/day for NFL alone against a 100/day allowance. The RI migration removes that
+regardless.
+
+**Also audit what else routes through `apiSportsProvider`** — anything needing 2025+ data from that
+provider is dead for the same reason.
+
+### Phase 1 readiness
+
+BLOCKED on two inputs: `sportsInjury` (stale) and `fantasyStatLine` (empty). Repair both before
+building the engine, or it computes from nothing — and unlike the current state it would emit numbers
+rather than nulls, because emitting a number is a projection engine's job.
+
+---
+
 ## Phases
 
 ### Phase 0 — stop the silence

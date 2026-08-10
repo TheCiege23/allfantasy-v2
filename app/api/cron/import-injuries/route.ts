@@ -14,11 +14,27 @@
 import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { requireCronAuth } from "@/app/api/cron/_auth"
-import {
-  syncAPISportsInjuriesToDb,
-  clearAPISportsDiagnostics,
-  getAPISportsDiagnostics,
-} from "@/lib/api-sports"
+import { syncRollingInsightsInjuriesToDb } from "@/lib/injuries/rollingInsightsInjuries"
+
+/**
+ * PROVIDER MIGRATED 2026-08-10: API-Sports -> Rolling Insights.
+ *
+ * The API-Sports account is on the **Free** plan, which returns for every
+ * current-season request:
+ *   {"plan":"Free plans do not have access to this season, try from 2022 to 2024."}
+ *
+ * Not quota (36/100 used that day), not cadence, not code — injuries have been
+ * impossible since the 2025 season opened. Production `sportsInjury` was 17.2
+ * days stale on this 15-minute cron and `injuryReportRecord` 103 days stale,
+ * while `playerUrgency.ts` kept computing "OUT and still starting, N minutes to
+ * lock" from those frozen rows. Projections degrading to null is an absence;
+ * this was rendering WRONG statuses with full confidence.
+ *
+ * Rolling Insights serves `injuries/NFL` (32 team blocks, ~311 players) on
+ * credentials already paid for. It also removes the old team-fanout: the
+ * previous implementation looped 32 teams per run x 96 runs/day = ~3,072
+ * requests/day against a 100/day allowance.
+ */
 
 /**
  * NOTE: `requireCronAuth` resolves `preferredSecretEnv ?? LEAGUE_CRON_SECRET ?? CRON_SECRET`.
@@ -44,19 +60,39 @@ async function handle(req: NextRequest) {
   const startedAt = Date.now()
 
   try {
-    clearAPISportsDiagnostics()
-    const count = await syncAPISportsInjuriesToDb({ season, sport })
-    const diagnostics = getAPISportsDiagnostics()
+    const result = await syncRollingInsightsInjuriesToDb({ sport })
 
-    return NextResponse.json({
-      ok: true,
-      sport,
-      season: season ?? "current",
-      synced: count,
-      diagnostics,
-      durationMs: Date.now() - startedAt,
-      timestamp: new Date().toISOString(),
-    })
+    /**
+     * Zero rows written is a FAILURE, not a quiet success. The previous handler
+     * returned `ok: true` unconditionally, which is how a 15-minute cron went
+     * 17 days without writing anything and nobody was told. Same treatment as
+     * import-projections: non-2xx too, because Vercel's cron dashboard keys off
+     * the HTTP status and a 200 carrying `ok:false` still reads as healthy.
+     */
+    const failed = result.written === 0
+    return NextResponse.json(
+      {
+        ok: !failed,
+        sport,
+        season: season ?? "current",
+        source: "rolling_insights",
+        synced: result.written,
+        fetched: result.fetched,
+        /**
+         * RI ships no status field — designations are parsed from prose. This
+         * counter is the parser-coverage signal: a rising number means the feed
+         * uses phrasing the parser does not recognise, and those players are
+         * carrying a null status (availability unknown) rather than a wrong one.
+         * Watch it; do not ignore it.
+         */
+        unparseableStatus: result.unparseableStatus,
+        legacyApiSportsRowsExpired: result.legacyExpired,
+        errors: result.errors.length ? result.errors.slice(0, 10) : undefined,
+        durationMs: Date.now() - startedAt,
+        timestamp: new Date().toISOString(),
+      },
+      { status: failed ? 500 : 200 },
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error("[cron/import-injuries] failed:", message)
