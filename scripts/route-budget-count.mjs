@@ -81,6 +81,8 @@ const KEEP = new Set([
   'app/api/cron/draft-pool-prewarm/route.ts',
   'app/api/cron/fantasy-os-exec-sync/route.ts',
   'app/api/cron/trade-weekly-recalibration/route.ts',
+  'app/api/cron/weekly-awards/route.ts',
+  'app/api/cron/morning-briefing/route.ts',
   // scheduled in vercel.json — must be kept or they 404 (see vercel-next-build.cjs).
   // Union of this branch's two and main's one; keeping only one side re-breaks the other.
   'app/api/cron/draft-tick/route.ts',

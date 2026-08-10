@@ -85,6 +85,10 @@ const FILES_KEPT = [
   'app/api/cron/adp-refresh/route.ts', 'app/api/cron/recompute-allfantasy-adp/route.ts',
   'app/api/cron/draft-pool-prewarm/route.ts', 'app/api/cron/fantasy-os-exec-sync/route.ts',
   'app/api/cron/trade-weekly-recalibration/route.ts',
+  // Scheduled in vercel.json but missing from every keep-list until Phase 0.5
+  // (AF_TRADE_UNIFICATION_BRIEF) — 404'd on every scheduled run until then.
+  'app/api/cron/weekly-awards/route.ts',
+  'app/api/cron/morning-briefing/route.ts',
   // scheduled in vercel.json — must be kept or they 404 (see vercel-next-build.cjs).
   // Union of this branch's two and main's one; keeping only one side re-breaks the other.
   'app/api/cron/draft-tick/route.ts', 'app/api/cron/live-score-tick/route.ts',

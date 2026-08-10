@@ -1163,7 +1163,14 @@ function computeRosterInjuryImpact(
   return { powerHealthRatio, marketDiscount, riskConcentration, uncertaintyVolatility, injuryProfiles: profiles, byPlayerId }
 }
 
-async function fetchDbInjuryMap(playerNames: string[]): Promise<Map<string, { severity: string | null; date: Date | null; type: string | null; description: string | null }>> {
+/**
+ * Slice 15 (wrong-row joins): this query previously had NO `sport` filter while
+ * matching on `playerName`, so a same-named athlete in another sport could
+ * supply the injury. This rankings path is Sleeper-backed and NFL-only (see
+ * `getLeagueRosters`/`getAllPlayers` above), so NFL is the honest default
+ * rather than an assumption smuggled into an unscoped query.
+ */
+async function fetchDbInjuryMap(playerNames: string[], sport = 'NFL'): Promise<Map<string, { severity: string | null; date: Date | null; type: string | null; description: string | null }>> {
   const result = new Map<string, { severity: string | null; date: Date | null; type: string | null; description: string | null }>()
   if (playerNames.length === 0) return result
 
@@ -1171,6 +1178,7 @@ async function fetchDbInjuryMap(playerNames: string[]): Promise<Map<string, { se
     const cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)
     const injuries = await prisma.sportsInjury.findMany({
       where: {
+        sport,
         playerName: { in: playerNames },
         fetchedAt: { gte: cutoff },
       },

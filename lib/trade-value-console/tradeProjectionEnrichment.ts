@@ -5,6 +5,7 @@ import { resolveNormalizedPlayerSportsProfiles } from '@/lib/sports-data-normali
 import type { NormalizedScoringRules } from '@/lib/league-context-engine/types'
 import type { SupportedSport } from '@/lib/sport-scope'
 import { effectiveFantasyPoints, collectProjectionNotes } from '@/lib/projection-engine'
+import { buildNameIndex, findVerified } from '@/lib/player-match/verifiedNameMatch'
 import type { TradeConsolePlayerLine } from './types'
 
 /**
@@ -59,13 +60,29 @@ export async function enrichTradeConsolePlayerLines(args: {
     includeClearSportsProjections: players.length <= 28,
   })
 
-  const byName = new Map(batch.players.map((p) => [p.player.name.toLowerCase(), p]))
+  // Slice 15 (wrong-row joins): this keyed purely on lowercased NAME while
+  // `row` (fetched by id) carries position and team. A name collision bound
+  // one athlete's projection, weather and injury summary onto another.
+  // Position/team are now required to disambiguate, and an ambiguous
+  // collision produces NO enrichment rather than the wrong player's numbers.
+  const profileIndex = buildNameIndex(
+    batch.players.map((p) => ({
+      name: p.player.name,
+      position: p.player.position?.code ?? null,
+      team: p.player.team ?? null,
+      profile: p,
+    })),
+  )
   const enrichByKey = new Map<string, Partial<TradeConsolePlayerLine>>()
 
   for (const line of playable) {
     const row = byId.get(line.playerId!)
     if (!row) continue
-    const prof = byName.get(row.name.toLowerCase())
+    const prof = findVerified(profileIndex, {
+      name: row.name,
+      position: row.position ?? line.position ?? null,
+      team: row.team ?? line.team ?? null,
+    })?.profile
     const eff = effectiveFantasyPoints(prof)
     const notes = collectProjectionNotes(prof)
     const key = `${line.playerId}|${line.name.toLowerCase()}`

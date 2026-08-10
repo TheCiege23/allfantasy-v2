@@ -187,6 +187,11 @@ const filesToKeep = new Set([
   path.join('app', 'api', 'cron', 'draft-pool-prewarm', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'fantasy-os-exec-sync', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'trade-weekly-recalibration', 'route.ts').replace(/\\/g, '/'),
+  // Scheduled in vercel.json but missing from every keep-list until Phase 0.5 of
+  // AF_TRADE_UNIFICATION_BRIEF — they 404'd on every scheduled run. Fourth instance
+  // of the #284 class.
+  path.join('app', 'api', 'cron', 'weekly-awards', 'route.ts').replace(/\\/g, '/'),
+  path.join('app', 'api', 'cron', 'morning-briefing', 'route.ts').replace(/\\/g, '/'),
   // All three are scheduled in vercel.json, and `app/api/cron` is excluded wholesale above, so
   // every one of them needs a keep-line or Vercel invokes it on schedule and 404s every time —
   // draft-tick at 1/min is 1440 failed calls a day. Same class as the regression #284 fixed.
