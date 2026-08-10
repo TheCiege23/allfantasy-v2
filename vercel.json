@@ -49,6 +49,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/import-stat-lines",
+      "schedule": "30 7 * * *"
+    },
+    {
       "path": "/api/cron/import-schedules",
       "schedule": "0 3 * * 1"
     },
