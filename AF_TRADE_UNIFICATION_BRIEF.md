@@ -115,6 +115,23 @@ Verification: 94/94 across every closure suite + scoped tsc clean.
 
 Verification: 113/113 across every closure suite + scoped tsc clean.
 
+## Slice 17 — AllFantasy could not see trades that already existed
+
+A user had live pending trades sitting in two Sleeper leagues. The AF Trades tab for those same leagues read **"Active Trades 0."** Not a display bug — the app had genuinely never heard of them: the league importer never calls Sleeper's `/transactions/` endpoint, and the Trades panel read only `AfLeagueTrade` (AF-native proposals). Every downstream promise — grade it, counter it, tell me if it's fair — was unreachable for the trades users most wanted analyzed, because the offer was invisible to the system.
+
+New `lib/provider-trades/scanPendingSleeperTrades.ts` scans provider transactions and projects each one **from the viewer's roster perspective**. Wired into `/api/league/trades-panel` (parallel with the native query, dual Sleeper-ID resolution: claimed `LeagueTeam` → fallback `userProfile.sleeperUserId`) and surfaced in `TradesTab` as an amber notice with an **Open in Sleeper** link.
+
+Boundary held deliberately: provider rows omit `viewerIsReceiver` / `viewerIsProposer`, which suppresses the accept/reject buttons. The Sleeper public API is read-only, so AF **advises but cannot execute** — the copy says so plainly rather than rendering a button that would fail.
+
+Three bugs caught in desk review, all in logic lifted from the existing dashboard code:
+1. **Draft picks only ever credited the receiver** — the sending roster's side of a pick trade rendered empty. Now `previous_owner_id` debits the sender.
+2. Direction was hardcoded `'incoming'`, so a user's own outgoing offer displayed backwards. Added `proposedByViewer`.
+3. Unclaimed teams were skipped entirely, hiding trades from anyone who imported but never claimed a roster.
+
+Verification: 8/8 new tests. **Not** verified against live data — the sandbox died before integration testing, so the give/get direction is the highest-risk unconfirmed surface.
+
+**Ops (2026-08-10):** all six `DECISION_OS_TRADE_SHADOW_*` flags enabled in the committed `.env.production`, covering all ten surfaces. `LEGACY` mattered most: the dashboard "Trade Analyzer" tile routes to `/af-legacy`, so leaving it dark would have let the Phase 3 flip gate report "ready" while blind to the highest-traffic trade path in the product. Vercel dashboard values still override the file, so instant rollback survives.
+
 **Remaining from the audit, in priority order:** (name-only injury fallback, first-fuzzy-hit binding, projection namespace mismatch, injury join missing sport filter); trade acceptance-probability placeholder features (all default `50`); draft war room LLM overriding deterministic risk/alternatives; scoring-settings-aware valuation; verify the knowledge-graph signal hooks actually write (assemblers read a store nothing may be writing to).
 
 **Phase 2 outcome (2026-08-09):** `lib/decision-os/trade/surfaceShadow.ts` — per-surface shadow instrumentation wired into all four surfaces (console / dynasty / keeper / draftpick), flags `DECISION_OS_TRADE_SHADOW_<SURFACE>` default OFF. Design: structured skip events name the FIRST missing canonical input (league → rosters → snapshot) and carry each surface's own deterministic verdict — the telemetry IS the convergence roadmap and the Phase 3 sample stream. Console additionally now requires session for league-scoped analysis (anonymous global analysis still allowed). FINDING: `lib/keeper/ai/keeperTradeAnalyzer.ts` is a hardcoded placeholder (B/B/counter for every trade, behind a paid entitlement) — marked `placeholder_stub` in telemetry; needs a product decision (honest empty-state vs wiring to canonical trade decision).
