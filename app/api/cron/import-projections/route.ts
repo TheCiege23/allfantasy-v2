@@ -173,10 +173,29 @@ async function handle(req: NextRequest) {
         : []
 
       if (rows.length === 0) {
+        /**
+         * An empty ingest during an ACTIVE season is a FAILURE, not a quiet
+         * success. Reporting `ok: !chainResult.error` here is precisely what let
+         * production run with an empty `fantasy_projections` table: the provider
+         * returned nothing WITHOUT setting an error, so this evaluated to
+         * `ok: true`, the cron returned 200, the health chip's Projections domain
+         * read a `fetchedAt` that never advanced, and every downstream surface
+         * (Player Command Center, replacement options, Chimmy's cited numbers,
+         * Draft VORP, three war rooms) rendered "unavailable" with nobody told.
+         *
+         * Degrading gracefully and telling the operator are different jobs. This
+         * is the second.
+         */
+        const emptyIsFailure = isInSeason(sport)
         results[sport] = {
-          ok: !chainResult.error,
+          ok: !emptyIsFailure,
           synced: 0,
-          error: chainResult.error ?? null,
+          error:
+            chainResult.error ??
+            (emptyIsFailure
+              ? `No projection rows for ${sport} ${season} (provider: ${chainResult.source ?? "none"}). ` +
+                `${sport} is in season, so an empty ingest is a failure, not an idle no-op.`
+              : null),
         }
         continue
       }
@@ -185,13 +204,24 @@ async function handle(req: NextRequest) {
       results[sport] = { ok: true, synced, source: chainResult.source ?? null }
     }
 
-    return NextResponse.json({
-      ok: true,
-      season,
-      results,
-      durationMs: Date.now() - startedAt,
-      timestamp: new Date().toISOString(),
-    })
+    // Surface failure at the TOP level too, and with a non-2xx status — Vercel's
+    // cron dashboard keys off the HTTP status, so a 200 body containing
+    // `ok: false` would still read as a healthy run.
+    const failed = Object.entries(results)
+      .filter(([, r]) => (r as { ok?: boolean }).ok === false)
+      .map(([sport]) => sport)
+
+    return NextResponse.json(
+      {
+        ok: failed.length === 0,
+        season,
+        failedSports: failed.length ? failed : undefined,
+        results,
+        durationMs: Date.now() - startedAt,
+        timestamp: new Date().toISOString(),
+      },
+      { status: failed.length ? 500 : 200 },
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error("[cron/import-projections] failed:", message)

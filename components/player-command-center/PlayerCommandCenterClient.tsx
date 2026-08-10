@@ -459,7 +459,7 @@ export default function PlayerCommandCenterClient() {
                   <div className="space-y-2 border-t border-white/10 p-4">
                     {item.leagueAppearances.map((a) => {
                       const u = urgencyByLeague.get(a.canonicalLeagueId)
-                      const world = data.waiverWorldByLeague?.[a.canonicalLeagueId]
+                      const world = data?.waiverWorldByLeague?.[a.canonicalLeagueId]
                       return (
                         <div key={`${item.canonicalPlayerId}:${a.canonicalLeagueId}`} className="rounded-xl border border-white/10 bg-black/20 p-3">
                           <div className="flex flex-wrap items-center justify-between gap-2">
