@@ -41,6 +41,7 @@ function isIdpComponentKey(key: string): key is IdpComponent {
   return [
     'soloTackle', 'assistTackle', 'sack', 'interception', 'passDefended', 'forcedFumble',
     'fumbleRecovery', 'tackleForLoss', 'qbHit', 'defensiveTd', 'safety', 'blockedKick',
+    'sackYards', 'intReturnYards', 'fumbleReturnYards',
   ].includes(key)
 }
 
