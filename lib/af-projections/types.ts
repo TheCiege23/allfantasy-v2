@@ -29,6 +29,29 @@ export type AfProjectionBasis =
    * for a non-PPR league.
    */
   | 'season_dk_fppg_proxy'
+  /**
+   * Weekly IDP components (`idp_tkl_solo`, `idp_sack`, …) scored under the league's own IDP
+   * rules. Strongest IDP basis: real per-week observations, league-correct scoring.
+   */
+  | 'weekly_idp_components'
+  /**
+   * Prior-season IDP components scored under the league's rules. Weaker than weekly — a
+   * season total carries no within-season role change — and its tackle split may be estimated.
+   */
+  | 'season_idp_components'
+
+/** Which vocabulary a raw stat map speaks. */
+export type IdpSourceKind = 'sleeper_weekly' | 'ri_season'
+
+export interface IdpScoringBreakdown {
+  points: number
+  scoredComponents: string[]
+  /** Components present in the data but carrying no rule in this league. Named, not dropped. */
+  unscoredComponents: string[]
+  /** Non-empty when a stated approximation was applied. Surfaced to the reader. */
+  approximations: string[]
+  usedMeasuredTackleSplit: boolean
+}
 
 export type ConfidenceLevel = 'high' | 'medium' | 'low'
 
@@ -110,6 +133,8 @@ export interface ProjectionResult {
   /** Null when nothing was adjusted — never a filler sentence. */
   adjustmentReason: string | null
   weeklyWeeksUsed: number
+  /** Present only when the basis was IDP component scoring. */
+  idp?: IdpScoringBreakdown | null
 }
 
 export type ProjectionOutcome = ProjectionResult | ProjectionRefusal

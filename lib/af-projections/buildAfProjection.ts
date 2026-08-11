@@ -14,12 +14,72 @@ import {
   parseDepthRole,
   recencyWeightedPoints,
 } from './core'
+import { extractIdpComponents, scoreIdpComponents } from './idpScoring'
 import type {
+  IdpScoringBreakdown,
   ProjectionOutcome,
   ScoringFormat,
   SeasonAggregate,
   WeeklyObservation,
 } from './types'
+
+/** One week's raw stat map, needed for per-week IDP component scoring. */
+export interface WeeklyRawStats {
+  week: number
+  statMap: Record<string, unknown>
+}
+
+/**
+ * Score each week's IDP components under league rules, then recency-weight the resulting
+ * per-week points. Scoring first and weighting second (rather than summing components and
+ * scoring once) keeps a role change visible — a linebacker promoted to every-down work shows
+ * up as recent high-point weeks.
+ */
+function scoreIdpWeekly(
+  weeklyRaw: WeeklyRawStats[],
+  rules: Record<string, number>,
+  halfLife: number,
+): { points: number; weeksUsed: number; breakdown: IdpScoringBreakdown } | null {
+  const perWeek: Array<{ week: number; points: number; breakdown: IdpScoringBreakdown }> = []
+  for (const w of weeklyRaw) {
+    const extracted = extractIdpComponents(w.statMap, 'sleeper_weekly')
+    const scored = scoreIdpComponents({ ...extracted, rules })
+    if (scored) perWeek.push({ week: w.week, points: scored.points, breakdown: scored })
+  }
+  if (!perWeek.length) return null
+
+  perWeek.sort((a, b) => a.week - b.week)
+  const latest = perWeek[perWeek.length - 1].week
+  let weightedSum = 0
+  let weightTotal = 0
+  for (const p of perWeek) {
+    const weight = Math.pow(0.5, (latest - p.week) / halfLife)
+    weightedSum += p.points * weight
+    weightTotal += weight
+  }
+  if (weightTotal <= 0) return null
+
+  const points = weightedSum / weightTotal
+  if (points === 0) return null
+
+  // Merge the per-week breakdowns: a week that needed the estimated tackle split taints the
+  // whole projection, so the approximation must survive aggregation rather than be averaged away.
+  const scoredComponents = [...new Set(perWeek.flatMap((p) => p.breakdown.scoredComponents))]
+  const unscoredComponents = [...new Set(perWeek.flatMap((p) => p.breakdown.unscoredComponents))]
+  const approximations = [...new Set(perWeek.flatMap((p) => p.breakdown.approximations))]
+
+  return {
+    points,
+    weeksUsed: perWeek.length,
+    breakdown: {
+      points: Math.round(points * 100) / 100,
+      scoredComponents,
+      unscoredComponents,
+      approximations,
+      usedMeasuredTackleSplit: approximations.length > 0,
+    },
+  }
+}
 
 export interface BuildProjectionInput {
   /** Raw `FantasyStatLine.stats` payload, or a pre-extracted aggregate. */
@@ -27,6 +87,14 @@ export interface BuildProjectionInput {
   aggregate?: SeasonAggregate | null
   /** Weekly observations for THIS player. Empty when the Sleeper id was unmatched. */
   weekly?: WeeklyObservation[]
+  /** Raw weekly stat maps, required for IDP component scoring. */
+  weeklyRaw?: WeeklyRawStats[]
+  /**
+   * League IDP scoring rules (stat key -> points), e.g. from `getIdpPresetScoring()`.
+   * Omit for a league that does not score IDP — defenders will then correctly refuse rather
+   * than receive points the league would never award.
+   */
+  idpRules?: Record<string, number> | null
   /** Depth-chart slot, e.g. "WR2". */
   depthSlot?: string | null
   /**
@@ -73,25 +141,59 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
   const weekly = input.weekly ?? []
   const recency = recencyWeightedPoints(weekly, input.scoringFormat, input.recencyHalfLife ?? 4)
 
-  // Basis precedence: real weekly actuals in the requested format beat a DraftKings
-  // season proxy. Both are labelled; neither is silently substituted for the other.
+  // --- IDP paths, computed up front so the ladder below can compare them -------------
+  // Only meaningful when the league actually supplies IDP rules.
+  const idpRules = input.idpRules ?? null
+  let idpWeekly: { points: number; weeksUsed: number; breakdown: IdpScoringBreakdown } | null = null
+  let idpSeason: { points: number; breakdown: IdpScoringBreakdown } | null = null
+
+  if (idpRules) {
+    idpWeekly = scoreIdpWeekly(input.weeklyRaw ?? [], idpRules, input.recencyHalfLife ?? 4)
+    const seasonExtract = extractIdpComponents(aggregate.components, 'ri_season')
+    const seasonScored = scoreIdpComponents({ ...seasonExtract, rules: idpRules })
+    if (seasonScored && seasonScored.points !== 0) {
+      idpSeason = { points: seasonScored.points / aggregate.gamesPlayed, breakdown: seasonScored }
+    }
+  }
+
+  // Basis precedence. Real weekly actuals in the requested format win, then league-scored
+  // weekly IDP components, then a genuine zero, then the DK season proxy, then season IDP.
+  //
+  // The `recency.value > 0` guard is load-bearing: Sleeper records `pts_ppr: 0` for many
+  // defenders, so a naive "weekly beats everything" rule would project 0.0 for a linebacker
+  // who scored real IDP points that week. A true zero is still honoured — just after the IDP
+  // path has had its chance.
   let baselineProjection: number
   let basis: ProjectionOutcomeBasis
   let weeklyWeeksUsed = 0
+  let idpBreakdown: IdpScoringBreakdown | null = null
 
-  if (recency) {
+  if (recency && recency.value > 0) {
+    baselineProjection = recency.value
+    basis = 'weekly_actuals_recency'
+    weeklyWeeksUsed = recency.weeksUsed
+  } else if (idpWeekly) {
+    baselineProjection = idpWeekly.points
+    basis = 'weekly_idp_components'
+    weeklyWeeksUsed = idpWeekly.weeksUsed
+    idpBreakdown = idpWeekly.breakdown
+  } else if (recency) {
     baselineProjection = recency.value
     basis = 'weekly_actuals_recency'
     weeklyWeeksUsed = recency.weeksUsed
   } else if (aggregate.dkPointsPerGame != null) {
     baselineProjection = aggregate.dkPointsPerGame
     basis = 'season_dk_fppg_proxy'
+  } else if (idpSeason) {
+    baselineProjection = idpSeason.points
+    basis = 'season_idp_components'
+    idpBreakdown = idpSeason.breakdown
   } else {
     return {
       ok: false,
       reason: 'no_scoring_basis',
       detail:
-        'No weekly points in the requested format and no DraftKings points-per-game on the season aggregate.',
+        'No weekly points in the requested format, no scoreable IDP components, and no DraftKings points-per-game on the season aggregate.',
     }
   }
 
@@ -113,6 +215,15 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
   const afProjection = baselineProjection
 
   const notes: string[] = []
+  if (idpBreakdown?.approximations.length) {
+    // An estimated tackle split must reach the reader, not stay buried in the breakdown.
+    notes.push(...idpBreakdown.approximations)
+  }
+  if (idpBreakdown?.unscoredComponents.length) {
+    notes.push(
+      `Components present but not scored by this league: ${idpBreakdown.unscoredComponents.join(', ')}.`,
+    )
+  }
   if (basis === 'season_dk_fppg_proxy' && input.scoringFormat !== 'ppr') {
     // DraftKings NFL scoring is close to full PPR, so using it as a standard or half-PPR
     // baseline overstates receiving production. Stated, not silently corrected.
@@ -133,6 +244,7 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
     adjustmentsApplied,
     adjustmentReason: adjustmentsApplied.length ? adjustmentsApplied.join('; ') : null,
     weeklyWeeksUsed,
+    idp: idpBreakdown,
   }
 }
 
