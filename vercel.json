@@ -53,6 +53,10 @@
       "schedule": "30 7 * * *"
     },
     {
+      "path": "/api/cron/compute-projections",
+      "schedule": "50 7 * * *"
+    },
+    {
       "path": "/api/cron/import-schedules",
       "schedule": "0 3 * * 1"
     },
