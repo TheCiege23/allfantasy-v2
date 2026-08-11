@@ -179,6 +179,9 @@ const filesToKeep = new Set([
   // Phase 1 of the AF Projections Engine (2026-08-10): scheduled daily in
   // vercel.json — the FantasyStatLine writer that had never existed.
   path.join('app', 'api', 'cron', 'import-stat-lines', 'route.ts').replace(/\\/g, '/'),
+  // Phase 2 of the AF Projections Engine (2026-08-11): consumes the Phase 1 stat lines and
+  // writes AFProjectionSnapshot. Scheduled after import-stat-lines in vercel.json.
+  path.join('app', 'api', 'cron', 'compute-projections', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'import-news', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'import-scores', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'import-standings', 'route.ts').replace(/\\/g, '/'),

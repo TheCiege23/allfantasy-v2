@@ -31,6 +31,32 @@ export const MEASURED_SOLO_TACKLE_SHARE = 0.5364
 export const MEASURED_TACKLE_SPLIT_PROVENANCE =
   'NFL 2025, 5,186 weekly rows with solo+assist present (53.64% solo / 46.36% assist)'
 
+/**
+ * Positions eligible for IDP scoring. Complete for the position vocabulary measured in
+ * production: LB, DB, DL, CB, S, DT, DE, OLB, MLB, NT (plus common variants).
+ *
+ * WHY THIS GATE EXISTS. Offensive players record tackles too — after an interception, on a
+ * fumble, or on special teams. Without a position gate they fall through the ladder to IDP
+ * component scoring whenever they have no DK points and no positive format points, and get
+ * projected on defensive production. Measured on the first production run: 29 offensive
+ * players landed on an IDP basis, including Michael Penix Jr. (QB) at 5.97 and Jayden Daniels
+ * (QB) at 3.89 — entirely from tackles made after turnovers. A quarterback must never carry
+ * an IDP projection.
+ *
+ * Special teams (P, LS, PK, K) are excluded too: they make tackles but are not IDP-rosterable,
+ * and a long snapper carrying a defensive projection is noise in every ranking it enters.
+ */
+const IDP_ELIGIBLE_POSITIONS = new Set([
+  'LB', 'OLB', 'ILB', 'MLB',
+  'DB', 'CB', 'S', 'SS', 'FS',
+  'DL', 'DT', 'DE', 'NT', 'EDGE',
+])
+
+export function isIdpEligiblePosition(position: string | null | undefined): boolean {
+  const p = String(position ?? '').trim().toUpperCase()
+  return p !== '' && IDP_ELIGIBLE_POSITIONS.has(p)
+}
+
 /** Canonical IDP components this engine can score. */
 export type IdpComponent =
   | 'soloTackle'

@@ -161,6 +161,42 @@ describe('buildAfProjection — IDP ladder', () => {
     if (r.ok) expect(r.confidence.reasons.join(' ')).toContain('measured population split')
   })
 
+  it('never gives an offensive player an IDP projection, even with tackles on file', () => {
+    // Regression: the first production run put 29 offensive players on an IDP basis,
+    // including Michael Penix Jr. (QB) at 5.97 and Jayden Daniels (QB) at 3.89, entirely
+    // from tackles made after turnovers. A QB must refuse, not get defensive points.
+    const qb = buildAfProjection({
+      statsJson: {
+        position: 'QB',
+        riPlayerName: 'Backup Quarterback',
+        regular_season: { games_played: 10, tackles: 6, interceptions: 0 },
+      },
+      weekly: [],
+      weeklyRaw: [{ week: 1, statMap: { idp_tkl_solo: 2, idp_tkl_ast: 1 } }],
+      scoringFormat: 'ppr',
+      basisIsPriorSeason: true,
+      idpRules: BALANCED,
+    })
+    expect(qb.ok).toBe(false)
+    if (!qb.ok) expect(qb.reason).toBe('no_scoring_basis')
+  })
+
+  it('excludes special-teams positions from IDP scoring', () => {
+    // A long snapper makes tackles but is not IDP-rosterable; a projection for one is
+    // noise in every ranking it enters.
+    const ls = buildAfProjection({
+      statsJson: {
+        position: 'LS',
+        regular_season: { games_played: 16, tackles: 8 },
+      },
+      weekly: [],
+      scoringFormat: 'ppr',
+      basisIsPriorSeason: true,
+      idpRules: BALANCED,
+    })
+    expect(ls.ok).toBe(false)
+  })
+
   it('keeps offensive players on the format-points basis, unaffected by IDP rules', () => {
     const wr = buildAfProjection({
       statsJson: {

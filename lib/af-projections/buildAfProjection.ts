@@ -14,7 +14,7 @@ import {
   parseDepthRole,
   recencyWeightedPoints,
 } from './core'
-import { extractIdpComponents, scoreIdpComponents } from './idpScoring'
+import { extractIdpComponents, isIdpEligiblePosition, scoreIdpComponents } from './idpScoring'
 import type {
   IdpScoringBreakdown,
   ProjectionOutcome,
@@ -142,8 +142,10 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
   const recency = recencyWeightedPoints(weekly, input.scoringFormat, input.recencyHalfLife ?? 4)
 
   // --- IDP paths, computed up front so the ladder below can compare them -------------
-  // Only meaningful when the league actually supplies IDP rules.
-  const idpRules = input.idpRules ?? null
+  // Gated on BOTH league rules and player position. Offensive players record tackles after
+  // turnovers and on special teams, so without the position gate a quarterback with no DK
+  // points falls through to IDP scoring and gets projected on defensive production.
+  const idpRules = isIdpEligiblePosition(aggregate.position) ? input.idpRules ?? null : null
   let idpWeekly: { points: number; weeksUsed: number; breakdown: IdpScoringBreakdown } | null = null
   let idpSeason: { points: number; breakdown: IdpScoringBreakdown } | null = null
 
