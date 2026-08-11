@@ -49,7 +49,7 @@ async function handle(req: NextRequest) {
         ok: true,
         dryRun: true,
         sports: sports ?? "all",
-        message: "Dry run — no DB writes performed.",
+        message: "Dry run — no DB writes performed (identity sync also skipped).",
         durationMs: Date.now() - startedAt,
       })
     }
@@ -84,11 +84,46 @@ async function handle(req: NextRequest) {
       console.error("[cron/import-players] telemetry write failed:", telemetryError)
     })
 
+    // --- identity maintenance -------------------------------------------------------
+    // Folded in here rather than left as one-shot scripts, because both degrade silently.
+    // New players entering the league arrive unmapped, and an unmapped player falls back to
+    // a weaker projection basis with lower confidence. A wrong mapping is worse still: the
+    // sleeperId is how weekly stats and projections are fetched, so a bad bind attaches one
+    // player's entire production history to another. A one-off run measured 77 such binds
+    // already in the data (Jahmyr Gibbs -> Bill Murray, Lamar Jackson -> Cre'Von LeBlanc).
+    //
+    // Both are NON-FATAL: player import is the job here, and identity upkeep must never fail
+    // the run that populated the roster. Both are additionally sport-gated to NFL, which is
+    // the only sport the identity map covers.
+    let identity: Record<string, unknown> | null = null
+    const wantsNfl = !sports || sports.includes('NFL')
+    if (wantsNfl) {
+      try {
+        const { backfillSleeperIds, repairSleeperIds } = await import('@/lib/player-match/sleeperIdentitySync')
+        // Repair BEFORE backfill: repair only inspects rows that already carry an id, and
+        // running it first means the backfill's uniqueness guard sees the corrected set.
+        const repaired = await repairSleeperIds({ sport: 'NFL' })
+        const filled = await backfillSleeperIds({ sport: 'NFL' })
+        identity = {
+          repairChecked: repaired.checked,
+          repaired: repaired.repaired,
+          leftForReview: repaired.leftForReview,
+          newlyMapped: filled.written,
+          coverage: filled.coverageAfter,
+        }
+      } catch (identityError) {
+        const message = identityError instanceof Error ? identityError.message : String(identityError)
+        console.error('[cron/import-players] identity sync failed:', message)
+        identity = { error: message.slice(0, 200) }
+      }
+    }
+
     return NextResponse.json({
       ok: true,
       dryRun: false,
       imported: result.imported,
       sports: result.sports,
+      identity,
       staleFallbackApplied: result.staleFallbackApplied,
       skippedSports: result.skippedSports,
       teamCodeCounts: result.teamCodeCounts,
