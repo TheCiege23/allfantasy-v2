@@ -15,6 +15,13 @@
  * Matching is delegated to `resolveVerifiedMatch`: name normalization, then verification by
  * position and team, refusing ambiguity rather than binding on luck. A wrong bind here would
  * attach one player's production history to another — silent, and worse than no match.
+ *
+ * FILE NAMING IS LOAD-BEARING. This module fetches a provider API directly, which
+ * `scripts/check-db-first-api-boundary.mjs` permits only for ingestion/sync modules —
+ * matched under `lib/` by the path pattern `(ingest|ingestion|sync)`. It lives here as
+ * `sleeperIdentitySync` rather than `backfillSleeperIds` because that is what it is: a sync
+ * of provider identity ids into our map. Renaming it away from `sync` will fail CI, and
+ * correctly so.
  */
 
 import { prisma } from '@/lib/prisma'
