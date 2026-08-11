@@ -1,6 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
+import { normalizeRiInjuries } from '@/lib/injuries/rollingInsightsInjuries'
 
 /**
  * playerAssetsService — headshot fallbacks + injury flags from the configured
@@ -35,10 +36,28 @@ function rscToken(): string | null {
   )
 }
 
+/**
+ * The two env spellings carry DIFFERENT semantics and both are configured in the
+ * wild: `ROLLING_INSIGHTS_REST_BASE` is the host root, `ROLLING_INSIGHTS_REST_BASE_URL`
+ * already includes `/api/v1`. This reader previously consulted only `_REST_BASE`
+ * and defaulted to a bare host, so with `_REST_BASE_URL` set (as it is in every
+ * environment) it built `https://rest.datafeeds.rolling-insights.com/injuries/NFL`
+ * — a 404 on every call. `getNflInjuries` swallows that into
+ * `{configured:true, available:false}`, so the Command Center, player profile and
+ * player-assets surfaces reported "no injury data" rather than an error, and the
+ * `assets:rsc:injuries:v1` cache row was never written (measured: 0 rows, vs 98
+ * for the TheSportsDB cache alongside it).
+ *
+ * Matches the resolution already used by lib/injuries/rollingInsightsInjuries.ts,
+ * lib/stats/rollingInsightsPlayerStats.ts and lib/sports-live-scores-service.ts.
+ */
 function rscBase(): string {
-  return (
-    process.env.ROLLING_INSIGHTS_REST_BASE?.trim() || 'https://rest.datafeeds.rolling-insights.com'
-  )
+  const raw =
+    process.env.ROLLING_INSIGHTS_REST_BASE_URL?.trim() ||
+    process.env.ROLLING_INSIGHTS_REST_BASE?.trim() ||
+    'https://rest.datafeeds.rolling-insights.com/api/v1'
+  const trimmed = raw.replace(/\/+$/, '')
+  return /\/api\/v\d+$/.test(trimmed) ? trimmed : `${trimmed}/api/v1`
 }
 
 async function cachedJson<T extends { version: 1 }>(
@@ -138,40 +157,35 @@ export type InjuriesPayload =
 
 type RscInjuriesCache = { version: 1; byName: Record<string, InjuryFlag> }
 
-/** Defensive normalizer: accepts the shapes the docs imply without guessing values. */
+/**
+ * Maps the live Rolling Insights injuries payload to name-keyed flags.
+ *
+ * The previous local normalizer searched each row for `status` / `injury_status` /
+ * `designation`. Measured against the live feed, an RI injury row carries NONE of
+ * those — its fields are `player`, `player_id`, `injury` (body part), `returns`
+ * (the designation, as prose) and `date_injured`. So it matched nothing and
+ * returned `{}` on a perfectly good 200, which `getNflInjuries` then reported as
+ * `available:false`. Reusing the parser that already backs the `sportsInjury`
+ * table (3,892 rows, minutes fresh) rather than keeping a second, weaker one.
+ *
+ * `parseInjuryDesignation` returns `status: null` when the prose states no
+ * designation for THIS week ("Expected To Return Week 3"). That is a first-class
+ * outcome, not a parse failure, and it must not become a badge — every consumer
+ * of `InjuryFlag` renders `status` directly. Those rows are therefore withheld
+ * here, which `injuryForName` already expresses as "no designation stated".
+ * Surfaces that model a null designation read the richer `lib/injuries/injuryReadPort`
+ * instead, which carries them with full fidelity plus staleness.
+ */
 function extractInjuries(data: unknown): Record<string, InjuryFlag> {
   const byName: Record<string, InjuryFlag> = {}
-  const visit = (node: unknown): void => {
-    if (Array.isArray(node)) {
-      for (const item of node) visit(item)
-      return
-    }
-    if (node && typeof node === 'object') {
-      const o = node as Record<string, unknown>
-      const name =
-        (typeof o.player === 'string' && o.player) ||
-        (typeof o.player_name === 'string' && o.player_name) ||
-        (typeof o.name === 'string' && o.name) ||
-        null
-      const status =
-        (typeof o.status === 'string' && o.status) ||
-        (typeof o.injury_status === 'string' && o.injury_status) ||
-        (typeof o.designation === 'string' && o.designation) ||
-        null
-      if (name && status) {
-        byName[normalizeName(name)] = {
-          status,
-          note:
-            (typeof o.injury === 'string' && o.injury) ||
-            (typeof o.description === 'string' && o.description) ||
-            null,
-        }
-        return
-      }
-      for (const v of Object.values(o)) visit(v)
+  for (const row of normalizeRiInjuries(data, 'NFL')) {
+    if (!row.status || !row.playerName) continue
+    byName[normalizeName(row.playerName)] = {
+      status: row.status,
+      // Body part ("Knee") is the useful hover detail; fall back to the full prose.
+      note: row.type ?? row.description ?? null,
     }
   }
-  visit(data)
   return byName
 }
 
