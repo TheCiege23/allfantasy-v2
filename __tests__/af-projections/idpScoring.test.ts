@@ -215,3 +215,85 @@ describe('buildAfProjection — IDP ladder', () => {
     }
   })
 })
+
+describe('buildAfProjection — Sleeper forward-looking tiers', () => {
+  const LB_STATS = {
+    position: 'LB',
+    riPlayerName: 'Test Linebacker',
+    regular_season: { games_played: 16, tackles: 96, sacks: 4 },
+  }
+  const WR_STATS = {
+    position: 'WR',
+    regular_season: { games_played: 16, receptions: 80, DK_fantasy_points_per_game: 12 },
+  }
+
+  it('prefers a forward-looking projection over historical actuals', () => {
+    const r = buildAfProjection({
+      statsJson: WR_STATS,
+      // History says ~20; the projection FOR this week says 8.5. The projection wins.
+      weekly: [{ week: 1, ptsPpr: 20, ptsHalfPpr: 19, ptsStd: 18, offSnaps: null, teamOffSnaps: null, targets: null }],
+      sleeperProjection: { pts_ppr: 8.5, pts_half_ppr: 7.5, pts_std: 6.5 },
+      scoringFormat: 'ppr',
+      basisIsPriorSeason: true,
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.basis).toBe('sleeper_weekly_projection')
+      expect(r.baselineProjection).toBeCloseTo(8.5)
+    }
+  })
+
+  it('scores a defender from projected COMPONENTS, never from pts_ppr', () => {
+    // The trap: Sleeper's pts_ppr for a DE is offensive-only. Jonathan Greenard projects
+    // ~11 IDP points and carries pts_ppr 0.78. Taking the points column understates ~14x.
+    const r = buildAfProjection({
+      statsJson: LB_STATS,
+      sleeperProjection: {
+        pts_ppr: 0.78,
+        idp_tkl_solo: 2.28,
+        idp_tkl_ast: 0.96,
+        idp_sack: 0.66,
+        idp_ff: 0.12,
+      },
+      scoringFormat: 'ppr',
+      basisIsPriorSeason: true,
+      idpRules: BALANCED,
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) {
+      expect(r.basis).toBe('sleeper_weekly_idp_projection')
+      expect(r.baselineProjection).toBeGreaterThan(5)
+      expect(r.baselineProjection).not.toBeCloseTo(0.78, 1)
+    }
+  })
+
+  it('raises confidence when the baseline is a projection for the target week', () => {
+    const forward = buildAfProjection({
+      statsJson: WR_STATS,
+      sleeperProjection: { pts_ppr: 12 },
+      scoringFormat: 'ppr',
+      basisIsPriorSeason: true,
+    })
+    const historical = buildAfProjection({
+      statsJson: WR_STATS,
+      scoringFormat: 'ppr',
+      basisIsPriorSeason: true,
+    })
+    expect(forward.ok && historical.ok).toBe(true)
+    if (forward.ok && historical.ok) {
+      expect(forward.confidence.score).toBeGreaterThan(historical.confidence.score)
+      expect(forward.confidence.reasons.join(' ')).toContain('projection for the target week')
+    }
+  })
+
+  it('falls back to history when no projection exists for the player', () => {
+    const r = buildAfProjection({
+      statsJson: WR_STATS,
+      sleeperProjection: null,
+      scoringFormat: 'ppr',
+      basisIsPriorSeason: true,
+    })
+    expect(r.ok).toBe(true)
+    if (r.ok) expect(r.basis).toBe('season_dk_fppg_proxy')
+  })
+})

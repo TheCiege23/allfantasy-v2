@@ -26,7 +26,7 @@
 
 import { prisma } from '@/lib/prisma'
 
-import { buildNameIndex, resolveVerifiedMatch, type NameMatchReason } from './verifiedNameMatch'
+import { buildNameIndex, normalizeMatchName, resolveVerifiedMatch, type NameMatchReason } from './verifiedNameMatch'
 
 const SLEEPER_PLAYERS_URL = 'https://api.sleeper.app/v1/players/nfl'
 
@@ -101,6 +101,103 @@ export interface BackfillSleeperIdsResult {
   coverageAfter: string
   samples: Array<{ name: string; position: string | null; team: string | null; sleeperId: string; reason: string }>
   errors: string[]
+}
+
+/**
+ * Validate every EXISTING sleeperId against Sleeper's universe and repair the wrong ones.
+ *
+ * Measured 2026-08-11: of 1,023 pre-existing NFL bindings, 77 pointed at a different human —
+ * Jahmyr Gibbs bound to Bill Murray (DT), Lamar Jackson to Cre'Von LeBlanc (DB). Every one of
+ * the 858 written by this module's verified matcher was correct, so the corruption predates
+ * it. It matters because the id is how weekly stats and projections are fetched: a wrong bind
+ * silently attaches one player's production history to another.
+ *
+ * Repair is CONSERVATIVE. A name mismatch alone does not justify clearing an id, because
+ * Sleeper's own naming varies ("Cam Ward" vs our "Cameron Ward") and nulling that would
+ * destroy a correct binding. An id is only rewritten when the verified matcher finds a
+ * confident DIFFERENT candidate. Everything else is reported for review and left untouched.
+ */
+export async function repairSleeperIds(opts: { sport?: string; dryRun?: boolean } = {}): Promise<{
+  checked: number
+  correct: number
+  mismatched: number
+  repaired: number
+  leftForReview: number
+  samples: string[]
+}> {
+  const sport = (opts.sport ?? 'NFL').toUpperCase()
+  const dryRun = opts.dryRun ?? false
+
+  const res = await fetch(SLEEPER_PLAYERS_URL, { cache: 'no-store' })
+  if (!res.ok) throw new Error(`Sleeper player list returned HTTP ${res.status}`)
+  const raw = (await res.json()) as Record<string, SleeperPlayer>
+
+  const byId = new Map<string, SleeperCandidate>()
+  const candidates: SleeperCandidate[] = []
+  for (const [id, p] of Object.entries(raw ?? {})) {
+    const name = (p.full_name && p.full_name.trim()) || [p.first_name, p.last_name].filter(Boolean).join(' ').trim()
+    if (!name) continue
+    const c: SleeperCandidate = {
+      name,
+      position: p.position ?? null,
+      team: p.team ?? null,
+      sleeperId: String(p.player_id ?? id),
+      active: p.active !== false,
+    }
+    byId.set(c.sleeperId, c)
+    candidates.push(c)
+  }
+  const index = buildNameIndex(candidates)
+
+  const rows = await prisma.playerIdentityMap.findMany({
+    where: { sport, sleeperId: { not: null } },
+    select: { id: true, canonicalName: true, position: true, currentTeam: true, sleeperId: true },
+  })
+
+  const out = { checked: rows.length, correct: 0, mismatched: 0, repaired: 0, leftForReview: 0, samples: [] as string[] }
+  const taken = new Set(rows.map((r) => r.sleeperId).filter((v): v is string => Boolean(v)))
+
+  for (const row of rows) {
+    const bound = byId.get(row.sleeperId!)
+    if (bound && normalizeMatchName(bound.name) === normalizeMatchName(row.canonicalName)) {
+      out.correct++
+      continue
+    }
+    out.mismatched++
+
+    const outcome = resolveVerifiedMatch(index, {
+      name: row.canonicalName,
+      position: row.position,
+      team: row.currentTeam,
+    })
+    const better = outcome.match
+    if (
+      !better ||
+      better.sleeperId === row.sleeperId ||
+      taken.has(better.sleeperId) ||
+      isCrossFamilyMismatch(row.position, better.position)
+    ) {
+      out.leftForReview++
+      if (out.samples.length < 12) {
+        out.samples.push(`REVIEW  ${row.canonicalName} -> ${row.sleeperId} (${bound?.name ?? 'unknown id'})`)
+      }
+      continue
+    }
+
+    if (out.samples.length < 12) {
+      out.samples.push(`REPAIR  ${row.canonicalName}: ${row.sleeperId} (${bound?.name ?? '?'}) -> ${better.sleeperId}`)
+    }
+    if (!dryRun) {
+      taken.delete(row.sleeperId!)
+      taken.add(better.sleeperId)
+      await prisma.playerIdentityMap.update({
+        where: { id: row.id },
+        data: { sleeperId: better.sleeperId, lastSyncedAt: new Date() },
+      })
+    }
+    out.repaired++
+  }
+  return out
 }
 
 export async function backfillSleeperIds(opts: { sport?: string; dryRun?: boolean } = {}): Promise<BackfillSleeperIdsResult> {

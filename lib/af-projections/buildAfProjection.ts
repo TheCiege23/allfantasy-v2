@@ -90,11 +90,22 @@ export interface BuildProjectionInput {
   /** Raw weekly stat maps, required for IDP component scoring. */
   weeklyRaw?: WeeklyRawStats[]
   /**
+   * Sleeper's forward-looking projection for the target week, keyed by the same stat
+   * vocabulary as the weekly logs. Present only when the player carries a `sleeperId`.
+   */
+  sleeperProjection?: Record<string, number> | null
+  /**
    * League IDP scoring rules (stat key -> points), e.g. from `getIdpPresetScoring()`.
    * Omit for a league that does not score IDP — defenders will then correctly refuse rather
    * than receive points the league would never award.
    */
   idpRules?: Record<string, number> | null
+  /**
+   * Authoritative position, overriding whatever the season aggregate carries. Callers
+   * should pass Sleeper's position when available: RI's is unreliable (it lists a Jaguars
+   * WR as DE), and this value decides IDP eligibility.
+   */
+  position?: string | null
   /** Depth-chart slot, e.g. "WR2". */
   depthSlot?: string | null
   /**
@@ -145,7 +156,8 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
   // Gated on BOTH league rules and player position. Offensive players record tackles after
   // turnovers and on special teams, so without the position gate a quarterback with no DK
   // points falls through to IDP scoring and gets projected on defensive production.
-  const idpRules = isIdpEligiblePosition(aggregate.position) ? input.idpRules ?? null : null
+  const effectivePosition = input.position ?? aggregate.position
+  const idpRules = isIdpEligiblePosition(effectivePosition) ? input.idpRules ?? null : null
   let idpWeekly: { points: number; weeksUsed: number; breakdown: IdpScoringBreakdown } | null = null
   let idpSeason: { points: number; breakdown: IdpScoringBreakdown } | null = null
 
@@ -158,8 +170,26 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
     }
   }
 
-  // Basis precedence. Real weekly actuals in the requested format win, then league-scored
-  // weekly IDP components, then a genuine zero, then the DK season proxy, then season IDP.
+  // --- Sleeper forward-looking projection (tiers 1-2) --------------------------------
+  // A projection FOR the week being played beats any inference from completed games, so
+  // these sit above every historical tier.
+  const proj = input.sleeperProjection ?? null
+  const projFormatPoints = proj ? finite(proj[`pts_${input.scoringFormat}`]) : null
+
+  let sleeperIdp: { points: number; breakdown: IdpScoringBreakdown } | null = null
+  if (proj && idpRules) {
+    const extracted = extractIdpComponents(proj, 'sleeper_weekly')
+    const scored = scoreIdpComponents({ ...extracted, rules: idpRules })
+    if (scored && scored.points !== 0) sleeperIdp = { points: scored.points, breakdown: scored }
+  }
+
+  // Basis precedence. Sleeper's forward-looking projection first, then real weekly actuals
+  // in the requested format, then league-scored weekly IDP components, then a genuine zero,
+  // then the DK season proxy, then season IDP.
+  //
+  // For an IDP-eligible player the component path is checked BEFORE `pts_{format}`: Sleeper's
+  // points column is offensive-only, so a DE projected at ~11 IDP points reads 0.78 there.
+  // Taking the points column for a defender would silently understate them ~14x.
   //
   // The `recency.value > 0` guard is load-bearing: Sleeper records `pts_ppr: 0` for many
   // defenders, so a naive "weekly beats everything" rule would project 0.0 for a linebacker
@@ -170,7 +200,14 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
   let weeklyWeeksUsed = 0
   let idpBreakdown: IdpScoringBreakdown | null = null
 
-  if (recency && recency.value > 0) {
+  if (sleeperIdp) {
+    baselineProjection = sleeperIdp.points
+    basis = 'sleeper_weekly_idp_projection'
+    idpBreakdown = sleeperIdp.breakdown
+  } else if (projFormatPoints != null && projFormatPoints > 0) {
+    baselineProjection = projFormatPoints
+    basis = 'sleeper_weekly_projection'
+  } else if (recency && recency.value > 0) {
     baselineProjection = recency.value
     basis = 'weekly_actuals_recency'
     weeklyWeeksUsed = recency.weeksUsed
@@ -202,6 +239,7 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
   const depthRole = parseDepthRole(input.depthSlot)
 
   const confidence = deriveConfidence({
+    hasForwardProjection: basis === 'sleeper_weekly_projection' || basis === 'sleeper_weekly_idp_projection',
     gamesPlayed: aggregate.gamesPlayed,
     weeklyWeeksUsed,
     hasDepthRole: depthRole != null,
@@ -254,4 +292,8 @@ type ProjectionOutcomeBasis = Extract<ProjectionOutcome, { ok: true }>['basis']
 
 function round2(n: number): number {
   return Math.round(n * 100) / 100
+}
+
+function finite(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null
 }
