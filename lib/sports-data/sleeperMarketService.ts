@@ -118,6 +118,58 @@ export async function getWeekBoard(season: string, week: number): Promise<WeekBo
 }
 
 /**
+ * Sleeper uses TWO scoring vocabularies for the same IDP stats, and a league may be on
+ * either. The projections feed always emits the `idp_`-prefixed form, so a league whose
+ * `scoring_settings` use the bare form matched NOTHING and fell through to `pts_ppr`.
+ *
+ * Measured on the same Jonathan Greenard (DE) projection row:
+ *   "NFC Dreaming!"      idp_tkl_solo vocabulary -> 11.01 pts, mode=league-scored
+ *   "Versuz on Sleeper!" tkl_solo     vocabulary ->  0.78 pts, mode=format-approx
+ * 0.78 is his offensive-only `pts_ppr`. Defenders were being understated ~14x in every
+ * league on the bare vocabulary — across projected standings, draft report, trade grade
+ * and matchup center.
+ *
+ * SCOPE IS DELIBERATELY NARROW. Only keys that are unambiguously individual-defense are
+ * aliased. `sack`, `int`, `ff`, `fum_rec`, `safe`, `blk_kick` and `def_td` are ALSO the
+ * TEAM-DEFENSE (DEF unit) settings that every Sleeper league carries by default — measured
+ * across 57 of Guap's leagues, 45 score exactly `sack, int, ff, fum_rec` and nothing else
+ * defensive. Aliasing those would apply a DEF-unit weight to an individual player and
+ * manufacture points for defenders in leagues that do not roster them. That would be a new
+ * bug, not a fix.
+ *
+ * Tackles, tackles-for-loss, QB hits and passes-defended have no team-defense equivalent, so
+ * they are safe to bridge.
+ *
+ * ALSO NOT ALIASED: `st_tkl_solo` / `def_st_tkl_solo` are SPECIAL-TEAMS tackles, a different
+ * stat leagues score separately. Folding them in would count coverage-team work as defensive
+ * production.
+ *
+ * Practical effect on the current league set is small — 8 leagues already use the prefixed
+ * vocabulary and the rest set their bare tackle values to 0 — but a league that scores bare
+ * `tkl_solo` with real values was silently getting `pts_ppr` for every defender, and now is not.
+ */
+const IDP_KEY_ALIASES: Record<string, string> = {
+  idp_tkl: 'tkl',
+  idp_tkl_solo: 'tkl_solo',
+  idp_tkl_ast: 'tkl_ast',
+  idp_tkl_loss: 'tkl_loss',
+  idp_pass_def: 'pass_def',
+  idp_qb_hit: 'qb_hit',
+}
+
+/**
+ * Weight for one stat key, trying the league's exact key first and the documented alias
+ * second. Exact always wins, so a league carrying both keys is scored on its own explicit
+ * setting rather than on our alias table.
+ */
+function resolveScoringWeight(scoring: Record<string, number>, statKey: string): number | undefined {
+  const exact = scoring[statKey]
+  if (typeof exact === 'number') return exact
+  const alias = IDP_KEY_ALIASES[statKey]
+  return alias ? scoring[alias] : undefined
+}
+
+/**
  * Score one projected stat line with the league's real scoring settings.
  * Dot product over shared stat keys (the pts_ and adp_ columns are excluded —
  * those are the feed's own aggregates, not stats). Falls back to pts_{format}
@@ -132,7 +184,7 @@ export function scoreStatLine(
   let matched = 0
   for (const [key, value] of Object.entries(stats)) {
     if (key.startsWith('pts_') || key.startsWith('adp_') || key === 'gp') continue
-    const weight = scoring[key]
+    const weight = resolveScoringWeight(scoring, key)
     if (typeof weight === 'number' && weight !== 0 && typeof value === 'number') {
       points += value * weight
       matched += 1
