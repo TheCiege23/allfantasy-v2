@@ -21,7 +21,20 @@ export type ScoringFormat = 'ppr' | 'half_ppr' | 'std'
  * so a proxy can never be presented as a true weekly projection.
  */
 export type AfProjectionBasis =
-  /** Recency-weighted per-week actuals in the requested scoring format. Strongest basis. */
+  /**
+   * Sleeper's FORWARD-LOOKING weekly projection for the target week, in the requested
+   * scoring format. Strongest basis available: it is an actual projection for the week
+   * being played, not an inference from completed games.
+   */
+  | 'sleeper_weekly_projection'
+  /**
+   * Sleeper's forward-looking weekly IDP components, scored under the league's own rules.
+   * Strongest IDP basis. Necessary because Sleeper's `pts_ppr` for a defender is
+   * offensive-only — a DE projected at ~11 IDP points carries `pts_ppr: 0.78` — so the
+   * points column cannot be used for defenders and the components must be scored.
+   */
+  | 'sleeper_weekly_idp_projection'
+  /** Recency-weighted per-week actuals in the requested scoring format. */
   | 'weekly_actuals_recency'
   /**
    * Prior-season DraftKings points per game. DK NFL scoring is close to full PPR but NOT
@@ -88,6 +101,11 @@ export interface DepthRole {
 }
 
 export interface ConfidenceInput {
+  /**
+   * True when the baseline came from a provider projection FOR the target week rather than
+   * being inferred from completed games. Strongest single signal available.
+   */
+  hasForwardProjection?: boolean
   gamesPlayed: number
   /** Number of weekly observations actually used. 0 when the Sleeper id was unmatched. */
   weeklyWeeksUsed: number

@@ -37,6 +37,8 @@ export interface WriteSnapshotsResult {
   confidenceCounts: Record<string, number>
   /** Projections carrying the measured (estimated) tackle split. */
   usedTackleSplitEstimate: number
+  /** Projections whose baseline came from Sleeper's forward-looking week projection. */
+  fromForwardProjection: number
   /** Players whose weekly logs were unreachable because no sleeperId is mapped. */
   withoutWeeklyData: number
   errors: string[]
@@ -50,6 +52,8 @@ export interface WriteSnapshotsOptions {
   targetSeason?: number
   scoringFormat?: ScoringFormat
   idpPreset?: string
+  /** Week the projection applies to. Defaults to 1 (preseason baseline). */
+  targetWeek?: number
   /** Compute and report without writing. */
   dryRun?: boolean
   now?: Date
@@ -141,6 +145,22 @@ export async function writeAfProjectionSnapshots(
   const { getIdpPresetScoring } = await import('@/lib/idp/IDPScoringPresets')
   const idpRules = getIdpPresetScoring(idpPreset, sport)
 
+  // --- Sleeper forward-looking projections for the target week ------------------------
+  // Keyed by Sleeper player id, which the identity sync now supplies for 97.5% of NFL
+  // players. Reuses the cached getWeekBoard (6h TTL) rather than re-fetching. A projection
+  // FOR the week being played outranks anything inferred from completed games, so this is
+  // the strongest input the engine has; failure is non-fatal and falls back to history.
+  const targetWeek = opts.targetWeek ?? 1
+  let weekBoard: Record<string, { stats: Record<string, number>; position: string | null }> | null = null
+  try {
+    const { getWeekBoard } = await import('@/lib/sports-data/sleeperMarketService')
+    const board = await getWeekBoard(String(targetSeason), targetWeek)
+    weekBoard = board?.players ?? null
+    if (!board) errors.push(`Sleeper week board ${targetSeason}/${targetWeek} returned nothing.`)
+  } catch (err) {
+    errors.push(`Sleeper week board fetch failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
+
   const result: WriteSnapshotsResult = {
     sport,
     targetSeason,
@@ -154,6 +174,7 @@ export async function writeAfProjectionSnapshots(
     basisCounts: {},
     confidenceCounts: {},
     usedTackleSplitEstimate: 0,
+    fromForwardProjection: 0,
     withoutWeeklyData: 0,
     errors,
   }
@@ -167,7 +188,13 @@ export async function writeAfProjectionSnapshots(
 
     const aggregate = extractSeasonAggregate(stats)
     const playerName = aggregate?.playerName ?? null
-    const position = aggregate?.position ?? null
+    const sleeperIdForPos = sleeperByCanonical.get(line.playerId)
+    // Prefer SLEEPER's position over RI's. RI's is demonstrably unreliable — it lists
+    // Brian Thomas Jr. (a Jaguars WR) as DE and Corbin Bryant (a DT) as CB. A wrong
+    // position pollutes every position-filtered surface and, before the IDP gate, decided
+    // whether a player was scored on defensive components at all.
+    const sleeperPosition = sleeperIdForPos ? weekBoard?.[sleeperIdForPos]?.position ?? null : null
+    const position = sleeperPosition ?? aggregate?.position ?? null
     const nameKey = playerName?.toLowerCase() ?? ''
 
     const sleeperId = sleeperByCanonical.get(line.playerId)
@@ -177,6 +204,8 @@ export async function writeAfProjectionSnapshots(
       aggregate,
       weekly: sleeperId ? obsBySleeper.get(sleeperId) ?? [] : [],
       weeklyRaw: sleeperId ? rawBySleeper.get(sleeperId) ?? [] : [],
+      sleeperProjection: sleeperId ? weekBoard?.[sleeperId]?.stats ?? null : null,
+      position,
       depthSlot: slotByName.get(nameKey) ?? null,
       injuryStatus: injuryByName.get(nameKey) ?? null,
       scoringFormat,
@@ -200,6 +229,7 @@ export async function writeAfProjectionSnapshots(
     result.confidenceCounts[outcome.confidence.level] =
       (result.confidenceCounts[outcome.confidence.level] ?? 0) + 1
     if (outcome.idp?.usedMeasuredTackleSplit) result.usedTackleSplitEstimate++
+    if (outcome.basis.startsWith('sleeper_weekly')) result.fromForwardProjection++
 
     // Week is null on purpose: this is a season-level baseline computed from a completed
     // prior season, not a week-specific forecast. Claiming a week would be a false precision.

@@ -201,6 +201,14 @@ export function deriveConfidence(input: ConfidenceInput): ConfidenceResult {
   const reasons: string[] = []
   let score = 0
 
+  // A projection FOR the target week is direct evidence, not inference. It is weighted
+  // highest and, unlike the historical signals, does not decay with sample size — the
+  // provider already did that work.
+  if (input.hasForwardProjection) {
+    score += 0.5
+    reasons.push('provider projection for the target week')
+  }
+
   // Weekly observations — up to 0.45, saturating at 8 weeks.
   if (input.weeklyWeeksUsed > 0) {
     const weeklyScore = 0.45 * Math.min(1, input.weeklyWeeksUsed / 8)
