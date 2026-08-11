@@ -75,24 +75,34 @@ export type IdpComponent =
 /**
  * Ordered candidate scoring-rule keys per component. FIRST MATCH WINS — this is deliberate.
  *
+ * Candidates span THREE vocabularies so a league's own settings can be passed straight in:
+ * our preset names (`idp_solo_tackle`), Sleeper's prefixed names (`idp_tkl_solo`), and
+ * Sleeper's bare names (`tkl_solo`).
+ *
+ * The bare forms accepted here are ONLY tackles and TFL, which have no team-defense
+ * equivalent. Bare `sack`, `int`, `ff`, `fum_rec`, `safe`, `blk_kick` and `def_td` are the
+ * DEF-unit settings every Sleeper league carries by default — measured across 57 leagues, 45
+ * score exactly those and nothing else defensive. Accepting them would apply a team weight to
+ * an individual player and manufacture points for defenders in leagues that never roster them.
+ *
  * The presets ship aliases whose values DISAGREE: in `tackle_heavy`, `idp_forced_fumble` is 2
  * while `idp_fumble_forced` is 3. Iterating every preset key and summing would double-count
  * forced fumbles and silently inflate every linebacker. One component resolves to exactly one
  * rule key.
  */
 const COMPONENT_RULE_KEYS: Record<IdpComponent, readonly string[]> = {
-  soloTackle: ['idp_solo_tackle', 'idp_tackle_solo'],
-  assistTackle: ['idp_assist_tackle', 'idp_tackle_assist', 'idp_assisted_tackle'],
+  soloTackle: ['idp_solo_tackle', 'idp_tackle_solo', 'idp_tkl_solo', 'tkl_solo'],
+  assistTackle: ['idp_assist_tackle', 'idp_tackle_assist', 'idp_assisted_tackle', 'idp_tkl_ast', 'tkl_ast'],
   sack: ['idp_sack'],
-  interception: ['idp_interception'],
-  passDefended: ['idp_pass_defended'],
-  forcedFumble: ['idp_forced_fumble', 'idp_fumble_forced'],
-  fumbleRecovery: ['idp_fumble_recovery'],
-  tackleForLoss: ['idp_tackle_for_loss'],
+  interception: ['idp_interception', 'idp_int'],
+  passDefended: ['idp_pass_defended', 'idp_pass_def'],
+  forcedFumble: ['idp_forced_fumble', 'idp_fumble_forced', 'idp_ff'],
+  fumbleRecovery: ['idp_fumble_recovery', 'idp_fum_rec'],
+  tackleForLoss: ['idp_tackle_for_loss', 'idp_tkl_loss', 'tkl_loss'],
   qbHit: ['idp_qb_hit'],
-  defensiveTd: ['idp_defensive_touchdown', 'idp_td'],
-  safety: ['idp_safety'],
-  blockedKick: ['idp_blocked_kick'],
+  defensiveTd: ['idp_defensive_touchdown', 'idp_td', 'idp_def_td'],
+  safety: ['idp_safety', 'idp_safe'],
+  blockedKick: ['idp_blocked_kick', 'idp_blk_kick'],
 }
 
 /** Sleeper weekly (`normalizedStatMap`) keys -> component. Verified against production. */
@@ -205,8 +215,14 @@ export function scoreIdpComponents(args: {
 
   if (!anyScored) return null
 
+  const componentAmounts: Record<string, number> = {}
+  for (const [k, v] of Object.entries(components)) {
+    if (typeof v === 'number' && Number.isFinite(v)) componentAmounts[k] = v
+  }
+
   return {
     points: Math.round(points * 100) / 100,
+    componentAmounts,
     scoredComponents: scored,
     unscoredComponents: unscored,
     approximations,

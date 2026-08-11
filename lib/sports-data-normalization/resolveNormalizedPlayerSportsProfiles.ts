@@ -15,6 +15,7 @@ import {
   extractProjectionPoints,
   extractReceptionsPerGame,
 } from '@/lib/sports-data-normalization/extractNumeric'
+import { rescoreIdpForLeague } from '@/lib/af-projections/rescoreForLeague'
 import { injuryVolatility01 } from '@/lib/sports-data-normalization/injuryVolatility'
 import { confidenceFromSources } from '@/lib/sports-data-normalization/projection/confidence'
 import { adjustProjectionForLeagueScoring } from '@/lib/sports-data-normalization/projection/scoringRulesAdjust'
@@ -401,15 +402,32 @@ export async function resolveNormalizedPlayerSportsProfiles(args: {
       afRow?.adjustmentFactors && typeof afRow.adjustmentFactors === 'object'
         ? (afRow.adjustmentFactors as Record<string, unknown>)
         : null
+    // The snapshot stores ONE canonical scoring format (balanced IDP). When this league
+    // supplies its own IDP weights, rescore from the persisted component amounts so a
+    // tackle-heavy league sees tackle-heavy numbers. Falls back to the stored value whenever
+    // rescoring cannot do better — never substitutes a worse number.
+    const rescored = rescoreIdpForLeague(afFactors, args.leagueScoring?.pointsByStat ?? null)
+
     const afEngine =
       afRow && typeof afRow.afProjection === 'number' && Number.isFinite(afRow.afProjection)
         ? {
-            points: afRow.afProjection,
+            points: rescored ? rescored.points : afRow.afProjection,
             confidence: String(afRow.confidenceLevel ?? 'low'),
             basis: String(afFactors?.basis ?? 'unknown'),
-            reasons: Array.isArray(afFactors?.confidenceReasons)
-              ? (afFactors!.confidenceReasons as unknown[]).map(String)
-              : [],
+            reasons: [
+              ...(Array.isArray(afFactors?.confidenceReasons)
+                ? (afFactors!.confidenceReasons as unknown[]).map(String)
+                : []),
+              ...(rescored
+                ? [
+                    `Rescored under this league's IDP rules (stored value used the ` +
+                      `${rescored.storedPreset ?? 'default'} preset).`,
+                    ...(rescored.unscoredComponents.length
+                      ? [`Not scored by this league: ${rescored.unscoredComponents.join(', ')}.`]
+                      : []),
+                  ]
+                : []),
+            ],
           }
         : null
 
