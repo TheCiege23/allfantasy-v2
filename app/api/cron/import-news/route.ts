@@ -38,18 +38,52 @@ async function handle(req: NextRequest) {
         .filter(Boolean)
     : undefined
 
+  // `?full=1` runs the NewsAPI passes too. Scheduled hourly; the */15 run is
+  // ESPN-only so NewsAPI stays inside its quota. See syncEspnNewsOnly().
+  const full = ['1', 'true', 'yes'].includes((url.searchParams.get('full') ?? '').toLowerCase())
+
   const startedAt = Date.now()
 
   try {
+    // Ingest FIRST. runNewsImporter re-reads sports_news, so without a preceding
+    // fetch it can only recycle whatever is already there — which is exactly how
+    // this job reported ok:true for 107 days while advancing nothing.
+    const { syncEspnNewsOnly, syncFullNewsCoverage } = await import('@/app/api/sports/news/sync-helper')
+    let fetched: { total: number; breakdown: Record<string, number> } | null = null
+    let fetchError: string | null = null
+    try {
+      fetched = full ? await syncFullNewsCoverage() : await syncEspnNewsOnly()
+    } catch (err) {
+      // A provider outage must not also block the normalize step from running
+      // over rows already present, but it must be visible in the response.
+      fetchError = err instanceof Error ? err.message : String(err)
+      console.error('[cron/import-news] source sync failed:', fetchError)
+    }
+
     const result = await runNewsImporter({ sports })
 
-    return NextResponse.json({
-      ok: true,
-      imported: result.imported,
-      sports: result.sports,
-      durationMs: Date.now() - startedAt,
-      timestamp: new Date().toISOString(),
-    })
+    // `imported` counts rows OFFERED to createMany, not rows inserted
+    // (skipDuplicates), so it cannot stand in for freshness. `articlesFetched` is
+    // the number that actually moves sports_news forward.
+    const articlesFetched = fetched?.total ?? 0
+    const ok = fetchError === null && articlesFetched > 0
+
+    return NextResponse.json(
+      {
+        ok,
+        mode: full ? 'full' : 'espn-only',
+        articlesFetched,
+        sourceBreakdown: fetched?.breakdown ?? null,
+        sourceError: fetchError,
+        normalizedOffered: result.imported,
+        sports: result.sports,
+        durationMs: Date.now() - startedAt,
+        timestamp: new Date().toISOString(),
+      },
+      // Zero fetched articles means the feed is not advancing. Reporting 200 here
+      // is what hid this for 107 days.
+      { status: ok ? 200 : 500 }
+    )
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     console.error("[cron/import-news] failed:", message)

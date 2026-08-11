@@ -69,6 +69,10 @@
       "schedule": "*/15 * * * *"
     },
     {
+      "path": "/api/cron/import-news?full=1",
+      "schedule": "35 * * * *"
+    },
+    {
       "path": "/api/discord/poll-messages",
       "schedule": "*/1 * * * *"
     },
