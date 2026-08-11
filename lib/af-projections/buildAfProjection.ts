@@ -24,6 +24,27 @@ import type {
 } from './types'
 
 /** One week's raw stat map, needed for per-week IDP component scoring. */
+/** Recency-weighted mean of each component amount, matching how points were weighted. */
+function recencyWeightedComponents(
+  perWeek: Array<{ week: number; breakdown: IdpScoringBreakdown }>,
+  latestWeek: number,
+  halfLife: number,
+): Record<string, number> {
+  const sums: Record<string, number> = {}
+  let weightTotal = 0
+  for (const p of perWeek) {
+    const weight = Math.pow(0.5, (latestWeek - p.week) / halfLife)
+    weightTotal += weight
+    for (const [k, v] of Object.entries(p.breakdown.componentAmounts ?? {})) {
+      sums[k] = (sums[k] ?? 0) + v * weight
+    }
+  }
+  if (weightTotal <= 0) return {}
+  const out: Record<string, number> = {}
+  for (const [k, v] of Object.entries(sums)) out[k] = Math.round((v / weightTotal) * 1000) / 1000
+  return out
+}
+
 export interface WeeklyRawStats {
   week: number
   statMap: Record<string, unknown>
@@ -73,6 +94,9 @@ function scoreIdpWeekly(
     weeksUsed: perWeek.length,
     breakdown: {
       points: Math.round(points * 100) / 100,
+      // Recency-weight the AMOUNTS the same way the points were weighted, so a downstream
+      // rescore under different league rules reproduces this projection's shape.
+      componentAmounts: recencyWeightedComponents(perWeek, latest, halfLife),
       scoredComponents,
       unscoredComponents,
       approximations,

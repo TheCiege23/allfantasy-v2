@@ -58,6 +58,13 @@ export type IdpSourceKind = 'sleeper_weekly' | 'ri_season'
 
 export interface IdpScoringBreakdown {
   points: number
+  /**
+   * The component QUANTITIES this projection was built from (soloTackle: 4.7, sack: 0.15, …),
+   * per game. Persisted so a league with different IDP rules can rescore WITHOUT re-running
+   * the engine. Storing only the component names was not enough — the amounts are what
+   * scoring multiplies.
+   */
+  componentAmounts: Record<string, number>
   scoredComponents: string[]
   /** Components present in the data but carrying no rule in this league. Named, not dropped. */
   unscoredComponents: string[]
