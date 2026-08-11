@@ -49,3 +49,32 @@ describe('rescoreIdpForLeague', () => {
     expect(r.points).toBeCloseTo(4.7 + 4.35, 2)
   })
 })
+
+describe('season-basis breakdowns are per-game, not season totals', () => {
+  it('keeps componentAmounts on the same per-game unit as afProjection', async () => {
+    const { buildAfProjection } = await import('@/lib/af-projections/buildAfProjection')
+    const BALANCED = { idp_solo_tackle: 1, idp_assist_tackle: 0.5, idp_sack: 4, idp_interception: 3 }
+    // Full-season RI aggregate: 17 games, 122 combined tackles.
+    const r = buildAfProjection({
+      statsJson: { position: 'S', regular_season: { games_played: 17, tackles: 122, sacks: 2, interceptions: 2 } },
+      scoringFormat: 'ppr',
+      basisIsPriorSeason: true,
+      idpRules: BALANCED,
+    })
+    expect(r.ok).toBe(true)
+    if (!r.ok) return
+    expect(r.basis).toBe('season_idp_components')
+
+    // Regression: componentAmounts used to hold SEASON totals (soloTackle ~65) while
+    // afProjection was per-game (~6.3). Rescoring then multiplied season counts by weekly
+    // weights — Kamren Curl went 6.34 -> 211.44.
+    const solo = r.idp!.componentAmounts.soloTackle
+    expect(solo).toBeLessThan(10)
+    expect(solo).toBeCloseTo((122 * 0.5364) / 17, 1)
+
+    // And a rescore under the SAME rules must reproduce the stored per-game projection.
+    const { rescoreIdpForLeague } = await import('@/lib/af-projections/rescoreForLeague')
+    const back = rescoreIdpForLeague({ idp: { componentAmounts: r.idp!.componentAmounts } }, BALANCED)!
+    expect(back.points).toBeCloseTo(r.baselineProjection, 1)
+  })
+})

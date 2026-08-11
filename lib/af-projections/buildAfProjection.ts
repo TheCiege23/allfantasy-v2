@@ -190,7 +190,23 @@ export function buildAfProjection(input: BuildProjectionInput): ProjectionOutcom
     const seasonExtract = extractIdpComponents(aggregate.components, 'ri_season')
     const seasonScored = scoreIdpComponents({ ...seasonExtract, rules: idpRules })
     if (seasonScored && seasonScored.points !== 0) {
-      idpSeason = { points: seasonScored.points / aggregate.gamesPlayed, breakdown: seasonScored }
+      // The season aggregate is a full-season TOTAL, so both the points and the component
+      // amounts must be divided down to per-game. Dividing only the points (as this did
+      // originally) left componentAmounts as season totals while afProjection was per-game,
+      // and any downstream rescore then multiplied season counts by weekly weights —
+      // measured: Kamren Curl stored 6.34/game rescored to 211.44, a ~17x inflation.
+      // Everything persisted in the breakdown must share the per-game unit.
+      const perGame = (n: number) => Math.round((n / aggregate.gamesPlayed) * 1000) / 1000
+      const componentAmounts: Record<string, number> = {}
+      for (const [k, v] of Object.entries(seasonScored.componentAmounts)) componentAmounts[k] = perGame(v)
+      idpSeason = {
+        points: seasonScored.points / aggregate.gamesPlayed,
+        breakdown: {
+          ...seasonScored,
+          points: Math.round((seasonScored.points / aggregate.gamesPlayed) * 100) / 100,
+          componentAmounts,
+        },
+      }
     }
   }
 

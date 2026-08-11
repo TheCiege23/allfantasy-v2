@@ -71,6 +71,9 @@ export type IdpComponent =
   | 'defensiveTd'
   | 'safety'
   | 'blockedKick'
+  | 'sackYards'
+  | 'intReturnYards'
+  | 'fumbleReturnYards'
 
 /**
  * Ordered candidate scoring-rule keys per component. FIRST MATCH WINS — this is deliberate.
@@ -103,6 +106,11 @@ const COMPONENT_RULE_KEYS: Record<IdpComponent, readonly string[]> = {
   defensiveTd: ['idp_defensive_touchdown', 'idp_td', 'idp_def_td'],
   safety: ['idp_safety', 'idp_safe'],
   blockedKick: ['idp_blocked_kick', 'idp_blk_kick'],
+  // Yardage components. Small per-unit weights (typically 0.1) but they close the residual
+  // gap against Sleeper's own scoring — leaving them out left Jack Campbell 0.09 light.
+  sackYards: ['idp_sack_yd'],
+  intReturnYards: ['idp_int_ret_yd'],
+  fumbleReturnYards: ['idp_fum_ret_yd'],
 }
 
 /** Sleeper weekly (`normalizedStatMap`) keys -> component. Verified against production. */
@@ -116,6 +124,12 @@ const SLEEPER_WEEKLY_KEYS: Record<string, IdpComponent> = {
   idp_fum_rec: 'fumbleRecovery',
   idp_tkl_loss: 'tackleForLoss',
   idp_qb_hit: 'qbHit',
+  idp_sack_yd: 'sackYards',
+  idp_int_ret_yd: 'intReturnYards',
+  idp_fum_ret_yd: 'fumbleReturnYards',
+  idp_safe: 'safety',
+  idp_def_td: 'defensiveTd',
+  idp_blk_kick: 'blockedKick',
 }
 /** Combined-tackle keys, which carry no split and trigger the measured prior. */
 const SLEEPER_COMBINED_TACKLE_KEY = 'idp_tkl'
@@ -142,6 +156,15 @@ function ruleValue(rules: Record<string, number>, component: IdpComponent): numb
 
 function num(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null
+}
+
+/** First key present with a finite numeric weight. */
+function firstNumeric(rules: Record<string, number>, keys: readonly string[]): number | null {
+  for (const k of keys) {
+    const v = rules[k]
+    if (typeof v === 'number' && Number.isFinite(v)) return v
+  }
+  return null
 }
 
 /**
@@ -200,6 +223,26 @@ export function scoreIdpComponents(args: {
   const scored: string[] = []
   const unscored: string[] = []
   let anyScored = false
+
+  // Sleeper's tackle scoring is ADDITIVE, not exclusive. A league may set `idp_tkl` (points
+  // for EVERY tackle) alongside `idp_tkl_solo` / `idp_tkl_ast` (an ADDITIONAL bonus on top,
+  // per type). Resolving each component to a single key missed the base entirely.
+  //
+  // Measured against Guap's two IDP leagues on the same Jack Campbell projection:
+  //   "Defense IDP For Life"   idp_tkl_solo only        -> ours 17.17, Sleeper 17.17  ✓
+  //   "The Last IDP Dynasty!!" idp_tkl=1 + idp_tkl_solo=2 -> ours 17.17, Sleeper 26.31  ✗
+  // The 9.14 gap is exactly the base rate applied to (solo + assist).
+  const combinedWeight = firstNumeric(rules, ['idp_tkl', 'tkl'])
+  if (combinedWeight != null && combinedWeight !== 0) {
+    const solo = components.soloTackle ?? 0
+    const assist = components.assistTackle ?? 0
+    const allTackles = solo + assist
+    if (allTackles > 0) {
+      points += allTackles * combinedWeight
+      anyScored = true
+      scored.push('combinedTackle')
+    }
+  }
 
   for (const [component, amount] of Object.entries(components) as Array<[IdpComponent, number]>) {
     if (amount == null || !Number.isFinite(amount)) continue
