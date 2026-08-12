@@ -57,6 +57,10 @@
       "schedule": "50 7 * * *"
     },
     {
+      "path": "/api/cron/alert-sweep",
+      "schedule": "*/15 * * * *"
+    },
+    {
       "path": "/api/cron/import-schedules",
       "schedule": "0 3 * * 1"
     },

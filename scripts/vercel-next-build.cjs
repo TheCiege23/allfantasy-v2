@@ -182,6 +182,9 @@ const filesToKeep = new Set([
   // Phase 2 of the AF Projections Engine (2026-08-11): consumes the Phase 1 stat lines and
   // writes AFProjectionSnapshot. Scheduled after import-stat-lines in vercel.json.
   path.join('app', 'api', 'cron', 'compute-projections', 'route.ts').replace(/\\/g, '/'),
+  // Alert sweep (2026-08-11): the scheduled evaluation that makes alerts reach anyone at all.
+  // Without it, runUnifiedAlertEngine only runs when a user already has the app open.
+  path.join('app', 'api', 'cron', 'alert-sweep', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'import-news', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'import-scores', 'route.ts').replace(/\\/g, '/'),
   path.join('app', 'api', 'cron', 'import-standings', 'route.ts').replace(/\\/g, '/'),
