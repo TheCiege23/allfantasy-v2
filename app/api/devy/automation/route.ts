@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { requireCronAuth } from '@/app/api/cron/_auth'
 import { prisma } from '@/lib/prisma'
 import { processDevyToRookieTransition } from '@/lib/devy/rosterEngine'
+import { enrichDevyIntelMetrics } from '@/lib/devy-classification'
 
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
@@ -43,11 +44,31 @@ async function run(_req: NextRequest) {
     }
   }
 
+  // Keep devy intel metrics fresh. Bounded so the 60s budget holds: this drains
+  // oldest-enriched-first, working through the board across daily runs rather
+  // than attempting all ~1,700 players in one request.
+  //
+  // Only safe to run at all because the intel model now returns null for
+  // unevidenced fields; previously this would have written a manufactured
+  // recruitingComposite to every player without recruiting data.
+  let intelEnriched = 0
+  let intelErrors = 0
+  try {
+    const intel = await enrichDevyIntelMetrics({ limit: 300 })
+    intelEnriched = intel.updated
+    intelErrors = intel.errors.length
+  } catch {
+    // Enrichment is maintenance, not the point of this job — never fail the
+    // taxi-lock and transition work because a metrics pass had a bad day.
+  }
+
   return NextResponse.json({
     ok: true,
     leaguesChecked: leagues.length,
     taxiLockedRows: taxiLocked,
     transitionsRun: transitions,
+    intelEnriched,
+    intelErrors,
   })
 }
 
