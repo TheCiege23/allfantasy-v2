@@ -118,10 +118,34 @@ async function handle(req: NextRequest) {
       }
     }
 
+    // Devy intel metrics ride along here because this is a built, scheduled
+    // player-data cron. The natural home, /api/devy/automation, is excluded
+    // from the production build by scripts/vercel-next-build.cjs (route budget)
+    // and would 404 forever.
+    //
+    // Bounded and draining oldest-enriched-first: ~1,700 devy players take about
+    // 50s for a full pass, and this route shares a 300s budget with the import
+    // above. 500 per run across four daily runs refreshes the whole board daily.
+    //
+    // Safe only because the intel model returns null for unevidenced fields —
+    // before that it wrote a manufactured recruitingComposite to 991 players.
+    let devyIntel: Record<string, number> | { error: string } = { enriched: 0, errors: 0 }
+    try {
+      const { enrichDevyIntelMetrics } = await import('@/lib/devy-classification')
+      const intel = await enrichDevyIntelMetrics({ limit: 500 })
+      devyIntel = { enriched: intel.updated, errors: intel.errors.length }
+    } catch (devyError) {
+      // Maintenance must never fail the player import it rides along with.
+      const message = devyError instanceof Error ? devyError.message : String(devyError)
+      console.error('[cron/import-players] devy intel enrichment failed:', message)
+      devyIntel = { error: message.slice(0, 200) }
+    }
+
     return NextResponse.json({
       ok: true,
       dryRun: false,
       imported: result.imported,
+      devyIntel,
       sports: result.sports,
       identity,
       staleFallbackApplied: result.staleFallbackApplied,
