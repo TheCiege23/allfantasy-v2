@@ -1,8 +1,10 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import { sendNotificationEmail } from '@/lib/resend-client'
-import { getTradeGrades, type GradedTrade } from '@/lib/trade-intel/sleeperTradeGradeService'
+import { getBaseUrl } from '@/lib/get-base-url'
+import { sendTemplatedEmail } from '@/lib/resend-client'
+import { getTradeGrades } from '@/lib/trade-intel/sleeperTradeGradeService'
+import { buildTradeGradeEmail } from '@/lib/trade-intel/tradeGradeEmail'
 
 /**
  * tradeNotifyService — "your league just traded" with INSTANT grades.
@@ -78,34 +80,6 @@ async function currentCompletedTradeIds(sleeperLeagueId: string): Promise<string
   return ids
 }
 
-function escapeHtml(value: string): string {
-  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
-}
-
-function tradeEmailHtml(leagueName: string, trade: GradedTrade): string {
-  const sideBlocks = trade.sides
-    .map((s) => {
-      const got = [
-        ...s.playersIn.map((a) => a.name),
-        ...s.picksIn.map((p) => (p.resolved ? `${p.label} (${p.resolved.name})` : p.label)),
-      ].join(', ')
-      const gave = [
-        ...s.playersOut.map((a) => a.name),
-        ...s.picksOut.map((p) => (p.resolved ? `${p.label} (${p.resolved.name})` : p.label)),
-      ].join(', ')
-      return `<b>${escapeHtml(s.managerName)}</b> — initial grade <b>${s.initialGrade}</b><br>` +
-        `&nbsp;&nbsp;got: ${escapeHtml(got || 'nothing')}<br>` +
-        `&nbsp;&nbsp;gave: ${escapeHtml(gave || 'nothing')}`
-    })
-    .join('<br><br>')
-  return (
-    `New completed trade in <b>${escapeHtml(leagueName)}</b> (${escapeHtml(trade.season)}, week ${trade.week}).<br><br>` +
-    `${sideBlocks}<br><br>` +
-    `${trade.tie ? 'The engine calls it dead even so far. ' : ''}` +
-    `Grades are computed from real points while assets are held and re-grade every season — open the Legacy tab for the full breakdown.`
-  )
-}
-
 export type LeagueNotifyResult = {
   sleeperLeagueId: string
   checked: boolean
@@ -175,19 +149,13 @@ export async function detectAndNotifyLeague(sleeperLeagueId: string): Promise<Le
     if (emails.length === 0) return base
 
     const leagueName = afLeagues[0].name ?? 'your league'
-    const legacyHref = `/league/${afLeagues[0].id}?view=legacy`
+    const ledgerUrl = `${getBaseUrl()}/league/${afLeagues[0].id}?view=legacy`
     for (const trade of newTrades) {
-      const bodyHtml = tradeEmailHtml(leagueName, trade)
+      const { subject, html } = buildTradeGradeEmail({ leagueName, trade, ledgerUrl })
       for (const to of emails) {
-        const sent = await sendNotificationEmail({
-          to,
-          subject: `Trade completed in ${leagueName} — initial grades: ${trade.sides
-            .map((s) => `${s.managerName} ${s.initialGrade}`)
-            .join(', ')}`,
-          bodyHtml,
-          actionHref: legacyHref,
-          actionLabel: 'See the graded ledger',
-        }).catch(() => ({ ok: false as const }))
+        const sent = await sendTemplatedEmail({ to, subject, html }).catch(
+          () => ({ ok: false as const }),
+        )
         if (sent.ok) base.emailsSent += 1
       }
     }

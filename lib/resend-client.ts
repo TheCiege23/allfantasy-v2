@@ -199,6 +199,31 @@ export async function sendTradeAlertEmail(
 }
 
 /**
+ * Send an email whose HTML was composed by us and is already escaped at the leaf.
+ *
+ * sendNotificationEmail() takes a param called bodyHtml but strips every tag and
+ * escapes the remainder, so anything richer than a sentence arrives as one flat
+ * paragraph — and entities written into the source (&nbsp;) survive the strip and
+ * then get escaped into visible "&nbsp;" text. That behaviour is the right default
+ * for callers passing interpolated user content, so it stays; this is the path for
+ * a designed template.
+ *
+ * The caller owns escaping. Never hand this raw user input.
+ */
+export async function sendTemplatedEmail(params: {
+  to: string
+  subject: string
+  html: string
+}): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await sendEmail({ to: params.to, subject: params.subject, html: params.html })
+    return { ok: true }
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Unknown error" }
+  }
+}
+
+/**
  * Send a generic notification email (draft, waiver, chat mention, commissioner, etc.).
  * Optional CTA button when actionHref is provided.
  */
