@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { computeDraftProjection } from '@/lib/devy-model'
+import { computeDevyProjection } from '@/lib/devy-intel'
 import { computeClassDepthByPosition } from '@/lib/pick-valuation'
 
 function riskBand(player: any): 'LOW' | 'MEDIUM' | 'HIGH' {
@@ -31,13 +31,16 @@ export async function POST(req: Request) {
   })
 
   const enriched = players.map((p: any) => {
-    const projection = computeDraftProjection(p)
+    // devy-intel rather than devy-model: eight signals (recruiting, production,
+    // breakout, athletic, draft capital, PPA, wEPA, team context) against
+    // devy-model's four, and it is the model wired to the CFBD advanced feeds.
+    // Same honesty contract — null when nothing backed a projection.
+    const projection = computeDevyProjection(p)
     return {
       ...p,
-      // Null when no signal backed it. Consumers must render "unrated" rather
-      // than a number we did not earn — see lib/devy-model.ts.
       draftProjectionScore: projection.score,
       draftProjectionConfidence: projection.confidence,
+      draftProjectionCoverage: projection.coverage,
       draftProjectionMissing: projection.missing,
       riskBand: riskBand(p),
     }
