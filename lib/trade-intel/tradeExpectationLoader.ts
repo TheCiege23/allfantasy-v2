@@ -6,6 +6,8 @@ import { getMarketValues } from '@/lib/trade-intel/marketValueService'
 import type { GradedTrade } from '@/lib/trade-intel/sleeperTradeGradeService'
 import { buildTradeExpectation, type TradeExpectation } from '@/lib/trade-intel/tradeExpectation'
 import { fetchLeagueRosters } from '@/lib/trade-intel/sleeperTradeSync'
+import { getDynastyProcessValues } from '@/lib/trade-intel/dynastyProcessSync'
+import { buildAfValues, type SourceEntries } from '@/lib/trade-intel/afValue'
 
 /**
  * I/O half of tradeExpectation. Everything it gathers is real:
@@ -33,11 +35,41 @@ export async function loadTradeExpectation(
 
   const priorSeason = priorSeasonOf(trade)
 
-  const [marketValues, statsBoard, rosters] = await Promise.all([
+  const numQbs: 1 | 2 = context.variant.superflex ? 2 : 1
+
+  const [marketValues, dynastyProcess, statsBoard, rosters] = await Promise.all([
     getMarketValues(context).catch(() => null),
+    getDynastyProcessValues(numQbs).catch(() => null),
     getSeasonStatsBoard(priorSeason, true).catch(() => null),
     fetchLeagueRosters(sleeperLeagueId),
   ])
+
+  // AF Value: blend the two independently-derived sources in rank space.
+  // FantasyCalc is the reference scale because every existing consumer already
+  // reads its units, and it is the source that also prices picks.
+  let afValues: ReturnType<typeof buildAfValues> | null = null
+  if (marketValues) {
+    const sources: SourceEntries[] = [
+      {
+        source: 'fantasycalc',
+        entries: Object.entries(marketValues.bySleeperId).map(([sleeperId, e]) => ({
+          sleeperId,
+          value: e.value,
+        })),
+      },
+    ]
+    if (dynastyProcess) {
+      sources.push({
+        source: 'dynastyprocess',
+        entries: Object.entries(dynastyProcess.bySleeperId).map(([sleeperId, value]) => ({
+          sleeperId,
+          value,
+        })),
+      })
+    }
+    const built = buildAfValues(sources, 'fantasycalc')
+    afValues = built.size > 0 ? built : null
+  }
 
   // Rescore last season with the league's own weights. scoreStatLine reports
   // whether it truly used them or fell back to a format approximation, and we
@@ -94,6 +126,7 @@ export async function loadTradeExpectation(
     marketValues,
     priorSeason: prior,
     rosteredByPosition,
+    afValues,
     pickValueLookup: (season, round) =>
       marketValues?.pickByRound[`${season}:${round}`] ?? null,
   })

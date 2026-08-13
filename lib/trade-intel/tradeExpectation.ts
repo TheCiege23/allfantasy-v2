@@ -1,5 +1,6 @@
 import type { LeagueContextEnvelope } from '@/lib/league-context/leagueContextService'
 import type { MarketValuesPayload } from '@/lib/trade-intel/marketValueService'
+import type { AfValue } from '@/lib/trade-intel/afValue'
 import type { GradeLetter } from '@/lib/trade-intel/gradeScale'
 import type { GradedTrade, TradeSideGrade } from '@/lib/trade-intel/sleeperTradeGradeService'
 
@@ -43,6 +44,10 @@ export type AssetExpectation = {
   marketValue: number | null
   /** How contested that valuation is, in the same units. Null when unknown. */
   valueStdDev: number | null
+  /** Which valuation sources priced him. One entry means nothing corroborated it. */
+  valueSources: string[]
+  /** Agreement between those sources. Null when not blended. */
+  valueConfidence: 'high' | 'moderate' | 'low' | null
   /** Last completed season, rescored with THIS league's scoring settings. */
   priorPoints: number | null
   priorGames: number | null
@@ -254,6 +259,8 @@ export type BuildParams = {
   rosteredByPosition: Record<number, Record<string, number>> | null
   /** Round-average pick values keyed `${season}:${round}`. */
   pickValueLookup?: (season: string, round: number) => number | null
+  /** Blended multi-source AF Values keyed by Sleeper id. Absent = single source only. */
+  afValues?: Map<string, AfValue> | null
 }
 
 function assetFromPlayer(
@@ -263,7 +270,11 @@ function assetFromPlayer(
   params: BuildParams,
 ): AssetExpectation {
   const entry = params.marketValues?.bySleeperId[playerId]
-  const market = entry?.value ?? null
+  // Blended AF Value wins when available; the single-source value is the
+  // fallback so a DynastyProcess outage narrows confidence rather than removing
+  // the player's price entirely.
+  const blended = params.afValues?.get(playerId) ?? null
+  const market = blended?.value ?? entry?.value ?? null
   const prior = params.priorSeason?.byPlayerId[playerId] ?? null
   const games = prior?.games ?? null
   return {
@@ -273,6 +284,8 @@ function assetFromPlayer(
     isPick: false,
     marketValue: typeof market === 'number' ? market : null,
     valueStdDev: typeof entry?.stdDev === 'number' ? entry.stdDev : null,
+    valueSources: blended?.sources ?? (entry ? ['fantasycalc'] : []),
+    valueConfidence: blended?.confidence ?? null,
     priorPoints: prior ? Math.round(prior.points * 10) / 10 : null,
     priorGames: games,
     priorPerGame:
@@ -298,6 +311,9 @@ function assetFromPick(
     marketValue: params.pickValueLookup?.(season, round) ?? null,
     // The feed publishes no dispersion for picks; unknown, not zero.
     valueStdDev: null,
+    // Picks are priced from one source only until their scales are fitted.
+    valueSources: [],
+    valueConfidence: null,
     priorPoints: null,
     priorGames: null,
     priorPerGame: null,
@@ -413,6 +429,17 @@ export function buildTradeExpectation(params: BuildParams): TradeExpectation {
   if (!params.rosteredByPosition) missing.push('rosters unavailable — roster needs not assessed')
 
   const sides = params.trade.sides.map((s) => sideFrom(s, params))
+
+  // Say so when no asset here got a second opinion. A single-source value is
+  // still a value, but nothing corroborated it and the reader deserves to know
+  // which of those two situations they are looking at.
+  const anyCorroborated = sides.some((s) =>
+    [...s.assetsIn, ...s.assetsOut].some((a) => a.valueSources.length > 1),
+  )
+  if (params.marketValues && !anyCorroborated) {
+    missing.push('second value source unavailable — values are single-source')
+  }
+
   const measuredSomething = sides.some(
     (s) => s.marketNet != null || s.priorNet != null || s.starterGaps != null,
   )

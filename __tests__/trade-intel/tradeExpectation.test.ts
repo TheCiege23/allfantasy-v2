@@ -206,7 +206,8 @@ describe('what is knowable before kickoff', () => {
 
   it('is available when anything at all was measured', () => {
     expect(built.available).toBe(true)
-    expect(built.missing).toEqual([])
+    // This fixture passes no blended AF values, so the only gap is corroboration.
+    expect(built.missing).toEqual(['second value source unavailable — values are single-source'])
   })
 })
 
