@@ -5,6 +5,7 @@ import { getBaseUrl } from '@/lib/get-base-url'
 import { sendTemplatedEmail } from '@/lib/resend-client'
 import { getTradeGrades } from '@/lib/trade-intel/sleeperTradeGradeService'
 import { buildTradeGradeEmail } from '@/lib/trade-intel/tradeGradeEmail'
+import { loadTradeExpectation } from '@/lib/trade-intel/tradeExpectationLoader'
 
 /**
  * tradeNotifyService — "your league just traded" with INSTANT grades.
@@ -151,7 +152,11 @@ export async function detectAndNotifyLeague(sleeperLeagueId: string): Promise<Le
     const leagueName = afLeagues[0].name ?? 'your league'
     const ledgerUrl = `${getBaseUrl()}/league/${afLeagues[0].id}?view=legacy`
     for (const trade of newTrades) {
-      const { subject, html } = buildTradeGradeEmail({ leagueName, trade, ledgerUrl })
+      // League shape, scoring settings, last season's real production and roster
+      // needs. Optional by design: if any of it is unavailable the email falls
+      // back to what realized points alone can prove.
+      const expectation = await loadTradeExpectation(sleeperLeagueId, trade).catch(() => null)
+      const { subject, html } = buildTradeGradeEmail({ leagueName, trade, ledgerUrl, expectation })
       for (const to of emails) {
         const sent = await sendTemplatedEmail({ to, subject, html }).catch(
           () => ({ ok: false as const }),
