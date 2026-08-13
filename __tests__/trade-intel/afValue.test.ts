@@ -4,6 +4,7 @@ import {
   blendByRank,
   buildAfValues,
   valueAtRankFrom,
+  buildAfPickValues,
   type SourceEntries,
 } from '@/lib/trade-intel/afValue'
 
@@ -142,5 +143,68 @@ describe('degrading rather than guessing', () => {
       'fantasycalc',
     )
     expect([...dirty.keys()]).toEqual(['good'])
+  })
+})
+
+describe('cross-source spread is the honest uncertainty', () => {
+  const curve = valueAtRankFrom(Array.from({ length: 300 }, (_, i) => 10000 - i * 30))
+
+  it('reports the value-unit gap between the sources', () => {
+    // Ranks 128 and 142 on a 30/rank curve -> 14 ranks * 30 = 420.
+    const v = blendByRank(
+      [
+        { source: 'fantasycalc', rank: 142, raw: 1589 },
+        { source: 'dynastyprocess', rank: 128, raw: 563 },
+      ],
+      curve,
+    )!
+    expect(v.valueSpread).toBe(420)
+  })
+
+  it('is null with a single source rather than 0', () => {
+    // 0 would claim a precision nothing tested.
+    const v = blendByRank([{ source: 'fantasycalc', rank: 10, raw: 8000 }], curve)!
+    expect(v.valueSpread).toBeNull()
+  })
+
+  it('grows with disagreement, which is the point', () => {
+    const tight = blendByRank(
+      [{ source: 'fantasycalc', rank: 100, raw: 1 }, { source: 'dynastyprocess', rank: 102, raw: 1 }],
+      curve,
+    )!
+    const wide = blendByRank(
+      [{ source: 'fantasycalc', rank: 40, raw: 1 }, { source: 'dynastyprocess', rank: 190, raw: 1 }],
+      curve,
+    )!
+    expect(wide.valueSpread!).toBeGreaterThan(tight.valueSpread!)
+  })
+})
+
+describe('picks blend among themselves, not against players', () => {
+  const FC_PICKS = { source: 'fantasycalc' as const, byRound: { '2026:1': 3526, '2026:2': 1689, '2026:3': 1124, '2026:4': 844 } }
+  const DP_PICKS = { source: 'dynastyprocess' as const, byRound: { '2026:1': 1200, '2026:2': 520, '2026:3': 300, '2026:4': 180 } }
+
+  it('prices on the reference scale despite a ~3x scale mismatch', () => {
+    const picks = buildAfPickValues([FC_PICKS, DP_PICKS], 'fantasycalc')
+    // Both sources order the rounds identically, so ranks agree exactly.
+    expect(picks.get('2026:1')!.value).toBe(3526)
+    expect(picks.get('2026:2')!.value).toBe(1689)
+    expect(picks.get('2026:2')!.rankGap).toBe(0)
+    expect(picks.get('2026:2')!.confidence).toBe('high')
+    expect(picks.get('2026:2')!.sources).toEqual(['fantasycalc', 'dynastyprocess'])
+  })
+
+  it('still prices a round only one source covers, uncorroborated', () => {
+    const picks = buildAfPickValues(
+      [FC_PICKS, { source: 'dynastyprocess', byRound: { '2026:1': 1200 } }],
+      'fantasycalc',
+    )
+    const r3 = picks.get('2026:3')!
+    expect(r3.sources).toEqual(['fantasycalc'])
+    expect(r3.confidence).toBe('moderate')
+  })
+
+  it('returns nothing without the reference source', () => {
+    expect(buildAfPickValues([DP_PICKS], 'fantasycalc').size).toBe(0)
   })
 })

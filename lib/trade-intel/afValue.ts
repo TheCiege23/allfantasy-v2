@@ -52,6 +52,19 @@ export type AfValue = {
    * that was never tested.
    */
   rankGap: number | null
+  /**
+   * How far apart the sources are IN VALUE UNITS — the reference curve read at
+   * the best and worst rank any source gave him.
+   *
+   * This is the honest uncertainty for a blended value. FantasyCalc's own
+   * maybeMovingStandardDeviation is a moving average over TIME (measured at 15
+   * and 2 on a real trade), so it never fires as a doubt signal. Genuine
+   * cross-source disagreement does.
+   *
+   * Null with a single source: one opinion cannot disagree with itself, and 0
+   * would claim a precision nothing tested.
+   */
+  valueSpread: number | null
   confidence: AfValueConfidence
   readings: SourceReading[]
 }
@@ -89,6 +102,17 @@ export function blendByRank(
 
   const rankGap = usable.length < 2 ? null : Math.max(...ranks) - Math.min(...ranks)
 
+  // Translate the rank disagreement into value units via the same curve the
+  // blend is priced on, so callers can compare it against a value edge directly.
+  let valueSpread: number | null = null
+  if (usable.length >= 2) {
+    const best = valueAtRank(Math.min(...ranks))
+    const worst = valueAtRank(Math.max(...ranks))
+    if (best != null && worst != null && Number.isFinite(best) && Number.isFinite(worst)) {
+      valueSpread = Math.round(Math.abs(best - worst) * 10) / 10
+    }
+  }
+
   let confidence: AfValueConfidence
   if (rankGap == null) {
     // A single uncorroborated source is never "high" — nothing checked it.
@@ -106,6 +130,7 @@ export function blendByRank(
     blendedRank,
     sources: usable.map((r) => r.source),
     rankGap,
+    valueSpread,
     confidence,
     readings: usable,
   }
@@ -156,6 +181,63 @@ export function buildAfValues(
     }
     const blended = blendByRank(readings, valueAtRank)
     if (blended) out.set(sleeperId, blended)
+  }
+  return out
+}
+
+export type PickEntries = {
+  source: ValueSource
+  /** Round-average value keyed `${season}:${round}`. */
+  byRound: Record<string, number>
+}
+
+/**
+ * Blend PICK values the same way players are blended — in rank space.
+ *
+ * Picks need their own ranking rather than joining the player ordering: a 2026
+ * 2nd is not "the 140th most valuable player" in either feed, and mixing them
+ * would rank a pick against players whose curve it does not share. Within picks
+ * the ordering is well defined and both sources agree on its shape — an earlier
+ * round is worth more than a later one — which is exactly the condition rank
+ * blending needs.
+ *
+ * Same contract as players: output is on the reference source's scale, and a
+ * round only one source prices still gets a value, marked 'moderate' because
+ * nothing corroborated it.
+ */
+export function buildAfPickValues(
+  sources: PickEntries[],
+  reference: ValueSource,
+): Map<string, AfValue> {
+  const rankMaps = new Map<ValueSource, Map<string, { rank: number; raw: number }>>()
+  let referenceCurve: number[] = []
+
+  for (const { source, byRound } of sources) {
+    const usable = Object.entries(byRound ?? {}).filter(
+      ([, v]) => typeof v === 'number' && Number.isFinite(v) && v > 0,
+    )
+    const sorted = usable.sort((a, b) => b[1] - a[1])
+    const ranks = new Map<string, { rank: number; raw: number }>()
+    sorted.forEach(([key, v], idx) => ranks.set(key, { rank: idx + 1, raw: v }))
+    rankMaps.set(source, ranks)
+    if (source === reference) referenceCurve = sorted.map(([, v]) => v)
+  }
+
+  if (referenceCurve.length === 0) return new Map()
+  const valueAtRank = valueAtRankFrom(referenceCurve)
+
+  const allKeys = new Set<string>()
+  for (const ranks of rankMaps.values()) for (const k of ranks.keys()) allKeys.add(k)
+
+  const out = new Map<string, AfValue>()
+  for (const key of allKeys) {
+    const readings: SourceReading[] = []
+    for (const [source, ranks] of rankMaps) {
+      const hit = ranks.get(key)
+      if (hit) readings.push({ source, rank: hit.rank, raw: hit.raw })
+    }
+    const blended = blendByRank(readings, valueAtRank)
+    if (blended) out.set(key, blended)
   }
   return out
 }
