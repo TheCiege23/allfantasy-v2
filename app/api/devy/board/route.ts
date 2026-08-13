@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { computeDraftProjectionScore } from '@/lib/devy-model'
+import { computeDraftProjection } from '@/lib/devy-model'
 import { computeClassDepthByPosition } from '@/lib/pick-valuation'
 
 function riskBand(player: any): 'LOW' | 'MEDIUM' | 'HIGH' {
@@ -30,13 +30,27 @@ export async function POST(req: Request) {
     },
   })
 
-  const enriched = players.map((p: any) => ({
-    ...p,
-    draftProjectionScore: computeDraftProjectionScore(p),
-    riskBand: riskBand(p),
-  }))
+  const enriched = players.map((p: any) => {
+    const projection = computeDraftProjection(p)
+    return {
+      ...p,
+      // Null when no signal backed it. Consumers must render "unrated" rather
+      // than a number we did not earn — see lib/devy-model.ts.
+      draftProjectionScore: projection.score,
+      draftProjectionConfidence: projection.confidence,
+      draftProjectionMissing: projection.missing,
+      riskBand: riskBand(p),
+    }
+  })
 
-  enriched.sort((a: any, b: any) => b.draftProjectionScore - a.draftProjectionScore)
+  // Unscored players sort last rather than producing NaN comparisons, which
+  // would leave the board in arbitrary order.
+  enriched.sort((a: any, b: any) => {
+    if (a.draftProjectionScore == null && b.draftProjectionScore == null) return 0
+    if (a.draftProjectionScore == null) return 1
+    if (b.draftProjectionScore == null) return -1
+    return b.draftProjectionScore - a.draftProjectionScore
+  })
 
   const currentYear = new Date().getFullYear()
   const classYears = [currentYear + 1, currentYear + 2, currentYear + 3]
