@@ -5,6 +5,7 @@ import { getSeasonStatsBoard, scoreStatLine } from '@/lib/sports-data/sleeperMar
 import { getMarketValues } from '@/lib/trade-intel/marketValueService'
 import type { GradedTrade } from '@/lib/trade-intel/sleeperTradeGradeService'
 import { buildTradeExpectation, type TradeExpectation } from '@/lib/trade-intel/tradeExpectation'
+import { fetchLeagueRosters } from '@/lib/trade-intel/sleeperTradeSync'
 
 /**
  * I/O half of tradeExpectation. Everything it gathers is real:
@@ -16,20 +17,6 @@ import { buildTradeExpectation, type TradeExpectation } from '@/lib/trade-intel/
  * Every fetch is individually optional. A failure removes one input and is
  * named in `missing`; it never fabricates a number and never throws the email.
  */
-
-const SLEEPER = 'https://api.sleeper.app/v1'
-
-type WireRoster = { roster_id: number; players?: string[] | null }
-
-async function fetchRosters(sleeperLeagueId: string): Promise<WireRoster[] | null> {
-  try {
-    const res = await fetch(`${SLEEPER}/league/${sleeperLeagueId}/rosters`, { cache: 'no-store' })
-    if (!res.ok) return null
-    return (await res.json()) as WireRoster[]
-  } catch {
-    return null
-  }
-}
 
 /** The season before the trade's — the last one that actually happened. */
 function priorSeasonOf(trade: GradedTrade): string {
@@ -49,7 +36,7 @@ export async function loadTradeExpectation(
   const [marketValues, statsBoard, rosters] = await Promise.all([
     getMarketValues(context).catch(() => null),
     getSeasonStatsBoard(priorSeason, true).catch(() => null),
-    fetchRosters(sleeperLeagueId),
+    fetchLeagueRosters(sleeperLeagueId),
   ])
 
   // Rescore last season with the league's own weights. scoreStatLine reports
