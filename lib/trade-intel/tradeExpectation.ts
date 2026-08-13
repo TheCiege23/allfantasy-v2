@@ -44,6 +44,14 @@ export type AssetExpectation = {
   marketValue: number | null
   /** How contested that valuation is, in the same units. Null when unknown. */
   valueStdDev: number | null
+  /**
+   * Cross-source disagreement in value units, from the AF Value blend.
+   *
+   * Preferred over valueStdDev: FantasyCalc's own deviation is a moving average
+   * over TIME (15 and 2 on a real trade), so a gate built on it never fires.
+   * Two independent sources disagreeing is a doubt worth acting on.
+   */
+  valueSpread: number | null
   /** Which valuation sources priced him. One entry means nothing corroborated it. */
   valueSources: string[]
   /** Agreement between those sources. Null when not blended. */
@@ -287,6 +295,7 @@ function assetFromPlayer(
     isPick: false,
     marketValue: typeof market === 'number' ? market : null,
     valueStdDev: typeof entry?.stdDev === 'number' ? entry.stdDev : null,
+    valueSpread: blended?.valueSpread ?? null,
     valueSources: blended?.sources ?? (entry ? ['fantasycalc'] : []),
     valueConfidence: blended?.confidence ?? null,
     priorPoints: prior ? Math.round(prior.points * 10) / 10 : null,
@@ -314,6 +323,7 @@ function assetFromPick(
     marketValue: params.pickValueLookup?.(season, round) ?? null,
     // The feed publishes no dispersion for picks; unknown, not zero.
     valueStdDev: null,
+    valueSpread: null,
     // Picks are priced from one source only until their scales are fitted.
     valueSources: [],
     valueConfidence: null,
@@ -418,8 +428,12 @@ function sideFrom(side: TradeSideGrade, params: BuildParams): SideExpectation {
       marketIn,
       marketOut,
       priorNet,
+      // Half the cross-source spread is the +/- on that asset. Fall back to the
+      // feed's own deviation only when nothing corroborated the value.
       uncertainty: combinedUncertainty(
-        [...assetsIn, ...assetsOut].map((a) => a.valueStdDev),
+        [...assetsIn, ...assetsOut].map((a) =>
+          a.valueSpread != null ? a.valueSpread / 2 : a.valueStdDev,
+        ),
       ),
     }),
   }

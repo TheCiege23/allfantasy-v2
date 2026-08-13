@@ -7,7 +7,7 @@ import type { GradedTrade } from '@/lib/trade-intel/sleeperTradeGradeService'
 import { buildTradeExpectation, type TradeExpectation } from '@/lib/trade-intel/tradeExpectation'
 import { fetchLeagueRosters } from '@/lib/trade-intel/sleeperTradeSync'
 import { getDynastyProcessValues } from '@/lib/trade-intel/dynastyProcessSync'
-import { buildAfValues, type SourceEntries } from '@/lib/trade-intel/afValue'
+import { buildAfPickValues, buildAfValues, type PickEntries, type SourceEntries } from '@/lib/trade-intel/afValue'
 
 /**
  * I/O half of tradeExpectation. Everything it gathers is real:
@@ -48,6 +48,7 @@ export async function loadTradeExpectation(
   // FantasyCalc is the reference scale because every existing consumer already
   // reads its units, and it is the source that also prices picks.
   let afValues: ReturnType<typeof buildAfValues> | null = null
+  let afPickValues: ReturnType<typeof buildAfPickValues> | null = null
   if (marketValues) {
     const sources: SourceEntries[] = [
       {
@@ -69,6 +70,17 @@ export async function loadTradeExpectation(
     }
     const built = buildAfValues(sources, 'fantasycalc')
     afValues = built.size > 0 ? built : null
+
+    // Picks get the same treatment, ranked among themselves rather than against
+    // players — a 2026 2nd is not "the 140th most valuable player" in either feed.
+    const pickSources: PickEntries[] = [
+      { source: 'fantasycalc', byRound: marketValues.pickByRound },
+    ]
+    if (dynastyProcess) {
+      pickSources.push({ source: 'dynastyprocess', byRound: dynastyProcess.pickByRound })
+    }
+    const builtPicks = buildAfPickValues(pickSources, 'fantasycalc')
+    afPickValues = builtPicks.size > 0 ? builtPicks : null
   }
 
   // Rescore last season with the league's own weights. scoreStatLine reports
@@ -127,7 +139,12 @@ export async function loadTradeExpectation(
     priorSeason: prior,
     rosteredByPosition,
     afValues,
+    // Blended pick value when both sources priced the round; the single-source
+    // value otherwise, so a DynastyProcess outage narrows confidence rather
+    // than un-pricing every traded pick.
     pickValueLookup: (season, round) =>
-      marketValues?.pickByRound[`${season}:${round}`] ?? null,
+      afPickValues?.get(`${season}:${round}`)?.value ??
+      marketValues?.pickByRound[`${season}:${round}`] ??
+      null,
   })
 }
