@@ -45,6 +45,23 @@ function urlBase64ToUint8Array(base64String: string): Uint8Array {
   return output
 }
 
+/**
+ * navigator.serviceWorker.ready NEVER settles until a worker actually activates.
+ * If registration is slow, blocked, or fails outright — a sandboxed webview, a
+ * corporate proxy, exhausted storage, dev without NEXT_PUBLIC_ENABLE_PWA_SW —
+ * awaiting it hangs forever. Anything gated behind that await silently never
+ * runs, which is how a browser that fully supports push ends up being told it
+ * does not. Bound the wait and treat a timeout as "not ready yet", never as
+ * "unsupported".
+ */
+async function serviceWorkerReadyWithin(ms: number): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return null
+  return Promise.race([
+    navigator.serviceWorker.ready,
+    new Promise<null>((resolve) => setTimeout(() => resolve(null), ms)),
+  ])
+}
+
 function readPermission(): PushPermissionState {
   if (typeof window === 'undefined') return 'unsupported'
   if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
@@ -75,14 +92,20 @@ export function useWebPushSubscription(vapidPublicKey: string | null | undefined
       setState((s) => ({ ...s, supported: false, permission: 'unsupported' }))
       return
     }
+    // Support is a property of the BROWSER and is already known here. Publish it
+    // immediately so the opt-in renders; whether a worker has come up yet only
+    // affects whether we can read an existing subscription.
+    setState((s) => ({ ...s, supported: true, permission }))
+
     void (async () => {
       try {
-        const reg = await navigator.serviceWorker.ready
+        const reg = await serviceWorkerReadyWithin(5000)
+        if (cancelled || !reg) return
         const existing = await reg.pushManager.getSubscription()
         if (cancelled) return
-        setState((s) => ({ ...s, supported: true, permission, subscribed: Boolean(existing) }))
+        setState((s) => ({ ...s, subscribed: Boolean(existing) }))
       } catch {
-        if (!cancelled) setState((s) => ({ ...s, supported: true, permission, subscribed: false }))
+        // Leave `subscribed` false; the user can still attempt to enable.
       }
     })()
     return () => {
@@ -118,7 +141,16 @@ export function useWebPushSubscription(vapidPublicKey: string | null | undefined
         return false
       }
 
-      const reg = await navigator.serviceWorker.ready
+      const reg = await serviceWorkerReadyWithin(10000)
+      if (!reg) {
+        setState((s) => ({
+          ...s,
+          busy: false,
+          error:
+            'The background service worker did not start, so alerts cannot be enabled on this device. Reload the page and try again.',
+        }))
+        return false
+      }
       const existing = await reg.pushManager.getSubscription()
       const sub =
         existing ??
@@ -167,7 +199,19 @@ export function useWebPushSubscription(vapidPublicKey: string | null | undefined
   const unsubscribe = useCallback(async (): Promise<boolean> => {
     setState((s) => ({ ...s, busy: true, error: null }))
     try {
-      const reg = await navigator.serviceWorker.ready
+      const reg = await serviceWorkerReadyWithin(10000)
+      if (!reg) {
+        // Without a worker we can neither read the endpoint nor drop the browser
+        // subscription. Report it and leave `subscribed` alone — flipping the UI
+        // to off while the device may still hold a subscription is the lie this
+        // component exists to avoid.
+        setState((s) => ({
+          ...s,
+          busy: false,
+          error: 'The background service worker did not start, so alerts could not be turned off here. Reload and try again.',
+        }))
+        return false
+      }
       const sub = await reg.pushManager.getSubscription()
       if (sub) {
         await fetch('/api/push/subscribe', {

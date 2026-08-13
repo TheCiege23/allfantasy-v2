@@ -1869,6 +1869,9 @@ export const translations: Record<string, Record<string, string>> = {
     "settings.notifications.off": "Off",
     "settings.notifications.globalHint":
       "When off, non-critical notifications are paused. Account and security emails still apply.",
+    "settings.notifications.pushTitle": "Browser push",
+    "settings.notifications.pushHint":
+      "Applies to this browser only. Enable it again on any other device you want alerted.",
     "settings.notifications.deliveryMasters": "Delivery masters",
     "settings.notifications.emailAll": "Email notifications (all categories)",
     "settings.notifications.pushAll": "Push / in-app (all categories)",
