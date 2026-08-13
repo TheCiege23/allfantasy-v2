@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  projectGrade,
   buildTradeExpectation,
   describeLeague,
   requiredStarters,
@@ -236,5 +237,47 @@ describe('missing inputs are admitted, not zeroed', () => {
 
   it('still states the league shape, which needs no feed', () => {
     expect(built.leagueNote).toContain('superflex')
+  })
+})
+
+describe('projected grade — a letter that admits what it is', () => {
+  const built = buildTradeExpectation({
+    trade: TRADE,
+    context: CONTEXT,
+    marketValues: MARKET,
+    priorSeason: PRIOR,
+    rosteredByPosition: { 1: { QB: 2, RB: 1, WR: 5, TE: 2 }, 8: { QB: 2, RB: 3, WR: 4, TE: 1 } },
+    pickValueLookup: (season, round) => MARKET.pickByRound[`${season}:${round}`] ?? null,
+  })
+
+  it('scores last season on the SAME scale the realized grade uses', () => {
+    // priorNet -148.7 is below -100, which is F on the shared letterFor bands.
+    expect(built.sides[0]!.projected).toMatchObject({ letter: 'F', net: -148.7 })
+    expect(built.sides[1]!.projected).toMatchObject({ letter: 'A', net: 148.7 })
+  })
+
+  it('flags that raw totals favour the side receiving more players', () => {
+    // 1-for-2: totals are structurally against the consolidating side.
+    expect(built.sides[0]!.projected!.unevenCounts).toBe(true)
+    expect(built.sides[1]!.projected!.unevenCounts).toBe(true)
+  })
+
+  it('does not claim market disagreement when both signals point the same way', () => {
+    // Market -568 and production -148.7 both favour managerTwo.
+    expect(built.sides[0]!.projected!.marketDisagrees).toBe(false)
+  })
+
+  it('flags disagreement when market and production point opposite ways', () => {
+    const p = projectGrade({ priorNet: -120, marketNet: 400, playersIn: 1, playersOut: 1 })
+    expect(p).toMatchObject({ letter: 'F', marketDisagrees: true, unevenCounts: false })
+  })
+
+  it('refuses to project at all without prior production', () => {
+    expect(projectGrade({ priorNet: null, marketNet: 900, playersIn: 1, playersOut: 2 })).toBeNull()
+    const blind = buildTradeExpectation({
+      trade: TRADE, context: CONTEXT, marketValues: MARKET,
+      priorSeason: null, rosteredByPosition: null,
+    })
+    expect(blind.sides[0]!.projected).toBeNull()
   })
 })

@@ -22,7 +22,12 @@ import 'server-only'
 const SLEEPER = 'https://api.sleeper.app/v1'
 const MAX_WEEKS = 18
 
-async function j<T>(path: string): Promise<T | null> {
+/**
+ * One GET against the Sleeper league API. Null on any failure — callers in this
+ * codebase always degrade rather than throw, so a provider blip narrows what a
+ * feature can say instead of taking the whole sweep down.
+ */
+export async function sleeperGet<T>(path: string): Promise<T | null> {
   try {
     const res = await fetch(`${SLEEPER}${path}`, { cache: 'no-store' })
     if (!res.ok) return null
@@ -31,6 +36,8 @@ async function j<T>(path: string): Promise<T | null> {
     return null
   }
 }
+
+const j = sleeperGet
 
 export type SleeperRoster = { roster_id: number; players?: string[] | null }
 

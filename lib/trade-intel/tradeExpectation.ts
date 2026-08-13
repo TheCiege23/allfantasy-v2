@@ -1,5 +1,6 @@
 import type { LeagueContextEnvelope } from '@/lib/league-context/leagueContextService'
 import type { MarketValuesPayload } from '@/lib/trade-intel/marketValueService'
+import { letterFor, type GradeLetter } from '@/lib/trade-intel/gradeScale'
 import type { GradedTrade, TradeSideGrade } from '@/lib/trade-intel/sleeperTradeGradeService'
 
 /**
@@ -52,6 +53,33 @@ export type StarterGap = {
   rostered: number
 }
 
+/**
+ * A letter for a trade that has not produced a point yet.
+ *
+ * Deliberately NOT a forecast. It is last season's real production, run through
+ * the exact scale the realized grade will use — "if last year repeated, this is
+ * what the engine would say". That keeps it checkable: same units, same bands,
+ * same function, so a projected letter and a later realized letter are directly
+ * comparable instead of being two different opinions.
+ *
+ * The two caveats travel with it rather than being buried, because both are
+ * facts about the trade and both are cases where the letter misleads:
+ *
+ *  - unevenCounts: raw season totals structurally favour whoever received more
+ *    bodies. A 2-for-1 loses on totals even when it is the better side of the
+ *    deal, which is exactly why consolidation trades exist.
+ *  - marketDisagrees: market value priced this league says the other manager
+ *    came out ahead. When the two signals point opposite ways, neither is
+ *    strong enough to assert alone.
+ */
+export type ProjectedGrade = {
+  letter: GradeLetter
+  /** Last season's league-scored net this letter was computed from. */
+  net: number
+  unevenCounts: boolean
+  marketDisagrees: boolean
+}
+
 export type SideExpectation = {
   rosterId: number
   managerName: string
@@ -67,6 +95,8 @@ export type SideExpectation = {
   positionDelta: Record<string, number>
   /** Required starting slots this side cannot currently fill. Null when rosters unavailable. */
   starterGaps: StarterGap[] | null
+  /** Letter from last season's production. Null when we have no prior production to score. */
+  projected: ProjectedGrade | null
 }
 
 export type TradeExpectation = {
@@ -238,6 +268,32 @@ function assetFromPick(
   }
 }
 
+/**
+ * Score last season's net on the realized grade's own scale.
+ *
+ * Null when there is no prior production — a projection with nothing behind it
+ * would be the exact failure this whole module exists to stop.
+ */
+export function projectGrade(args: {
+  priorNet: number | null
+  marketNet: number | null
+  playersIn: number
+  playersOut: number
+}): ProjectedGrade | null {
+  if (args.priorNet == null) return null
+  const marketDisagrees =
+    args.marketNet != null &&
+    args.marketNet !== 0 &&
+    args.priorNet !== 0 &&
+    Math.sign(args.marketNet) !== Math.sign(args.priorNet)
+  return {
+    letter: letterFor(args.priorNet),
+    net: args.priorNet,
+    unevenCounts: args.playersIn !== args.playersOut,
+    marketDisagrees,
+  }
+}
+
 function sideFrom(side: TradeSideGrade, params: BuildParams): SideExpectation {
   const assetsIn: AssetExpectation[] = [
     ...side.playersIn.map((p) => assetFromPlayer(p.playerId, p.name, p.position, params)),
@@ -256,6 +312,9 @@ function sideFrom(side: TradeSideGrade, params: BuildParams): SideExpectation {
   const required = requiredStarters(params.context.roster.positions)
   const rostered = params.rosteredByPosition?.[side.rosterId] ?? null
 
+  const marketNet = netOrNull(marketIn, marketOut)
+  const priorNet = netOrNull(priorIn, priorOut)
+
   return {
     rosterId: side.rosterId,
     managerName: side.managerName,
@@ -263,12 +322,18 @@ function sideFrom(side: TradeSideGrade, params: BuildParams): SideExpectation {
     assetsOut,
     marketIn,
     marketOut,
-    marketNet: netOrNull(marketIn, marketOut),
+    marketNet,
     priorIn,
     priorOut,
-    priorNet: netOrNull(priorIn, priorOut),
+    priorNet,
     positionDelta: deltaFor(assetsIn, assetsOut),
     starterGaps: rostered ? starterGapsFor(rostered, required) : null,
+    projected: projectGrade({
+      priorNet,
+      marketNet,
+      playersIn: side.playersIn.length,
+      playersOut: side.playersOut.length,
+    }),
   }
 }
 
