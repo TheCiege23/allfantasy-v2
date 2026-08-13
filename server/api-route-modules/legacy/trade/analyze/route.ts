@@ -2291,8 +2291,11 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/trade/analyze", tool: 
             },
           })
 
-          if (devyPlayer) {
-            const projection = computeDraftProjectionScore(devyPlayer)
+          const projection = devyPlayer ? computeDraftProjectionScore(devyPlayer) : null
+          // Null means not one signal backed a projection for him. Skipping the
+          // devy adjustment entirely is the honest response: the alternative is
+          // pricing a trade off a score we did not earn.
+          if (devyPlayer && projection != null) {
             ;(asset.player as any).draftProjectionScore = projection
             ;(asset.player as any).adjustedValue =
               projection * 0.8 + (devyPlayer.devyAdp ?? 50) * 0.2
