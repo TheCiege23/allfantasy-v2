@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   projectGrade,
+  combinedUncertainty,
   buildTradeExpectation,
   describeLeague,
   requiredStarters,
@@ -240,7 +241,7 @@ describe('missing inputs are admitted, not zeroed', () => {
   })
 })
 
-describe('projected grade — a letter that admits what it is', () => {
+describe('projected grade — graded on value, not player count', () => {
   const built = buildTradeExpectation({
     trade: TRADE,
     context: CONTEXT,
@@ -250,33 +251,50 @@ describe('projected grade — a letter that admits what it is', () => {
     pickValueLookup: (season, round) => MARKET.pickByRound[`${season}:${round}`] ?? null,
   })
 
-  it('scores last season on the SAME scale the realized grade uses', () => {
-    // priorNet -148.7 is below -100, which is F on the shared letterFor bands.
-    expect(built.sides[0]!.projected).toMatchObject({ letter: 'F', net: -148.7 })
-    expect(built.sides[1]!.projected).toMatchObject({ letter: 'A', net: 148.7 })
+  it('grades the 1-for-2 on value edge rather than punishing the consolidator', () => {
+    // Market: got 3600, gave 4000 -> net -400 on a 3800 mean = -10.5% edge.
+    // The old totals-based grade gave this side an F purely for receiving fewer players.
+    const one = built.sides[0]!.projected!
+    expect(one.valueNet).toBe(-400)
+    expect(one.valueEdge).toBeCloseTo(-0.105, 3)
+    expect(one.letter).toBe('D')
+    expect(built.sides[1]!.projected!.letter).toBe('B')
   })
 
-  it('flags that raw totals favour the side receiving more players', () => {
-    // 1-for-2: totals are structurally against the consolidating side.
-    expect(built.sides[0]!.projected!.unevenCounts).toBe(true)
-    expect(built.sides[1]!.projected!.unevenCounts).toBe(true)
+  it('is scale-free: the same edge grades the same in a cheap or expensive deal', () => {
+    const cheap = projectGrade({ marketIn: 100, marketOut: 140, priorNet: null, uncertainty: null })
+    const rich = projectGrade({ marketIn: 10000, marketOut: 14000, priorNet: null, uncertainty: null })
+    expect(cheap!.valueEdge).toBeCloseTo(rich!.valueEdge, 6)
+    expect(cheap!.letter).toBe(rich!.letter)
   })
 
-  it('does not claim market disagreement when both signals point the same way', () => {
-    // Market -568 and production -148.7 both favour managerTwo.
-    expect(built.sides[0]!.projected!.marketDisagrees).toBe(false)
+  it('calls it a fair deal when the edge is inside the valuations own uncertainty', () => {
+    const p = projectGrade({ marketIn: 3600, marketOut: 4000, priorNet: null, uncertainty: 600 })!
+    // A 400 gap between assets that themselves swing +/-600 is not a gap.
+    expect(p.insideNoise).toBe(true)
+    expect(p.letter).toBe('C')
+    expect(p.confidence).toBe('low')
   })
 
-  it('flags disagreement when market and production point opposite ways', () => {
-    const p = projectGrade({ priorNet: -120, marketNet: 400, playersIn: 1, playersOut: 1 })
-    expect(p).toMatchObject({ letter: 'F', marketDisagrees: true, unevenCounts: false })
+  it('combines uncertainty by root-sum-square, not by naive addition', () => {
+    // 300 and 400 -> 500, not 700. Summing would overstate doubt and swallow real edges.
+    expect(combinedUncertainty([300, 400])).toBe(500)
+    expect(combinedUncertainty([null, null])).toBeNull()
+    expect(combinedUncertainty([])).toBeNull()
   })
 
-  it('refuses to project at all without prior production', () => {
-    expect(projectGrade({ priorNet: null, marketNet: 900, playersIn: 1, playersOut: 2 })).toBeNull()
+  it('drops confidence when last season points the other way', () => {
+    const p = projectGrade({ marketIn: 5000, marketOut: 4000, priorNet: -200, uncertainty: 100 })!
+    expect(p.productionDisagrees).toBe(true)
+    expect(p.confidence).toBe('moderate')
+  })
+
+  it('refuses to project when nothing was priced', () => {
+    expect(projectGrade({ marketIn: null, marketOut: 4000, priorNet: 50, uncertainty: null })).toBeNull()
+    expect(projectGrade({ marketIn: 0, marketOut: 0, priorNet: 50, uncertainty: null })).toBeNull()
     const blind = buildTradeExpectation({
-      trade: TRADE, context: CONTEXT, marketValues: MARKET,
-      priorSeason: null, rosteredByPosition: null,
+      trade: TRADE, context: CONTEXT, marketValues: null,
+      priorSeason: PRIOR, rosteredByPosition: null,
     })
     expect(blind.sides[0]!.projected).toBeNull()
   })

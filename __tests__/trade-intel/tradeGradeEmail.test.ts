@@ -231,7 +231,7 @@ describe('projected grades are labelled as projections everywhere', () => {
         marketIn: 3274, marketOut: 3842, marketNet: -568,
         priorIn: 141, priorOut: 289.7, priorNet: -148.7,
         positionDelta: { TE: 1, WR: -1, RB: -1 }, starterGaps: [],
-        projected: { letter: 'F' as const, net: -148.7, unevenCounts: true, marketDisagrees: false },
+        projected: { letter: 'D' as const, valueEdge: -0.105, valueNet: -568, uncertainty: 420, insideNoise: false, productionDisagrees: false, confidence: 'high' as const },
       },
       {
         rosterId: 8, managerName: 'managerTwo',
@@ -239,7 +239,7 @@ describe('projected grades are labelled as projections everywhere', () => {
         marketIn: 3842, marketOut: 3274, marketNet: 568,
         priorIn: 289.7, priorOut: 141, priorNet: 148.7,
         positionDelta: { TE: -1, WR: 1, RB: 1 }, starterGaps: [],
-        projected: { letter: 'A' as const, net: 148.7, unevenCounts: true, marketDisagrees: false },
+        projected: { letter: 'B' as const, valueEdge: 0.105, valueNet: 568, uncertainty: 420, insideNoise: false, productionDisagrees: false, confidence: 'high' as const },
       },
     ],
   }
@@ -255,7 +255,7 @@ describe('projected grades are labelled as projections everywhere', () => {
   it('says "projected" in the subject rather than implying a result', () => {
     const { subject } = withExp()
     expect(subject).toContain('projected on 2025')
-    expect(subject).toContain('managerOne F')
+    expect(subject).toContain('managerOne D')
     // The bare "initial grades:" phrasing would read as already-earned.
     expect(subject).not.toContain('initial grades')
   })
@@ -263,14 +263,14 @@ describe('projected grades are labelled as projections everywhere', () => {
   it('marks every chip PROJECTED in the body', () => {
     const { html } = withExp()
     expect(html).toContain('PROJECTED')
-    expect(html).toContain('>F<')
+    expect(html).toContain('>D<')
     expect(html).toContain('Projected on 2025 production')
   })
 
-  it('warns that raw totals punish the side that consolidated', () => {
+  it('explains that value, not player count, drove the letter', () => {
     const body = explainGrade(PRESEASON, true, EXPECTATION as never)
     expect(body).toContain('projections rather than results')
-    expect(body).toContain('2-for-1 loses on totals')
+    expect(body).toContain('prices a star correctly against two useful pieces')
   })
 
   it('falls back to "too early" when there is no projection to show', () => {

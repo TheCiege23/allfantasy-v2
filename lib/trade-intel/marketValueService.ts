@@ -43,6 +43,8 @@ type FcRow = {
   redraftValue?: number | null
   overallRank?: number | null
   trend30Day?: number | null
+  /** Feed's own dispersion for this valuation, in `value` units. */
+  maybeMovingStandardDeviation?: number | null
 }
 
 export type MarketValueEntry = {
@@ -52,6 +54,16 @@ export type MarketValueEntry = {
   value: number
   overallRank: number | null
   trend30Day: number | null
+  /**
+   * How contested this valuation is, in the same units as `value` — the feed's
+   * own moving standard deviation across contributing markets.
+   *
+   * Carried so a consumer can tell a genuine value gap from noise: a 500-point
+   * edge between two players whose valuations each swing by 400 is not an edge.
+   * Optional because payloads cached before this field existed will not have it,
+   * and a missing uncertainty must read as "unknown", not as "zero doubt".
+   */
+  stdDev?: number | null
 }
 
 export type MarketValuesPayload = {
@@ -160,6 +172,8 @@ export async function getMarketValues(
       value,
       overallRank: r.overallRank ?? null,
       trend30Day: r.trend30Day ?? null,
+      stdDev:
+        typeof r.maybeMovingStandardDeviation === 'number' ? r.maybeMovingStandardDeviation : null,
     }
     if (entry.sleeperId) bySleeperId[entry.sleeperId] = entry
     if (entry.overallRank != null) {

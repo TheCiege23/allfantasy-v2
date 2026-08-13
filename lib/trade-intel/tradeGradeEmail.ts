@@ -339,32 +339,43 @@ export function explainGrade(
       .join('; ')
 
     const projected = expectation.sides.filter((s) => s.projected != null)
+    const anyProjection = projected[0]?.projected ?? null
 
-    // Both caveats describe cases where the projected letter actively misleads,
-    // so they sit next to it rather than in a footnote.
-    const consolidator = projected.find((s) => s.projected!.unevenCounts && (s.priorNet ?? 0) < 0)
-    const evenNote = consolidator
-      ? `${consolidator.managerName} received fewer players, and raw season totals structurally favour whoever gets more bodies — a 2-for-1 loses on totals even when it is the better side of the deal. `
+    // Caveats sit beside the letter rather than in a footnote, because each one
+    // describes a case where the letter would otherwise be read as harder than
+    // the evidence supports.
+    const noiseNote = anyProjection?.insideNoise
+      ? `The gap between the two sides is smaller than the uncertainty in the valuations themselves${
+          anyProjection.uncertainty != null ? ` (±${Math.round(anyProjection.uncertainty)})` : ''
+        }, so this grades as a fair deal rather than a win for anybody. `
       : ''
 
-    const disagreeing = projected.find((s) => s.projected!.marketDisagrees)
-    const disagreeNote = disagreeing
-      ? `Market value disagrees with last season's totals here, so treat the letter as one of two signals rather than a verdict. `
-      : ''
+    const disagreeing = projected.find((s) => s.projected!.productionDisagrees)
+    const disagreeNote =
+      disagreeing && !anyProjection?.insideNoise
+        ? `Last season's raw totals point the other way, so treat this as one of two signals rather than a verdict — totals also favour whoever received more players, which value does not. `
+        : ''
+
+    const edgeNote = projected
+      .filter((s) => s.projected!.valueEdge > 0)
+      .map(
+        (s) =>
+          `${s.managerName} came out ahead on value by ${Math.abs(Math.round(s.projected!.valueEdge * 100))}%`,
+      )
+      .join('; ')
 
     const lead = projected.length
-      ? `No games have been played yet, so these letters are projections rather than results — last ${
-          expectation.priorSeason ?? 'season'
-        }'s production run through the same scale the real grade will use. `
+      ? `No games have been played yet, so these letters are projections rather than results — graded on market value for this league, which prices a star correctly against two useful pieces. `
       : `No games have been played yet, so the letter stays open — but the trade is not unknowable. `
 
     return (
       lead +
       `This is a ${expectation.leagueNote} league. ` +
+      (edgeNote ? `${edgeNote}. ` : '') +
       (expectation.priorSeason
-        ? `Using ${expectation.priorSeason} production${scoringNote}: ${perSide.join('; ')}. `
+        ? `For reference, ${expectation.priorSeason} production${scoringNote}: ${perSide.join('; ')}. `
         : `${perSide.join('; ')}. `) +
-      evenNote +
+      noiseNote +
       disagreeNote +
       (gapNote ? `Roster needs: ${gapNote}. ` : '') +
       (pending.length > 0
