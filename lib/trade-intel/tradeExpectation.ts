@@ -1,6 +1,6 @@
 import type { LeagueContextEnvelope } from '@/lib/league-context/leagueContextService'
 import type { MarketValuesPayload } from '@/lib/trade-intel/marketValueService'
-import { letterFor, type GradeLetter } from '@/lib/trade-intel/gradeScale'
+import type { GradeLetter } from '@/lib/trade-intel/gradeScale'
 import type { GradedTrade, TradeSideGrade } from '@/lib/trade-intel/sleeperTradeGradeService'
 
 /**
@@ -41,6 +41,8 @@ export type AssetExpectation = {
   isPick: boolean
   /** League-settings-aware market value (superflex/teams/ppr/dynasty). Null when unpriced. */
   marketValue: number | null
+  /** How contested that valuation is, in the same units. Null when unknown. */
+  valueStdDev: number | null
   /** Last completed season, rescored with THIS league's scoring settings. */
   priorPoints: number | null
   priorGames: number | null
@@ -56,28 +58,58 @@ export type StarterGap = {
 /**
  * A letter for a trade that has not produced a point yet.
  *
- * Deliberately NOT a forecast. It is last season's real production, run through
- * the exact scale the realized grade will use — "if last year repeated, this is
- * what the engine would say". That keeps it checkable: same units, same bands,
- * same function, so a projected letter and a later realized letter are directly
- * comparable instead of being two different opinions.
+ * Graded on VALUE, not on raw point totals. Totals structurally punish whoever
+ * received fewer players — a 2-for-1 loses on totals even when it is the better
+ * side, which is the entire reason consolidation trades exist. Market value
+ * already prices scarcity, so a stud for two useful pieces reads correctly.
  *
- * The two caveats travel with it rather than being buried, because both are
- * facts about the trade and both are cases where the letter misleads:
+ * Measured as a scale-free edge: (in − out) / mean(in, out). "Received 16% less
+ * value than given" means the same thing in a deal between studs and a deal
+ * between benchwarmers, where a raw point difference does not.
  *
- *  - unevenCounts: raw season totals structurally favour whoever received more
- *    bodies. A 2-for-1 loses on totals even when it is the better side of the
- *    deal, which is exactly why consolidation trades exist.
- *  - marketDisagrees: market value priced this league says the other manager
- *    came out ahead. When the two signals point opposite ways, neither is
- *    strong enough to assert alone.
+ * NOTE this is a different quantity from the realized grade, which nets fantasy
+ * points. Both answer "who won", before and after; they are not the same number
+ * and the email never presents them as continuous.
+ *
+ * Confidence travels with the letter:
+ *  - insideNoise: the edge does not exceed the combined uncertainty of the
+ *    valuations themselves. A 500-point gap between players who each swing 400
+ *    is not a gap, and is graded C rather than asserted as a win.
+ *  - productionDisagrees: last season's totals point the other way. Two signals
+ *    in opposite directions means neither is strong enough to assert alone.
  */
 export type ProjectedGrade = {
   letter: GradeLetter
-  /** Last season's league-scored net this letter was computed from. */
-  net: number
-  unevenCounts: boolean
-  marketDisagrees: boolean
+  /** Relative value edge; -0.16 = received 16% less value than given up. */
+  valueEdge: number
+  /** Raw market net, in feed value units. */
+  valueNet: number
+  /** Combined uncertainty of the assets involved, same units. Null when unknown. */
+  uncertainty: number | null
+  insideNoise: boolean
+  productionDisagrees: boolean
+  confidence: 'high' | 'moderate' | 'low'
+}
+
+/**
+ * Bands on relative value edge. Wider than they look: dynasty valuations
+ * routinely disagree by a few percent, so anything inside ±10% is a fair deal
+ * rather than a win, and only a quarter-value gap is a rout.
+ */
+export const VALUE_EDGE_BANDS: { letter: GradeLetter; minEdge: number | null }[] = [
+  { letter: 'A', minEdge: 0.25 },
+  { letter: 'B', minEdge: 0.1 },
+  { letter: 'C', minEdge: -0.1 },
+  { letter: 'D', minEdge: -0.25 },
+  { letter: 'F', minEdge: null },
+]
+
+export function letterForValueEdge(edge: number): GradeLetter {
+  if (edge >= 0.25) return 'A'
+  if (edge >= 0.1) return 'B'
+  if (edge > -0.1) return 'C'
+  if (edge > -0.25) return 'D'
+  return 'F'
 }
 
 export type SideExpectation = {
@@ -230,7 +262,8 @@ function assetFromPlayer(
   position: string | null,
   params: BuildParams,
 ): AssetExpectation {
-  const market = params.marketValues?.bySleeperId[playerId]?.value ?? null
+  const entry = params.marketValues?.bySleeperId[playerId]
+  const market = entry?.value ?? null
   const prior = params.priorSeason?.byPlayerId[playerId] ?? null
   const games = prior?.games ?? null
   return {
@@ -239,6 +272,7 @@ function assetFromPlayer(
     position,
     isPick: false,
     marketValue: typeof market === 'number' ? market : null,
+    valueStdDev: typeof entry?.stdDev === 'number' ? entry.stdDev : null,
     priorPoints: prior ? Math.round(prior.points * 10) / 10 : null,
     priorGames: games,
     priorPerGame:
@@ -262,6 +296,8 @@ function assetFromPick(
     // A pick has a market price long before it is drafted — that is the whole
     // point of trading one, and treating it as 0 is what made the old grade wrong.
     marketValue: params.pickValueLookup?.(season, round) ?? null,
+    // The feed publishes no dispersion for picks; unknown, not zero.
+    valueStdDev: null,
     priorPoints: null,
     priorGames: null,
     priorPerGame: null,
@@ -269,29 +305,60 @@ function assetFromPick(
 }
 
 /**
- * Score last season's net on the realized grade's own scale.
+ * Combined uncertainty of a set of valuations.
  *
- * Null when there is no prior production — a projection with nothing behind it
- * would be the exact failure this whole module exists to stop.
+ * Root-sum-square rather than a plain sum: the individual valuations are close
+ * enough to independent that adding their deviations linearly would overstate
+ * the doubt badly on a multi-player side, and an overstated doubt silently
+ * turns every real edge into "inside the noise".
+ *
+ * Null when no asset carried a deviation — unknown uncertainty must not read
+ * as zero uncertainty.
+ */
+export function combinedUncertainty(deviations: (number | null)[]): number | null {
+  const present = deviations.filter((d): d is number => typeof d === 'number' && d > 0)
+  if (present.length === 0) return null
+  return Math.round(Math.sqrt(present.reduce((acc, d) => acc + d * d, 0)) * 10) / 10
+}
+
+/**
+ * Grade the trade on value.
+ *
+ * Null when nothing was priced — a letter with nothing behind it is the exact
+ * failure this module exists to prevent.
  */
 export function projectGrade(args: {
+  marketIn: number | null
+  marketOut: number | null
   priorNet: number | null
-  marketNet: number | null
-  playersIn: number
-  playersOut: number
+  uncertainty: number | null
 }): ProjectedGrade | null {
-  if (args.priorNet == null) return null
-  const marketDisagrees =
-    args.marketNet != null &&
-    args.marketNet !== 0 &&
+  const { marketIn, marketOut } = args
+  if (marketIn == null || marketOut == null) return null
+
+  const valueNet = Math.round((marketIn - marketOut) * 10) / 10
+  const scale = (marketIn + marketOut) / 2
+  // Nothing of value moved either way; there is no edge to express.
+  if (scale <= 0) return null
+  const valueEdge = Math.round((valueNet / scale) * 1000) / 1000
+
+  const insideNoise = args.uncertainty != null && Math.abs(valueNet) <= args.uncertainty
+  const productionDisagrees =
+    args.priorNet != null &&
     args.priorNet !== 0 &&
-    Math.sign(args.marketNet) !== Math.sign(args.priorNet)
-  return {
-    letter: letterFor(args.priorNet),
-    net: args.priorNet,
-    unevenCounts: args.playersIn !== args.playersOut,
-    marketDisagrees,
-  }
+    valueNet !== 0 &&
+    Math.sign(args.priorNet) !== Math.sign(valueNet)
+
+  // An edge the valuations themselves cannot resolve is a fair deal, not a win.
+  const letter = insideNoise ? 'C' : letterForValueEdge(valueEdge)
+
+  const confidence: ProjectedGrade['confidence'] = insideNoise
+    ? 'low'
+    : productionDisagrees || args.uncertainty == null
+      ? 'moderate'
+      : 'high'
+
+  return { letter, valueEdge, valueNet, uncertainty: args.uncertainty, insideNoise, productionDisagrees, confidence }
 }
 
 function sideFrom(side: TradeSideGrade, params: BuildParams): SideExpectation {
@@ -329,10 +396,12 @@ function sideFrom(side: TradeSideGrade, params: BuildParams): SideExpectation {
     positionDelta: deltaFor(assetsIn, assetsOut),
     starterGaps: rostered ? starterGapsFor(rostered, required) : null,
     projected: projectGrade({
+      marketIn,
+      marketOut,
       priorNet,
-      marketNet,
-      playersIn: side.playersIn.length,
-      playersOut: side.playersOut.length,
+      uncertainty: combinedUncertainty(
+        [...assetsIn, ...assetsOut].map((a) => a.valueStdDev),
+      ),
     }),
   }
 }
