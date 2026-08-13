@@ -109,13 +109,14 @@ const TRADE: GradedTrade = {
 }
 
 // Real 2025 totals rescored under this league's settings (TE premium included).
+const LS = 'league-scored' as const
 const PRIOR = {
   season: '2025',
-  mode: 'league-scored' as const,
   byPlayerId: {
-    '9480': { points: 141.0, games: 12 },
-    '8676': { points: 144.6, games: 18 },
-    '12474': { points: 145.1, games: 16 },
+    // Mode travels per player; the trade's own assets decide what we claim.
+    '9480': { points: 141.0, games: 12, mode: LS },
+    '8676': { points: 144.6, games: 18, mode: LS },
+    '12474': { points: 145.1, games: 16, mode: LS },
   },
 }
 
@@ -298,5 +299,43 @@ describe('projected grade — graded on value, not player count', () => {
       priorSeason: PRIOR, rosteredByPosition: null,
     })
     expect(blind.sides[0]!.projected).toBeNull()
+  })
+})
+
+describe('scoring mode reflects the traded players, not the whole board', () => {
+  it('claims league-scored only when every traded player genuinely was', () => {
+    const built = buildTradeExpectation({
+      trade: TRADE, context: CONTEXT, marketValues: MARKET,
+      priorSeason: PRIOR, rosteredByPosition: null,
+    })
+    expect(built.scoringMode).toBe('league-scored')
+  })
+
+  it('drops to format-approx when any traded player fell back', () => {
+    // One approximated player is enough to stop us claiming league accuracy.
+    const mixed = {
+      season: '2025',
+      byPlayerId: {
+        ...PRIOR.byPlayerId,
+        '12474': { points: 145.1, games: 16, mode: 'format-approx' as const },
+      },
+    }
+    const built = buildTradeExpectation({
+      trade: TRADE, context: CONTEXT, marketValues: MARKET,
+      priorSeason: mixed, rosteredByPosition: null,
+    })
+    expect(built.scoringMode).toBe('format-approx')
+  })
+
+  it('is null when no traded player carried a mode at all', () => {
+    const noModes = {
+      season: '2025',
+      byPlayerId: { '9480': { points: 141.0, games: 12 } },
+    }
+    const built = buildTradeExpectation({
+      trade: TRADE, context: CONTEXT, marketValues: MARKET,
+      priorSeason: noModes, rosteredByPosition: null,
+    })
+    expect(built.scoringMode).toBeNull()
   })
 })

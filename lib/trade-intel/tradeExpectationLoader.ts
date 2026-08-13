@@ -76,22 +76,22 @@ export async function loadTradeExpectation(
   // pass that straight through rather than implying league accuracy we lack.
   let prior: Parameters<typeof buildTradeExpectation>[0]['priorSeason'] = null
   if (statsBoard) {
-    const byPlayerId: Record<string, { points: number; games: number | null }> = {}
-    let leagueScored = 0
-    let total = 0
+    // Mode is recorded PER PLAYER. A board-wide verdict was wrong in both
+    // directions: it swept in kickers, IDP and other positions this league may
+    // not score at all, then applied that pessimism to the handful of players
+    // actually traded — labelling genuinely league-scored numbers as
+    // approximations. buildTradeExpectation decides the mode from the assets in
+    // the trade instead.
+    const byPlayerId: Record<
+      string,
+      { points: number; games: number | null; mode: 'league-scored' | 'format-approx' }
+    > = {}
     for (const [playerId, row] of Object.entries(statsBoard.players)) {
       const scored = scoreStatLine(row.stats, context.scoring.settings, context.scoring.format)
       const games = typeof row.stats.gp === 'number' ? row.stats.gp : null
-      byPlayerId[playerId] = { points: scored.points, games }
-      total += 1
-      if (scored.mode === 'league-scored') leagueScored += 1
+      byPlayerId[playerId] = { points: scored.points, games, mode: scored.mode }
     }
-    prior = {
-      season: statsBoard.season,
-      // Only claim league-scored when the clear majority genuinely was.
-      mode: total > 0 && leagueScored / total >= 0.8 ? 'league-scored' : 'format-approx',
-      byPlayerId,
-    }
+    prior = { season: statsBoard.season, byPlayerId }
   }
 
   // Roster composition by position, as rosters stand now.

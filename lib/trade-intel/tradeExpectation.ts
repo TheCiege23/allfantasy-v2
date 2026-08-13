@@ -252,8 +252,11 @@ export type BuildParams = {
   /** Prior-season league-scored totals keyed by Sleeper player id. */
   priorSeason: {
     season: string
-    mode: 'league-scored' | 'format-approx'
-    byPlayerId: Record<string, { points: number; games: number | null }>
+    /** Mode is per player; the trade's own assets decide what we claim. */
+    byPlayerId: Record<
+      string,
+      { points: number; games: number | null; mode?: 'league-scored' | 'format-approx' }
+    >
   } | null
   /** Rostered players by position per rosterId, AFTER the trade. Null when unavailable. */
   rosteredByPosition: Record<number, Record<string, number>> | null
@@ -430,6 +433,24 @@ export function buildTradeExpectation(params: BuildParams): TradeExpectation {
 
   const sides = params.trade.sides.map((s) => sideFrom(s, params))
 
+  // Scoring mode reflects the assets in THIS trade, not the whole stat board.
+  // Claim league-scored only when every traded player we priced genuinely was.
+  let scoringMode: 'league-scored' | 'format-approx' | null = null
+  if (params.priorSeason) {
+    const modes: ('league-scored' | 'format-approx')[] = []
+    for (const side of params.trade.sides) {
+      for (const p of [...side.playersIn, ...side.playersOut]) {
+        const hit = params.priorSeason.byPlayerId[p.playerId]
+        if (hit?.mode) modes.push(hit.mode)
+      }
+    }
+    scoringMode = modes.length === 0
+      ? null
+      : modes.every((m) => m === 'league-scored')
+        ? 'league-scored'
+        : 'format-approx'
+  }
+
   // Say so when no asset here got a second opinion. A single-source value is
   // still a value, but nothing corroborated it and the reader deserves to know
   // which of those two situations they are looking at.
@@ -448,7 +469,7 @@ export function buildTradeExpectation(params: BuildParams): TradeExpectation {
     available: measuredSomething,
     leagueNote: describeLeague(params.context),
     priorSeason: params.priorSeason?.season ?? null,
-    scoringMode: params.priorSeason?.mode ?? null,
+    scoringMode,
     sides,
     missing,
   }
