@@ -5,6 +5,11 @@ import type {
   TradePickAsset,
   TradeSideGrade,
 } from '@/lib/trade-intel/sleeperTradeGradeService'
+import type {
+  AssetExpectation,
+  SideExpectation,
+  TradeExpectation,
+} from '@/lib/trade-intel/tradeExpectation'
 
 /**
  * tradeGradeEmail — the "your league just traded" email, as a real visual.
@@ -139,32 +144,58 @@ function assetRow(label: string, detail: string | null, points: number | null, a
   )
 }
 
+/**
+ * Sub-line for an asset before any points exist.
+ *
+ * Shows last season under THIS league's scoring, with games played attached so a
+ * 12-game season is never read as a full one, and the market price for a pick
+ * that has not been drafted. Position alone when we measured nothing.
+ */
+function priorDetail(asset: AssetExpectation | undefined, fallback: string | null): string | null {
+  if (!asset) return fallback
+  const bits: string[] = []
+  if (asset.priorPoints != null) {
+    const perGame =
+      asset.priorPerGame != null && asset.priorGames != null
+        ? ` (${asset.priorPerGame}/gm over ${asset.priorGames})`
+        : ''
+    bits.push(`${asset.priorPoints} last season${perGame}`)
+  }
+  if (asset.isPick && asset.marketValue != null) bits.push(`market ${Math.round(asset.marketValue)}`)
+  if (bits.length === 0) return fallback
+  return fallback ? `${fallback} · ${bits.join(' · ')}` : bits.join(' · ')
+}
+
 function assetList(
   players: TradeAsset[],
   picks: TradePickAsset[],
   season: string | null,
   accent: boolean,
+  expected?: Map<string, AssetExpectation>,
 ): string {
   const rows: string[] = []
   for (const p of players) {
-    rows.push(
-      assetRow(p.name, p.position, season ? (p.creditedBySeason[season] ?? 0) : null, accent),
-    )
+    const exp = expected?.get(p.playerId)
+    // Before kickoff the credited number is 0.0 for everyone, which tells the
+    // manager nothing; last season's real points tell him something.
+    const points = expected ? (exp?.priorPoints ?? null) : season ? (p.creditedBySeason[season] ?? 0) : null
+    rows.push(assetRow(p.name, priorDetail(exp, p.position), points, accent))
   }
   for (const pick of picks) {
-    const detail = pick.rerouted
+    const base = pick.rerouted
       ? 'traded again before the draft'
       : pick.pending
         ? 'not drafted yet'
         : (pick.resolved?.name ?? null)
-    rows.push(
-      assetRow(
-        pick.label,
-        detail,
-        pick.resolved ? (season ? (pick.resolved.creditedBySeason[season] ?? 0) : null) : null,
-        accent,
-      ),
-    )
+    const exp = expected?.get(pick.label)
+    const points = expected
+      ? null
+      : pick.resolved
+        ? season
+          ? (pick.resolved.creditedBySeason[season] ?? 0)
+          : null
+        : null
+    rows.push(assetRow(pick.label, priorDetail(exp, base), points, accent))
   }
   if (rows.length === 0) rows.push(assetRow('nothing', null, null, accent))
   return `<table role="presentation" width="100%" cellspacing="0" cellpadding="0">${rows.join('')}</table>`
@@ -177,17 +208,52 @@ function columnHeading(text: string, color: string): string {
   )
 }
 
-function sideCard(side: TradeSideGrade, provisional: boolean): string {
+function expectationMap(sideExp: SideExpectation | undefined): Map<string, AssetExpectation> | undefined {
+  if (!sideExp) return undefined
+  const map = new Map<string, AssetExpectation>()
+  for (const a of [...sideExp.assetsIn, ...sideExp.assetsOut]) map.set(a.key, a)
+  return map
+}
+
+/** Positional swing from this trade alone, e.g. "+1 TE · −1 WR · −1 RB". */
+function positionDeltaLine(delta: Record<string, number>): string | null {
+  const parts = Object.entries(delta)
+    .sort((a, b) => b[1] - a[1])
+    .map(([pos, n]) => `${n > 0 ? '+' : '−'}${Math.abs(n)} ${pos}`)
+  return parts.length > 0 ? parts.join(' · ') : null
+}
+
+function sideCard(side: TradeSideGrade, provisional: boolean, sideExp?: SideExpectation): string {
   const m = sideMath(side)
   const colors = provisional ? PROVISIONAL_COLORS : GRADE_COLORS[side.initialGrade]
   const chipLabel = provisional ? '–' : side.initialGrade
   const who = side.teamName ? `${side.managerName} · ${side.teamName}` : side.managerName
+  const expected = expectationMap(sideExp)
 
-  const netLine = provisional
-    ? `<span style="color:${FAINT}">no points credited yet</span>`
-    : `Got <span style="color:${TEXT};font-weight:600">${escapeHtml(fmt(m.got))}</span> · ` +
+  let netLine: string
+  if (!provisional) {
+    netLine =
+      `Got <span style="color:${TEXT};font-weight:600">${escapeHtml(fmt(m.got))}</span> · ` +
       `Gave <span style="color:${TEXT};font-weight:600">${escapeHtml(fmt(m.gave))}</span> · ` +
       `Net <span style="color:${TEXT};font-weight:700">${escapeHtml(signed(m.net))}</span>`
+  } else if (sideExp && (sideExp.marketNet != null || sideExp.priorNet != null)) {
+    const bits: string[] = []
+    if (sideExp.marketNet != null) {
+      bits.push(
+        `Market <span style="color:${TEXT};font-weight:700">${escapeHtml(signed(sideExp.marketNet))}</span>`,
+      )
+    }
+    if (sideExp.priorNet != null) {
+      bits.push(
+        `Last season <span style="color:${TEXT};font-weight:700">${escapeHtml(signed(sideExp.priorNet))}</span>`,
+      )
+    }
+    const posLine = positionDeltaLine(sideExp.positionDelta)
+    if (posLine) bits.push(`<span style="color:${FAINT}">${escapeHtml(posLine)}</span>`)
+    netLine = bits.join(' · ')
+  } else {
+    netLine = `<span style="color:${FAINT}">no points credited yet</span>`
+  }
 
   return `
 <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:${CARD};border:1px solid ${BORDER};border-radius:14px;margin-bottom:12px">
@@ -210,11 +276,11 @@ function sideCard(side: TradeSideGrade, provisional: boolean): string {
         <tr>
           <td width="50%" valign="top" style="padding-right:8px">
             ${columnHeading('Got', GOT_ACCENT)}
-            ${assetList(side.playersIn, side.picksIn, m.season, true)}
+            ${assetList(side.playersIn, side.picksIn, m.season, true, expected)}
           </td>
           <td width="50%" valign="top" style="padding-left:8px;border-left:1px solid ${BORDER}">
             ${columnHeading('Gave', MUTED)}
-            ${assetList(side.playersOut, side.picksOut, m.season, false)}
+            ${assetList(side.playersOut, side.picksOut, m.season, false, expected)}
           </td>
         </tr>
       </table>
@@ -226,7 +292,53 @@ function sideCard(side: TradeSideGrade, provisional: boolean): string {
 /**
  * The "why" strip. Every sentence is derived from the payload, never asserted.
  */
-export function explainGrade(trade: GradedTrade, provisional: boolean): string {
+export function explainGrade(
+  trade: GradedTrade,
+  provisional: boolean,
+  expectation?: TradeExpectation | null,
+): string {
+  if (provisional && expectation?.available) {
+    const pending = unresolvedPickLabels(trade)
+    const scoringNote =
+      expectation.scoringMode === 'format-approx'
+        ? ' scored with a format approximation rather than the league weights'
+        : " scored with this league's own settings"
+
+    const perSide = expectation.sides
+      .map((s) => {
+        const bits: string[] = []
+        if (s.priorIn != null && s.priorOut != null) {
+          bits.push(`took ${fmt(s.priorIn)} against ${fmt(s.priorOut)} given up`)
+        }
+        if (s.marketNet != null) bits.push(`market value ${signed(s.marketNet)}`)
+        return bits.length > 0 ? `${s.managerName} ${bits.join(', ')}` : null
+      })
+      .filter((v): v is string => v != null)
+
+    const gapNote = expectation.sides
+      .filter((s) => s.starterGaps && s.starterGaps.length > 0)
+      .map(
+        (s) =>
+          `${s.managerName} cannot fill ${s.starterGaps!
+            .map((g) => `${g.position} (${g.rostered} of ${g.required})`)
+            .join(' and ')}`,
+      )
+      .join('; ')
+
+    return (
+      `No games have been played yet, so the letter stays open — but the trade is not unknowable. ` +
+      `This is a ${expectation.leagueNote} league. ` +
+      (expectation.priorSeason
+        ? `Using ${expectation.priorSeason} production${scoringNote}: ${perSide.join('; ')}. `
+        : `${perSide.join('; ')}. `) +
+      (gapNote ? `Roster needs: ${gapNote}. ` : '') +
+      (pending.length > 0
+        ? `${pending.join(' and ')} ${pending.length > 1 ? 'are' : 'is'} priced at market because ${pending.length > 1 ? 'they have' : 'it has'} not been drafted. `
+        : '') +
+      `The letter grade fills in from real points as the season runs.`
+    )
+  }
+
   if (provisional) {
     const pending = unresolvedPickLabels(trade)
     const pickNote =
@@ -269,9 +381,12 @@ export function buildTradeGradeEmail(params: {
   leagueName: string
   trade: GradedTrade
   ledgerUrl: string
+  /** League/scoring/prior-season/roster context. Omit and the email says only what points prove. */
+  expectation?: TradeExpectation | null
 }): TradeGradeEmail {
   const { leagueName, trade, ledgerUrl } = params
   const provisional = hasNoSignal(trade)
+  const expectation = params.expectation?.available ? params.expectation : null
 
   // Never assert a letter in the subject when the engine has no data behind it.
   const subject = provisional
@@ -280,7 +395,10 @@ export function buildTradeGradeEmail(params: {
         .map((s) => `${s.managerName} ${s.initialGrade}`)
         .join(', ')}`
 
-  const cards = trade.sides.map((s) => sideCard(s, provisional)).join('')
+  const bySideId = new Map((expectation?.sides ?? []).map((s) => [s.rosterId, s]))
+  const cards = trade.sides
+    .map((s) => sideCard(s, provisional, provisional ? bySideId.get(s.rosterId) : undefined))
+    .join('')
   const statusLine = provisional
     ? 'Too early to grade'
     : trade.tie
@@ -302,18 +420,28 @@ export function buildTradeGradeEmail(params: {
           ${escapeHtml(leagueName)}
         </div>
         <div style="font-size:13px;color:${MUTED};margin-top:3px">${escapeHtml(statusLine)}</div>
+        ${
+          expectation
+            ? `<div style="font-size:11px;color:${FAINT};margin-top:6px">${escapeHtml(expectation.leagueNote)}</div>`
+            : ''
+        }
       </td>
     </tr>
     <tr><td>${cards}</td></tr>
     <tr>
       <td style="padding:14px 16px;background:${CARD};border:1px solid ${BORDER};border-radius:14px">
         <div style="font-size:10px;letter-spacing:0.09em;text-transform:uppercase;color:${FAINT};font-weight:700;margin-bottom:6px">
-          Why this grade
+          ${provisional && expectation ? 'What we can tell before kickoff' : 'Why this grade'}
         </div>
         <div style="font-size:13px;line-height:1.6;color:${MUTED}">
-          ${escapeHtml(explainGrade(trade, provisional))}
+          ${escapeHtml(explainGrade(trade, provisional, expectation))}
         </div>
         ${gradeBands(provisional)}
+        ${
+          expectation && expectation.missing.length > 0
+            ? `<div style="font-size:11px;color:${FAINT};line-height:1.5;margin-top:8px">Not factored in: ${escapeHtml(expectation.missing.join('; '))}.</div>`
+            : ''
+        }
       </td>
     </tr>
     <tr>

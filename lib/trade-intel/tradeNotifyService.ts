@@ -5,6 +5,8 @@ import { getBaseUrl } from '@/lib/get-base-url'
 import { sendTemplatedEmail } from '@/lib/resend-client'
 import { getTradeGrades } from '@/lib/trade-intel/sleeperTradeGradeService'
 import { buildTradeGradeEmail } from '@/lib/trade-intel/tradeGradeEmail'
+import { loadTradeExpectation } from '@/lib/trade-intel/tradeExpectationLoader'
+import { currentCompletedTradeIds } from '@/lib/trade-intel/sleeperTradeSync'
 
 /**
  * tradeNotifyService — "your league just traded" with INSTANT grades.
@@ -27,20 +29,8 @@ import { buildTradeGradeEmail } from '@/lib/trade-intel/tradeGradeEmail'
  *    the rest of the sweep.
  */
 
-const SLEEPER = 'https://api.sleeper.app/v1'
 const SEEN_PREFIX = 'trade-notify:v1:'
 const SEEN_TTL_MS = 2 * 365 * 24 * 60 * 60 * 1000
-const MAX_WEEKS = 18
-
-async function j<T>(path: string): Promise<T | null> {
-  try {
-    const res = await fetch(`${SLEEPER}${path}`, { cache: 'no-store' })
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    return null
-  }
-}
 
 type SeenRecord = { version: 1; seen: string[]; lastRunIso: string }
 
@@ -59,25 +49,6 @@ async function writeSeen(sleeperLeagueId: string, seen: string[]): Promise<void>
   await prisma.sportsDataCache
     .upsert({ where: { cacheKey }, update: { data, expiresAt }, create: { cacheKey, data, expiresAt } })
     .catch(() => null)
-}
-
-/** Completed trade ids in the CURRENT season's feed (cheap: 18 week fetches). */
-async function currentCompletedTradeIds(sleeperLeagueId: string): Promise<string[] | null> {
-  const weeks = await Promise.all(
-    Array.from({ length: MAX_WEEKS }, (_, i) =>
-      j<{ transaction_id: string; type: string; status: string }[]>(
-        `/league/${sleeperLeagueId}/transactions/${i + 1}`,
-      ),
-    ),
-  )
-  if (weeks.every((w) => w == null)) return null
-  const ids: string[] = []
-  for (const w of weeks) {
-    for (const t of w ?? []) {
-      if (t.type === 'trade' && t.status === 'complete') ids.push(t.transaction_id)
-    }
-  }
-  return ids
 }
 
 export type LeagueNotifyResult = {
@@ -151,7 +122,11 @@ export async function detectAndNotifyLeague(sleeperLeagueId: string): Promise<Le
     const leagueName = afLeagues[0].name ?? 'your league'
     const ledgerUrl = `${getBaseUrl()}/league/${afLeagues[0].id}?view=legacy`
     for (const trade of newTrades) {
-      const { subject, html } = buildTradeGradeEmail({ leagueName, trade, ledgerUrl })
+      // League shape, scoring settings, last season's real production and roster
+      // needs. Optional by design: if any of it is unavailable the email falls
+      // back to what realized points alone can prove.
+      const expectation = await loadTradeExpectation(sleeperLeagueId, trade).catch(() => null)
+      const { subject, html } = buildTradeGradeEmail({ leagueName, trade, ledgerUrl, expectation })
       for (const to of emails) {
         const sent = await sendTemplatedEmail({ to, subject, html }).catch(
           () => ({ ok: false as const }),
