@@ -2,6 +2,8 @@ import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { getLeagueContext } from '@/lib/league-context/leagueContextService'
+import { GRADE_THRESHOLDS, TIE_BAND, letterFor, type GradeLetter } from '@/lib/trade-intel/gradeScale'
+import { sleeperGet } from '@/lib/trade-intel/sleeperTradeSync'
 import {
   getSeasonStatsBoard,
   getWeekStatsBoard,
@@ -39,22 +41,15 @@ import {
  * same treatment automatically, forever.
  */
 
-const SLEEPER = 'https://api.sleeper.app/v1'
 const CACHE_PREFIX = 'trade-grades:v2:'
 const CACHE_TTL_MS = 6 * 60 * 60 * 1000
 const MAX_CHAIN = 12
 const MAX_WEEKS = 18
 const SEASON_GAMES = 17
 
-async function j<T>(path: string): Promise<T | null> {
-  try {
-    const res = await fetch(`${SLEEPER}${path}`, { cache: 'no-store' })
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    return null
-  }
-}
+// Provider reads live in the sync module (DB-first boundary): this service owns
+// grading, not how league data is fetched.
+const j = sleeperGet
 
 // ── Wire types (consumed subset) ─────────────────────────────────────────────
 type WireLeague = {
@@ -104,7 +99,7 @@ type WireDraftPick = {
 }
 
 // ── Payload types ────────────────────────────────────────────────────────────
-export type GradeLetter = 'A' | 'B' | 'C' | 'D' | 'F'
+export type { GradeLetter } from '@/lib/trade-intel/gradeScale'
 
 export type AssetDeparture = {
   season: string
@@ -188,15 +183,8 @@ export type TradeGradesPayload = {
   missing: string[]
 }
 
-const TIE_BAND = 60
-
-function letterFor(avgNetPerSeason: number): GradeLetter {
-  if (avgNetPerSeason >= 100) return 'A'
-  if (avgNetPerSeason >= 40) return 'B'
-  if (avgNetPerSeason > -40) return 'C'
-  if (avgNetPerSeason > -100) return 'D'
-  return 'F'
-}
+// Scale lives in gradeScale.ts so a projection can score on identical bands
+// without importing this server-only module. Re-exported for existing callers.
 
 // ── Chain + season collection ────────────────────────────────────────────────
 type SeasonData = {
@@ -700,13 +688,9 @@ async function buildTradeGrades(sleeperLeagueId: string): Promise<TradeGradesPay
     gradeScale: {
       description:
         'Average net credited points per graded season (points in − points out, only while held, incl. resolved picks). Recompute any letter from the numbers shown.',
-      thresholds: [
-        { letter: 'A', minAvgNetPerSeason: 100 },
-        { letter: 'B', minAvgNetPerSeason: 40 },
-        { letter: 'C', minAvgNetPerSeason: -40 },
-        { letter: 'D', minAvgNetPerSeason: -100 },
-        { letter: 'F', minAvgNetPerSeason: null },
-      ],
+      // Same constant letterFor() branches on, so the published scale can never
+      // describe different bands than the one that produced the letters.
+      thresholds: GRADE_THRESHOLDS,
       tieBand: TIE_BAND,
     },
     contextNotes,

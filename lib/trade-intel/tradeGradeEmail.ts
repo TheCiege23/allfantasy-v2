@@ -1,5 +1,5 @@
+import type { GradeLetter } from '@/lib/trade-intel/gradeScale'
 import type {
-  GradeLetter,
   GradedTrade,
   TradeAsset,
   TradePickAsset,
@@ -225,8 +225,16 @@ function positionDeltaLine(delta: Record<string, number>): string | null {
 
 function sideCard(side: TradeSideGrade, provisional: boolean, sideExp?: SideExpectation): string {
   const m = sideMath(side)
-  const colors = provisional ? PROVISIONAL_COLORS : GRADE_COLORS[side.initialGrade]
-  const chipLabel = provisional ? '–' : side.initialGrade
+  // A projected letter keeps its grade colour so it reads at a glance, but never
+  // without the word PROJECTED under it — the colour carries the signal, the
+  // label carries the caveat. With no projection, a neutral dash beats a fake C.
+  const projected = provisional ? (sideExp?.projected ?? null) : null
+  const colors = projected
+    ? GRADE_COLORS[projected.letter]
+    : provisional
+      ? PROVISIONAL_COLORS
+      : GRADE_COLORS[side.initialGrade]
+  const chipLabel = projected ? projected.letter : provisional ? '–' : side.initialGrade
   const who = side.teamName ? `${side.managerName} · ${side.teamName}` : side.managerName
   const expected = expectationMap(sideExp)
 
@@ -262,8 +270,13 @@ function sideCard(side: TradeSideGrade, provisional: boolean, sideExp?: SideExpe
       <table role="presentation" width="100%" cellspacing="0" cellpadding="0">
         <tr>
           <td style="font-size:15px;font-weight:700;color:${TEXT};line-height:1.3">${escapeHtml(who)}</td>
-          <td align="right" style="width:44px">
+          <td align="right" style="width:70px">
             <div style="display:inline-block;min-width:26px;padding:4px 9px;background:${colors.bg};color:${colors.fg};border-radius:8px;font-size:15px;font-weight:800;text-align:center">${escapeHtml(chipLabel)}</div>
+            ${
+              projected
+                ? `<div style="font-size:8px;letter-spacing:0.09em;color:${FAINT};font-weight:700;margin-top:3px;text-align:center">PROJECTED</div>`
+                : ''
+            }
           </td>
         </tr>
       </table>
@@ -325,17 +338,39 @@ export function explainGrade(
       )
       .join('; ')
 
+    const projected = expectation.sides.filter((s) => s.projected != null)
+
+    // Both caveats describe cases where the projected letter actively misleads,
+    // so they sit next to it rather than in a footnote.
+    const consolidator = projected.find((s) => s.projected!.unevenCounts && (s.priorNet ?? 0) < 0)
+    const evenNote = consolidator
+      ? `${consolidator.managerName} received fewer players, and raw season totals structurally favour whoever gets more bodies — a 2-for-1 loses on totals even when it is the better side of the deal. `
+      : ''
+
+    const disagreeing = projected.find((s) => s.projected!.marketDisagrees)
+    const disagreeNote = disagreeing
+      ? `Market value disagrees with last season's totals here, so treat the letter as one of two signals rather than a verdict. `
+      : ''
+
+    const lead = projected.length
+      ? `No games have been played yet, so these letters are projections rather than results — last ${
+          expectation.priorSeason ?? 'season'
+        }'s production run through the same scale the real grade will use. `
+      : `No games have been played yet, so the letter stays open — but the trade is not unknowable. `
+
     return (
-      `No games have been played yet, so the letter stays open — but the trade is not unknowable. ` +
+      lead +
       `This is a ${expectation.leagueNote} league. ` +
       (expectation.priorSeason
         ? `Using ${expectation.priorSeason} production${scoringNote}: ${perSide.join('; ')}. `
         : `${perSide.join('; ')}. `) +
+      evenNote +
+      disagreeNote +
       (gapNote ? `Roster needs: ${gapNote}. ` : '') +
       (pending.length > 0
         ? `${pending.join(' and ')} ${pending.length > 1 ? 'are' : 'is'} priced at market because ${pending.length > 1 ? 'they have' : 'it has'} not been drafted. `
         : '') +
-      `The letter grade fills in from real points as the season runs.`
+      `The letters re-grade from real points as the season runs.`
     )
   }
 
@@ -388,19 +423,31 @@ export function buildTradeGradeEmail(params: {
   const provisional = hasNoSignal(trade)
   const expectation = params.expectation?.available ? params.expectation : null
 
-  // Never assert a letter in the subject when the engine has no data behind it.
-  const subject = provisional
-    ? `Trade completed in ${leagueName} — too early to grade (no games played yet)`
-    : `Trade completed in ${leagueName} — initial grades: ${trade.sides
+  const bySideId = new Map((expectation?.sides ?? []).map((s) => [s.rosterId, s]))
+  const projections = provisional
+    ? trade.sides
+        .map((s) => ({ name: s.managerName, p: bySideId.get(s.rosterId)?.projected ?? null }))
+        .filter((x): x is { name: string; p: NonNullable<typeof x.p> } => x.p != null)
+    : []
+
+  // The subject must carry the same caveat as the body. A letter that looks
+  // realized in the inbox is not rescued by a disclaimer further down.
+  const subject = !provisional
+    ? `Trade completed in ${leagueName} — initial grades: ${trade.sides
         .map((s) => `${s.managerName} ${s.initialGrade}`)
         .join(', ')}`
-
-  const bySideId = new Map((expectation?.sides ?? []).map((s) => [s.rosterId, s]))
+    : projections.length === trade.sides.length && expectation?.priorSeason
+      ? `Trade completed in ${leagueName} — projected on ${expectation.priorSeason}: ${projections
+          .map((x) => `${x.name} ${x.p.letter}`)
+          .join(', ')}`
+      : `Trade completed in ${leagueName} — too early to grade (no games played yet)`
   const cards = trade.sides
     .map((s) => sideCard(s, provisional, provisional ? bySideId.get(s.rosterId) : undefined))
     .join('')
   const statusLine = provisional
-    ? 'Too early to grade'
+    ? projections.length > 0 && expectation?.priorSeason
+      ? `Projected on ${expectation.priorSeason} production · no games played yet`
+      : 'Too early to grade'
     : trade.tie
       ? 'Dead even so far'
       : 'Initial grades'

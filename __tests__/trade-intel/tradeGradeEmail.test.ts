@@ -216,3 +216,68 @@ describe('trade grade email — real grades once points exist', () => {
     }
   })
 })
+
+describe('projected grades are labelled as projections everywhere', () => {
+  const EXPECTATION = {
+    available: true,
+    leagueNote: '12-team superflex dynasty · full PPR · TE premium (+0.5/rec)',
+    priorSeason: '2025',
+    scoringMode: 'league-scored' as const,
+    missing: [],
+    sides: [
+      {
+        rosterId: 1, managerName: 'managerOne',
+        assetsIn: [], assetsOut: [],
+        marketIn: 3274, marketOut: 3842, marketNet: -568,
+        priorIn: 141, priorOut: 289.7, priorNet: -148.7,
+        positionDelta: { TE: 1, WR: -1, RB: -1 }, starterGaps: [],
+        projected: { letter: 'F' as const, net: -148.7, unevenCounts: true, marketDisagrees: false },
+      },
+      {
+        rosterId: 8, managerName: 'managerTwo',
+        assetsIn: [], assetsOut: [],
+        marketIn: 3842, marketOut: 3274, marketNet: 568,
+        priorIn: 289.7, priorOut: 141, priorNet: 148.7,
+        positionDelta: { TE: -1, WR: 1, RB: 1 }, starterGaps: [],
+        projected: { letter: 'A' as const, net: 148.7, unevenCounts: true, marketDisagrees: false },
+      },
+    ],
+  }
+
+  const withExp = () =>
+    buildTradeGradeEmail({
+      leagueName: 'Dads Dynasty',
+      trade: PRESEASON,
+      ledgerUrl: URL,
+      expectation: EXPECTATION as never,
+    })
+
+  it('says "projected" in the subject rather than implying a result', () => {
+    const { subject } = withExp()
+    expect(subject).toContain('projected on 2025')
+    expect(subject).toContain('managerOne F')
+    // The bare "initial grades:" phrasing would read as already-earned.
+    expect(subject).not.toContain('initial grades')
+  })
+
+  it('marks every chip PROJECTED in the body', () => {
+    const { html } = withExp()
+    expect(html).toContain('PROJECTED')
+    expect(html).toContain('>F<')
+    expect(html).toContain('Projected on 2025 production')
+  })
+
+  it('warns that raw totals punish the side that consolidated', () => {
+    const body = explainGrade(PRESEASON, true, EXPECTATION as never)
+    expect(body).toContain('projections rather than results')
+    expect(body).toContain('2-for-1 loses on totals')
+  })
+
+  it('falls back to "too early" when there is no projection to show', () => {
+    const { subject, html } = buildTradeGradeEmail({
+      leagueName: 'Dads Dynasty', trade: PRESEASON, ledgerUrl: URL,
+    })
+    expect(subject).toContain('too early to grade')
+    expect(html).not.toContain('PROJECTED')
+  })
+})
