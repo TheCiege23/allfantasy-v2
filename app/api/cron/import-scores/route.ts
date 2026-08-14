@@ -22,6 +22,7 @@ import {
   getAPISportsDiagnostics,
 } from "@/lib/api-sports"
 import { prisma } from "@/lib/prisma"
+import { fetchGamesForSport, type ProviderGame } from "@/lib/scores/gameScoreProviders"
 
 /**
  * NOTE: `requireCronAuth` resolves `preferredSecretEnv ?? LEAGUE_CRON_SECRET ?? CRON_SECRET`.
@@ -44,7 +45,9 @@ function resolveSport(param: string | null): "NFL" | "NCAAF" {
 async function isGated(sport: string): Promise<boolean> {
   try {
     const row = await prisma.sportsGame.findFirst({
-      where: { sport, source: "api_sports" },
+      // Any source counts. Keying on api_sports alone meant a successful RI or
+      // CFBD sync never satisfied the gate, so every run re-hit the providers.
+      where: { sport },
       orderBy: { fetchedAt: "desc" },
       select: { fetchedAt: true },
     })
@@ -53,6 +56,57 @@ async function isGated(sport: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+function toWeek(param: string | null): number | undefined {
+  if (param == null) return undefined
+  const n = Number(param)
+  return Number.isFinite(n) && n > 0 ? n : undefined
+}
+
+const GAME_TTL_MS = 6 * 60 * 60 * 1000
+
+/**
+ * Upsert on (sport, externalId, source) — the table's own unique key — so each
+ * provider keeps its own row for a game rather than fighting over one. A score
+ * that arrives from two feeds is corroboration, not a conflict, and collapsing
+ * them would hide a disagreement.
+ */
+async function persistGames(
+  sport: string,
+  source: string,
+  games: ProviderGame[],
+): Promise<number> {
+  let written = 0
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + GAME_TTL_MS)
+
+  for (const g of games) {
+    try {
+      const data = {
+        homeTeam: g.homeTeam,
+        awayTeam: g.awayTeam,
+        homeScore: g.homeScore,
+        awayScore: g.awayScore,
+        status: g.status,
+        startTime: g.startTime,
+        week: g.week,
+        season: g.season,
+        fetchedAt: now,
+        expiresAt,
+        raw: g.raw as never,
+      }
+      await prisma.sportsGame.upsert({
+        where: { sport_externalId_source: { sport, externalId: g.externalId, source } },
+        update: data,
+        create: { sport, externalId: g.externalId, source, ...data },
+      })
+      written += 1
+    } catch (e) {
+      console.warn(`[cron/import-scores] upsert failed ${source}/${g.externalId}:`, e)
+    }
+  }
+  return written
 }
 
 async function handle(req: NextRequest) {
@@ -74,9 +128,35 @@ async function handle(req: NextRequest) {
       })
     }
 
+    // API-Sports first, for continuity — but it is plan-blocked for the current
+    // season ("Free plans do not have access to this season"), so it reliably
+    // returns 0 and the real work happens below.
     clearAPISportsDiagnostics()
-    const count = await syncAPISportsGamesToDb({ season, sport })
+    let count = 0
+    try {
+      count = await syncAPISportsGamesToDb({ season, sport })
+    } catch {
+      count = 0
+    }
     const diagnostics = getAPISportsDiagnostics()
+
+    const seasonYear = Number(season ?? new Date().getFullYear())
+    const attempts = await fetchGamesForSport(
+      sport,
+      Number.isFinite(seasonYear) ? seasonYear : new Date().getFullYear(),
+      toWeek(url.searchParams.get("week")),
+    )
+
+    const bySource: Record<string, { fetched: number; written: number; error: string | null }> = {}
+    for (const attempt of attempts) {
+      const written = await persistGames(sport, attempt.source, attempt.games)
+      bySource[attempt.source] = {
+        fetched: attempt.games.length,
+        written,
+        error: attempt.error,
+      }
+      count += written
+    }
 
     return NextResponse.json({
       ok: true,
@@ -84,6 +164,7 @@ async function handle(req: NextRequest) {
       sport,
       season: season ?? "current",
       synced: count,
+      bySource,
       diagnostics,
       durationMs: Date.now() - startedAt,
       timestamp: new Date().toISOString(),
