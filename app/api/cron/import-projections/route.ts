@@ -245,7 +245,14 @@ async function handle(req: NextRequest) {
       // been failing outright — fall back to the Sleeper feed that actually works
       // rather than leaving the table empty for another day.
       if (rows.length === 0 && sport === "NFL") {
-        const week = toFiniteNumber(url.searchParams.get("week")) ?? approximateCurrentWeek()
+        // NOT toFiniteNumber(searchParams.get("week")): Number(null) is 0 and
+        // Number.isFinite(0) is true, so an absent param resolved to week 0 —
+        // a real Sleeper board (7,620 players) that carries ZERO pts_ppr because
+        // preseason has no projections. It synced nothing and looked like the
+        // provider failing again.
+        const weekParam = url.searchParams.get("week")
+        const parsedWeek = weekParam == null ? null : toFiniteNumber(weekParam)
+        const week = parsedWeek != null && parsedWeek > 0 ? parsedWeek : approximateCurrentWeek()
         rows = await fetchSleeperNflProjections(season, week)
         if (rows.length > 0) usedSource = "sleeper"
       }
