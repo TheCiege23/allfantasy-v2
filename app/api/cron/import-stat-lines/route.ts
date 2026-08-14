@@ -24,6 +24,7 @@ import type { NextRequest } from "next/server"
 import { NextResponse } from "next/server"
 import { requireCronAuth } from "@/app/api/cron/_auth"
 import { syncRollingInsightsPlayerStatsToDb } from "@/lib/stats/rollingInsightsPlayerStats"
+import { syncCfbdPlayerStatsToDb } from "@/lib/stats/cfbdPlayerStats"
 
 export const dynamic = "force-dynamic"
 export const maxDuration = 300
@@ -44,6 +45,30 @@ async function handle(req: NextRequest) {
 
   const startedAt = Date.now()
   try {
+    // NCAAF goes to CollegeFootballData. Rolling Insights carries no college
+    // data at all — measured `fetched: 0` — so routing NCAAF there produced an
+    // empty table and a cascade failure in compute-projections.
+    if (sport === "NCAAF") {
+      const cfbd = await syncCfbdPlayerStatsToDb({ season })
+      const ok = cfbd.written > 0
+      return NextResponse.json(
+        {
+          ok,
+          sport,
+          source: "cfbd",
+          season: cfbd.season,
+          fetched: cfbd.fetched,
+          players: cfbd.players,
+          written: cfbd.written,
+          skippedNonFantasy: cfbd.skippedNonFantasy,
+          errors: cfbd.errors,
+          durationMs: Date.now() - startedAt,
+          timestamp: new Date().toISOString(),
+        },
+        { status: ok ? 200 : 500 },
+      )
+    }
+
     const result = await syncRollingInsightsPlayerStatsToDb({ sport, season })
 
     const zeroRows = result.written === 0
