@@ -305,7 +305,7 @@ test('audits wizard click flow and payload consistency end to end', async ({ pag
   mock.setOptions({ shouldReturnValidationError: true, templates: [] })
 
   await page.goto('/create-league?e2eAuth=1')
-  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByTestId('g30-create-league-wizard')).toBeVisible()
   await expect(page.getByText(/step 1 of 10/i).first()).toBeVisible()
 
   // Creation mode selector: create -> import -> create.
@@ -552,7 +552,7 @@ test('applies selected template settings snapshot into create payload', async ({
   })
 
   await page.goto('/create-league?e2eAuth=1&template=template-snapshot-1')
-  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByTestId('g30-create-league-wizard')).toBeVisible()
 
   for (let i = 0; i < 9; i += 1) {
     await page.getByRole('button', { name: /^next$/i }).click()
@@ -586,7 +586,7 @@ test('mobile viewport click audit validates and creates league', async ({ page }
 
   await page.setViewportSize({ width: 390, height: 844 })
   await page.goto('/create-league?e2eAuth=1')
-  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByTestId('g30-create-league-wizard')).toBeVisible()
   await expect(page.getByText(/step 1 of 10/i).first()).toBeVisible()
 
   await page.getByRole('button', { name: /^next$/i }).click()

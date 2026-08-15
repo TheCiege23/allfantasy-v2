@@ -189,7 +189,7 @@ async function openImportPreviewFlow(
   sleeperSourceId: string
 ) {
   await page.goto('/create-league?e2eAuth=1')
-  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByTestId('g30-create-league-wizard')).toBeVisible()
 
   await page.getByRole('combobox', { name: /league creation mode/i }).click()
   await page.getByRole('option', { name: /import existing league/i }).click()
@@ -203,7 +203,7 @@ async function openImportPreviewFlowForProvider(
   args: { providerLabel: RegExp; sourceId: string; leagueName: RegExp }
 ) {
   await page.goto('/create-league?e2eAuth=1')
-  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByTestId('g30-create-league-wizard')).toBeVisible()
 
   await page.getByRole('combobox', { name: /league creation mode/i }).click()
   await page.getByRole('option', { name: /import existing league/i }).click()
@@ -512,7 +512,7 @@ test('supports retry, back, and mode cancel actions in import flow', async ({ pa
   })
 
   await page.goto('/create-league?e2eAuth=1')
-  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByTestId('g30-create-league-wizard')).toBeVisible()
   await page.getByRole('combobox', { name: /league creation mode/i }).click()
   await page.getByRole('option', { name: /import existing league/i }).click()
 
@@ -580,7 +580,7 @@ test('shows provider-ready list with sleeper enabled first', async ({ page }) =>
   await mockLeagueTemplates(page)
 
   await page.goto('/create-league?e2eAuth=1')
-  await expect(page.getByRole('heading', { name: /create league/i })).toBeVisible()
+  await expect(page.getByTestId('g30-create-league-wizard')).toBeVisible()
 
   await page.getByRole('combobox', { name: /league creation mode/i }).click()
   await page.getByRole('option', { name: /import existing league/i }).click()
