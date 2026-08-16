@@ -28,6 +28,48 @@ model EarlyAccessSignup {
   @@index([utmSource])
 }
 
+/// A business asking for a demo of Decision OS / Chimmy Intelligence, captured from
+/// the "AllFantasy for business" band on the marketing page.
+///
+/// ⚠ DELIBERATELY NOT FOLDED INTO EarlyAccessSignup, despite both being lead capture.
+/// That model's `email` is @unique and its handler returns `alreadyExists: true`
+/// WITHOUT writing anything — so a buyer who had already joined the consumer
+/// waitlist with their work address would have their demo request silently
+/// discarded. A dropped B2B lead is the single most expensive failure this form
+/// has, so `email` here is intentionally NOT unique: the same person may ask twice,
+/// and two rows are recoverable where a swallowed request is not.
+model BusinessDemoRequest {
+  id      String @id @default(cuid())
+  email   String
+  company String?
+  name    String?
+  /// Free text — what they said they want to build. Never rendered as HTML unescaped.
+  useCase String?
+
+  source      String? @default("allfantasy.ai")
+  referrer    String?
+  utmCampaign String?
+  utmContent  String?
+  utmMedium   String?
+  utmSource   String?
+  utmTerm     String?
+
+  /// `new` until someone works the lead. Not an enum: sales stages change more
+  /// often than migrations should.
+  status String @default("new")
+
+  /// When the notification email actually reached the inbox. NULL means the row
+  /// was stored but nobody has been told — the state worth alerting on, and the
+  /// reason this is a column rather than an inference from createdAt.
+  notifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([status])
+  @@index([email])
+}
+
 /// Closed-beta account admission (P0-1 BETA-GATE). Distinct from InviteLink (viral,
 /// user-issued, league/referral-typed) and EarlyAccessSignup (waitlist capture): a
 /// BetaInvite is admin-issued, email-bound, single-use for ACCOUNT CREATION, and

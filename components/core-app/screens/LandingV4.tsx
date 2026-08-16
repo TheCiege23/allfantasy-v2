@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { useState } from 'react'
 import '@/components/core-app/af-landing.css'
 
 /**
@@ -15,12 +16,12 @@ import '@/components/core-app/af-landing.css'
  * page, which carries the SEO and every acquisition link, is a decision to make
  * deliberately rather than as a side effect of a redesign landing.
  *
- * ⚠ THE B2B BAND DESCRIBES THINGS THAT DO NOT EXIST YET. There is no partner
- * sign-in page, no `partners@allfantasy.ai` anywhere in the repo, and no sales
- * endpoint. Rather than wire "Book a demo" to a POST that silently drops leads —
- * the worst outcome, because someone with real buying intent hears nothing back —
- * the form composes a mailto. Nothing can be lost server-side, and the missing
- * inbox becomes obvious immediately instead of after a quarter of silence.
+ * ⚠ THE B2B BAND SELLS DECISION OS AND CHIMMY, NOT AN API. It previously described
+ * "the cross-platform layer, as an API" with a partner sign-in button and a
+ * "sandbox keys same day" note — none of which exist: there is no partner surface
+ * in this codebase and nothing issues a sandbox key. Every capability now listed is
+ * something that ships and runs, and the single CTA is the one thing this page can
+ * actually deliver: a demo request that is stored and emailed. See DemoForm.
  */
 
 const PLATFORMS = [
@@ -67,34 +68,42 @@ const FAQ = [
   },
 ]
 
+/*
+ * ⚠ EVERY CAPABILITY BELOW IS SOMETHING THAT EXISTS AND RUNS. Written from the
+ * live route map and the shipped programs, not from a wish list: the Decision OS
+ * surfaces are the four deterministic routes in docs/decision-os, manager
+ * psychology shipped to production, and Chimmy is the live assistant with its
+ * freshness contract. A business band is the worst place to describe a roadmap as
+ * a product — the reader books a call on the strength of it.
+ */
 const CAPABILITIES = [
   {
-    key: 'IMPORT',
-    title: 'Six platforms, one schema',
-    body: 'Leagues, rosters, settings, standings and transaction history — read-only, in a single normalised shape.',
+    key: 'DECISION OS',
+    title: 'The call, and the reason for it',
+    body: 'Lineups, trades, waivers and playoff paths resolved against a league’s own settings — and every answer shows the inputs it used, so it can be checked rather than trusted.',
   },
   {
-    key: 'GRADE',
-    title: 'Trade and waiver scoring',
-    body: "Fairness, value edge and uncertainty — computed against that league's own settings, not a global ranking.",
+    key: 'MANAGER PSYCHOLOGY',
+    title: 'How each manager actually behaves',
+    body: 'Trade, draft and lineup patterns read from a league’s real history and scored against that league’s own peers — who overpays, who never streams, who folds in November.',
   },
   {
-    key: 'PROJECT',
-    title: 'League-scoped projections',
-    body: 'Win probability, playoff and title odds, priced for superflex, TE premium, IDP and the rest.',
+    key: 'CHIMMY INTELLIGENCE',
+    title: 'Ask it in plain language',
+    body: 'A conversational layer answering from the league’s own roster, scoring and transaction data, carrying how fresh that data is — so an answer can never quietly outrun what it knows.',
   },
   {
-    key: 'RUN',
-    title: 'Pools and brackets',
-    body: 'White-label bracket challenges across six sports, with scoring, leaderboards and five languages.',
+    key: 'THE LAYER UNDER IT',
+    title: 'Six platforms, one shape',
+    body: 'The hard part is not the data — it is that every platform models a league differently. We already reconcile them, read-only, so nothing above has to care where a league lives.',
   },
 ]
 
 const AUDIENCES = [
-  { who: 'Fantasy platforms', why: 'Add grading and projections without building a model team.' },
-  { who: 'Media & creators', why: 'Segment-ready data for shows, newsletters and clips.' },
-  { who: 'League operators', why: 'Run branded pools and brackets on your own domain.' },
-  { who: 'Brands & agencies', why: 'Season-long activations tied to real league data.' },
+  { who: 'Fantasy platforms', why: 'Decision intelligence on your leagues without building a model team.' },
+  { who: 'Media & creators', why: 'Manager psychology and league storylines, segment-ready.' },
+  { who: 'League operators', why: 'Health, engagement and attention signals across every league you run.' },
+  { who: 'Brands & agencies', why: 'Season-long activations grounded in real league behaviour.' },
 ]
 
 const NETWORK = [
@@ -105,6 +114,127 @@ const NETWORK = [
   { name: 'SideQuest', body: 'Turn the side hustle into a tracked, finishable quest.', href: 'https://sidequest.chimaura.com' },
   { name: 'StoryVault', body: 'Record and keep the family stories before they are gone.', href: 'https://storyvault.chimaura.com' },
 ]
+
+/**
+ * Demo request — POSTs to /api/early-access with `kind: 'business-demo'`.
+ *
+ * ⚠ THIS REPLACED A `mailto:` FORM. That composed a message in whatever mail
+ * client the visitor happened to have configured, which on a work laptop is
+ * frequently none — the button appeared to do nothing and the lead was gone. It
+ * now stores a row AND sends a notification, and the endpoint is built so a
+ * database failure still delivers the email rather than losing the request.
+ *
+ * ⚠ NO NEW ROUTE. The repo sits at Vercel's hard 2048-route ceiling, so this
+ * folds into the existing public lead-capture endpoint as a separate branch.
+ */
+function DemoForm() {
+  const [email, setEmail] = useState('')
+  const [company, setCompany] = useState('')
+  const [useCase, setUseCase] = useState('')
+  const [state, setState] = useState<'idle' | 'sending' | 'sent'>('idle')
+  const [error, setError] = useState<string | null>(null)
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    if (!email.trim()) {
+      setError('Enter a work email so we can reach you.')
+      return
+    }
+    setState('sending')
+    try {
+      const res = await fetch('/api/early-access', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'business-demo',
+          email: email.trim(),
+          company: company.trim() || undefined,
+          useCase: useCase.trim() || undefined,
+          referrer: typeof document !== 'undefined' ? document.referrer || undefined : undefined,
+        }),
+      })
+      const data = (await res.json().catch(() => ({}))) as { error?: string }
+      if (!res.ok) {
+        // The endpoint only fails when BOTH the row and the email failed, i.e.
+        // when the request really was lost — so its wording is worth surfacing
+        // rather than replacing with something reassuring.
+        setError(data.error || 'We could not send that. Please try again.')
+        setState('idle')
+        return
+      }
+      setState('sent')
+    } catch {
+      setError('We could not send that. Please check your connection and try again.')
+      setState('idle')
+    }
+  }
+
+  if (state === 'sent') {
+    return (
+      <div className="af-lp-demo" id="demo">
+        <span className="af-label">Request received</span>
+        {/*
+          Says what happens next and by when. "Thanks!" leaves the reader unsure
+          whether anything was actually recorded.
+        */}
+        <p className="af-lp-demo-body">
+          Thanks — we have your request and will reply to <strong>{email.trim()}</strong> within one
+          business day to book a time.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <form className="af-lp-demo" id="demo" onSubmit={onSubmit} noValidate>
+      <span className="af-label">Request a demo</span>
+      <p className="af-lp-demo-body">
+        Thirty minutes, walked through Decision OS and Chimmy on leagues like yours.
+      </p>
+      <label className="af-lp-field">
+        <span className="af-label">Work email</span>
+        <input
+          type="email"
+          name="email"
+          autoComplete="email"
+          placeholder="you@company.com"
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+      </label>
+      <label className="af-lp-field">
+        <span className="af-label">Company</span>
+        <input
+          type="text"
+          name="company"
+          autoComplete="organization"
+          placeholder="Company"
+          value={company}
+          onChange={(e) => setCompany(e.target.value)}
+        />
+      </label>
+      <label className="af-lp-field">
+        <span className="af-label">What you&apos;d want it to do</span>
+        <textarea
+          name="useCase"
+          rows={3}
+          placeholder="Briefly, what you have in mind"
+          value={useCase}
+          onChange={(e) => setUseCase(e.target.value)}
+        />
+      </label>
+      {error ? (
+        <p className="af-lp-demo-error" role="alert">
+          {error}
+        </p>
+      ) : null}
+      <button type="submit" className="af-btn af-lp-demo-submit" disabled={state === 'sending'}>
+        {state === 'sending' ? 'Sending…' : 'Request a demo'}
+      </button>
+    </form>
+  )
+}
 
 function Shield() {
   return (
@@ -152,9 +282,11 @@ export function LandingV4() {
         <div className="af-lp-nav-right">
           <Link href="/login">Sign in</Link>
           <span className="af-lp-nav-divider" aria-hidden />
+          {/* Chip read "API", which is not what this band offers — see the note
+              on the B2B section. The link stays; the wrong label does not. */}
           <a href="#business" className="af-lp-partners">
             Partners
-            <span className="af-lp-api-chip af-num">API</span>
+            <span className="af-lp-api-chip af-num">DEMO</span>
           </a>
           <Link href="/signup" className="af-btn af-lp-cta">
             Get started free
@@ -296,26 +428,26 @@ export function LandingV4() {
         <div className="af-lp-b2b-head">
           <div className="af-lp-b2b-intro">
             <span className="af-lp-eyebrow af-num af-lp-eyebrow--accent">AllFantasy for business</span>
-            <h2 className="af-lp-b2b-h2">The cross-platform layer, as an API</h2>
+            <h2 className="af-lp-b2b-h2">Decision OS and Chimmy Intelligence, for your business</h2>
             <p className="af-lp-b2b-body">
-              The hard part isn&apos;t the data — it&apos;s that six platforms model a league six
-              different ways. We already reconcile them.
+              We turn a league&apos;s real history into decisions your users can act on, and into
+              signals you can build a product, a show or a season around. See it running on your own
+              leagues.
             </p>
           </div>
 
           <div className="af-lp-b2b-cta">
             <a href="#demo" className="af-btn af-lp-b2b-btn">
-              Book a demo
+              Request a demo
             </a>
             {/*
-              ⚠ There is no partner sign-in surface in this codebase. Pointing this
-              at a route that 404s would be worse than pointing it at the demo
-              form, so it scrolls to the form until that surface exists.
+              ⚠ NO SECOND CTA HERE ON PURPOSE. This band previously carried a
+              "Partner sign in" button next to a "Sandbox keys same day" note.
+              Neither exists: there is no partner surface in this codebase and
+              nothing issues a sandbox key, so both were promises the next click
+              would break. One ask, and it is one this page can actually keep.
             */}
-            <a href="#demo" className="af-btn af-btn--ghost af-lp-b2b-btn">
-              Partner sign in
-            </a>
-            <span className="af-lp-b2b-note">Sandbox keys same day · no card</span>
+            <span className="af-lp-b2b-note">A walkthrough on your leagues · no commitment</span>
           </div>
         </div>
 
@@ -347,41 +479,7 @@ export function LandingV4() {
             </p>
           </div>
 
-          {/*
-            The demo form composes a mailto rather than POSTing. There is no sales
-            endpoint in this codebase, and a form that accepts a lead and drops it
-            is worse than no form — the person believes they have been in touch.
-          */}
-          <form
-            className="af-lp-demo"
-            id="demo"
-            action="mailto:partners@allfantasy.ai"
-            method="post"
-            encType="text/plain"
-          >
-            <span className="af-label">Book a demo</span>
-            <p className="af-lp-demo-body">
-              Thirty minutes, your use case, a sandbox key at the end of it.
-            </p>
-            <label className="af-lp-field">
-              <span className="af-label">Work email</span>
-              <input type="email" name="email" required placeholder="you@company.com" />
-            </label>
-            <label className="af-lp-field">
-              <span className="af-label">Company</span>
-              <input type="text" name="company" placeholder="Company" />
-            </label>
-            <label className="af-lp-field">
-              <span className="af-label">What you&apos;d build</span>
-              <textarea name="useCase" rows={3} placeholder="Briefly, what you have in mind" />
-            </label>
-            <button type="submit" className="af-btn af-lp-demo-submit">
-              Request a demo
-            </button>
-            <p className="af-lp-demo-alt">
-              Or email <a href="mailto:partners@allfantasy.ai">partners@allfantasy.ai</a>
-            </p>
-          </form>
+          <DemoForm />
         </div>
       </section>
 
