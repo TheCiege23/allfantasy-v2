@@ -15,7 +15,9 @@ import { leagueDisplayName, type SectionState, type UnavailableSection } from '.
  * "you have nothing to bid" instead of "we do not know what you have".
  *
  * What is real: your FAAB, your waiver priority, how you rank on budget against
- * the rest of the league, and how many players you hold.
+ * the rest of the league, how many players you hold, and — as of now — how this
+ * league's waivers actually run. Measured across all 120 production leagues:
+ * waiver type resolves for 90 and the run schedule for 82.
  *
  * What is not: suggested claims. Ranking targets by confidence needs projections
  * and rostered-percentage data, neither of which is ingested, and a bid figure
@@ -31,15 +33,113 @@ export type WaiverBudget = {
   rostersWithBudget: number
 }
 
+export type WaiverTypeInfo = {
+  /** Raw ingested value: faab | rolling | fcfs | off | standard. */
+  kind: string
+  label: string
+  /** FAAB budget for the league, when the type is FAAB and a budget was read. */
+  budget: number | null
+}
+
+export type WaiverRunInfo = {
+  /** 0–6, Sunday = 0, as stored. */
+  dayOfWeek: number
+  dayLabel: string
+  /**
+   * ⚠ UTC, and labelled as such wherever this renders. `processingTimeUtc` is
+   * definitionally UTC and `League.timezone` cannot localise it: that column is
+   * `@default("America/New_York")` and all 120 production leagues carry exactly
+   * the default, so converting would dress a schema default up as the league's
+   * real timezone and shift the hour by a number nobody chose.
+   */
+  timeUtc: string
+}
+
 export type WaiversData = {
   league: { id: string; name: string; platform: string; format: string | null }
   budget: SectionState<WaiverBudget>
   waiverPriority: SectionState<{ priority: number; leagueRosters: number }>
   rosterLoad: SectionState<{ playersHeld: number; starters: number; bench: number; reserve: number }>
   claimsQueued: SectionState<{ count: number; committed: number | null }>
-  waiverType: UnavailableSection
-  processTime: UnavailableSection
+  waiverType: SectionState<WaiverTypeInfo>
+  processTime: SectionState<WaiverRunInfo>
   suggestedClaims: UnavailableSection
+}
+
+const WAIVER_TYPE_LABEL: Record<string, string> = {
+  faab: 'FAAB blind bidding',
+  rolling: 'Rolling waiver priority',
+  fcfs: 'First come, first served',
+  standard: 'Standard waiver priority',
+  off: 'No waivers — free agents are instant',
+}
+
+const DAY_LABEL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']
+
+/**
+ * Waiver rules, read from LeagueWaiverSettings.
+ *
+ * ⚠ NOT FROM `League.waiverType` / `League.waiverProcessTime`, WHICH ARE DEFAULTS.
+ * Those columns are `@default("rolling")` and `@default("02:00")`, and production
+ * proves the difference: all 120 leagues carry `waiverProcessTime = "02:00"`,
+ * every single one, because nothing writes it. Reading it would have printed
+ * "waivers run at 02:00" for every league in the product — a schema default
+ * rendered as an ingested fact, which is the exact failure this codebase keeps
+ * having to undo.
+ *
+ * LeagueWaiverSettings is the ingested table: 90 rows, four distinct waiver types,
+ * and 85 carrying a real processing day and time. The section was never missing
+ * data — it was reading the wrong table.
+ */
+async function resolveWaiverRules(leagueId: string): Promise<{
+  waiverType: SectionState<WaiverTypeInfo>
+  processTime: SectionState<WaiverRunInfo>
+}> {
+  const s = await prisma.leagueWaiverSettings.findUnique({
+    where: { leagueId },
+    select: {
+      waiverType: true,
+      faabBudget: true,
+      processingDayOfWeek: true,
+      processingTimeUtc: true,
+    },
+  })
+
+  if (!s) {
+    const reason = 'no waiver settings were ingested for this league'
+    return {
+      waiverType: { available: false, reason },
+      processTime: { available: false, reason },
+    }
+  }
+
+  const kind = String(s.waiverType || '').toLowerCase()
+  const waiverType: SectionState<WaiverTypeInfo> = kind
+    ? {
+        available: true,
+        data: {
+          kind,
+          label: WAIVER_TYPE_LABEL[kind] ?? kind,
+          // Only meaningful for FAAB; a budget on a rolling-priority league would
+          // be a number with nothing to spend it on.
+          budget: kind === 'faab' ? s.faabBudget ?? null : null,
+        },
+      }
+    : { available: false, reason: 'this league’s waiver type was not read' }
+
+  const day = s.processingDayOfWeek
+  const time = s.processingTimeUtc?.trim()
+  const processTime: SectionState<WaiverRunInfo> =
+    kind === 'off'
+      ? {
+          available: false,
+          reason: 'this league has waivers turned off — free agents are claimed instantly',
+        }
+      : day != null && day >= 0 && day <= 6 && time
+        ? { available: true, data: { dayOfWeek: day, dayLabel: DAY_LABEL[day], timeUtc: time } }
+        : { available: false, reason: 'no waiver run schedule was ingested for this league' }
+
+  return { waiverType, processTime }
 }
 
 export async function getWaiversData(leagueId: string, userId: string): Promise<WaiversData | null> {
@@ -49,6 +149,8 @@ export async function getWaiversData(leagueId: string, userId: string): Promise<
   })
   if (!league) return null
 
+  const rules = await resolveWaiverRules(leagueId)
+
   const base = {
     league: {
       id: league.id,
@@ -56,14 +158,8 @@ export async function getWaiversData(leagueId: string, userId: string): Promise<
       platform: String(league.platform ?? 'manual').toLowerCase(),
       format: league.leagueType ?? null,
     },
-    waiverType: {
-      available: false as const,
-      reason: 'this league’s waiver settings are not ingested, so we cannot say whether it runs FAAB or rolling priority',
-    },
-    processTime: {
-      available: false as const,
-      reason: 'the waiver run time is not ingested for this league',
-    },
+    waiverType: rules.waiverType,
+    processTime: rules.processTime,
     suggestedClaims: {
       available: false as const,
       reason:

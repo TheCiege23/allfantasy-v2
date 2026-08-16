@@ -109,7 +109,27 @@ export function Trades({ data }: TradesProps) {
       {/* ── Deadline ────────────────────────────────────────────────── */}
       <div className="af-tr-deadline">
         <span className="af-label">Trade deadline</span>
-        <span className="af-tr-deadline-why">{data.deadline.reason}</span>
+        {data.deadline.available ? (
+          data.deadline.data.none ? (
+            /*
+              The platform's sentinel for "trades stay open" (99, or any week past
+              the end of the regular season). Rendering it literally would print
+              "Week 99" on a screen people plan around.
+            */
+            <span className="af-tr-deadline-value">No deadline — trades stay open all season</span>
+          ) : (
+            <span className="af-tr-deadline-value">
+              Week <span className="af-num">{data.deadline.data.week}</span>
+              {data.deadline.data.regularSeasonLength != null ? (
+                <span className="af-tr-deadline-why">
+                  of a {data.deadline.data.regularSeasonLength}-week regular season
+                </span>
+              ) : null}
+            </span>
+          )
+        ) : (
+          <span className="af-tr-deadline-why">{data.deadline.reason}</span>
+        )}
       </div>
 
       {/* ── Inbox / sent ────────────────────────────────────────────── */}

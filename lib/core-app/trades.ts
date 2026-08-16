@@ -46,13 +46,56 @@ export type TradesData = {
   inbox: UnavailableSection
   sent: UnavailableSection
   grades: UnavailableSection
-  deadline: UnavailableSection
+  deadline: SectionState<TradeDeadline>
+}
+
+export type TradeDeadline = {
+  /** Null when the league is configured to allow trades all season. */
+  week: number | null
+  /** The league's regular season length, when known — context for the week number. */
+  regularSeasonLength: number | null
+  none: boolean
+}
+
+/**
+ * The trade deadline, read from the canonical import snapshot.
+ *
+ * ⚠ `trade_deadline_week` OF 99 MEANS "NO DEADLINE", NOT WEEK 99. Four production
+ * leagues carry 99 against regular seasons of 14 and 18 weeks — it is the
+ * platform's sentinel for "trades stay open". Printing "Deadline: Week 99" would
+ * be a confident, checkable falsehood on a screen people plan around, so the
+ * sentinel is translated rather than rendered.
+ *
+ * Present on 54 of 120 production leagues. The other 66 stay unavailable: the
+ * setting was simply never read for them, and "no deadline shown" must not be
+ * mistaken for "no deadline exists".
+ */
+function resolveDeadline(settings: unknown): SectionState<TradeDeadline> {
+  if (!settings || typeof settings !== 'object') {
+    return { available: false, reason: 'this league’s trade deadline is not ingested' }
+  }
+  const s = settings as Record<string, unknown>
+  const raw = s.trade_deadline_week
+  const week = typeof raw === 'number' && Number.isFinite(raw) ? raw : null
+  if (week == null) {
+    return { available: false, reason: 'this league’s trade deadline is not ingested' }
+  }
+
+  const rsRaw = s.regular_season_length
+  const regularSeasonLength =
+    typeof rsRaw === 'number' && Number.isFinite(rsRaw) && rsRaw > 0 ? rsRaw : null
+
+  // Either the explicit sentinel, or a deadline past the end of the season —
+  // both mean trades never close.
+  const none = week >= 99 || (regularSeasonLength != null && week > regularSeasonLength)
+
+  return { available: true, data: { week: none ? null : week, regularSeasonLength, none } }
 }
 
 export async function getTradesData(leagueId: string, userId: string): Promise<TradesData | null> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, platform: true, leagueType: true },
+    select: { id: true, name: true, platform: true, leagueType: true, settings: true },
   })
   if (!league) return null
 
@@ -80,10 +123,7 @@ export async function getTradesData(leagueId: string, userId: string): Promise<T
       reason:
         'trades are stored as asset COUNTS, not the players involved, so there is nothing to value. A grade computed from this would land every trade in the C band and read as "dead even" when it actually means no data',
     },
-    deadline: {
-      available: false as const,
-      reason: 'this league’s trade deadline is not ingested',
-    },
+    deadline: resolveDeadline(league.settings),
   }
 
   const myTeam = await prisma.leagueTeam.findFirst({

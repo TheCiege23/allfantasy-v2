@@ -123,6 +123,30 @@
   color: var(--faint);
 }
 
+/*
+ * A read value, not a withheld one. Deliberately louder than .af-wv-rule-why:
+ * these two rows previously only ever carried an absence, so a value and a reason
+ * rendering identically would leave "FAAB blind bidding" looking like another
+ * apology.
+ */
+.af-wv-rule-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  flex: 1 1 240px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.af-wv-rule-budget {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: var(--muted);
+}
+
 /* ── Withheld list ───────────────────────────────────────────────────── */
 
 .af-wv-empty {

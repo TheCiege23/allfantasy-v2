@@ -121,11 +121,38 @@ export function Waivers({ data }: WaiversProps) {
         <ul className="af-wv-rules">
           <li>
             <span className="af-wv-rule-key">Waiver type</span>
-            <span className="af-wv-rule-why">{data.waiverType.reason}</span>
+            {data.waiverType.available ? (
+              <span className="af-wv-rule-value">
+                {data.waiverType.data.label}
+                {data.waiverType.data.budget != null ? (
+                  <span className="af-wv-rule-budget af-num">
+                    ${data.waiverType.data.budget} budget
+                  </span>
+                ) : null}
+              </span>
+            ) : (
+              <span className="af-wv-rule-why">{data.waiverType.reason}</span>
+            )}
           </li>
           <li>
-            <span className="af-wv-rule-key">Processing time</span>
-            <span className="af-wv-rule-why">{data.processTime.reason}</span>
+            <span className="af-wv-rule-key">Waivers run</span>
+            {data.processTime.available ? (
+              <span className="af-wv-rule-value">
+                {data.processTime.data.dayLabel}
+                {/*
+                  ⚠ "UTC" IS NOT NOISE — IT IS THE ONLY HONEST LABEL. The stored
+                  column is processingTimeUtc, and League.timezone cannot localise
+                  it: that column is @default("America/New_York") and all 120
+                  production leagues carry exactly the default, so converting would
+                  shift the hour by a timezone nobody actually chose.
+                */}
+                <span className="af-wv-rule-budget af-num">
+                  {data.processTime.data.timeUtc} UTC
+                </span>
+              </span>
+            ) : (
+              <span className="af-wv-rule-why">{data.processTime.reason}</span>
+            )}
           </li>
         </ul>
       </section>

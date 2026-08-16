@@ -46,6 +46,17 @@
   color: var(--muted);
 }
 
+/* A read deadline, distinguished from the withheld reason beside it. */
+.af-tr-deadline-value {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
 /* ── Inbox / sent ────────────────────────────────────────────────────── */
 
 .af-tr-pending {
