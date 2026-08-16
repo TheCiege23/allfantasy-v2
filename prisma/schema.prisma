@@ -28,6 +28,68 @@ model EarlyAccessSignup {
   @@index([utmSource])
 }
 
+/// Canonical coaching identity — one row per human.
+///
+/// ⚠ NEVER KEY ON NAME. The league has repeated Shanahans, Ryans, Harbaughs and
+/// Kubiaks, and a name-keyed join silently merges a father and son into one career.
+model Coach {
+  id String @id @default(cuid())
+
+  fullName String
+  /// Lowercased, punctuation- and suffix-stripped. The fuzzy-match join key.
+  nameNormalized String
+
+  /// Disambiguates the Mike/Kyle Shanahan class of collision when known.
+  birthYear Int?
+  /// Best available external anchor.
+  pfrId           String?
+  coachingTreeId  String?
+
+  stints    CoachStint[]
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  @@index([nameNormalized])
+}
+
+/// Coach x team x season x role — the staff history that did not previously exist.
+model CoachStint {
+  id      String @id @default(cuid())
+  coachId String
+  coach   Coach  @relation(fields: [coachId], references: [id], onDelete: Cascade)
+
+  /// Franchise code, relocation-normalised (STL->LA, OAK->LV, SD->LAC).
+  teamId String @db.VarChar(8)
+  /// The code exactly as the source gave it, so a relocation mapping stays auditable.
+  teamRaw String @db.VarChar(8)
+  season Int
+
+  /// HC | OC | DC | STC | PASS_GAME_COORD | RUN_GAME_COORD | POSITION | ASSISTANT_HC | OTHER
+  role String @db.VarChar(24)
+  /// Source string verbatim — coaching titles are not standardised across the league.
+  roleRaw String?
+
+  /// ⚠ NULLABLE ON PURPOSE, AND MUST NOT DEFAULT TO false. No dataset reliably
+  /// records who actually calls plays: some head coaches call their own offense,
+  /// some defer, some take it over mid-season. `false` would assert someone is not
+  /// the play-caller, which we do not know. Only set true on sourced confirmation.
+  isPlayCaller Boolean?
+
+  /// COACHING_TREE | NFLVERSE | SPORTSDATAIO | WIKIPEDIA | MANUAL
+  source String @db.VarChar(24)
+  /// HIGH | MEDIUM | LOW
+  sourceConfidence String @db.VarChar(8)
+
+  ingestedAt DateTime @default(now())
+
+  /// ⚠ DELIBERATELY NOT UNIQUE ON (coachId, teamId, season). A coach can hold more
+  /// than one role in a season — head coach who is also de facto OC is common — and
+  /// a unique constraint here would silently drop the second role.
+  @@unique([coachId, teamId, season, role])
+  @@index([teamId, season])
+  @@index([season, role])
+}
+
 /// A business asking for a demo of Decision OS / Chimmy Intelligence, captured from
 /// the "AllFantasy for business" band on the marketing page.
 ///
