@@ -22,6 +22,8 @@ import Waivers from '@/components/core-app/screens/Waivers'
 import { getWaiversData } from '@/lib/core-app/waivers'
 import DraftHq from '@/components/core-app/screens/DraftHq'
 import { getDraftHqData } from '@/lib/core-app/draftHq'
+import WarRoom from '@/components/core-app/screens/WarRoom'
+import { getWarRoomData } from '@/lib/core-app/warRoom'
 
 export const dynamic = 'force-dynamic'
 
@@ -149,6 +151,11 @@ export default async function AfCorePage({
       ? await getDraftHqData(selectedLeagueId, userId).catch(() => null)
       : null
 
+  const warRoom =
+    activeKey === 'war-room' && selectedLeagueId
+      ? await getWarRoomData(selectedLeagueId, userId).catch(() => null)
+      : null
+
   // The shell requires a sync age, so it cannot render without one being decided.
   // Null here means "never synced", which describeAge renders as stale — the
   // honest reading until a per-league sync timestamp is wired through.
@@ -236,6 +243,20 @@ export default async function AfCorePage({
             <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
               Pick a league from the rail. Draft order, pick slots and board settings are all
               per-league.
+            </p>
+          </div>
+        )
+      ) : activeKey === 'war-room' ? (
+        warRoom ? (
+          <WarRoom data={warRoom} />
+        ) : (
+          <div className="af-frame" style={{ padding: 24, maxWidth: 720 }}>
+            <h1 className="af-display" style={{ margin: 0, fontSize: 22, letterSpacing: '-0.03em' }}>
+              War Room
+            </h1>
+            <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
+              Pick a league from the rail. The board, the clock and the queue all belong to one
+              league&apos;s draft.
             </p>
           </div>
         )

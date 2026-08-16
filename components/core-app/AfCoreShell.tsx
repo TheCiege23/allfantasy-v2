@@ -115,7 +115,9 @@ function navItems(props: AfCoreShellProps): NavItem[] {
       key: 'war-room',
       label: 'War Room',
       glyph: '◆',
-      href: '/core/war-room',
+      href: props.selectedLeagueId
+        ? `/core/war-room?league=${encodeURIComponent(props.selectedLeagueId)}`
+        : '/core/war-room',
       badge: props.warRoomLive ? { text: 'LIVE', tone: 'live' } : undefined,
     },
     {
