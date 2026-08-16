@@ -1,0 +1,279 @@
+'use client'
+
+import Link from 'next/link'
+import '@/components/core-app/af-player-finder.css'
+import type { PlayerDetail, PlayerMatch } from '@/lib/core-app/playerFinder'
+import type { SectionState } from '@/lib/core-app/leagueHome'
+
+/**
+ * Screen 3 — Player Finder.
+ *
+ * "One name in — every platform, league, slot, injury and the move to make."
+ *
+ * The handoff prints a line under the search box that is really a promise:
+ * "Stats, injuries and news come from live sports data — never an invented
+ * number." This screen keeps it literally — every figure shown is read from an
+ * ingested row, and everything we cannot compute says so in words instead of
+ * rendering a dash that looks like a measurement.
+ */
+
+export type PlayerFinderProps = {
+  query: string
+  matches: PlayerMatch[]
+  detail: PlayerDetail | null
+  leagueCount: number
+}
+
+function Unavailable({ reason }: { reason: string }) {
+  return <p className="af-pf-unavailable">{reason}</p>
+}
+
+function StatTile({
+  label,
+  help,
+  state,
+  value,
+}: {
+  label: string
+  help?: string
+  state?: SectionState<unknown>
+  value?: string | null
+}) {
+  const missing = state ? !state.available : value == null
+  return (
+    <div className="af-pf-tile" data-missing={missing}>
+      <div className="af-pf-tile-value af-num">{missing ? '—' : value}</div>
+      <div className="af-label">{label}</div>
+      {missing && state && !state.available ? (
+        <div className="af-pf-tile-why">{state.reason}</div>
+      ) : help ? (
+        <div className="af-pf-tile-why">{help}</div>
+      ) : null}
+    </div>
+  )
+}
+
+export function PlayerFinder({ query, matches, detail, leagueCount }: PlayerFinderProps) {
+  return (
+    <div className="af-pf">
+      {/* ── Search ──────────────────────────────────────────────────── */}
+      <form className="af-pf-search-wrap" method="get" action="/core/players">
+        <label className="af-search af-pf-search">
+          <span className="af-search-icon" aria-hidden>
+            ○
+          </span>
+          <input
+            className="af-search-input"
+            name="q"
+            defaultValue={query}
+            placeholder="Search any player"
+            aria-label="Search any player"
+            autoComplete="off"
+          />
+          <button type="submit" className="af-btn af-pf-search-btn">
+            Search
+          </button>
+        </label>
+        <p className="af-pf-search-note">
+          Searches every platform you have connected at once. Stats and injuries come from ingested
+          sports data — never an invented number.
+        </p>
+      </form>
+
+      <div className="af-pf-body">
+        {/* ── Matches ───────────────────────────────────────────────── */}
+        <section className="af-card af-pf-matches">
+          <header className="af-pf-section-head">
+            <h2 className="af-label">Matches · {matches.length}</h2>
+          </header>
+
+          {matches.length === 0 ? (
+            <p className="af-pf-unavailable">
+              {query.trim().length < 2
+                ? 'Type at least two characters to search.'
+                : `No player matching “${query}”.`}
+            </p>
+          ) : (
+            <ul className="af-pf-match-list">
+              {matches.map((m) => (
+                <li key={m.externalId}>
+                  <Link
+                    href={`/core/players?q=${encodeURIComponent(query)}&player=${encodeURIComponent(m.externalId)}`}
+                    className="af-pf-match"
+                    data-active={detail?.player.externalId === m.externalId}
+                  >
+                    <span className="af-pf-match-name">{m.name}</span>
+                    <span className="af-pf-match-meta">
+                      {[m.position, m.team].filter(Boolean).join(' · ') || 'no position on file'}
+                    </span>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
+
+        {/* ── Detail ────────────────────────────────────────────────── */}
+        {detail ? (
+          <section className="af-card af-pf-detail">
+            <header className="af-pf-detail-head">
+              {detail.player.imageUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  className="af-pf-headshot"
+                  src={detail.player.imageUrl}
+                  alt=""
+                  width={72}
+                  height={72}
+                />
+              ) : (
+                <div className="af-pf-headshot af-pf-headshot--none" aria-hidden>
+                  {detail.player.name.charAt(0)}
+                </div>
+              )}
+
+              <div className="af-pf-identity">
+                <h1 className="af-display af-pf-name">{detail.player.name}</h1>
+                <div className="af-pf-line">
+                  {[
+                    detail.player.position,
+                    detail.player.team,
+                    detail.player.number != null ? `#${detail.player.number}` : null,
+                  ]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </div>
+                <div className="af-pf-line af-pf-rostered">
+                  {detail.leagues.available
+                    ? detail.leagues.data.length > 0
+                      ? `on ${detail.leagues.data.length} of your ${leagueCount} ${leagueCount === 1 ? 'league' : 'leagues'}`
+                      : `not on any of your ${leagueCount} ${leagueCount === 1 ? 'league' : 'leagues'}`
+                    : 'cross-league lookup unavailable'}
+                </div>
+              </div>
+
+              <span className="af-sync af-num" data-stale={detail.freshness.stale}>
+                {detail.freshness.stale ? '⚠ ' : ''}
+                {detail.freshness.label}
+              </span>
+            </header>
+
+            {/* Stat tiles — a missing one says why rather than showing a bare dash */}
+            <div className="af-pf-tiles">
+              <StatTile label="Proj this week" state={detail.projection} />
+              <StatTile label="Snap share" state={detail.snapShare} />
+              <StatTile label="Pos rank" state={detail.positionRank} />
+              <StatTile
+                label="Age"
+                value={detail.bio.age != null ? String(detail.bio.age) : null}
+                help={detail.bio.age == null ? 'no birth date on file' : undefined}
+              />
+            </div>
+
+            {/* ── Injury ────────────────────────────────────────────── */}
+            <section className="af-pf-block">
+              <h3 className="af-label">Injury</h3>
+              {detail.injury.available ? (
+                <div className="af-pf-injury">
+                  <span className="af-chip af-pf-injury-status">
+                    {detail.injury.data.status ?? 'no designation'}
+                  </span>
+                  {detail.injury.data.description ? (
+                    <p className="af-pf-injury-note">{detail.injury.data.description}</p>
+                  ) : null}
+                </div>
+              ) : (
+                <Unavailable reason={detail.injury.reason} />
+              )}
+            </section>
+
+            {/* ── Every platform, every league ──────────────────────── */}
+            <section className="af-pf-block">
+              <h3 className="af-label">Every platform, every league</h3>
+              {detail.leagues.available ? (
+                detail.leagues.data.length === 0 ? (
+                  <p className="af-pf-unavailable">
+                    He is not rostered in any league you have connected.
+                  </p>
+                ) : (
+                  <table className="af-pf-table">
+                    <thead>
+                      <tr>
+                        <th className="af-label">League</th>
+                        <th className="af-label">Slot</th>
+                        <th className="af-label" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {detail.leagues.data.map((l) => (
+                        <tr key={l.leagueId}>
+                          <td>
+                            <span className="af-pf-league-name">{l.leagueName}</span>
+                            <span className="af-pf-league-meta">
+                              <span className="af-platform af-pf-platform" data-platform={l.platform}>
+                                {l.platform}
+                              </span>
+                              {l.format ? ` ${l.format}` : ''}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="af-chip af-num">{l.slot}</span>
+                          </td>
+                          <td className="af-pf-table-action">
+                            <Link href={`/core?league=${encodeURIComponent(l.leagueId)}`} className="af-pf-link">
+                              Open league →
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )
+              ) : (
+                <Unavailable reason={detail.leagues.reason} />
+              )}
+            </section>
+
+            {/* ── Season stats ──────────────────────────────────────── */}
+            <section className="af-pf-block">
+              <h3 className="af-label">Season statistics</h3>
+              {detail.seasonStats.available ? (
+                <ul className="af-pf-seasons">
+                  {detail.seasonStats.data.map((s) => (
+                    <li key={s.season} className="af-pf-season">
+                      <span className="af-num af-pf-season-year">{s.season}</span>
+                      <span className="af-pf-season-stats">
+                        {Object.entries(s.stats)
+                          .slice(0, 6)
+                          .map(([k, v]) => `${k} ${v}`)
+                          .join(' · ')}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <Unavailable reason={detail.seasonStats.reason} />
+              )}
+            </section>
+
+            {/* ── Recommended moves ─────────────────────────────────── */}
+            <section className="af-pf-block">
+              <h3 className="af-label">Recommended moves</h3>
+              <Unavailable reason={detail.recommendedMoves.reason} />
+              <p className="af-pf-readonly-note">
+                When these land they will name the platform and screen — you make the change there.
+                AllFantasy only reads your leagues.
+              </p>
+            </section>
+          </section>
+        ) : (
+          <section className="af-card af-pf-detail af-pf-detail--empty">
+            <p className="af-pf-unavailable">Pick a match to see slots, injury and season history.</p>
+          </section>
+        )}
+      </div>
+    </div>
+  )
+}
+
+export default PlayerFinder

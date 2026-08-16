@@ -10,6 +10,8 @@ import type { UserLeague } from '@/app/dashboard/types'
 import DashboardAllLeagues from '@/components/core-app/screens/DashboardAllLeagues'
 import LeagueHome from '@/components/core-app/screens/LeagueHome'
 import { getLeagueHomeData } from '@/lib/core-app/leagueHome'
+import PlayerFinder from '@/components/core-app/screens/PlayerFinder'
+import { searchPlayers, getPlayerDetail } from '@/lib/core-app/playerFinder'
 
 export const dynamic = 'force-dynamic'
 
@@ -58,6 +60,8 @@ export default async function AfCorePage({
   const { screen } = await params
   const sp = await searchParams
   const selectedLeagueId = typeof sp.league === 'string' ? sp.league : null
+  const playerQuery = typeof sp.q === 'string' ? sp.q : ''
+  const selectedPlayerId = typeof sp.player === 'string' ? sp.player : null
   const segment = (screen?.[0] ?? '').toLowerCase()
   const navKey = SCREEN_KEYS[segment]
 
@@ -92,6 +96,18 @@ export default async function AfCorePage({
       ? await getLeagueHomeData(selectedLeagueId, userId).catch(() => null)
       : null
 
+  // Player Finder searches and selects entirely through query params — no client
+  // fetch and no new API route, which matters because the repo is at the route
+  // ceiling and a search box is not worth a route.
+  const playerMatches = activeKey === 'players' ? await searchPlayers(playerQuery).catch(() => []) : []
+  const playerDetail =
+    activeKey === 'players' && selectedPlayerId
+      ? await getPlayerDetail(
+          selectedPlayerId,
+          leagues.map((l) => l.id)
+        ).catch(() => null)
+      : null
+
   // The shell requires a sync age, so it cannot render without one being decided.
   // Null here means "never synced", which describeAge renders as stale — the
   // honest reading until a per-league sync timestamp is wired through.
@@ -111,6 +127,13 @@ export default async function AfCorePage({
         <LeagueHome
           data={leagueHome}
           otherLeagueIssueCount={issues.filter((i) => i.leagueId !== leagueHome.league.id).length}
+        />
+      ) : activeKey === 'players' ? (
+        <PlayerFinder
+          query={playerQuery}
+          matches={playerMatches}
+          detail={playerDetail}
+          leagueCount={leagues.length}
         />
       ) : activeKey === 'home' ? (
         <DashboardAllLeagues
