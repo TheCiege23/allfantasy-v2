@@ -118,7 +118,14 @@ function navItems(props: AfCoreShellProps): NavItem[] {
       href: '/core/war-room',
       badge: props.warRoomLive ? { text: 'LIVE', tone: 'live' } : undefined,
     },
-    { key: 'draft-hq', label: 'Draft HQ', glyph: '▤', href: '/core/draft-hq' },
+    {
+      key: 'draft-hq',
+      label: 'Draft HQ',
+      glyph: '▤',
+      href: props.selectedLeagueId
+        ? `/core/draft-hq?league=${encodeURIComponent(props.selectedLeagueId)}`
+        : '/core/draft-hq',
+    },
     { key: 'portfolio', label: 'Portfolio', glyph: '◈', href: '/core/portfolio' },
     { key: 'career', label: 'Your career', glyph: '★', href: '/core/career' },
     {

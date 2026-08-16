@@ -20,6 +20,8 @@ import Trades from '@/components/core-app/screens/Trades'
 import { getTradesData } from '@/lib/core-app/trades'
 import Waivers from '@/components/core-app/screens/Waivers'
 import { getWaiversData } from '@/lib/core-app/waivers'
+import DraftHq from '@/components/core-app/screens/DraftHq'
+import { getDraftHqData } from '@/lib/core-app/draftHq'
 
 export const dynamic = 'force-dynamic'
 
@@ -142,6 +144,11 @@ export default async function AfCorePage({
       ? await getWaiversData(selectedLeagueId, userId).catch(() => null)
       : null
 
+  const draftHq =
+    activeKey === 'draft-hq' && selectedLeagueId
+      ? await getDraftHqData(selectedLeagueId, userId).catch(() => null)
+      : null
+
   // The shell requires a sync age, so it cannot render without one being decided.
   // Null here means "never synced", which describeAge renders as stale — the
   // honest reading until a per-league sync timestamp is wired through.
@@ -215,6 +222,20 @@ export default async function AfCorePage({
             </h1>
             <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
               Pick a league from the rail. FAAB, waiver order and bid pricing are all per-league.
+            </p>
+          </div>
+        )
+      ) : activeKey === 'draft-hq' ? (
+        draftHq ? (
+          <DraftHq data={draftHq} />
+        ) : (
+          <div className="af-frame" style={{ padding: 24, maxWidth: 720 }}>
+            <h1 className="af-display" style={{ margin: 0, fontSize: 22, letterSpacing: '-0.03em' }}>
+              Draft HQ
+            </h1>
+            <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
+              Pick a league from the rail. Draft order, pick slots and board settings are all
+              per-league.
             </p>
           </div>
         )
