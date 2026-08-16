@@ -36,6 +36,7 @@ export type RailLeague = {
 export type CoreNavKey =
   | 'home'
   | 'my-team'
+  | 'matchup'
   | 'players'
   | 'war-room'
   | 'draft-hq'
@@ -82,6 +83,14 @@ function navItems(props: AfCoreShellProps): NavItem[] {
       href: props.selectedLeagueId
         ? `/core/my-team?league=${encodeURIComponent(props.selectedLeagueId)}`
         : '/core/my-team',
+    },
+    {
+      key: 'matchup',
+      label: 'Matchup',
+      glyph: '⚔',
+      href: props.selectedLeagueId
+        ? `/core/matchup?league=${encodeURIComponent(props.selectedLeagueId)}`
+        : '/core/matchup',
     },
     { key: 'players', label: 'Player Finder', glyph: '●', href: '/core/players' },
     {

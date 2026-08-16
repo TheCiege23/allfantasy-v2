@@ -14,6 +14,8 @@ import PlayerFinder from '@/components/core-app/screens/PlayerFinder'
 import { searchPlayers, getPlayerDetail } from '@/lib/core-app/playerFinder'
 import MyTeam from '@/components/core-app/screens/MyTeam'
 import { getMyTeamData } from '@/lib/core-app/myTeam'
+import Matchup from '@/components/core-app/screens/Matchup'
+import { getMatchupData } from '@/lib/core-app/matchup'
 
 export const dynamic = 'force-dynamic'
 
@@ -35,6 +37,7 @@ const SCREEN_KEYS: Record<string, CoreNavKey> = {
   '': 'home',
   players: 'players',
   'my-team': 'my-team',
+  matchup: 'matchup',
   'war-room': 'war-room',
   'draft-hq': 'draft-hq',
   portfolio: 'portfolio',
@@ -118,6 +121,11 @@ export default async function AfCorePage({
       ? await getMyTeamData(selectedLeagueId, userId).catch(() => null)
       : null
 
+  const matchup =
+    activeKey === 'matchup' && selectedLeagueId
+      ? await getMatchupData(selectedLeagueId, userId).catch(() => null)
+      : null
+
   // The shell requires a sync age, so it cannot render without one being decided.
   // Null here means "never synced", which describeAge renders as stale — the
   // honest reading until a per-league sync timestamp is wired through.
@@ -150,6 +158,20 @@ export default async function AfCorePage({
             <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
               Pick a league from the rail to see your lineup. This screen is scoped to one league —
               your roster, slots and lock time only mean something inside a single league&apos;s rules.
+            </p>
+          </div>
+        )
+      ) : activeKey === 'matchup' ? (
+        matchup ? (
+          <Matchup data={matchup} />
+        ) : (
+          <div className="af-frame" style={{ padding: 24, maxWidth: 720 }}>
+            <h1 className="af-display" style={{ margin: 0, fontSize: 22, letterSpacing: '-0.03em' }}>
+              Matchup
+            </h1>
+            <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
+              Pick a league from the rail to see its matchup. A head-to-head only means something
+              inside one league&apos;s schedule and scoring.
             </p>
           </div>
         )
