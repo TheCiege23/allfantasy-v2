@@ -8,6 +8,8 @@ import { describeAge } from '@/lib/sports-data/freshnessPolicy'
 import AfCoreShell, { type CoreNavKey, type RailLeague } from '@/components/core-app/AfCoreShell'
 import type { UserLeague } from '@/app/dashboard/types'
 import DashboardAllLeagues from '@/components/core-app/screens/DashboardAllLeagues'
+import LeagueHome from '@/components/core-app/screens/LeagueHome'
+import { getLeagueHomeData } from '@/lib/core-app/leagueHome'
 
 export const dynamic = 'force-dynamic'
 
@@ -48,10 +50,14 @@ const PLATFORM_MARK: Record<string, string> = {
 
 export default async function AfCorePage({
   params,
+  searchParams,
 }: {
   params: Promise<{ screen?: string[] }>
+  searchParams: Promise<Record<string, string | string[] | undefined>>
 }) {
   const { screen } = await params
+  const sp = await searchParams
+  const selectedLeagueId = typeof sp.league === 'string' ? sp.league : null
   const segment = (screen?.[0] ?? '').toLowerCase()
   const navKey = SCREEN_KEYS[segment]
 
@@ -79,6 +85,13 @@ export default async function AfCorePage({
 
   const { issues, detectorsUnavailable } = deriveOutstandingIssues({ leagues })
 
+  // Screen 2 is the same route with a league selected — the handoff describes it
+  // as the main column becoming "that league's world", not a separate page.
+  const leagueHome =
+    activeKey === 'home' && selectedLeagueId
+      ? await getLeagueHomeData(selectedLeagueId, userId).catch(() => null)
+      : null
+
   // The shell requires a sync age, so it cannot render without one being decided.
   // Null here means "never synced", which describeAge renders as stale — the
   // honest reading until a per-league sync timestamp is wired through.
@@ -94,7 +107,12 @@ export default async function AfCorePage({
       weekLabel={null}
       plan={null}
     >
-      {activeKey === 'home' ? (
+      {leagueHome ? (
+        <LeagueHome
+          data={leagueHome}
+          otherLeagueIssueCount={issues.filter((i) => i.leagueId !== leagueHome.league.id).length}
+        />
+      ) : activeKey === 'home' ? (
         <DashboardAllLeagues
           issues={issues}
           detectorsUnavailable={detectorsUnavailable}
