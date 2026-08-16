@@ -1,44 +1,74 @@
 'use client'
 
-import { useState } from 'react'
+import Link from 'next/link'
+import { useCallback, useEffect, useState } from 'react'
 import '@/components/core-app/af-import.css'
 import {
   IMPORT_PROVIDER_UI_OPTIONS,
   isImportProviderAvailable,
   supportsImportProviderDiscovery,
 } from '@/lib/league-import/provider-ui-config'
+import {
+  discoverProviderLeagues,
+  fetchImportPreview,
+  submitImportCreation,
+} from '@/lib/league-import/LeagueCreationImportSubmissionService'
 import type { ImportProvider } from '@/lib/league-import/types'
 
 /**
- * Import & connect — the "landing, auth & import" handoff, frames 4C/4D and 6A.
+ * Import & connect — the "landing, auth & import" handoff, wired to the real job.
+ *
+ * ⚠ THIS DRIVES THE SAME PIPELINE AS THE LIVE IMPORT, VIA THE SAME CLIENT SERVICE.
+ * discover → preview → commit, through LeagueCreationImportSubmissionService, which
+ * is what components/unified-import-ui/LeagueImportFlow.tsx already uses. Nothing
+ * here re-implements a fetch against /api/leagues/import/*: a second copy of that
+ * sequence would drift from the first, and the error mapping alone (verification,
+ * age gate, "Connect Yahoo in League Sync", ESPN cookie expiry) is a body of
+ * knowledge worth exactly one implementation.
  *
  * ⚠ PROVIDER AVAILABILITY COMES FROM provider-ui-config, NEVER FROM THIS FILE.
- * The handoff draws six selectable providers. Only three are usable end to end:
- * sleeper, espn and yahoo. fantrax, mfl and fleaflicker each have a real adapter
- * and no working path for a real user — that config carries the audit behind
- * those values, and a test fails loudly if the list drifts from it.
+ * The handoff draws six selectable providers; only sleeper, espn and yahoo are
+ * usable end to end. Showing all six is right; letting someone pick one that
+ * cannot finish is not.
  *
- * Showing all six is right; letting someone pick one that cannot finish is not.
- * Unavailable providers render disabled with the reason, because "Fantrax" as a
- * live option is a promise the import cannot keep, and the user only discovers
- * that after handing over a league.
+ * ⚠ YAHOO TAKES NO IDENTIFIER. It lists leagues from the user's CONNECTED Yahoo
+ * account over OAuth, so the handoff's "each provider swaps its own field" does
+ * not hold for it. Sleeper also discovers from a linked account when the username
+ * is left blank, which is why discovery is attempted automatically for both.
  *
- * ⚠ YAHOO TAKES NO IDENTIFIER. It discovers leagues from the user's CONNECTED
- * Yahoo account over OAuth, so the handoff's "each provider swaps its own field"
- * does not hold for it — asking for a Yahoo username would be asking for
- * something the import never uses.
- *
- * The promise is repeated on every step, per the handoff: we only read league
- * history — no passwords, no posting, ever.
+ * ⚠ THE ATTESTATION STEP IS NOT OPTIONAL. The server gate returns
+ * requiresAttestation when a verified member imports a league they do not
+ * commission, or when a provider cannot be auto-verified. Treating that as a plain
+ * error would dead-end every such import, so it renders a confirm panel and
+ * re-submits with the attestation attached — the same shape the live flow sends.
  */
 
 export type ImportPreviewState = 'pick' | 'connecting' | 'result'
 
-const FIELD_BY_PROVIDER: Partial<Record<ImportProvider, { label: string; placeholder: string; help: string }>> = {
+type DiscoveredLeague = {
+  sourceId: string
+  name: string
+  sport?: string
+  season?: string
+  totalTeams?: number
+}
+
+type Phase =
+  | { k: 'idle' }
+  | { k: 'discovering' }
+  | { k: 'previewing'; sourceId: string }
+  | { k: 'attest'; sourceId: string; message: string }
+  | { k: 'preview'; sourceId: string; leagueName: string; attested: boolean }
+  | { k: 'committing'; sourceId: string }
+  | { k: 'done'; leagueId: string; leagueName: string; backfilled: boolean }
+
+const FIELD_BY_PROVIDER: Partial<
+  Record<ImportProvider, { label: string; placeholder: string; help: string }>
+> = {
   sleeper: {
     label: 'Sleeper username',
     placeholder: 'your-sleeper-username',
-    help: 'We look up your public leagues from this username. No password, ever.',
+    help: 'We look up your public leagues from this username. No password, ever. Leave it blank to use the Sleeper account already linked to your profile.',
   },
   espn: {
     label: 'ESPN league ID',
@@ -54,6 +84,22 @@ const BLOCKED_REASON: Partial<Record<ImportProvider, string>> = {
   fleaflicker: 'No connected path from this flow yet.',
 }
 
+/**
+ * Some gate failures name a prerequisite without saying where to satisfy it —
+ * "Link your Sleeper account…", "Connect Yahoo in League Sync…", "Reconnect ESPN…".
+ * Observed live: the Sleeper commissioner check returns exactly that and the
+ * screen had no way forward, which turns a solvable setup step into a dead end.
+ * LeagueSyncDashboard (/leagues) is where every one of those connections is made,
+ * so the message gets a destination.
+ *
+ * Matched on the action words rather than on exact strings: these sentences come
+ * from several gates and are edited independently, and a literal match would
+ * quietly stop working the first time one is reworded.
+ */
+function needsConnectionSetup(message: string): boolean {
+  return /\b(link|connect|reconnect)\b/i.test(message)
+}
+
 function ReadOnlyPromise() {
   return (
     <p className="af-im-promise">
@@ -63,10 +109,154 @@ function ReadOnlyPromise() {
   )
 }
 
-export function ImportV4({ state = 'pick' }: { state?: ImportPreviewState }) {
+/**
+ * ⚠ INDETERMINATE ON PURPOSE — THE HANDOFF'S DETERMINATE BAR CANNOT BE HONEST HERE.
+ * /api/leagues/import/commit is synchronous: it returns the persisted league and
+ * never a job id, so there is nothing to poll and no percentage that means
+ * anything. The previous version animated a hardcoded 40% and "2 of 5", which is
+ * an invented number on the one screen whose entire promise is that the data is
+ * real. This says what is happening and admits it does not know how long.
+ */
+function Working({ label }: { label: string }) {
+  return (
+    <div className="af-im-working" role="status" aria-live="polite">
+      <span className="af-im-spinner" aria-hidden />
+      <span>{label}</span>
+    </div>
+  )
+}
+
+export function ImportV4({ state }: { state?: ImportPreviewState }) {
   const [provider, setProvider] = useState<ImportProvider>('sleeper')
+  const [account, setAccount] = useState('')
+  const [leagues, setLeagues] = useState<DiscoveredLeague[]>([])
+  const [accountLabel, setAccountLabel] = useState<string | null>(null)
+  const [phase, setPhase] = useState<Phase>({ k: 'idle' })
+  const [error, setError] = useState<string | null>(null)
+
   const selectable = isImportProviderAvailable(provider)
   const field = FIELD_BY_PROVIDER[provider]
+  const canDiscover = supportsImportProviderDiscovery(provider)
+  // Yahoo has no identifier at all; Sleeper falls back to the linked account.
+  const usesConnectedAccount = provider === 'yahoo'
+
+  const reset = useCallback(() => {
+    setLeagues([])
+    setAccountLabel(null)
+    setPhase({ k: 'idle' })
+    setError(null)
+  }, [])
+
+  const runDiscover = useCallback(
+    async (identifier: string) => {
+      setError(null)
+      setLeagues([])
+      setPhase({ k: 'discovering' })
+      const res = await discoverProviderLeagues(provider, identifier, { sport: 'nfl' })
+      if (!res.ok) {
+        // The service already translates the gate's codes into sentences a person
+        // can act on ("Connect Yahoo in League Sync…"), so it is surfaced as-is.
+        setError(res.error || 'We could not look up leagues for that account.')
+        setPhase({ k: 'idle' })
+        return
+      }
+      const payload = res.data as { leagues?: DiscoveredLeague[]; accountLabel?: string }
+      setLeagues(payload?.leagues ?? [])
+      setAccountLabel(payload?.accountLabel ?? null)
+      setPhase({ k: 'idle' })
+    },
+    [provider]
+  )
+
+  /*
+   * Sleeper (linked account) and Yahoo (connected OAuth) can list leagues with no
+   * input at all, so the lookup runs on selection rather than making someone press
+   * a button that needs nothing from them. A failure here is silent by design — it
+   * usually means "not connected yet", which is not an error until they ask.
+   */
+  useEffect(() => {
+    if (!isImportProviderAvailable(provider)) return
+    if (!supportsImportProviderDiscovery(provider)) return
+    let cancelled = false
+    void discoverProviderLeagues(provider, '', { sport: 'nfl' }).then((res) => {
+      if (cancelled || !res.ok) return
+      const payload = res.data as { leagues?: DiscoveredLeague[]; accountLabel?: string }
+      if (!payload?.leagues?.length) return
+      setLeagues(payload.leagues)
+      setAccountLabel(payload.accountLabel ?? null)
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [provider])
+
+  const runPreview = useCallback(
+    async (sourceId: string, attest = false) => {
+      setError(null)
+      setPhase({ k: 'previewing', sourceId })
+      const res = await fetchImportPreview(provider, sourceId, attest ? { accepted: true } : undefined)
+      if (!res.ok) {
+        if (res.requiresAttestation) {
+          setPhase({
+            k: 'attest',
+            sourceId,
+            message: res.error || 'Confirm you want to import this league.',
+          })
+          return
+        }
+        setError(res.error || 'We could not read that league.')
+        setPhase({ k: 'idle' })
+        return
+      }
+      const payload = res.data as { league?: { name?: string } }
+      setPhase({
+        k: 'preview',
+        sourceId,
+        leagueName: payload?.league?.name?.trim() || 'Your league',
+        attested: attest,
+      })
+    },
+    [provider]
+  )
+
+  const runCommit = useCallback(
+    async (sourceId: string, attested: boolean) => {
+      setError(null)
+      setPhase({ k: 'committing', sourceId })
+      const res = await submitImportCreation(
+        provider,
+        sourceId,
+        '',
+        attested ? { accepted: true } : undefined
+      )
+      if (!res.ok) {
+        setError(res.error || 'We could not finish that import.')
+        setPhase({ k: 'idle' })
+        return
+      }
+      const data = res.data as unknown as {
+        leagueId?: string
+        name?: string
+        league?: { id: string; name: string }
+        historicalBackfill?: unknown
+      }
+      const leagueId = data?.leagueId || data?.league?.id || ''
+      setPhase({
+        k: 'done',
+        leagueId,
+        leagueName: data?.name || data?.league?.name || 'Your league',
+        backfilled: Boolean(data?.historicalBackfill),
+      })
+    },
+    [provider]
+  )
+
+  /*
+   * ⚠ DESIGN-PREVIEW ESCAPE HATCH, NOT THE DEFAULT. `?state=` renders the static
+   * connecting/result frames so the handoff can still be reviewed without running
+   * a real import. Everything else on this screen is live.
+   */
+  const forcedState = state && state !== 'pick' ? state : null
 
   return (
     <div className="af-core af-im">
@@ -96,7 +286,12 @@ export function ImportV4({ state = 'pick' }: { state?: ImportPreviewState }) {
                 data-available={available}
                 disabled={!available}
                 aria-disabled={!available}
-                onClick={() => available && setProvider(opt.provider)}
+                onClick={() => {
+                  if (!available) return
+                  setProvider(opt.provider)
+                  setAccount('')
+                  reset()
+                }}
               >
                 <span className="af-im-provider-top">
                   <span className="af-platform af-im-mark" data-platform={opt.provider}>
@@ -121,20 +316,26 @@ export function ImportV4({ state = 'pick' }: { state?: ImportPreviewState }) {
         </div>
 
         {/* ── Step 2: the provider's own field ──────────────────────── */}
-        {selectable ? (
+        {selectable && phase.k !== 'done' ? (
           <div className="af-im-field-block">
             {field ? (
               <label className="af-im-field">
                 <span className="af-label">{field.label}</span>
-                <input type="text" placeholder={field.placeholder} />
+                <input
+                  type="text"
+                  placeholder={field.placeholder}
+                  value={account}
+                  onChange={(e) => setAccount(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'Enter') return
+                    e.preventDefault()
+                    if (canDiscover) void runDiscover(account.trim())
+                    else if (account.trim()) void runPreview(account.trim())
+                  }}
+                />
                 <span className="af-im-field-help">{field.help}</span>
               </label>
             ) : (
-              /*
-                Yahoo lands here. It has no identifier field at all — leagues come
-                from the connected account over OAuth — so the step is a connect
-                action, not a text input.
-              */
               <div className="af-im-field">
                 <span className="af-label">Yahoo account</span>
                 <p className="af-im-field-help">
@@ -144,63 +345,188 @@ export function ImportV4({ state = 'pick' }: { state?: ImportPreviewState }) {
               </div>
             )}
 
-            <button type="button" className="af-btn af-im-submit">
+            <button
+              type="button"
+              className="af-btn af-im-submit"
+              disabled={phase.k === 'discovering' || phase.k === 'previewing'}
+              onClick={() => {
+                if (canDiscover) void runDiscover(account.trim())
+                else if (account.trim()) void runPreview(account.trim())
+                else setError('Enter a league ID to continue.')
+              }}
+            >
               {/*
-                "Find my leagues" only makes sense when the user typed something
-                to search from. Yahoo supports discovery but takes no identifier —
-                it sends you to Yahoo to approve access — so the same label there
-                would promise a search of something that was never entered.
+                "Find my leagues" only makes sense when there is something to
+                search from. Yahoo supports discovery but takes no identifier, so
+                the same label there would promise a search of something never
+                entered.
               */}
-              {!field
+              {usesConnectedAccount
                 ? 'Connect Yahoo'
-                : supportsImportProviderDiscovery(provider)
+                : canDiscover
                   ? 'Find my leagues'
                   : 'Connect'}
             </button>
+
+            {phase.k === 'discovering' ? <Working label="Looking up your leagues…" /> : null}
+
+            {error ? (
+              <div className="af-im-error" role="alert">
+                <p className="af-im-error-text">{error}</p>
+                {needsConnectionSetup(error) ? (
+                  <Link href="/leagues" className="af-im-error-link">
+                    Connect your accounts in League Sync →
+                  </Link>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null}
 
         <ReadOnlyPromise />
       </section>
 
-      {/* ── Connecting ──────────────────────────────────────────────── */}
-      {state === 'connecting' ? (
+      {/* ── Discovered leagues ──────────────────────────────────────── */}
+      {leagues.length > 0 && phase.k !== 'done' ? (
         <section className="af-im-card">
-          <h2 className="af-label">Connecting</h2>
-          {/*
-            Determinate, per the handoff. An indeterminate spinner cannot say how
-            far along an import is, and this one runs long enough that people
-            leave.
-          */}
-          <div className="af-im-progress" role="progressbar" aria-valuenow={40} aria-valuemin={0} aria-valuemax={100}>
-            <span className="af-im-progress-bar" style={{ width: '40%' }} />
-          </div>
-          <p className="af-im-progress-text">
-            Reading leagues… <span className="af-num">2 of 5</span>
-          </p>
+          <header className="af-im-result-head">
+            <h2 className="af-label">
+              {accountLabel ? `Leagues for ${accountLabel}` : 'Leagues we found'}
+            </h2>
+            <span className="af-chip af-num">{leagues.length}</span>
+          </header>
+
+          <ul className="af-im-league-list">
+            {leagues.map((l) => {
+              const busy =
+                (phase.k === 'previewing' || phase.k === 'committing') && phase.sourceId === l.sourceId
+              return (
+                <li key={l.sourceId} className="af-im-league">
+                  <span className="af-im-league-main">
+                    <span className="af-im-league-name">{l.name}</span>
+                    <span className="af-im-league-meta af-num">
+                      {[l.season, l.sport?.toUpperCase(), l.totalTeams ? `${l.totalTeams} teams` : null]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </span>
+                  </span>
+                  <button
+                    type="button"
+                    className="af-btn af-btn--ghost af-im-league-btn"
+                    disabled={busy}
+                    onClick={() => void runPreview(l.sourceId)}
+                  >
+                    {busy ? 'Reading…' : 'Import'}
+                  </button>
+                </li>
+              )
+            })}
+          </ul>
           <ReadOnlyPromise />
         </section>
       ) : null}
 
-      {/* ── Result ──────────────────────────────────────────────────── */}
-      {state === 'result' ? (
+      {/* ── Attestation gate ────────────────────────────────────────── */}
+      {phase.k === 'attest' ? (
+        <section className="af-im-card">
+          <h2 className="af-label">One confirmation first</h2>
+          <p className="af-im-attest">{phase.message}</p>
+          <div className="af-im-actions">
+            <button
+              type="button"
+              className="af-btn af-im-submit"
+              onClick={() => void runPreview(phase.sourceId, true)}
+            >
+              Confirm and continue
+            </button>
+            <button type="button" className="af-btn af-btn--ghost" onClick={reset}>
+              Cancel
+            </button>
+          </div>
+          <ReadOnlyPromise />
+        </section>
+      ) : null}
+
+      {/* ── Preview, then commit ────────────────────────────────────── */}
+      {phase.k === 'preview' ? (
+        <section className="af-im-card">
+          <header className="af-im-result-head">
+            <h2 className="af-label">Ready to import</h2>
+          </header>
+          <p className="af-im-league-name af-im-preview-name">{phase.leagueName}</p>
+          <p className="af-im-field-help">
+            We read this league from {provider}. Importing builds a read-only copy — nothing changes
+            on {provider}.
+          </p>
+          <div className="af-im-actions">
+            <button
+              type="button"
+              className="af-btn af-im-submit"
+              onClick={() => void runCommit(phase.sourceId, phase.attested)}
+            >
+              Import this league
+            </button>
+            <button type="button" className="af-btn af-btn--ghost" onClick={reset}>
+              Back
+            </button>
+          </div>
+          <ReadOnlyPromise />
+        </section>
+      ) : null}
+
+      {/* ── Working ─────────────────────────────────────────────────── */}
+      {phase.k === 'committing' || forcedState === 'connecting' ? (
+        <section className="af-im-card">
+          <h2 className="af-label">Importing</h2>
+          <Working label="Building your read-only copy — rosters, matchups and scoring. This can take a minute." />
+          <ReadOnlyPromise />
+        </section>
+      ) : null}
+
+      {/* ── Done ────────────────────────────────────────────────────── */}
+      {phase.k === 'done' ? (
+        <section className="af-im-card">
+          <header className="af-im-result-head">
+            <h2 className="af-label">Imported</h2>
+          </header>
+          <p className="af-im-preview-name">{phase.leagueName}</p>
+          <p className="af-im-field-help">
+            {phase.backfilled
+              ? 'Rosters, matchups, scoring and past seasons are in. '
+              : 'Rosters, matchups and scoring are in. '}
+            Nothing was changed on {provider}.
+          </p>
+          <div className="af-im-actions">
+            {phase.leagueId ? (
+              <Link href={`/league/${phase.leagueId}`} className="af-btn af-im-submit">
+                Open your league
+              </Link>
+            ) : null}
+            <button
+              type="button"
+              className="af-btn af-btn--ghost"
+              onClick={() => {
+                setAccount('')
+                reset()
+              }}
+            >
+              Import another
+            </button>
+          </div>
+          <ReadOnlyPromise />
+        </section>
+      ) : null}
+
+      {/* ── Static result frame, design preview only ────────────────── */}
+      {forcedState === 'result' ? (
         <section className="af-im-card">
           <header className="af-im-result-head">
             <h2 className="af-label">What we found</h2>
-            <span className="af-chip af-num">preview state</span>
+            <span className="af-chip af-num">layout preview</span>
           </header>
-
-          {/*
-            ⚠ This is a PREVIEW of the result layout, reached only via ?state=result.
-            It carries no league data, because inventing "found 4 leagues" on a
-            screen whose entire promise is that the leagues are real would be the
-            worst possible place to fabricate. The live flow fills this from the
-            import job.
-          */}
           <p className="af-im-empty">
-            Layout preview only — no import has run, so there are no leagues to list. The live flow
-            fills this from the import job, one row per league found, and failures name the provider
-            with a retry that does not restart the flow.
+            Layout preview only — reached via <code>?state=result</code>, so no import has run and
+            there are no leagues to list. The live flow above fills this from the real import.
           </p>
           <ReadOnlyPromise />
         </section>

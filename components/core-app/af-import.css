@@ -204,26 +204,153 @@
   color: var(--muted);
 }
 
-/* ── Progress ────────────────────────────────────────────────────────── */
+/* ── Working ─────────────────────────────────────────────────────────── */
 
-.af-im-progress {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--surface2);
-  border: 1px solid var(--line);
-  overflow: hidden;
-}
-
-.af-im-progress-bar {
-  display: block;
-  height: 100%;
-  background: var(--accent);
-}
-
-.af-im-progress-text {
-  margin: 0;
+/*
+ * ⚠ REPLACED A DETERMINATE PROGRESS BAR. The handoff drew one, but
+ * /api/leagues/import/commit is synchronous and returns no job id — there is
+ * nothing to poll, so any percentage shown here would be invented. The old rules
+ * animated a hardcoded 40% next to "2 of 5". An honest spinner beats a precise
+ * lie, particularly on the screen whose whole promise is that the data is real.
+ */
+.af-im-working {
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-size: 12.5px;
+  line-height: 1.5;
   color: var(--muted);
+}
+
+.af-im-spinner {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--line2);
+  border-top-color: var(--accent);
+  animation: af-im-spin 0.7s linear infinite;
+}
+
+@keyframes af-im-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Respects a reduced-motion preference: the spin is decoration, the label is the
+   actual status message and is announced regardless. */
+@media (prefers-reduced-motion: reduce) {
+  .af-im-spinner {
+    animation: none;
+    border-top-color: var(--line2);
+  }
+}
+
+/* ── Errors ──────────────────────────────────────────────────────────── */
+
+.af-im-error {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--bad);
+  background: var(--bad-soft);
+  color: var(--bad);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.af-im-error-text {
+  margin: 0;
+}
+
+/* The way out of the error, not decoration — given a 44px row so it is a real
+   target on a phone rather than a line of text to pinch at. */
+.af-im-error-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--text);
+  font-weight: 800;
+  text-decoration: underline;
+}
+
+/* ── Discovered leagues ──────────────────────────────────────────────── */
+
+.af-im-league-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.af-im-league {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  /* 44px minimum touch row. */
+  min-height: 44px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+}
+
+.af-im-league-main {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.af-im-league-name {
+  font-weight: 800;
+  font-size: 14px;
+  color: var(--text);
+}
+
+.af-im-preview-name {
+  margin: 0;
+  font-weight: 800;
+  font-size: 18px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.af-im-league-meta {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--faint);
+}
+
+/* Same specificity trap as the submit below — `.af-core .af-btn` wins otherwise. */
+.af-core .af-im-league-btn {
+  margin-left: auto;
+  flex: 0 0 auto;
+  min-height: 44px;
+}
+
+.af-im-attest {
+  margin: 0;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid var(--warn);
+  background: var(--surface2);
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text2);
+}
+
+.af-im-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 /* ── Result ──────────────────────────────────────────────────────────── */
@@ -258,6 +385,15 @@
   }
   .af-core .af-im-submit {
     align-self: stretch;
+    width: 100%;
+  }
+  /* Stack the row so a long league name never squeezes the action off-screen. */
+  .af-im-league {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .af-core .af-im-league-btn {
+    margin-left: 0;
     width: 100%;
   }
 }
