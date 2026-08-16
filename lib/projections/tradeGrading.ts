@@ -254,6 +254,107 @@ export function gradeTrade(sideA: TradeSide, sideB: TradeSide): TradeGrade {
 }
 
 /**
+ * Evaluate a trade for BOTH sides independently.
+ *
+ * ⚠ THIS REPLACES "WHO WON THE TRADE" AS THE HEADLINE, AND THE CHANGE IS NOT
+ * COSMETIC. gradeTrade() above answers a zero-sum question: what share of the
+ * traded value did one side get. That framing is wrong for the most common good
+ * trade in fantasy — a contender and a rebuilder swapping present for future
+ * value, where BOTH teams genuinely improve against their own objective. A
+ * calculator that declares a winner there is not merely unhelpful; it is
+ * incorrect, and it trains users to think about trades badly.
+ *
+ * So each side is graded against ITS OWN objective, and `mutualBenefit` is a
+ * first-class output rather than a footnote. When both deltas are positive, say
+ * so: "this helps both teams — you are buying now, they are buying later."
+ *
+ * ⚠ THE VALUE SPLIT IS STILL COMPUTED, BUT IT IS AN INPUT, NOT THE VERDICT. Value
+ * share tells you how the assets priced; the objective delta tells you whether
+ * the trade was a good idea for that team. They are different questions and only
+ * the second one is worth grading.
+ */
+export type SideOutcome = {
+  teamId: string
+  /** Change in that team's objective. Positive = improved. */
+  delta: number
+  verdict: 'STRONG_GAIN' | 'GAIN' | 'NEUTRAL' | 'LOSS' | 'STRONG_LOSS'
+  detail: string
+}
+
+export type TradeEvaluation =
+  | {
+      evaluated: true
+      sides: SideOutcome[]
+      /** True when EVERY side improves — the honest, frequent, headline case. */
+      mutualBenefit: boolean
+      /** Value split, retained as supporting context only. */
+      valueSplit: Extract<TradeGrade, { graded: true }>
+      engineVersion: string
+    }
+  | {
+      evaluated: false
+      reason: 'NO_ASSETS' | 'PARTIAL_COVERAGE' | 'NO_COVERAGE'
+      detail: string
+    }
+
+function verdictFor(delta: number): SideOutcome['verdict'] {
+  if (delta > 0.04) return 'STRONG_GAIN'
+  if (delta > 0.005) return 'GAIN'
+  if (delta >= -0.005) return 'NEUTRAL'
+  if (delta >= -0.04) return 'LOSS'
+  return 'STRONG_LOSS'
+}
+
+/**
+ * `objectiveDeltaFor` is supplied by the caller so this module stays free of any
+ * particular engine — swapping the heuristic for a simulation changes nothing
+ * here. See objectiveEngine.ts for why that boundary is load-bearing.
+ */
+export function evaluateTrade(args: {
+  sideA: TradeSide & { teamId: string }
+  sideB: TradeSide & { teamId: string }
+  /** Objective delta for a team, given the value it received and gave up. */
+  objectiveDeltaFor: (teamId: string, valueIn: number, valueOut: number) => number
+  engineVersion: string
+}): TradeEvaluation {
+  const grade = gradeTrade(args.sideA, args.sideB)
+  if (!grade.graded) {
+    // Coverage guards apply identically here — an ungradeable trade is an
+    // unevaluatable one, and neither gets a letter.
+    return { evaluated: false, reason: grade.reason, detail: grade.detail }
+  }
+
+  const aIn = grade.sideAValue
+  const bIn = grade.sideBValue
+
+  const deltaA = args.objectiveDeltaFor(args.sideA.teamId, aIn, bIn)
+  const deltaB = args.objectiveDeltaFor(args.sideB.teamId, bIn, aIn)
+
+  const sides: SideOutcome[] = [
+    {
+      teamId: args.sideA.teamId,
+      delta: Math.round(deltaA * 10000) / 10000,
+      verdict: verdictFor(deltaA),
+      detail: `received ${Math.round(grade.sharePct)}% of the traded value`,
+    },
+    {
+      teamId: args.sideB.teamId,
+      delta: Math.round(deltaB * 10000) / 10000,
+      verdict: verdictFor(deltaB),
+      detail: `received ${Math.round(100 - grade.sharePct)}% of the traded value`,
+    },
+  ]
+
+  return {
+    evaluated: true,
+    sides,
+    mutualBenefit: sides.every((s) => s.delta > 0),
+    valueSplit: grade,
+    engineVersion: args.engineVersion,
+  }
+}
+
+/**
  * The sentence to show when a trade cannot be graded.
  *
  * ⚠ NEVER RETURNS A LETTER, AND NEVER THE WORD "EVEN". The whole point is that
