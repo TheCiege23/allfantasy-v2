@@ -27,9 +27,13 @@ import { getTheSportsDbApiKeyOrFallback } from '@/lib/env/sports-media-keys'
  *   - `lookuptable.php` (standings) returns an EMPTY BODY for all five US leagues
  *     and real rows only for soccer. Standings are therefore a soccer-only
  *     capability here, not a gap in this code.
- *   - College has teams and schedules but NO players: `lookup_all_players.php`
- *     returns `player: null` for every NCAAF and NCAAB team sampled. That is the
- *     provider's shape, not a bug to retry.
+ *   - College has teams and schedules but no real ROSTERS. Sampling ten blue-blood
+ *     programmes per sport, 6 of 10 NCAAF and 2 of 10 NCAAB returned anything at
+ *     all, and it was 1-2 entries: head coaches plus the odd famous alumnus filed
+ *     under his alma mater (Alabama returns Kalen DeBoer and Trevon Diggs — Diggs
+ *     plays for Dallas). One NFL team returns 45. So college is ingested but marked
+ *     `rosterQuality: 'sparse'`, and coaches are dropped rather than written as
+ *     players. Devy still needs CFBD; this is not a substitute.
  *   - NCAAF teams cannot be listed by name at all (`search_all_teams` returns
  *     null), so its 231 teams are recovered from the season schedule's team ids
  *     and looked up individually.
@@ -55,7 +59,20 @@ type LeagueConfig = {
   teamListName: string | null
   /** Season format differs per league — see the module note. */
   seasonStyle: 'single' | 'split'
-  /** College leagues return `player: null` for every team. */
+  /**
+   * Whether this league has real, current ROSTERS.
+   *
+   * College is `false` — but not because the endpoint is empty, which is what an
+   * earlier version of this file claimed. Sampling ten blue-blood programmes per
+   * sport: 6 of 10 NCAAF and 2 of 10 NCAAB returned anything at all, and what came
+   * back was 1-2 entries — head coaches (`strPosition: "Manager"`) plus the odd
+   * famous alumnus filed under his alma mater. Alabama returns Kalen DeBoer and
+   * Trevon Diggs; Diggs is a Dallas Cowboy. One NFL team returns 45 players.
+   *
+   * So college entries are real records but NOT a current roster, and writing them
+   * as one would put an NFL cornerback on Alabama's depth chart. They are ingested
+   * with `rosterQuality: 'sparse'` handling instead — coaches dropped, players kept.
+   */
   hasPlayers: boolean
   /** Only soccer returns standings rows. */
   hasStandings: boolean
@@ -223,10 +240,17 @@ export async function ingestRosters(sport: IngestSport, opts?: { season?: string
   teams: number
   players: number
   skippedNoPlayers: number
+  coachesDropped: number
+  rosterQuality: 'full' | 'sparse'
 }> {
   const cfg = LEAGUES[sport]
-  const result = { teams: 0, players: 0, skippedNoPlayers: 0 }
-  if (!cfg.hasPlayers) return result
+  const result = {
+    teams: 0,
+    players: 0,
+    skippedNoPlayers: 0,
+    coachesDropped: 0,
+    rosterQuality: (cfg.hasPlayers ? 'full' : 'sparse') as 'full' | 'sparse',
+  }
 
   const season = opts?.season ?? (await resolveCurrentSeason(sport))
   const teams = await listTeams(sport, season)
@@ -250,6 +274,15 @@ export async function ingestRosters(sport: IngestSport, opts?: { season?: string
       const externalId = str(p.idPlayer)
       const name = str(p.strPlayer)
       if (!externalId || !name) continue
+
+      // A head coach is not a player. TheSportsDB files them in the same roster
+      // array with strPosition "Manager", and for college they are the MAJORITY
+      // of what comes back — so letting them through would fill a devy player
+      // pool with coaching staff.
+      if ((str(p.strPosition) ?? '').toLowerCase() === 'manager') {
+        result.coachesDropped += 1
+        continue
+      }
 
       const born = str(p.dateBorn)
       const age = (() => {
@@ -517,10 +550,12 @@ export async function ingestSport(
   const season = await resolveCurrentSeason(sport)
   const teams = await ingestTeams(sport, { season })
   const schedule = await ingestSchedule(sport, { season })
+  // College is attempted too. It yields little, but "little" is not "nothing" and
+  // skipping outright is how the earlier version came to report zero.
   const rosters =
-    opts?.includeRosters !== false && LEAGUES[sport].hasPlayers
+    opts?.includeRosters !== false
       ? await ingestRosters(sport, { season })
-      : { teams: 0, players: 0, skippedNoPlayers: 0 }
+      : { teams: 0, players: 0, skippedNoPlayers: 0, coachesDropped: 0, rosterQuality: 'full' as const }
 
   return {
     sport,
@@ -528,6 +563,9 @@ export async function ingestSport(
     teams: { fetched: teams.fetched, written: teams.written },
     schedule: { fetched: schedule.fetched, written: schedule.written },
     rosters,
-    note: LEAGUES[sport].hasPlayers ? undefined : 'provider serves no players for this league',
+    note:
+      rosters.rosterQuality === "sparse"
+        ? `sparse: provider has no current rosters here (coaches + alumni only); ${rosters.coachesDropped} coaches dropped`
+        : undefined,
   }
 }
