@@ -136,7 +136,19 @@ async function main() {
         if (oe != null) { a.proeSum += oe; a.proeN++ }
       }
       const sg = num(c[iShotgun]); if (sg != null) { a.shotgun += sg; a.shotgunN++ }
-      const nh = num(c[iNoHuddle]); if (nh != null) { a.noHuddle += nh; a.noHuddleN++ }
+      /*
+       * ⚠ NO-HUDDLE IS DELIBERATELY NOT DERIVED — THE COLUMN DOES NOT MEAN WHAT IT
+       * APPEARS TO. Computing it produced a 2024 spread from WAS 69.3% down to
+       * KC 0.0% on neutral-script plays, which is not a football result: no team
+       * runs no-huddle on two-thirds of its neutral snaps. Either `no_huddle`
+       * encodes something other than a per-play hurry-up flag, or it interacts
+       * badly with the neutral-script filter.
+       *
+       * The 320 rows written before this was caught have been nulled. A stored
+       * number that is wrong is worse than an absent one: absence is visible and a
+       * plausible-looking rate is not. Re-enable only after establishing what the
+       * column actually encodes.
+       */
 
       // Pace: seconds elapsed between consecutive neutral plays in the same game.
       const gid = (c[iGameId] || '').trim()
