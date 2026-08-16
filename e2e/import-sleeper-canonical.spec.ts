@@ -128,8 +128,14 @@ test.describe('Canonical Sleeper import — real /import route', () => {
     await gotoWithRetry(page, '/import?provider=sleeper&username=commish_user')
 
     // Sleeper tab selected + username prefilled into the discovery input.
-    await expect(page.getByTestId('import-tab-sleeper')).toBeVisible()
-    await expect(page.getByTestId('import-discovery-account')).toHaveValue('commish_user')
+    //
+    // Generous first-paint budget on purpose: this is the FIRST assertion after
+    // landing on /import, so under `next dev` it waits on that route's initial
+    // compile. The default 5s is a bet that the page is already built, which is
+    // true locally and false on a cold CI runner — it failed there at exactly this
+    // line while every later step passed.
+    await expect(page.getByTestId('import-tab-sleeper')).toBeVisible({ timeout: 90_000 })
+    await expect(page.getByTestId('import-discovery-account')).toHaveValue('commish_user', { timeout: 30_000 })
 
     // 1) Discover leagues from the prefilled Sleeper account identifier.
     await page.getByTestId('import-discovery-find').click()
