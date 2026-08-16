@@ -81,7 +81,7 @@ function TradeCard({ trade }: { trade: TradeRecord }) {
         <span className="af-tr-grade-badge af-num">n/a</span>
         <span className="af-tr-grade-why">
           {assets > 0
-            ? 'Not gradable — we hold the asset counts for this trade, not which players moved.'
+            ? 'Counts only in this view — see Trade grades below for the priced version.'
             : 'Not gradable — nothing was recorded as moving in this trade.'}
         </span>
       </div>
@@ -168,7 +168,47 @@ export function Trades({ data }: TradesProps) {
         )}
       </section>
 
-      <p className="af-tr-footnote">{data.grades.reason}.</p>
+      {/* ── Grades ──────────────────────────────────────────────────── */}
+      <section className="af-card af-tr-section">
+        <h2 className="af-label">Trade grades</h2>
+        {data.grades.available ? (
+          <ul className="af-tr-graderows">
+            {data.grades.data.slice(0, 12).map((g) => (
+              <li key={g.transactionId} className="af-tr-graderow">
+                {/*
+                  ⚠ A LETTER OR A REASON — NEVER BOTH, AND NEVER A LETTER AS A
+                  FALLBACK. A grade withheld for partial coverage must not render
+                  as a dimmed "C"; that is the precise failure the engine exists to
+                  prevent, and it would be reintroduced here in one line of JSX.
+                */}
+                {g.letter ? (
+                  <span className="af-tr-graderow-letter" data-grade={g.letter}>
+                    {g.letter}
+                  </span>
+                ) : (
+                  <span className="af-tr-graderow-letter" data-grade="none" aria-label="not graded">
+                    —
+                  </span>
+                )}
+                <span className="af-tr-graderow-main">
+                  <span className="af-tr-graderow-meta af-num">
+                    {[g.season, g.week ? `WK ${g.week}` : null].filter(Boolean).join(' · ')}
+                    {' · '}
+                    {g.playersOut} out / {g.playersIn} in
+                  </span>
+                  <span className="af-tr-graderow-why">
+                    {g.letter
+                      ? `received ${g.sharePct}% of the traded value`
+                      : g.withheldReason}
+                  </span>
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <Unavailable reason={data.grades.reason} />
+        )}
+      </section>
     </div>
   )
 }

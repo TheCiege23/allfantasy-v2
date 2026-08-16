@@ -2,6 +2,7 @@ import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { leagueDisplayName, type SectionState, type UnavailableSection } from './leagueHome'
+import { describeNoSignal, gradeTrade } from '@/lib/projections/tradeGrading'
 
 /**
  * Trades — "offer, grade, counter, all scored against this league's own rules".
@@ -38,6 +39,104 @@ export type TradeRecord = {
   at: Date
 }
 
+export type GradedTrade = {
+  transactionId: string
+  season: number | null
+  week: number | null
+  /** Present only when every asset on both sides could be priced. */
+  letter: 'A' | 'B' | 'C' | 'D' | 'F' | null
+  sharePct: number | null
+  /** Why no letter — shown INSTEAD of a grade, never alongside one. */
+  withheldReason: string | null
+  playersIn: number
+  playersOut: number
+}
+
+/**
+ * Grade this league's trades from real player values.
+ *
+ * ⚠ THE COUNTS-ONLY COMMENT ABOVE IS TRUE OF THE FACTS TABLE, NOT OF ALL TRADE
+ * DATA. `history` above is built from behavioural facts whose payload really does
+ * carry only playersIn/playersOut counts — so grading THAT source is impossible,
+ * exactly as documented. `LeagueTrade` is a different table holding the actual
+ * Sleeper player ids (6,813 rows, 835 distinct players), and that is what is
+ * priced here. Two sources, two answers; conflating them is what made grading look
+ * permanently blocked.
+ *
+ * ⚠ A LETTER APPEARS ONLY WITH FULL COVERAGE ON BOTH SIDES. Measured on
+ * production: 944 of 3,221 two-sided trades are only partially valued. Grading
+ * those would treat every unpriced player as worthless, which is not neutral — it
+ * mechanically favours whichever manager received him.
+ */
+async function resolveGrades(
+  platformLeagueId: string | null
+): Promise<SectionState<GradedTrade[]>> {
+  if (!platformLeagueId) {
+    return { available: false, reason: 'this league has no source platform id, so its trades cannot be matched' }
+  }
+
+  const histories = await prisma.leagueTradeHistory.findMany({
+    where: { sleeperLeagueId: platformLeagueId },
+    select: { id: true },
+  })
+  if (histories.length === 0) {
+    return { available: false, reason: 'no trade history has been synced for this league' }
+  }
+
+  const trades = await prisma.leagueTrade.findMany({
+    where: { historyId: { in: histories.map((h) => h.id) } },
+    select: {
+      transactionId: true, season: true, week: true,
+      playersGiven: true, playersReceived: true,
+    },
+    orderBy: [{ season: 'desc' }, { week: 'desc' }],
+    take: 60,
+  })
+  if (trades.length === 0) {
+    return { available: false, reason: 'no trades on file for this league' }
+  }
+
+  // Latest snapshot per player. Ranks, not raw values — see tradeGrading.
+  const ids = new Set<string>()
+  for (const t of trades) {
+    for (const arr of [t.playersGiven, t.playersReceived]) {
+      if (Array.isArray(arr)) arr.forEach((x) => ids.add(String(x)))
+    }
+  }
+  const snaps = await prisma.playerValueSnapshot.findMany({
+    where: { sleeperId: { in: [...ids] }, format: 'DYNASTY', qbFormat: 'SUPERFLEX' },
+    select: { sleeperId: true, overallRank: true, capturedAt: true },
+    orderBy: { capturedAt: 'desc' },
+  })
+  const rankById = new Map<string, number>()
+  for (const s of snaps) {
+    if (!rankById.has(s.sleeperId) && s.overallRank != null) rankById.set(s.sleeperId, s.overallRank)
+  }
+
+  const graded: GradedTrade[] = trades.map((t) => {
+    const recv = (Array.isArray(t.playersReceived) ? t.playersReceived : []).map(String)
+    const gave = (Array.isArray(t.playersGiven) ? t.playersGiven : []).map(String)
+    const toSide = (label: string, list: string[]) => ({
+      label,
+      assets: list.map((id) => ({ id, rank: rankById.get(id) ?? null, rawValue: null })),
+    })
+    const g = gradeTrade(toSide('received', recv), toSide('gave', gave))
+
+    return {
+      transactionId: t.transactionId,
+      season: t.season ?? null,
+      week: t.week ?? null,
+      letter: g.graded ? g.letter : null,
+      sharePct: g.graded ? g.sharePct : null,
+      withheldReason: g.graded ? null : describeNoSignal(g),
+      playersIn: recv.length,
+      playersOut: gave.length,
+    }
+  })
+
+  return { available: true, data: graded }
+}
+
 export type TradesData = {
   league: { id: string; name: string; platform: string }
   /** Grading context the handoff prints above every grade. */
@@ -45,7 +144,7 @@ export type TradesData = {
   history: SectionState<TradeRecord[]>
   inbox: UnavailableSection
   sent: UnavailableSection
-  grades: UnavailableSection
+  grades: SectionState<GradedTrade[]>
   deadline: SectionState<TradeDeadline>
 }
 
@@ -95,11 +194,12 @@ function resolveDeadline(settings: unknown): SectionState<TradeDeadline> {
 export async function getTradesData(leagueId: string, userId: string): Promise<TradesData | null> {
   const league = await prisma.league.findUnique({
     where: { id: leagueId },
-    select: { id: true, name: true, platform: true, leagueType: true, settings: true },
+    select: { id: true, name: true, platform: true, leagueType: true, settings: true, platformLeagueId: true },
   })
   if (!league) return null
 
   const teamCount = await prisma.leagueTeam.count({ where: { leagueId } })
+  const grades = await resolveGrades(league.platformLeagueId ?? null)
 
   const base = {
     league: {
@@ -118,11 +218,7 @@ export async function getTradesData(leagueId: string, userId: string): Promise<T
       reason: 'pending offers are not ingested — open your platform to see anything waiting',
     },
     sent: { available: false as const, reason: 'outgoing offers are not ingested' },
-    grades: {
-      available: false as const,
-      reason:
-        'trades are stored as asset COUNTS, not the players involved, so there is nothing to value. A grade computed from this would land every trade in the C band and read as "dead even" when it actually means no data',
-    },
+    grades,
     deadline: resolveDeadline(league.settings),
   }
 

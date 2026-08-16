@@ -28,6 +28,50 @@ model EarlyAccessSignup {
   @@index([utmSource])
 }
 
+/// Market player values, snapshotted from external sources.
+///
+/// ⚠ SNAPSHOT, NEVER UPSERT-IN-PLACE. History is the asset: a year of daily rows
+/// yields trend, volatility and buy-low detection that a single current-value
+/// table can never reconstruct, and it costs almost nothing to store.
+///
+/// ⚠ `source` EXISTS FROM DAY ONE SO `INTERNAL` SLOTS IN WITHOUT A MIGRATION.
+/// Every value here is someone else's asset — FantasyCalc could close tomorrow.
+/// Capturing our own trades into this same table is how that dependency becomes a
+/// sanity check rather than a single point of failure. Five minutes now.
+model PlayerValueSnapshot {
+  id String @id @default(cuid())
+
+  /// Sleeper player id — the join key every source in use can reach.
+  sleeperId String @db.VarChar(32)
+  name      String
+  position  String? @db.VarChar(8)
+
+  /// FANTASYCALC | DYNASTYPROCESS | INTERNAL
+  source String @db.VarChar(24)
+  /// DYNASTY | REDRAFT
+  format String @db.VarChar(12)
+  /// ONE_QB | SUPERFLEX
+  qbFormat String @db.VarChar(12)
+
+  value        Int
+  overallRank  Int?
+  positionRank Int?
+  /// 30-day movement, where the source publishes it.
+  trend30d     Int?
+  /// ⚠ LIQUIDITY, AND ALMOST NOBODY SURFACES IT. A high value with near-zero trade
+  /// frequency is a thin, rarely-tested price — worth saying so on a trade screen.
+  tradeFrequency Float?
+  /// ⚠ MARKET DISAGREEMENT. High deviation means the market disagrees with itself,
+  /// which is exactly where an edge lives and a natural confidence input.
+  marketStdDev   Float?
+
+  capturedAt DateTime @default(now())
+
+  @@unique([sleeperId, source, format, qbFormat, capturedAt])
+  @@index([sleeperId, capturedAt])
+  @@index([source, capturedAt])
+}
+
 /// Measured team-season play-calling tendencies, derived from play-by-play.
 ///
 /// ⚠ STORED AT TEAM-SEASON, NOT COACH, AND THAT IS DELIBERATE. No dataset records
