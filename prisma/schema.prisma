@@ -10849,12 +10849,25 @@ model PlayerGameStat {
   updatedAt         DateTime  @updatedAt
   sportType         String    @db.VarChar(12)
 
+  /// Defense faced, e.g. "IND". From the provider row, not derived from a schedule join.
+  opponent String? @db.VarChar(8)
+  /// ⚠ The team AT THE TIME OF THE GAME, NOT the player's current team. A 2024 row for
+  /// Tank Bigsby carries "JAX" while his current team is "PHI"; using the current team
+  /// would attribute historical performance to a franchise he never played it for.
+  team     String? @db.VarChar(8)
+  /// Kickoff date — the source for month-of-season effects.
+  gameDate DateTime? @map("game_date") @db.Date
+
   @@unique([playerId, sportType, gameId])
   @@index([playerId, sportType, season])
   @@index([sportType, season, weekOrRound])
   @@index([sportType, source])
   @@index([fetchedAt])
   @@index([expiresAt])
+  /// "This player vs this defense, across seasons" — the opponent adjustment's own query.
+  @@index([playerId, sportType, opponent])
+  /// "What this defense allowed to this position" — the larger-sample signal.
+  @@index([sportType, opponent, season])
   @@map("player_game_stats")
 }
 
