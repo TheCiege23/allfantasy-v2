@@ -5,10 +5,10 @@ import { test, expect } from '@playwright/test'
  *
  * This certifies the launch import journey end-to-end through the actual routed
  * page + component chain (`app/import/page.tsx` → `ImportPageClient` →
- * `components/unified-import-ui/LeagueImportFlow.tsx`), NOT the orphaned
- * `/create-league` UI (see e2e/league-creation-sleeper-import.spec.ts, which
- * drives a flow that no longer exists in production and must not be treated as
- * the launch path).
+ * `components/unified-import-ui/LeagueImportFlow.tsx`), NOT the `/create-league`
+ * UI. (There used to be an e2e/league-creation-sleeper-import.spec.ts driving
+ * that flow; it has since been deleted, because the flow it described no longer
+ * exists — the create wizard only links out to this route now.)
  *
  * The Sleeper provider's server calls are mocked at the canonical API boundary
  * (`/api/leagues/import/discover|preview|commit`) with controlled fixtures — the
@@ -18,6 +18,15 @@ import { test, expect } from '@playwright/test'
  *   - a successful commit surfaces the canonical `League.id` and links the user
  *     to `/league/[League.id]` (never `/af-legacy`).
  */
+
+/**
+ * This spec's own waits total up to 70s (15 + 15 + 15 + 25), which does not fit
+ * inside Playwright's DEFAULT 30s per-test budget — it only ever passed while the
+ * dev server happened to be warm. The final hop to /dashboard is the one that
+ * tips it over: that route is large and compiles on demand under `next dev`.
+ * Matches the 180s its sibling specs already declare.
+ */
+test.describe.configure({ timeout: 180_000 })
 
 const CANONICAL_LEAGUE_ID = '11111111-2222-3333-4444-555555555555'
 const SLEEPER_LEAGUE_ID = '987654321'
