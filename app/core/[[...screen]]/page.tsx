@@ -18,6 +18,8 @@ import Matchup from '@/components/core-app/screens/Matchup'
 import { getMatchupData } from '@/lib/core-app/matchup'
 import Trades from '@/components/core-app/screens/Trades'
 import { getTradesData } from '@/lib/core-app/trades'
+import Waivers from '@/components/core-app/screens/Waivers'
+import { getWaiversData } from '@/lib/core-app/waivers'
 
 export const dynamic = 'force-dynamic'
 
@@ -41,6 +43,7 @@ const SCREEN_KEYS: Record<string, CoreNavKey> = {
   'my-team': 'my-team',
   matchup: 'matchup',
   trades: 'trades',
+  waivers: 'waivers',
   'war-room': 'war-room',
   'draft-hq': 'draft-hq',
   portfolio: 'portfolio',
@@ -134,6 +137,11 @@ export default async function AfCorePage({
       ? await getTradesData(selectedLeagueId, userId).catch(() => null)
       : null
 
+  const waivers =
+    activeKey === 'waivers' && selectedLeagueId
+      ? await getWaiversData(selectedLeagueId, userId).catch(() => null)
+      : null
+
   // The shell requires a sync age, so it cannot render without one being decided.
   // Null here means "never synced", which describeAge renders as stale — the
   // honest reading until a per-league sync timestamp is wired through.
@@ -194,6 +202,19 @@ export default async function AfCorePage({
             <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
               Pick a league from the rail. Every trade grade is scored against one league&apos;s own
               scoring and roster rules, so trades only mean something inside a league.
+            </p>
+          </div>
+        )
+      ) : activeKey === 'waivers' ? (
+        waivers ? (
+          <Waivers data={waivers} />
+        ) : (
+          <div className="af-frame" style={{ padding: 24, maxWidth: 720 }}>
+            <h1 className="af-display" style={{ margin: 0, fontSize: 22, letterSpacing: '-0.03em' }}>
+              Waivers
+            </h1>
+            <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
+              Pick a league from the rail. FAAB, waiver order and bid pricing are all per-league.
             </p>
           </div>
         )
