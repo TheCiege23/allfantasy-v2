@@ -103,8 +103,26 @@ async function resolveGrades(
       if (Array.isArray(arr)) arr.forEach((x) => ids.add(String(x)))
     }
   }
+  /*
+   * ⚠ `source: 'FANTASYCALC'` IS AN EXPLICIT LICENCE BOUNDARY, NOT A TIDY FILTER.
+   * DynastyProcess's value files are derived from FantasyPros ECR and carry
+   * FantasyPros ids and page paths; FantasyPros' terms prohibit commercial use of
+   * any portion of their site, and a permissive licence on the redistributing repo
+   * cannot relicense third-party data inside it. FantasyCalc is the one source in
+   * use here with no such encumbrance.
+   *
+   * Today only FantasyCalc rows exist, so this filter is currently a no-op — which
+   * is exactly why it is written down. The moment a second source is ingested, an
+   * unfiltered query would silently start pricing trades on data we may not be
+   * licensed to use commercially, and nothing would fail.
+   */
   const snaps = await prisma.playerValueSnapshot.findMany({
-    where: { sleeperId: { in: [...ids] }, format: 'DYNASTY', qbFormat: 'SUPERFLEX' },
+    where: {
+      sleeperId: { in: [...ids] },
+      source: 'FANTASYCALC',
+      format: 'DYNASTY',
+      qbFormat: 'SUPERFLEX',
+    },
     select: { sleeperId: true, overallRank: true, capturedAt: true },
     orderBy: { capturedAt: 'desc' },
   })
