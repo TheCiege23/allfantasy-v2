@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import type { SectionState } from './leagueHome'
+import { leagueDisplayName, type SectionState, type UnavailableSection } from './leagueHome'
 
 /**
  * War Room — "on the clock: board, queue, recommendations and the pick-trade
@@ -55,9 +55,9 @@ export type WarRoomData = {
   }>
   clock: SectionState<{ endsAt: Date | null; pausedSecondsRemaining: number | null; yoursOnClock: boolean }>
   board: SectionState<{ columns: BoardColumn[]; cells: BoardCell[] }>
-  bestAvailable: SectionState<never>
-  queue: SectionState<never>
-  advice: SectionState<never>
+  bestAvailable: UnavailableSection
+  queue: UnavailableSection
+  advice: UnavailableSection
 }
 
 export async function getWarRoomData(leagueId: string, userId: string): Promise<WarRoomData | null> {
@@ -70,7 +70,7 @@ export async function getWarRoomData(leagueId: string, userId: string): Promise<
   const base = {
     league: {
       id: league.id,
-      name: league.name,
+      name: leagueDisplayName(league.name),
       platform: String(league.platform ?? 'manual').toLowerCase(),
     },
     bestAvailable: {

@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import type { SectionState } from './leagueHome'
+import { leagueDisplayName, type SectionState, type UnavailableSection } from './leagueHome'
 
 /**
  * Trades — "offer, grade, counter, all scored against this league's own rules".
@@ -43,10 +43,10 @@ export type TradesData = {
   /** Grading context the handoff prints above every grade. */
   gradingContext: SectionState<{ leagueName: string; format: string | null; teamCount: number }>
   history: SectionState<TradeRecord[]>
-  inbox: SectionState<never>
-  sent: SectionState<never>
-  grades: SectionState<never>
-  deadline: SectionState<never>
+  inbox: UnavailableSection
+  sent: UnavailableSection
+  grades: UnavailableSection
+  deadline: UnavailableSection
 }
 
 export async function getTradesData(leagueId: string, userId: string): Promise<TradesData | null> {
@@ -61,12 +61,12 @@ export async function getTradesData(leagueId: string, userId: string): Promise<T
   const base = {
     league: {
       id: league.id,
-      name: league.name,
+      name: leagueDisplayName(league.name),
       platform: String(league.platform ?? 'manual').toLowerCase(),
     },
     gradingContext: {
       available: true as const,
-      data: { leagueName: league.name, format: league.leagueType ?? null, teamCount },
+      data: { leagueName: leagueDisplayName(league.name), format: league.leagueType ?? null, teamCount },
     },
     // Pending offers are a live platform concept. Nothing ingests them, and a
     // trade screen that shows an empty inbox implies none are waiting.

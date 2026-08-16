@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import type { SectionState } from './leagueHome'
+import { leagueDisplayName, type SectionState, type UnavailableSection } from './leagueHome'
 
 /**
  * My team · roster — "read-only view of your real lineup, with the fix and where
@@ -70,9 +70,9 @@ export type MyTeamData = {
   reserve: SectionState<LineupPlayer[]>
   /** Earliest kickoff among starters — the real lineup lock. */
   lock: SectionState<{ at: Date; anyEmptySlot: boolean }>
-  projections: SectionState<never>
-  rosterGrade: SectionState<never>
-  liveScore: SectionState<never>
+  projections: UnavailableSection
+  rosterGrade: UnavailableSection
+  liveScore: UnavailableSection
 }
 
 /** Slot labels in the order fantasy lineups conventionally read. */
@@ -173,7 +173,7 @@ export async function getMyTeamData(leagueId: string, userId: string): Promise<M
   const base = {
     league: {
       id: league.id,
-      name: league.name,
+      name: leagueDisplayName(league.name),
       platform: String(league.platform ?? 'manual').toLowerCase(),
       format: league.leagueType ?? null,
     },

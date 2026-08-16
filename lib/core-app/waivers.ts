@@ -1,7 +1,7 @@
 import 'server-only'
 
 import { prisma } from '@/lib/prisma'
-import type { SectionState } from './leagueHome'
+import { leagueDisplayName, type SectionState, type UnavailableSection } from './leagueHome'
 
 /**
  * Waivers — "targets, bids and claim order, priced against this league's FAAB
@@ -37,9 +37,9 @@ export type WaiversData = {
   waiverPriority: SectionState<{ priority: number; leagueRosters: number }>
   rosterLoad: SectionState<{ playersHeld: number; starters: number; bench: number; reserve: number }>
   claimsQueued: SectionState<{ count: number; committed: number | null }>
-  waiverType: SectionState<never>
-  processTime: SectionState<never>
-  suggestedClaims: SectionState<never>
+  waiverType: UnavailableSection
+  processTime: UnavailableSection
+  suggestedClaims: UnavailableSection
 }
 
 export async function getWaiversData(leagueId: string, userId: string): Promise<WaiversData | null> {
@@ -52,7 +52,7 @@ export async function getWaiversData(leagueId: string, userId: string): Promise<
   const base = {
     league: {
       id: league.id,
-      name: league.name,
+      name: leagueDisplayName(league.name),
       platform: String(league.platform ?? 'manual').toLowerCase(),
       format: league.leagueType ?? null,
     },

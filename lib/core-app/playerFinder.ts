@@ -2,7 +2,7 @@ import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { describeAge } from '@/lib/sports-data/freshnessPolicy'
-import type { SectionState } from './leagueHome'
+import type { SectionState, UnavailableSection } from './leagueHome'
 
 /**
  * Player Finder — "one name in, every platform, league, slot, injury and the
@@ -56,10 +56,10 @@ export type PlayerDetail = {
   injury: SectionState<{ status: string | null; description: string | null; reportedAt: Date | null }>
   seasonStats: SectionState<Array<{ season: string; stats: Record<string, string> }>>
   leagues: SectionState<LeagueSlot[]>
-  projection: SectionState<never>
-  snapShare: SectionState<never>
-  positionRank: SectionState<never>
-  recommendedMoves: SectionState<never>
+  projection: UnavailableSection
+  snapShare: UnavailableSection
+  positionRank: UnavailableSection
+  recommendedMoves: UnavailableSection
   freshness: { label: string; stale: boolean }
 }
 

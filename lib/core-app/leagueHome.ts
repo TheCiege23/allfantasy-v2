@@ -23,6 +23,48 @@ export type SectionState<T> =
   | { available: true; data: T }
   | { available: false; reason: string }
 
+/**
+ * A section with NO DATA PATH AT ALL — nothing computes it yet, so it is
+ * unavailable on every code path, for every league, always.
+ *
+ * ⚠ THIS IS A DIFFERENT CLAIM FROM `SectionState<T>`, WHICH MEANS "sometimes
+ * available". These were written as `SectionState<never>`, which is technically
+ * that same union with an uninhabitable success branch — so every screen that read
+ * `.reason` off one failed to compile (21 errors), because TypeScript still had to
+ * consider an `available: true` case that can never occur. Narrowing each site
+ * would have silenced it while leaving the type lying about what exists.
+ *
+ * Naming it is the point: `UnavailableSection` is a standing inventory of what
+ * still needs an engine. When one gets built, its field changes to
+ * `SectionState<T>` and the compiler finds every screen that has to handle real
+ * data — which is exactly the reminder you want at that moment.
+ */
+export type UnavailableSection = { available: false; reason: string }
+
+/**
+ * A league's display name, with a stated fallback.
+ *
+ * ⚠ THIS EXISTS BECAUSE `League.name` IS `String?` IN THE SCHEMA WHILE EVERY
+ * core-app surface declares `name: string`. That single mismatch produced 38 type
+ * errors across seven resolvers and six screens: each resolver's return object
+ * failed to satisfy its own *Data type, TypeScript widened the whole object, and
+ * the screens then saw `SectionState<never>` and could not narrow `.reason`. One
+ * nullable column, thirty-eight errors, none of them where the problem was.
+ *
+ * Coalescing here rather than loosening the types to `string | null` is
+ * deliberate: every consumer needs something renderable, and six screens each
+ * inventing their own fallback is how you end up with a league called "undefined"
+ * on one tab and blank on another.
+ *
+ * Measured before choosing the fallback: 0 of 120 production leagues have a null
+ * or empty name, so this is a type-safety guard for a case the data does not
+ * currently produce — not a label anyone should expect to see.
+ */
+export function leagueDisplayName(name: string | null | undefined): string {
+  const trimmed = name?.trim()
+  return trimmed ? trimmed : 'Untitled league'
+}
+
 export type LeagueStanding = {
   teamId: string
   teamName: string
@@ -61,7 +103,7 @@ export type LeagueHomeData = {
   }>
   standings: SectionState<LeagueStanding[]>
   timeline: SectionState<SeasonStage[]>
-  matchup: SectionState<never>
+  matchup: UnavailableSection
   draftHq: SectionState<{ headline: string; detail: string }>
   commissioner: SectionState<{ openCount: number }>
   buzz: SectionState<Array<{ id: string; actor: string; text: string; at: Date | null }>>
@@ -215,7 +257,7 @@ export async function getLeagueHomeData(
   return {
     league: {
       id: league.id,
-      name: league.name,
+      name: leagueDisplayName(league.name),
       platform: String(league.platform ?? 'manual').toLowerCase(),
       format: league.leagueType ?? null,
       sport: String(league.sport ?? 'NFL'),
