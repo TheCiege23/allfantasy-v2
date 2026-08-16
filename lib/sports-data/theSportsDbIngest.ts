@@ -416,12 +416,51 @@ export async function ingestPlayerStats(
 ): Promise<{ playersQueried: number; playersWithStats: number; seasonRowsWritten: number }> {
   const result = { playersQueried: 0, playersWithStats: 0, seasonRowsWritten: 0 }
 
-  const players = await prisma.sportsPlayer.findMany({
+  /*
+   * ⚠ ORDERING IS LOAD-BEARING FOR SCHEDULED RUNS.
+   *
+   * This was `orderBy: { updatedAt: 'desc' }`, which is fine for a one-off but
+   * broken as a cron: a stats run writes to player_season_stats and does NOT
+   * touch sports_players, so the ordering never changes and every run would
+   * re-fetch the same first N players forever, never reaching the rest. At one
+   * API call per player and ~5,000 players, the tail would simply never be
+   * ingested.
+   *
+   * Players with NO stats row yet are taken first, then the least recently
+   * fetched, so successive bounded runs cycle through the whole population.
+   */
+  const alreadyHaveStats = await prisma.playerSeasonStats.findMany({
     where: { sport, source: SOURCE },
-    select: { externalId: true, name: true, position: true, team: true },
-    take: opts?.maxPlayers ?? 250,
-    orderBy: { updatedAt: 'desc' },
+    select: { playerId: true, fetchedAt: true },
+    orderBy: { fetchedAt: 'asc' },
   })
+  const staleFirst = alreadyHaveStats.map((r) => r.playerId)
+  const covered = new Set(staleFirst)
+
+  const limit = opts?.maxPlayers ?? 250
+
+  const uncovered = await prisma.sportsPlayer.findMany({
+    where: {
+      sport,
+      source: SOURCE,
+      ...(covered.size > 0 ? { externalId: { notIn: [...covered] } } : {}),
+    },
+    select: { externalId: true, name: true, position: true, team: true },
+    take: limit,
+  })
+
+  // Only top up with already-covered players when there is room left, so a
+  // never-seen player always outranks a refresh.
+  const topUp =
+    uncovered.length < limit
+      ? await prisma.sportsPlayer.findMany({
+          where: { sport, source: SOURCE, externalId: { in: staleFirst.slice(0, limit) } },
+          select: { externalId: true, name: true, position: true, team: true },
+          take: limit - uncovered.length,
+        })
+      : []
+
+  const players = [...uncovered, ...topUp]
 
   for (const p of players) {
     const tsdbId = p.externalId.replace(/^tsdb_/, '')
