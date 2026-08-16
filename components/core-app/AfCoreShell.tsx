@@ -35,6 +35,7 @@ export type RailLeague = {
 
 export type CoreNavKey =
   | 'home'
+  | 'my-team'
   | 'players'
   | 'war-room'
   | 'draft-hq'
@@ -64,12 +65,24 @@ export type AfCoreShellProps = {
   commissionerCount?: number
   rankingsLevel?: number | null
   warRoomLive?: boolean
+  /** Keeps league-scoped nav links pointed at the league in context. */
+  selectedLeagueId?: string | null
   children: React.ReactNode
 }
 
 function navItems(props: AfCoreShellProps): NavItem[] {
   return [
     { key: 'home', label: 'Home', glyph: '▣', href: '/core' },
+    // My team is league-scoped in the handoff, so the link carries the selected
+    // league rather than dropping the user on a screen that has to ask which one.
+    {
+      key: 'my-team',
+      label: 'My team',
+      glyph: '◈',
+      href: props.selectedLeagueId
+        ? `/core/my-team?league=${encodeURIComponent(props.selectedLeagueId)}`
+        : '/core/my-team',
+    },
     { key: 'players', label: 'Player Finder', glyph: '●', href: '/core/players' },
     {
       key: 'war-room',

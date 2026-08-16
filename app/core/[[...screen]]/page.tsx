@@ -12,6 +12,8 @@ import LeagueHome from '@/components/core-app/screens/LeagueHome'
 import { getLeagueHomeData } from '@/lib/core-app/leagueHome'
 import PlayerFinder from '@/components/core-app/screens/PlayerFinder'
 import { searchPlayers, getPlayerDetail } from '@/lib/core-app/playerFinder'
+import MyTeam from '@/components/core-app/screens/MyTeam'
+import { getMyTeamData } from '@/lib/core-app/myTeam'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,6 +34,7 @@ export const dynamic = 'force-dynamic'
 const SCREEN_KEYS: Record<string, CoreNavKey> = {
   '': 'home',
   players: 'players',
+  'my-team': 'my-team',
   'war-room': 'war-room',
   'draft-hq': 'draft-hq',
   portfolio: 'portfolio',
@@ -108,6 +111,13 @@ export default async function AfCorePage({
         ).catch(() => null)
       : null
 
+  // My team needs a league in context; without one the screen says which league
+  // to pick rather than guessing at the user's "main" league.
+  const myTeam =
+    activeKey === 'my-team' && selectedLeagueId
+      ? await getMyTeamData(selectedLeagueId, userId).catch(() => null)
+      : null
+
   // The shell requires a sync age, so it cannot render without one being decided.
   // Null here means "never synced", which describeAge renders as stale — the
   // honest reading until a per-league sync timestamp is wired through.
@@ -120,6 +130,7 @@ export default async function AfCorePage({
       active={activeKey}
       leagues={rail}
       syncAge={{ label: syncAge.label, stale: syncAge.stale }}
+      selectedLeagueId={selectedLeagueId}
       weekLabel={null}
       plan={null}
     >
@@ -128,6 +139,20 @@ export default async function AfCorePage({
           data={leagueHome}
           otherLeagueIssueCount={issues.filter((i) => i.leagueId !== leagueHome.league.id).length}
         />
+      ) : activeKey === 'my-team' ? (
+        myTeam ? (
+          <MyTeam data={myTeam} />
+        ) : (
+          <div className="af-frame" style={{ padding: 24, maxWidth: 720 }}>
+            <h1 className="af-display" style={{ margin: 0, fontSize: 22, letterSpacing: '-0.03em' }}>
+              My team
+            </h1>
+            <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
+              Pick a league from the rail to see your lineup. This screen is scoped to one league —
+              your roster, slots and lock time only mean something inside a single league&apos;s rules.
+            </p>
+          </div>
+        )
       ) : activeKey === 'players' ? (
         <PlayerFinder
           query={playerQuery}
