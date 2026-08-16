@@ -16,7 +16,13 @@ import '@/components/core-app/af-landing.css'
  * page, which carries the SEO and every acquisition link, is a decision to make
  * deliberately rather than as a side effect of a redesign landing.
  *
- * ⚠ THE B2B BAND SELLS DECISION OS AND CHIMMY, NOT AN API. It previously described
+ * ⚠ THE B2B BAND SELLS "WE RUN DECISION OS AND CHIMMY OVER YOUR DATA" — a business
+ * connects its own league data and we return decisions and signals, through their
+ * surface or ours. It is NOT "send your users to our consumer app". Keep that
+ * distinction when editing: the two readings are different products, and copy
+ * neutral enough to mean either lets a reader book a call for the wrong one.
+ *
+ * It previously described
  * "the cross-platform layer, as an API" with a partner sign-in button and a
  * "sandbox keys same day" note — none of which exist: there is no partner surface
  * in this codebase and nothing issues a sandbox key. Every capability now listed is
@@ -76,32 +82,46 @@ const FAQ = [
  * freshness contract. A business band is the worst place to describe a roadmap as
  * a product — the reader books a call on the strength of it.
  */
+/*
+ * ⚠ THE OFFER IS "WE RUN THIS OVER YOUR DATA", NOT "YOUR USERS SIGN UP FOR OURS".
+ * Every line is written from the buyer's side of that boundary — their leagues,
+ * their users, their surface — because the two readings imply completely
+ * different products and an earlier draft was neutral enough to be read either
+ * way. Neutral copy is not safe copy here: it lets a reader book a call for the
+ * thing we are not selling.
+ *
+ * ⚠ EVERY CAPABILITY MAPS TO SOMETHING THAT SHIPS — the four deterministic
+ * Decision OS routes, the manager-psychology program live in production, and
+ * Chimmy's league-scoped answers with their freshness contract. A business band
+ * is the worst place to describe a roadmap as a product: the reader books a call
+ * on the strength of it.
+ */
 const CAPABILITIES = [
   {
     key: 'DECISION OS',
-    title: 'The call, and the reason for it',
-    body: 'Lineups, trades, waivers and playoff paths resolved against a league’s own settings — and every answer shows the inputs it used, so it can be checked rather than trusted.',
+    title: 'Decisions on your leagues',
+    body: 'Point us at your league data and get back the call and its reasoning — lineups, trades, waivers, playoff paths — resolved against each league’s own settings, not a global ranking.',
   },
   {
     key: 'MANAGER PSYCHOLOGY',
-    title: 'How each manager actually behaves',
-    body: 'Trade, draft and lineup patterns read from a league’s real history and scored against that league’s own peers — who overpays, who never streams, who folds in November.',
+    title: 'How your users actually play',
+    body: 'Trade, draft and lineup patterns read from your leagues’ real history and scored against each league’s own peers: who overpays, who never streams, who disengages in November.',
   },
   {
     key: 'CHIMMY INTELLIGENCE',
-    title: 'Ask it in plain language',
-    body: 'A conversational layer answering from the league’s own roster, scoring and transaction data, carrying how fresh that data is — so an answer can never quietly outrun what it knows.',
+    title: 'A conversational layer over it',
+    body: 'Answers drawn from your league data, carrying how fresh that data is, so a reply can never quietly outrun what it knows. Runs behind your product or ours.',
   },
   {
     key: 'THE LAYER UNDER IT',
-    title: 'Six platforms, one shape',
-    body: 'The hard part is not the data — it is that every platform models a league differently. We already reconcile them, read-only, so nothing above has to care where a league lives.',
+    title: 'However your data arrives',
+    body: 'The hard part is not the data — it is that every platform models a league differently. We already reconcile six of them, so the engines above do not care what shape yours is in.',
   },
 ]
 
 const AUDIENCES = [
-  { who: 'Fantasy platforms', why: 'Decision intelligence on your leagues without building a model team.' },
-  { who: 'Media & creators', why: 'Manager psychology and league storylines, segment-ready.' },
+  { who: 'Fantasy platforms', why: 'Decision intelligence on your own leagues, without building a model team.' },
+  { who: 'Media & creators', why: 'Manager psychology and storylines drawn from the leagues you cover.' },
   { who: 'League operators', why: 'Health, engagement and attention signals across every league you run.' },
   { who: 'Brands & agencies', why: 'Season-long activations grounded in real league behaviour.' },
 ]
@@ -190,7 +210,7 @@ function DemoForm() {
     <form className="af-lp-demo" id="demo" onSubmit={onSubmit} noValidate>
       <span className="af-label">Request a demo</span>
       <p className="af-lp-demo-body">
-        Thirty minutes, walked through Decision OS and Chimmy on leagues like yours.
+        Thirty minutes, walked through Decision OS and Chimmy running on data like yours.
       </p>
       <label className="af-lp-field">
         <span className="af-label">Work email</span>
@@ -215,11 +235,11 @@ function DemoForm() {
         />
       </label>
       <label className="af-lp-field">
-        <span className="af-label">What you&apos;d want it to do</span>
+        <span className="af-label">Your leagues and what you&apos;d want back</span>
         <textarea
           name="useCase"
           rows={3}
-          placeholder="Briefly, what you have in mind"
+          placeholder="Where your league data lives, and what you'd want it to answer"
           value={useCase}
           onChange={(e) => setUseCase(e.target.value)}
         />
@@ -428,11 +448,11 @@ export function LandingV4() {
         <div className="af-lp-b2b-head">
           <div className="af-lp-b2b-intro">
             <span className="af-lp-eyebrow af-num af-lp-eyebrow--accent">AllFantasy for business</span>
-            <h2 className="af-lp-b2b-h2">Decision OS and Chimmy Intelligence, for your business</h2>
+            <h2 className="af-lp-b2b-h2">Run Decision OS and Chimmy over your own league data</h2>
             <p className="af-lp-b2b-body">
-              We turn a league&apos;s real history into decisions your users can act on, and into
-              signals you can build a product, a show or a season around. See it running on your own
-              leagues.
+              Connect your leagues and we return the decisions and the behavioural signals behind
+              them — through your product or ours. Your users never have to leave your platform, and
+              you don&apos;t have to build a model team to get there.
             </p>
           </div>
 
@@ -472,10 +492,22 @@ export function LandingV4() {
                 </li>
               ))}
             </ul>
+            {/*
+              ⚠ REWRITTEN FOR THE "WE RUN IT OVER YOUR DATA" MODEL. The previous
+              wording was the consumer promise verbatim, which answers the wrong
+              question: a platform handing over its users' league history wants to
+              know what happens to that data, not that we won't post to Sleeper.
+              It states the operating boundary and says plainly that the terms are
+              a conversation — inventing retention or processing commitments the
+              business has not actually made would be the worst thing this band
+              could do.
+            */}
             <p className="af-lp-boundary">
               <span className="af-readonly">Read-only</span>
-              Same boundary as the consumer product: read-only on every platform, season-long
-              fantasy only, no gambling or DFS, and we never post on a user&apos;s behalf.
+              We operate read-only on whatever you connect, and it stays your data — used to answer
+              for your leagues, not resold. Season-long fantasy only: no gambling, no DFS, and we
+              never act on a user&apos;s behalf. Processing and retention terms are part of the
+              conversation, not fine print.
             </p>
           </div>
 
