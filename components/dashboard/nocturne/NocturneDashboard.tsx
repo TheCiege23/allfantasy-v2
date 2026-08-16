@@ -811,6 +811,15 @@ export default function NocturneDashboard({
           {/* Quick actions (reference NavChips): War Room / Commissioner Hub / Ask Chimmy / Communications */}
           {!isVisitor && (
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+              {/*
+                Entry point to the AF Core redesign. Labelled "preview" on
+                purpose: all nine screens are built, but several sections in them
+                report their data as unavailable because nothing ingests it yet
+                (win probability, projections, trade grades). Sending people there
+                unlabelled would read as the product regressing rather than as a
+                surface still filling in.
+              */}
+              <Link href="/core" className="btn btn-secondary" style={{ fontSize: 12.5 }}><LayoutGrid size={14} />New layout · preview</Link>
               <Link href="/war-room" className="btn btn-secondary" style={{ fontSize: 12.5 }}><Swords size={14} />War Room</Link>
               <Link href="/commissioner-hub" className="btn btn-secondary" style={{ fontSize: 12.5 }}><ShieldCheck size={14} />Commissioner Hub</Link>
               <button type="button" onClick={() => { setCommsTab('chimmy'); setCommsOpen(true) }} className="btn btn-secondary" style={{ fontSize: 12.5 }}><Sparkles size={14} />Ask Chimmy</button>
