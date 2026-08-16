@@ -26,6 +26,7 @@ import WarRoom from '@/components/core-app/screens/WarRoom'
 import { getWarRoomData } from '@/lib/core-app/warRoom'
 import LandingV4 from '@/components/core-app/screens/LandingV4'
 import AuthV4 from '@/components/core-app/screens/AuthV4'
+import ImportV4, { type ImportPreviewState } from '@/components/core-app/screens/ImportV4'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,6 +106,14 @@ export default async function AfCorePage({
   }
   if (segment === 'signup-preview') {
     return <AuthV4 mode="signup" />
+  }
+  if (segment === 'import-preview') {
+    // ?state= previews the connecting and result layouts. They are reachable
+    // only deliberately, and the result panel says it carries no league data.
+    const raw = typeof sp.state === 'string' ? sp.state : 'pick'
+    const previewState: ImportPreviewState =
+      raw === 'connecting' || raw === 'result' ? raw : 'pick'
+    return <ImportV4 state={previewState} />
   }
 
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
