@@ -117,7 +117,40 @@ function sameCoach(aNorm: string, bNorm: string): boolean {
   return givenNamesMatch(a[0], b[0])
 }
 
-const RELOCATIONS: Record<string, string> = { OAK: 'LV', SD: 'LAC', STL: 'LA' }
+/**
+ * Franchise codes normalised onto the nflverse spelling (Phase 1a's, and the one
+ * PlayerGameStat.opponent uses).
+ *
+ * ⚠ FOUR MISMATCHES, ALL FOUND BY DIFFING THE TWO SOURCES' FRANCHISE SETS — none
+ * would have thrown an error. Coaching Tree and nflverse disagree on the code for
+ * the Rams, Jaguars and Ravens, so without this the Rams' coaching history splits
+ * across `LA` and `LAR` and neither half looks wrong on its own. Diffing the sets
+ * is the only way this surfaces.
+ */
+const RELOCATIONS: Record<string, string> = {
+  // Relocations
+  OAK: 'LV',
+  SD: 'LAC',
+  STL: 'LA',
+  // Spelling disagreements between the two sources
+  LAR: 'LA',
+  JAC: 'JAX',
+  BAL_R: 'BAL',
+}
+
+/**
+ * ⚠ HOUSTON IS UNREACHABLE IN THIS SOURCE — A MEASURED, UPSTREAM GAP.
+ * `list_teams` returns the Texans as active with slug `houston-texans`, and
+ * `get_team_staff` then rejects that exact slug for every year 2002-2025.
+ * `HOU`, `texans` and `houston` are all rejected too. This accounted for ALL 27
+ * failed team-seasons in the full backfill.
+ *
+ * Consequence: the Texans have no coordinator data, and any coaching factor for
+ * them must be EXCLUDED rather than defaulted — the whole point of the factor
+ * contract. Recorded here so a future run does not read 27 failures as a network
+ * blip.
+ */
+export const KNOWN_SOURCE_GAPS = ['HOU: get_team_staff rejects every identifier (upstream)']
 
 type TeamRow = { name: string; abbreviation: string; slug: string; is_active: boolean }
 type StaffEntry = { name: string; slug: string; roles: string[]; is_head_coach: boolean }
@@ -213,18 +246,32 @@ async function main() {
       //    the only real measurement of this source's reliability.
       const theirHc = staff.find((s) => s.is_head_coach)
       if (theirHc) {
-        const ours = await prisma.coachStint.findFirst({
+        /*
+         * ⚠ findMANY, NOT findFirst — A TEAM CAN HAVE TWO HEAD COACHES IN A SEASON.
+         * nflverse records the coach per GAME, so a mid-season firing produces two
+         * rows; Coaching Tree records one per season. Comparing against an
+         * arbitrary first row counted IND 2022 as a source disagreement when both
+         * sources were right: Frank Reich was fired in November and Jeff Saturday
+         * finished as interim. That was the ONLY flagged disagreement in 753
+         * comparisons, and it was an artefact of this query, not a data fault.
+         *
+         * Agreement with ANY head coach on file is agreement.
+         */
+        const ours = await prisma.coachStint.findMany({
           where: { teamId: code, season: year, role: 'HC', source: 'NFLVERSE' },
           select: { coach: { select: { nameNormalized: true, fullName: true } } },
         })
-        if (ours) {
+        if (ours.length > 0) {
           // sameCoach(), not string equality — otherwise "Jon"/"Jonathan" reads as
           // a source disagreement when it is a spelling variant.
-          if (sameCoach(ours.coach.nameNormalized, normaliseName(theirHc.name))) hcAgree++
+          const theirs = normaliseName(theirHc.name)
+          if (ours.some((o) => sameCoach(o.coach.nameNormalized, theirs))) hcAgree++
           else {
             hcDisagree++
             if (disagreements.length < 15)
-              disagreements.push(`${code} ${year}: nflverse="${ours.coach.fullName}" tree="${theirHc.name}"`)
+              disagreements.push(
+                `${code} ${year}: nflverse=[${ours.map((o) => o.coach.fullName).join(', ')}] tree="${theirHc.name}"`
+              )
           }
         }
       }
