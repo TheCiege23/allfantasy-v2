@@ -36,6 +36,7 @@ export type RailLeague = {
 export type CoreNavKey =
   | 'home'
   | 'my-team'
+  | 'landing-preview'
   | 'matchup'
   | 'trades'
   | 'waivers'

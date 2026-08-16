@@ -24,6 +24,7 @@ import DraftHq from '@/components/core-app/screens/DraftHq'
 import { getDraftHqData } from '@/lib/core-app/draftHq'
 import WarRoom from '@/components/core-app/screens/WarRoom'
 import { getWarRoomData } from '@/lib/core-app/warRoom'
+import LandingV4 from '@/components/core-app/screens/LandingV4'
 
 export const dynamic = 'force-dynamic'
 
@@ -45,6 +46,7 @@ const SCREEN_KEYS: Record<string, CoreNavKey> = {
   '': 'home',
   players: 'players',
   'my-team': 'my-team',
+  'landing-preview': 'landing-preview',
   matchup: 'matchup',
   trades: 'trades',
   waivers: 'waivers',
@@ -80,6 +82,20 @@ export default async function AfCorePage({
   const selectedPlayerId = typeof sp.player === 'string' ? sp.player : null
   const segment = (screen?.[0] ?? '').toLowerCase()
   const navKey = SCREEN_KEYS[segment]
+
+  /*
+   * The landing preview is served BEFORE the session gate and OUTSIDE AfCoreShell.
+   *
+   * Both matter and both were wrong first time round. A marketing page rendered
+   * inside the signed-in chrome came out wrapped in the league rail, the app nav
+   * and the topbar — it has its own nav and belongs to no league. And gating it
+   * behind auth is backwards: a landing page exists for people who are NOT
+   * signed in, so the redirect to /login made it unreachable by its only real
+   * audience.
+   */
+  if (segment === 'landing-preview') {
+    return <LandingV4 />
+  }
 
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
   const userId = session?.user?.id
