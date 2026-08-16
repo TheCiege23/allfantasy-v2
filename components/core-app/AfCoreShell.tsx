@@ -1,0 +1,264 @@
+'use client'
+
+import Link from 'next/link'
+import { useMemo, useState } from 'react'
+import '@/components/core-app/af-core.css'
+import '@/components/core-app/af-core-shell.css'
+
+/**
+ * The chrome every AF Core screen sits inside: league rail, primary nav, top bar.
+ *
+ * Two rules from the handoff are enforced here rather than left to each screen,
+ * because a screen that forgets either one misleads the user:
+ *
+ *   1. AllFantasy is READ-ONLY on every connected platform. The chip is part of
+ *      the shell so it cannot be omitted, and its help text says plainly that we
+ *      never change anything on Sleeper, ESPN or Yahoo.
+ *   2. The last-sync age is always visible and turns `--warn` when stale, "rather
+ *      than silently showing old numbers". `syncAge` is a required prop for the
+ *      same reason sportsReadPort attaches freshness to every result — a caller
+ *      that must pass it cannot forget to show it.
+ */
+
+export type PlatformId = 'sleeper' | 'espn' | 'yahoo'
+
+export type RailLeague = {
+  id: string
+  name: string
+  platform: PlatformId | string
+  /** Single letter shown on the tile. */
+  mark: string
+  /** Something needs attention in this league. */
+  hasAlert?: boolean
+  alertTone?: 'bad' | 'warn'
+}
+
+export type CoreNavKey =
+  | 'home'
+  | 'players'
+  | 'war-room'
+  | 'draft-hq'
+  | 'portfolio'
+  | 'career'
+  | 'rankings'
+  | 'commissioner'
+  | 'tools'
+
+type NavItem = {
+  key: CoreNavKey
+  label: string
+  glyph: string
+  href: string
+  badge?: { text: string; tone: 'live' | 'level' | 'count' }
+}
+
+export type AfCoreShellProps = {
+  active: CoreNavKey
+  leagues: RailLeague[]
+  /** Rendered from sportsReadPort freshness — label plus whether to warn. */
+  syncAge: { label: string; stale: boolean }
+  /** Null when the user has no plan context loaded; the chip is then omitted
+   *  rather than showing a made-up tier. */
+  plan?: { name: string; tokensLeft: number | null } | null
+  weekLabel?: string | null
+  commissionerCount?: number
+  rankingsLevel?: number | null
+  warRoomLive?: boolean
+  children: React.ReactNode
+}
+
+function navItems(props: AfCoreShellProps): NavItem[] {
+  return [
+    { key: 'home', label: 'Home', glyph: '▣', href: '/core' },
+    { key: 'players', label: 'Player Finder', glyph: '●', href: '/core/players' },
+    {
+      key: 'war-room',
+      label: 'War Room',
+      glyph: '◆',
+      href: '/core/war-room',
+      badge: props.warRoomLive ? { text: 'LIVE', tone: 'live' } : undefined,
+    },
+    { key: 'draft-hq', label: 'Draft HQ', glyph: '▤', href: '/core/draft-hq' },
+    { key: 'portfolio', label: 'Portfolio', glyph: '◈', href: '/core/portfolio' },
+    { key: 'career', label: 'Your career', glyph: '★', href: '/core/career' },
+    {
+      key: 'rankings',
+      label: 'Rankings',
+      glyph: '↑',
+      href: '/core/rankings',
+      // Only shown when a level actually exists — never a placeholder "LVL 1".
+      badge: props.rankingsLevel != null ? { text: `LVL ${props.rankingsLevel}`, tone: 'level' } : undefined,
+    },
+    {
+      key: 'commissioner',
+      label: 'Commissioner',
+      glyph: '⚑',
+      href: '/core/commissioner',
+      badge:
+        props.commissionerCount && props.commissionerCount > 0
+          ? { text: String(props.commissionerCount), tone: 'count' }
+          : undefined,
+    },
+    { key: 'tools', label: 'Tools', glyph: '⚙', href: '/core/tools' },
+  ]
+}
+
+function HelpDot({ title, body }: { title: string; body: string }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <span className="af-help-wrap">
+      <button
+        type="button"
+        className="af-help-dot"
+        aria-label={title}
+        aria-expanded={open}
+        onClick={() => setOpen((v) => !v)}
+        onBlur={() => setOpen(false)}
+      >
+        ?
+      </button>
+      {open ? (
+        <span className="af-help-body" role="tooltip">
+          <b>{title}</b>
+          {body}
+        </span>
+      ) : null}
+    </span>
+  )
+}
+
+export function AfCoreShell(props: AfCoreShellProps) {
+  const items = useMemo(() => navItems(props), [props])
+  const { leagues, syncAge, plan, weekLabel, active, children } = props
+
+  return (
+    <div className="af-core af-shell">
+      {/* ── League rail ─────────────────────────────────────────────── */}
+      <nav className="af-rail" aria-label="Leagues">
+        <Link href="/core" className="af-rail-logo" aria-label="AllFantasy home">
+          AF
+        </Link>
+
+        <div className="af-rail-divider" />
+
+        {leagues.map((l) => (
+          <Link
+            key={l.id}
+            href={`/core?league=${encodeURIComponent(l.id)}`}
+            className="af-rail-tile af-platform"
+            data-platform={l.platform}
+            title={`${l.name} · ${l.platform}`}
+            aria-label={`${l.name} on ${l.platform}`}
+          >
+            {l.mark}
+            {l.hasAlert ? <span className="af-rail-dot" data-tone={l.alertTone ?? 'warn'} /> : null}
+          </Link>
+        ))}
+
+        <Link href="/import" className="af-rail-tile af-rail-add" aria-label="Add a league">
+          +
+        </Link>
+
+        <div className="af-rail-spacer" />
+
+        <Link href="/settings" className="af-rail-tile af-rail-profile" title="Profile, settings and modes">
+          G
+        </Link>
+      </nav>
+
+      {/* ── Primary nav ─────────────────────────────────────────────── */}
+      <aside className="af-nav">
+        <div className="af-nav-items">
+          {items.map((item) => (
+            <Link
+              key={item.key}
+              href={item.href}
+              className="af-nav-item"
+              data-active={item.key === active}
+              aria-current={item.key === active ? 'page' : undefined}
+            >
+              <span className="af-nav-glyph" aria-hidden>
+                {item.glyph}
+              </span>
+              <span className="af-nav-label">{item.label}</span>
+              {item.badge ? (
+                <span className="af-nav-badge" data-tone={item.badge.tone}>
+                  {item.badge.text}
+                </span>
+              ) : null}
+            </Link>
+          ))}
+        </div>
+
+        {/*
+          The import CTA states read-only and the time cost up front. Both are
+          load-bearing: the first is the product's central promise, the second is
+          what stops "connect a platform" reading as a commitment.
+        */}
+        <div className="af-import-cta">
+          <div className="af-import-title">Import a league</div>
+          <p className="af-import-body">Sleeper, ESPN or Yahoo. Read-only, takes about a minute.</p>
+          <Link href="/import" className="af-btn af-import-btn">
+            Connect a platform
+          </Link>
+        </div>
+      </aside>
+
+      {/* ── Main column ─────────────────────────────────────────────── */}
+      <div className="af-main">
+        <header className="af-topbar">
+          <label className="af-search" aria-label="Search any player or league">
+            <span className="af-search-icon" aria-hidden>
+              ○
+            </span>
+            <input
+              className="af-search-input"
+              placeholder="Search any player or league"
+              type="search"
+            />
+            <span className="af-search-kbd af-num" aria-hidden>
+              ⌘K
+            </span>
+          </label>
+
+          <div className="af-topbar-right">
+            <span className="af-readonly">
+              Read-only
+              <HelpDot
+                title="Read-only by design"
+                body="AllFantasy never changes anything on Sleeper, ESPN or Yahoo. We read your leagues and point you to the exact league and screen where you make the change."
+              />
+            </span>
+
+            {weekLabel ? <span className="af-week af-num">{weekLabel}</span> : null}
+
+            <span className="af-sync af-num" data-stale={syncAge.stale} title="Last sync">
+              {syncAge.stale ? '⚠ ' : ''}
+              synced {syncAge.label}
+            </span>
+
+            {plan ? (
+              <span className="af-plan">
+                <span className="af-plan-name af-label">{plan.name}</span>
+                {plan.tokensLeft != null ? (
+                  <>
+                    <span className="af-plan-tokens af-num">{plan.tokensLeft.toLocaleString()}</span>
+                    <span className="af-label">tokens left</span>
+                  </>
+                ) : null}
+                <HelpDot
+                  title="Plan tokens"
+                  body="Your plan includes a monthly allowance of Chimmy requests — grades, projections and recommendations. Resets on your billing date."
+                />
+              </span>
+            ) : null}
+          </div>
+        </header>
+
+        <main className="af-content">{children}</main>
+      </div>
+    </div>
+  )
+}
+
+export default AfCoreShell

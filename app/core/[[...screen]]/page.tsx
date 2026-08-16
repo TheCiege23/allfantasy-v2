@@ -1,0 +1,117 @@
+import { redirect } from 'next/navigation'
+import { getServerSession } from 'next-auth'
+
+import { authOptions } from '@/lib/auth'
+import { getDashboardLeagueListForUser } from '@/lib/dashboard/get-dashboard-league-list'
+import { deriveOutstandingIssues } from '@/lib/core-app/outstandingIssues'
+import { describeAge } from '@/lib/sports-data/freshnessPolicy'
+import AfCoreShell, { type CoreNavKey, type RailLeague } from '@/components/core-app/AfCoreShell'
+import type { UserLeague } from '@/app/dashboard/types'
+import DashboardAllLeagues from '@/components/core-app/screens/DashboardAllLeagues'
+
+export const dynamic = 'force-dynamic'
+
+/**
+ * AF Core — every screen from the design handoff, behind ONE route.
+ *
+ * An optional catch-all rather than nine sibling routes on purpose: this repo
+ * sits against Vercel's hard 2048-route ceiling (see
+ * scripts/vercel-next-build.cjs), and nine page routes for one product surface
+ * is exactly the kind of spend that pushed it there. `/core`, `/core/players`,
+ * `/core/my-team` and the rest all resolve here and cost one route between them.
+ *
+ * Screens land incrementally. Anything not yet built renders an explicit
+ * "not built yet" panel instead of a blank page or a redirect, so the nav is
+ * honest about what exists.
+ */
+
+const SCREEN_KEYS: Record<string, CoreNavKey> = {
+  '': 'home',
+  players: 'players',
+  'war-room': 'war-room',
+  'draft-hq': 'draft-hq',
+  portfolio: 'portfolio',
+  career: 'career',
+  rankings: 'rankings',
+  commissioner: 'commissioner',
+  tools: 'tools',
+}
+
+const PLATFORM_MARK: Record<string, string> = {
+  sleeper: 'S',
+  espn: 'E',
+  yahoo: 'Y',
+  cbs: 'C',
+  mfl: 'M',
+  fantrax: 'F',
+}
+
+export default async function AfCorePage({
+  params,
+}: {
+  params: Promise<{ screen?: string[] }>
+}) {
+  const { screen } = await params
+  const segment = (screen?.[0] ?? '').toLowerCase()
+  const navKey = SCREEN_KEYS[segment]
+
+  const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
+  const userId = session?.user?.id
+  if (!userId) {
+    redirect(`/login?callbackUrl=${encodeURIComponent(`/core${segment ? `/${segment}` : ''}`)}`)
+  }
+
+  // Unknown segment: fall back to home rather than 404ing a nav link.
+  const activeKey: CoreNavKey = navKey ?? 'home'
+
+  // getDashboardLeagueListForUser returns { leagues, sleeperUserId } — NOT an
+  // array — and types its leagues as `unknown[]`, so nothing stops a caller from
+  // mapping the payload itself. The dashboard page casts the same way.
+  const leagueListPayload = await getDashboardLeagueListForUser(userId).catch(() => null)
+  const leagues = (leagueListPayload?.leagues ?? []) as unknown as UserLeague[]
+
+  const rail: RailLeague[] = leagues.map((l) => ({
+    id: l.id,
+    name: l.name,
+    platform: String(l.platform ?? 'manual').toLowerCase(),
+    mark: PLATFORM_MARK[String(l.platform ?? '').toLowerCase()] ?? l.name.charAt(0).toUpperCase(),
+  }))
+
+  const { issues, detectorsUnavailable } = deriveOutstandingIssues({ leagues })
+
+  // The shell requires a sync age, so it cannot render without one being decided.
+  // Null here means "never synced", which describeAge renders as stale — the
+  // honest reading until a per-league sync timestamp is wired through.
+  const syncAge = describeAge('roster', null)
+
+  const now = new Date()
+
+  return (
+    <AfCoreShell
+      active={activeKey}
+      leagues={rail}
+      syncAge={{ label: syncAge.label, stale: syncAge.stale }}
+      weekLabel={null}
+      plan={null}
+    >
+      {activeKey === 'home' ? (
+        <DashboardAllLeagues
+          issues={issues}
+          detectorsUnavailable={detectorsUnavailable}
+          leagueCount={leagues.length}
+          now={now.toISOString()}
+        />
+      ) : (
+        <div className="af-frame" style={{ padding: 24, maxWidth: 720 }}>
+          <h1 className="af-display" style={{ margin: 0, fontSize: 22, letterSpacing: '-0.03em' }}>
+            {activeKey.replace(/-/g, ' ')}
+          </h1>
+          <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
+            This screen is part of the core-app redesign and has not been built yet. It is listed in
+            the nav so the shell matches the design, and says so rather than rendering an empty page.
+          </p>
+        </div>
+      )}
+    </AfCoreShell>
+  )
+}
