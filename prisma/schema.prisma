@@ -28,6 +28,57 @@ model EarlyAccessSignup {
   @@index([utmSource])
 }
 
+/// Measured team-season play-calling tendencies, derived from play-by-play.
+///
+/// ⚠ STORED AT TEAM-SEASON, NOT COACH, AND THAT IS DELIBERATE. No dataset records
+/// who actually calls plays — some head coaches call their own offense, some
+/// defer, some take over mid-season. Attributing a measured PROE to a named
+/// coordinator who may not have called it is worse than leaving it unattributed:
+/// the number is then pointed at the wrong human. Tendencies are measured where
+/// they are unambiguous (the team) and resolved to coaches at read time through
+/// CoachStint, with attribution confidence capped accordingly.
+///
+/// ⚠ EVERY RATE CARRIES ITS OWN SAMPLE SIZE. Coverage windows differ per field —
+/// shotgun/no-huddle from 1999, PROE from 2006, FTN charting only from 2022 — so a
+/// single row can hold a PROE backed by 1,000 plays beside a motion rate backed by
+/// none. One confidence number across both would launder the weak field's
+/// uncertainty into the strong one.
+model TeamTendencySeason {
+  id     String @id @default(cuid())
+  teamId String @db.VarChar(8)
+  season Int
+
+  /// Plays surviving the neutral-script filter — the denominator for the rates below.
+  neutralPlays Int @default(0)
+
+  /// Pass rate over expected. nflfastR `pass_oe`; NULL before 2006.
+  proe            Float?
+  proeN           Int?
+  shotgunRate     Float?
+  shotgunN        Int?
+  noHuddleRate    Float?
+  noHuddleN       Int?
+  /// Seconds per play in neutral script — pace. Lower = more plays = more fantasy points.
+  secPerPlay      Float?
+  secPerPlayN     Int?
+
+  /// FTN charting, 2022+ only. NULL for earlier seasons by coverage, not by failure.
+  playActionRate Float?
+  playActionN    Int?
+  motionRate     Float?
+  motionN        Int?
+  rpoRate        Float?
+  rpoN           Int?
+  screenRate     Float?
+  screenN        Int?
+
+  source     String   @db.VarChar(32)
+  computedAt DateTime @default(now())
+
+  @@unique([teamId, season])
+  @@index([season])
+}
+
 /// Canonical coaching identity — one row per human.
 ///
 /// ⚠ NEVER KEY ON NAME. The league has repeated Shanahans, Ryans, Harbaughs and
