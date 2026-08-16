@@ -152,7 +152,12 @@ test.describe('Canonical Sleeper import — real /import route', () => {
     await page.getByTestId('import-go-dashboard').click()
     // Assert the DESTINATION (client nav commit) — not full dashboard render,
     // which can exceed the timeout on a cold dev compile.
-    await page.waitForURL('**/dashboard**', { timeout: 25_000, waitUntil: 'commit' })
+    // `commit` still needs the server to answer with headers, and /dashboard is
+    // large enough that a cold `next dev` compile blows past 25s whenever anything
+    // else is competing for the machine. Raising the per-test budget alone was not
+    // enough — this inner wait was the binding constraint, and it is a dev-server
+    // build cost, not a product latency the user would ever see.
+    await page.waitForURL('**/dashboard**', { timeout: 120_000, waitUntil: 'commit' })
     expect(new URL(page.url()).pathname).toBe('/dashboard')
 
     // The flagship import must never have used the legacy career-history pipeline.
