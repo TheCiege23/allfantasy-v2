@@ -16,6 +16,8 @@ import MyTeam from '@/components/core-app/screens/MyTeam'
 import { getMyTeamData } from '@/lib/core-app/myTeam'
 import Matchup from '@/components/core-app/screens/Matchup'
 import { getMatchupData } from '@/lib/core-app/matchup'
+import Trades from '@/components/core-app/screens/Trades'
+import { getTradesData } from '@/lib/core-app/trades'
 
 export const dynamic = 'force-dynamic'
 
@@ -38,6 +40,7 @@ const SCREEN_KEYS: Record<string, CoreNavKey> = {
   players: 'players',
   'my-team': 'my-team',
   matchup: 'matchup',
+  trades: 'trades',
   'war-room': 'war-room',
   'draft-hq': 'draft-hq',
   portfolio: 'portfolio',
@@ -126,6 +129,11 @@ export default async function AfCorePage({
       ? await getMatchupData(selectedLeagueId, userId).catch(() => null)
       : null
 
+  const trades =
+    activeKey === 'trades' && selectedLeagueId
+      ? await getTradesData(selectedLeagueId, userId).catch(() => null)
+      : null
+
   // The shell requires a sync age, so it cannot render without one being decided.
   // Null here means "never synced", which describeAge renders as stale — the
   // honest reading until a per-league sync timestamp is wired through.
@@ -172,6 +180,20 @@ export default async function AfCorePage({
             <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
               Pick a league from the rail to see its matchup. A head-to-head only means something
               inside one league&apos;s schedule and scoring.
+            </p>
+          </div>
+        )
+      ) : activeKey === 'trades' ? (
+        trades ? (
+          <Trades data={trades} />
+        ) : (
+          <div className="af-frame" style={{ padding: 24, maxWidth: 720 }}>
+            <h1 className="af-display" style={{ margin: 0, fontSize: 22, letterSpacing: '-0.03em' }}>
+              Trades
+            </h1>
+            <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
+              Pick a league from the rail. Every trade grade is scored against one league&apos;s own
+              scoring and roster rules, so trades only mean something inside a league.
             </p>
           </div>
         )

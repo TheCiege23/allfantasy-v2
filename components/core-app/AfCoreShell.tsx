@@ -37,6 +37,7 @@ export type CoreNavKey =
   | 'home'
   | 'my-team'
   | 'matchup'
+  | 'trades'
   | 'players'
   | 'war-room'
   | 'draft-hq'
@@ -91,6 +92,14 @@ function navItems(props: AfCoreShellProps): NavItem[] {
       href: props.selectedLeagueId
         ? `/core/matchup?league=${encodeURIComponent(props.selectedLeagueId)}`
         : '/core/matchup',
+    },
+    {
+      key: 'trades',
+      label: 'Trades',
+      glyph: '⇄',
+      href: props.selectedLeagueId
+        ? `/core/trades?league=${encodeURIComponent(props.selectedLeagueId)}`
+        : '/core/trades',
     },
     { key: 'players', label: 'Player Finder', glyph: '●', href: '/core/players' },
     {
