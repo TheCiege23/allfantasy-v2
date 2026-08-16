@@ -25,6 +25,7 @@ import { getDraftHqData } from '@/lib/core-app/draftHq'
 import WarRoom from '@/components/core-app/screens/WarRoom'
 import { getWarRoomData } from '@/lib/core-app/warRoom'
 import LandingV4 from '@/components/core-app/screens/LandingV4'
+import AuthV4 from '@/components/core-app/screens/AuthV4'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,6 +96,15 @@ export default async function AfCorePage({
    */
   if (segment === 'landing-preview') {
     return <LandingV4 />
+  }
+
+  // Auth previews are ungated for the same reason the landing is: sign-in and
+  // sign-up exist for people who are NOT signed in.
+  if (segment === 'signin-preview') {
+    return <AuthV4 mode="signin" />
+  }
+  if (segment === 'signup-preview') {
+    return <AuthV4 mode="signup" />
   }
 
   const session = (await getServerSession(authOptions as never)) as { user?: { id?: string } } | null
