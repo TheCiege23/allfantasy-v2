@@ -73,6 +73,10 @@
       "schedule": "0 4 * * 1"
     },
     {
+      "path": "/api/cron/import-schedules?source=tsdb-only",
+      "schedule": "10 */6 * * *"
+    },
+    {
       "path": "/api/cron/adp-refresh",
       "schedule": "0 10 * * *"
     },
