@@ -27,6 +27,8 @@ import { getWarRoomData } from '@/lib/core-app/warRoom'
 import LandingV4 from '@/components/core-app/screens/LandingV4'
 import AuthV4 from '@/components/core-app/screens/AuthV4'
 import ImportV4, { type ImportPreviewState } from '@/components/core-app/screens/ImportV4'
+import { Portfolio } from '@/components/core-app/screens/Portfolio'
+import { getPortfolio } from '@/lib/core-app/portfolio'
 
 export const dynamic = 'force-dynamic'
 
@@ -150,6 +152,12 @@ export default async function AfCorePage({
   // Player Finder searches and selects entirely through query params — no client
   // fetch and no new API route, which matters because the repo is at the route
   // ceiling and a search box is not worth a route.
+  /*
+   * Portfolio is the league INVENTORY — the thing /core home deliberately is not.
+   * Home answers "what needs me now" from a queue; this answers "what do I have".
+   */
+  const portfolio = activeKey === 'portfolio' ? await getPortfolio(userId).catch(() => null) : null
+
   const playerMatches = activeKey === 'players' ? await searchPlayers(playerQuery).catch(() => []) : []
   const playerDetail =
     activeKey === 'players' && selectedPlayerId
@@ -303,6 +311,20 @@ export default async function AfCorePage({
           detail={playerDetail}
           leagueCount={leagues.length}
         />
+      ) : activeKey === 'portfolio' ? (
+        portfolio ? (
+          <Portfolio data={portfolio} />
+        ) : (
+          <div className="af-frame" style={{ padding: 24, maxWidth: 720 }}>
+            <h1 className="af-display" style={{ margin: 0, fontSize: 22, letterSpacing: '-0.03em' }}>
+              Portfolio
+            </h1>
+            <p style={{ marginTop: 8, fontSize: 13, lineHeight: 1.5, color: 'var(--muted)' }}>
+              We could not load your leagues just now. This is a read failure on our side, not a
+              sign that you have none.
+            </p>
+          </div>
+        )
       ) : activeKey === 'home' ? (
         <DashboardAllLeagues
           issues={issues}
