@@ -5,6 +5,7 @@ import { computeLeagueProjectedPoints, extractScoringSettings } from '@/lib/proj
 import { latestProjectionWeek } from './playerProjections'
 import type { SectionState } from './leagueHome'
 import { normalizePosition } from './positionNormalization'
+import { startingSlots, slotForStarterIndex, canFillSlot, shareAnySlot } from './slotEligibility'
 import { leagueDisplayName } from './leagueHome'
 
 /**
@@ -48,6 +49,18 @@ export type LeagueImpact = {
   /** STARTER / BENCH / IR SLOT / TAXI — where this player sits in this league. */
   slot: string
   /**
+   * The exact lineup slot when we could resolve it — "SUPER_FLEX", "FLEX", "TE".
+   * Null means the roster stores a different number of starters than the league
+   * has slots, so any positional read would be off by one.
+   */
+  exactSlot: string | null
+  /**
+   * ⚠ SURFACED SO A WIDER CANDIDATE LIST IS EXPLAINED, NOT MYSTERIOUS. False on
+   * 27 of 164 production rosters. When false the options shown are "could fill
+   * some slot this league runs", which is broader than the truth.
+   */
+  slotConfirmed: boolean
+  /**
    * ⚠ ONLY A STARTER IS URGENT. A downgraded player on your bench changes
    * nothing about today; presenting both the same way buries the leagues that
    * actually need a decision under the ones that do not.
@@ -71,40 +84,28 @@ type PlayerRow = {
 /**
  * Which bench players can actually fill the hole.
  *
- * ⚠ SAME POSITION, PLUS FLEX ELIGIBILITY — AND THIS IS AN APPROXIMATION WE NAME
- * RATHER THAN HIDE. We do not reliably hold each league's slot definitions, so
- * "who can legally go in that exact slot" is not answerable today. Same-position
- * is always right; flex widening is right in most leagues and occasionally offers
- * a player the platform will reject. Offering a slightly wide list is recoverable
- * in seconds; omitting the correct answer is not.
+ * ⚠ THIS USED TO BE A GUESS AND THE GUESS WAS WRONG IN BOTH DIRECTIONS. It
+ * widened every hole to RB/WR/TE, which offered a running back for a QB slot and
+ * — worse — hid an eligible quarterback in a superflex league. We hold
+ * `roster_positions` for 75 of 120 leagues, so the real slot rules are available
+ * and there is no reason to approximate them. See ./slotEligibility.
  */
-const FLEX_ELIGIBLE = new Set(['RB', 'WR', 'TE'])
-
-function canReplace(injuredPosition: string | null, candidatePosition: string | null): boolean {
-  if (!injuredPosition || !candidatePosition) return false
-  /*
-   * ⚠ NORMALISED, NOT UPPERCASED. Comparing the raw strings made this return
-   * FALSE for a roster with two quarterbacks, because one row said "Quarterback"
-   * and the other said "QB". The failure was silent: "nobody on your bench can
-   * fill a Quarterback slot" is a sentence, not an error.
-   */
-  const a = normalizePosition(injuredPosition)
-  const b = normalizePosition(candidatePosition)
-  if (!a || !b) return false
-  if (a === b) return true
-  return FLEX_ELIGIBLE.has(a) && FLEX_ELIGIBLE.has(b)
-}
-
 function asIds(v: unknown): string[] {
   return Array.isArray(v) ? v.map((x) => (x == null ? '' : String(x))).filter(Boolean) : []
 }
 
-/** Where a player sits, from the roster's own arrays. */
-function slotOf(pd: Record<string, unknown>, playerId: string): { slot: string; starting: boolean } | null {
-  if (asIds(pd.starters).includes(playerId)) return { slot: 'STARTER', starting: true }
-  if (asIds(pd.reserve).includes(playerId)) return { slot: 'IR SLOT', starting: false }
-  if (asIds(pd.taxi).includes(playerId)) return { slot: 'TAXI', starting: false }
-  if (asIds(pd.players).includes(playerId)) return { slot: 'BENCH', starting: false }
+/** Where a player sits, plus his index among the starters so the exact slot can be resolved. */
+function slotOf(
+  pd: Record<string, unknown>,
+  playerId: string
+): { slot: string; starting: boolean; starterIndex: number; startersLength: number } | null {
+  const starters = asIds(pd.starters)
+  const idx = starters.indexOf(playerId)
+  if (idx >= 0) return { slot: 'STARTER', starting: true, starterIndex: idx, startersLength: starters.length }
+  const base = { starterIndex: -1, startersLength: starters.length }
+  if (asIds(pd.reserve).includes(playerId)) return { slot: 'IR SLOT', starting: false, ...base }
+  if (asIds(pd.taxi).includes(playerId)) return { slot: 'TAXI', starting: false, ...base }
+  if (asIds(pd.players).includes(playerId)) return { slot: 'BENCH', starting: false, ...base }
   return null
 }
 
@@ -156,6 +157,17 @@ export async function getPlayerImpact(
     if (!placed) continue
 
     const scoring = extractScoringSettings(t.league?.settings)
+
+    /*
+     * The exact slot he occupies, when the roster and the league agree on how
+     * many starting slots there are. When they do not, this is null and the
+     * candidate list widens — see `slotConfirmed` below, which the UI surfaces so
+     * the wider list is explained rather than puzzling.
+     */
+    const slots = startingSlots(t.league?.settings)
+    const exactSlot = placed.starting
+      ? slotForStarterIndex(slots, placed.startersLength, placed.starterIndex)
+      : null
 
     // Everyone on the roster, so bench options can be priced in one pass.
     const rosterIds = [
@@ -213,7 +225,16 @@ export async function getPlayerImpact(
     for (const [id, from] of benchIds) {
       const row = playerById.get(id)
       if (!row) continue
-      if (!canReplace(injured?.position ?? null, row.position)) continue
+      /*
+       * ⚠ AGAINST THE SLOT, NOT AGAINST THE INJURED PLAYER'S POSITION. Those are
+       * different questions and the difference is the whole fix: in a superflex
+       * league a hurt QB's slot accepts a QB, RB, WR or TE, while matching on his
+       * position alone would only ever offer another quarterback.
+       */
+      const eligible = exactSlot
+        ? canFillSlot(exactSlot, row.position)
+        : shareAnySlot(slots, injured?.position ?? null, row.position)
+      if (!eligible) continue
       const priced = priceOf(id)
       replacements.push({
         playerId: id,
@@ -245,6 +266,8 @@ export async function getPlayerImpact(
       leagueName: leagueDisplayName(t.league?.name ?? null),
       platform: String(t.league?.platform ?? 'manual').toLowerCase(),
       slot: placed.slot,
+      exactSlot,
+      slotConfirmed: Boolean(exactSlot) || !placed.starting,
       isStarting: placed.starting,
       afPoints: mine
         ? { available: true, data: mine }
@@ -260,7 +283,9 @@ export async function getPlayerImpact(
           : {
               available: false,
               reason: injured?.position
-                ? `nobody on your bench can fill a ${normalizePosition(injured.position)} slot`
+                ? exactSlot
+                  ? `nobody on your bench is eligible for your ${exactSlot} slot`
+                  : `nobody on your bench can fill a ${normalizePosition(injured.position)} slot`
                 : 'we could not resolve this player’s position, so we cannot tell who could replace him',
             },
     })

@@ -243,9 +243,28 @@ export function PlayerFinder({ query, matches, detail, leagueCount }: PlayerFind
                     >
                       <div className="af-pf-impact-head">
                         <span className="af-pf-league-name">{im.leagueName}</span>
+                        {/*
+                          The EXACT slot when we resolved it ("SUPER_FLEX"),
+                          otherwise the coarse one. Showing SUPER_FLEX is what
+                          makes a WR appearing under a hurt QB read as correct
+                          rather than as a bug.
+                        */}
                         <span className="af-pf-impact-slot" data-slot={im.slot}>
-                          {im.slot}
+                          {im.exactSlot ?? im.slot}
                         </span>
+                        {/*
+                          ⚠ SAID OUT LOUD WHEN WE COULD NOT PIN THE SLOT. 27 of
+                          164 production rosters store fewer starters than the
+                          league has slots, so the list below is "legal somewhere
+                          in your lineup" rather than "legal in this hole" — a
+                          wider set, and the user should know which they are
+                          looking at before acting on it.
+                        */}
+                        {!im.slotConfirmed ? (
+                          <span className="af-pf-impact-unconfirmed">
+                            slot unconfirmed — options are legal somewhere in this lineup
+                          </span>
+                        ) : null}
                         {/*
                           The league-scored number, never the generic one. The
                           key coverage is shown because "10 of 52 scoring keys"

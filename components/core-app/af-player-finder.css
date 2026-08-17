@@ -446,3 +446,11 @@
     text-align: left;
   }
 }
+
+/* Slot we could not pin down. Quiet, but present — it qualifies the list below. */
+.af-pf-impact-unconfirmed {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--faint);
+  flex-basis: 100%;
+}
