@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { GeoRestrictionNotice } from '@/components/core-app/GeoRestrictionNotice'
 import { useMemo, useState } from 'react'
 import '@/components/core-app/af-core.css'
 import '@/components/core-app/af-core-shell.css'
@@ -305,7 +306,18 @@ export function AfCoreShell(props: AfCoreShellProps) {
           </div>
         </header>
 
-        <main className="af-content">{children}</main>
+        <main className="af-content">
+          {/*
+            ⚠ COMPLIANCE, NOT CHROME — AND IT SITS IN THE SHELL SO NO SCREEN CAN
+            FORGET IT. /dashboard carried this and /core did not, which made it a
+            blocker on the cutover: retiring the old dashboard without it would
+            have started offering paid plans in states where we do not sell them.
+            Rendering it once here means every screen inherits it rather than each
+            one remembering.
+          */}
+          <GeoRestrictionNotice />
+          {children}
+        </main>
       </div>
     </div>
   )
