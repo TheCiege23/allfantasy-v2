@@ -24,6 +24,23 @@ events, with a soccer control proving the endpoint and key were functional.
 | `R-11` | v1 livescore endpoints are **premium-gated** | Free key: `latestamericanfootball.php` → `[null]`; `latestncaafootball.php` → empty body. |
 | `R-12` | Two CDN hosts in the **same response** | NFL event: `strHomeTeamBadge` on `www.`, `strAwayTeamBadge` on `r2.` |
 | `R-13` | The published **MCP spec is unusable** | 7-line Postman CLI scaffold. No transport, no tool defs, no `package.json`, `tools/` not published. |
+| `R-14` | 🛑 **`lookup_all_teams.php` DOES NOT EXIST** — it 404s with an HTML error page | Probed 2026-08-17 on a **paid** key: `?id=4391` → HTTP 404 + HTML. The working endpoint is **`search_all_teams.php?l=<strLeague>`** → NFL 32 teams, `NCAA Division 1` 260 teams. Note it keys off `strLeague`, **not** the numeric `idLeague`. Fixtures: `v1.search_all_teams.NFL.json`, `v1.search_all_teams.NCAAF.json`. This endpoint was listed in `ENDPOINTS.yaml` and called working by `G-08` — both were wrong. |
+| `R-15` | `latestamericanfootball.php` / `latestncaafootball.php` **404 on a PAID key**, not just the free key | Probed 2026-08-17: both → HTTP 404 + HTML. `R-11` recorded free-key behaviour (`[null]` / empty body) and inferred premium gating; on a paid key they 404 outright, so these v1 paths look **retired**, not gated. Use `/livescore/4391` (v2) per `G-01`. |
+| `R-16` | Paid key confirmed — **no list truncation** | `all_leagues.php` → 1527 leagues. `R-08` saw the free key silently truncate a league list to 5 rows. A full-length list is the cheap tell for which tier a key is on. Fixture: `v1.all_leagues.json`. |
+| `R-17` | `lookupplayerstats.php` returns **multi-season** rows, not one aggregate | Jalen Hurts (34201502) → **34 rows** under `.playerstats`. `R-04` established it works; the row count shows it spans seasons, so a parser taking `[0]` silently reads one arbitrary season. Fixture: `v1.lookupplayerstats.NFL.json`. |
+
+**Fixtures are now populated** (`fixtures/`, 14 captured 2026-08-17). Every fixture is
+`{ "_probe": {...}, "response": <raw body> }` — `response` is the verbatim vendor payload and is
+the shape authority; `_probe` carries `captured_at`, `season_phase`, `http_status`, `returned_null`
+and the redacted URL, so a null can never again be mistaken for an off-season artifact.
+
+⚠️ Captured during **preseason** (2026-08-17). `R-01`/`R-02`/`R-03` nulls were re-confirmed in this
+window, which is consistent with the earlier in-season probes — they are real absences, not seasonal.
+Event-level and livescore shapes should still be re-captured once the regular season starts.
+
+⚠️ `probe.sh` requires `jq` and writes a **bare** body; `probe.mjs` (Node, no dependencies) writes the
+`_probe`-wrapped form above. The two tools currently disagree on fixture format. `probe.mjs` is the
+one that produced everything in `fixtures/`.
 
 ---
 
@@ -43,7 +60,7 @@ events, with a soccer control proving the endpoint and key were functional.
 | `G-05` | Annual / Lifetime pricing | UNVERIFIED | Behind a toggle on `/pricing`. Monthly is $0 / $9 / $20. |
 | `G-06` | v2 error response shape | UNVERIFIED | Docs say "standard HTTP response codes" — untested. v1 definitely returns 200-on-error. |
 | `G-07` | Are `/filter/events/*` and `/list/seasonposters/*` real? | UNVERIFIED | Appear on `/free_sports_api` but not `/documentation` or the YAML. |
-| `G-08` | `eventsround.php`, `searchloves.php`, `lookup_all_teams.php` limits | UNDOCUMENTED | Endpoints work but have no published free/premium limits. |
+| `G-08` | `eventsround.php`, `searchloves.php` limits | UNDOCUMENTED | No published free/premium limits. ~~`lookup_all_teams.php`~~ removed from this row: it does not exist at all — see `R-14`. This row previously asserted it "works", which was never verified. |
 | `G-09` | `searchvenues.php` param name — `v` or `t`? | CONFLICTING | `/documentation` and YAML say `v`; `/free_sports_api` example uses `?t=Wembley`. Try `v` first. |
 | `G-10` | Does `/preview` (200px) image suffix exist? | CONFLICTING | Only on `/free_sports_api`. `/documentation` lists medium/small/tiny only. **Use medium/small/tiny.** |
 | `G-11` | Real rate limits | CONFLICTING | `/documentation`: 30/100/120 per minute. `/free_sports_api`: 100/min. v2 YAML: "1000 per day". Using `/documentation` — it matches `/pricing`. |

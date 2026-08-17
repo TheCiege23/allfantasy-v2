@@ -58,10 +58,25 @@ architecture, not a description of current state.
 
 ### The 304 rule
 
-A `304` from Rolling Insights is a caching artifact, **not** "nothing changed" and
-not an empty result. Retry once with a fresh millisecond cache-buster. Do not
-build change detection on it — diff payload hashes instead. Code that returns
-`[]` on a 304 is silently reporting "no data" for a cache hit.
+**What a Rolling Insights `304` means is disputed between two vendor sources and
+is currently UNRESOLVED** — see `304_conflict` in
+`contracts/rolling-insights/ENDPOINTS.yaml`. The skill repo says it is a cache
+artifact to be defeated; the newer OpenAPI spec declares a `NotModified`
+component meaning "valid request, empty result set."
+
+Do not wait for that to be settled, and do not make product behaviour depend on
+it. The rule is safe under **both** readings:
+
+1. Send no-cache headers and a fresh millisecond cache-buster on every call.
+2. Retry once on a 304.
+3. Detect change by hashing the payload, never by HTTP status.
+
+If it is a cache artifact, busting defeats it. If it genuinely means empty, you
+pay one extra request and no-op on an unchanged hash. Either way you are right.
+
+What is **not** acceptable either way: returning `[]` on a 304 without a
+cache-busted retry. That reports "no data" for what may be a cache hit, and it is
+indistinguishable from a real empty result.
 
 ## Git
 

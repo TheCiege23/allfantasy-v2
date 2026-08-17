@@ -87,7 +87,7 @@ commercial:
     the rate limit. You can use our custom artwork in your projects but must
     mention us as the source of the data."
   attribution_required: true
-  attribution_text: "Data provided by TheSportsDB" + link back
+  attribution_text: '"Data provided by TheSportsDB" + link back'
   caching_permitted: true      # "You can scrape, copy and modify any content returned from the API"
   website_scraping_prohibited: true
   reselling_prohibited: true
@@ -96,7 +96,7 @@ commercial:
 # ⚠️ ARTWORK LICENSING — the highest-risk item. See README.md.
 # ============================================================================
 artwork:
-  provenance: "Most are fan created" (vendor's own words)
+  provenance: '"Most are fan created" (vendor''s own words)'
   vendor_cannot_grant_rights_it_lacks: true
   dmca_response_hours: 24        # reactive takedown model; risk sits with you
 
@@ -233,9 +233,18 @@ endpoints_v1:
   search_all_leagues: { path: /search_all_leagues.php, params: [c, s], free: 10, premium: 100,
                         warning: "⚠️ Free tier SILENTLY TRUNCATES — omitted NFL and NCAA Division 1 in a US American-football query." }
   search_all_seasons: { path: /search_all_seasons.php, params: [id, poster, badge, description], free: 5, premium: 500 }
-  search_all_teams:   { path: /search_all_teams.php,   params: [l, s, c], free: 10, premium: 3000 }
+  search_all_teams:   { path: /search_all_teams.php,   params: [l, s, c], free: 10, premium: 3000,
+                        verified: "2026-08-17 paid key: l=NFL -> 32 teams, l=NCAA Division 1 -> 260 teams",
+                        note: "⚠️ Keys off strLeague (the NAME), not the numeric idLeague.
+                               THIS is the all-teams-in-a-league endpoint — see lookup_all_teams below.",
+                        fixtures: [v1.search_all_teams.NFL.json, v1.search_all_teams.NCAAF.json] }
   lookup_all_players: { path: /lookup_all_players.php, params: [id], free: 10, premium: 3000 }
-  lookup_all_teams:   { path: /lookup_all_teams.php,   params: [id], undocumented: true }
+  # 🛑 DOES NOT EXIST. Probed 2026-08-17 on a paid key: ?id=4391 -> HTTP 404 + an
+  # HTML error page, not JSON. Previously listed here as merely "undocumented",
+  # and GAPS G-08 called it working; neither was ever verified. Use
+  # search_all_teams.php?l=<strLeague>. See GAPS.md R-14.
+  lookup_all_teams:   { path: /lookup_all_teams.php,   params: [id], exists: false, http_status: 404,
+                        superseded_by: search_all_teams }
 
   # ---- Schedule ----
   eventsnext:       { path: /eventsnext.php,       params: [id], free: 1,  premium: 10,
@@ -254,10 +263,16 @@ endpoints_v1:
   eventshighlights: { path: /eventshighlights.php, params: [d, l, s, i], free: 2, premium: 50 }
 
   # ---- v1 Livescore (superseded by v2) ----
-  latest_americanfootball: { path: /latestamericanfootball.php, premium: true,
-                             note: "⚠️ Free key returns [null]. Docs say V2 is now recommended." }
-  latest_ncaafootball:     { path: /latestncaafootball.php,     premium: true,
-                             note: "⚠️ Free key returns empty body." }
+  # 🛑 Both 404 on a PAID key (probed 2026-08-17) — these v1 paths look RETIRED,
+  # not premium-gated. The earlier free-key readings ([null] / empty body) were
+  # read as gating; a paid key 404s outright. Use v2 /livescore/4391.
+  # See GAPS.md R-15.
+  latest_americanfootball: { path: /latestamericanfootball.php, premium: true, http_status: 404,
+                             retired: probable,
+                             note: "⚠️ Free key returns [null]; PAID key returns 404 + HTML. Use v2 /livescore/4391." }
+  latest_ncaafootball:     { path: /latestncaafootball.php,     premium: true, http_status: 404,
+                             retired: probable,
+                             note: "⚠️ Free key returns empty body; PAID key returns 404 + HTML. Use v2 /livescore/4479." }
   latest_soccer:           { path: /latestsoccer.php,           premium: true }
   latest_basketball:       { path: /latestbasketball.php,       premium: true }
   latest_icehockey:        { path: /latesticehockey.php,        premium: true }
@@ -269,62 +284,62 @@ endpoints_v1:
 # ============================================================================
 endpoints_v2:
   search:
-    - { path: /search/league/{leagueName}, limit: 10 }
-    - { path: /search/team/{teamName},     limit: 10 }
-    - { path: /search/player/{playerName}, limit: 10 }
-    - { path: /search/event/{eventName},   limit: 10 }
-    - { path: /search/venue/{venueName},   limit: 10 }
+    - { path: "/search/league/{leagueName}", limit: 10 }
+    - { path: "/search/team/{teamName}",     limit: 10 }
+    - { path: "/search/player/{playerName}", limit: 10 }
+    - { path: "/search/event/{eventName}",   limit: 10 }
+    - { path: "/search/venue/{venueName}",   limit: 10 }
   lookup:
-    - { path: /lookup/league/{idLeague} }
-    - { path: /lookup/team/{idTeam} }
-    - { path: /lookup/team_equipment/{idTeam} }
-    - { path: /lookup/player/{idPlayer} }
-    - { path: /lookup/player_contracts/{idPlayer} }
-    - { path: /lookup/player_results/{idPlayer},   in_yaml: false }
-    - { path: /lookup/player_honours/{idPlayer} }
-    - { path: /lookup/player_milestones/{idPlayer} }
-    - { path: /lookup/player_teams/{idPlayer} }
-    - { path: /lookup/player_stats/{idPlayer},     in_yaml: false, note: "✅ works for NFL" }
-    - { path: /lookup/event/{idEvent} }
-    - { path: /lookup/event_lineup/{idEvent},      nfl: null }
-    - { path: /lookup/event_results/{idEvent} }
-    - { path: /lookup/event_stats/{idEvent},       nfl: null }
-    - { path: /lookup/event_timeline/{idEvent},    nfl: null }
-    - { path: /lookup/event_tv/{idEvent},
+    - { path: "/lookup/league/{idLeague}" }
+    - { path: "/lookup/team/{idTeam}" }
+    - { path: "/lookup/team_equipment/{idTeam}" }
+    - { path: "/lookup/player/{idPlayer}" }
+    - { path: "/lookup/player_contracts/{idPlayer}" }
+    - { path: "/lookup/player_results/{idPlayer}",   in_yaml: false }
+    - { path: "/lookup/player_honours/{idPlayer}" }
+    - { path: "/lookup/player_milestones/{idPlayer}" }
+    - { path: "/lookup/player_teams/{idPlayer}" }
+    - { path: "/lookup/player_stats/{idPlayer}",     in_yaml: false, note: "✅ works for NFL" }
+    - { path: "/lookup/event/{idEvent}" }
+    - { path: "/lookup/event_lineup/{idEvent}",      nfl: null }
+    - { path: "/lookup/event_results/{idEvent}" }
+    - { path: "/lookup/event_stats/{idEvent}",       nfl: null }
+    - { path: "/lookup/event_timeline/{idEvent}",    nfl: null }
+    - { path: "/lookup/event_tv/{idEvent}",
         note: "YAML operationId is lookupMotorsportEventBroadcast — misleading, it is generic." }
-    - { path: /lookup/event_highlights/{idEvent},
+    - { path: "/lookup/event_highlights/{idEvent}",
         note: "Returns the FULL event object, not a dedicated schema. YouTube URL is in strVideo." }
-    - { path: /lookup/venue/{idVenue} }
+    - { path: "/lookup/venue/{idVenue}" }
   list:
-    - { path: /list/teams/{idLeague},   limit: 100, note: "also accepts league NAME" }
-    - { path: /list/seasons/{idLeague}, limit: 100 }
-    - { path: /list/players/{idTeam},   limit: 100, note: "also accepts team NAME" }
-    - { path: /list/seasonposters/{idLeague}, undocumented: true }
+    - { path: "/list/teams/{idLeague}",   limit: 100, note: "also accepts league NAME" }
+    - { path: "/list/seasons/{idLeague}", limit: 100 }
+    - { path: "/list/players/{idTeam}",   limit: 100, note: "also accepts team NAME" }
+    - { path: "/list/seasonposters/{idLeague}", undocumented: true }
   filter:
-    - { path: /filter/tv/day/{date},          limit: 100 }
-    - { path: /filter/tv/country/{country},   limit: 100 }
-    - { path: /filter/tv/sport/{sport},       limit: 100 }
-    - { path: /filter/tv/channel/{name},      limit: 100 }
-    - { path: /filter/tv/channelid/{id},      limit: 100 }
-    - { path: /filter/events/{idLeague}/{season}, undocumented: true }
-    - { path: /filter/events/day/{date},          undocumented: true }
+    - { path: "/filter/tv/day/{date}",          limit: 100 }
+    - { path: "/filter/tv/country/{country}",   limit: 100 }
+    - { path: "/filter/tv/sport/{sport}",       limit: 100 }
+    - { path: "/filter/tv/channel/{name}",      limit: 100 }
+    - { path: "/filter/tv/channelid/{id}",      limit: 100 }
+    - { path: "/filter/events/{idLeague}/{season}", undocumented: true }
+    - { path: "/filter/events/day/{date}",          undocumented: true }
   all:
     - { path: /all/countries, limit: 500 }
     - { path: /all/sports,    limit: 500 }
     - { path: /all/leagues,   limit: 3000 }
   schedule:
-    - { path: /schedule/next/league/{id},     limit: 10 }
-    - { path: /schedule/previous/league/{id}, limit: 10 }
-    - { path: /schedule/next/team/{id},       limit: 10 }
-    - { path: /schedule/previous/team/{id},   limit: 10 }
-    - { path: /schedule/next/venue/{id},      limit: 10 }
-    - { path: /schedule/previous/venue/{id},  limit: 10 }
-    - { path: /schedule/full/team/{id},       limit: 250 }
-    - { path: /schedule/league/{idLeague}/{season}, limit: 3000 }
+    - { path: "/schedule/next/league/{id}",     limit: 10 }
+    - { path: "/schedule/previous/league/{id}", limit: 10 }
+    - { path: "/schedule/next/team/{id}",       limit: 10 }
+    - { path: "/schedule/previous/team/{id}",   limit: 10 }
+    - { path: "/schedule/next/venue/{id}",      limit: 10 }
+    - { path: "/schedule/previous/venue/{id}",  limit: 10 }
+    - { path: "/schedule/full/team/{id}",       limit: 250 }
+    - { path: "/schedule/league/{idLeague}/{season}", limit: 3000 }
   livescore:
-    - { path: /livescore/{sport},    limit: 100,
+    - { path: "/livescore/{sport}",    limit: 100,
         note: "sport uses underscores, e.g. American_Football. SLUG UNVERIFIED." }
-    - { path: /livescore/{idLeague}, limit: 100,
+    - { path: "/livescore/{idLeague}", limit: 100,
         note: "✅ PREFER THIS. /livescore/4391 for NFL — avoids the slug ambiguity." }
     - { path: /livescore/all,        limit: 500 }
 
