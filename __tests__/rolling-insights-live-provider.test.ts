@@ -9,6 +9,11 @@ const PAYLOAD = {
         game_status: 'In Progress',
         away_team_name: 'Washington Commanders',
         home_team_name: 'Miami Dolphins',
+        full_box: {
+          current: { Quarter: 'Q2', RedZone: true },
+          away_team: { abbrv: 'WAS', score: 13, team_stats: { sacks: 3, defense_touchdowns: 1, points_against_defense_special_teams: 16 } },
+          home_team: { abbrv: 'MIA', score: 10, team_stats: { sacks: 1, defense_touchdowns: 0, points_against_defense_special_teams: 13 } },
+        },
         player_box: {
           away_team: { '8735': { player: 'RB One', position: 'RB', rushing_touchdowns: 1, rushing_yards: 58 } },
           home_team: { '143': { player: 'QB One', position: 'QB', passing_yards: 213 } },
@@ -82,13 +87,23 @@ describe('RollingInsightsLiveProvider', () => {
     expect(stats.get('8735')?.rushing_touchdowns).toBe(1)
   })
 
-  it('returns EMPTY team defense — a measured gap, not an oversight', async () => {
-    // RI's live payload carries player_box only; defense_touchdowns appears
-    // nowhere in a real 232KB response. DEF slots would score zero, so this
-    // provider must not be the sole source for a league with DEF starters.
+  it('returns REAL team defence from full_box.team_stats', async () => {
+    // This previously returned an empty map because only player_box had been
+    // inspected. DEF slots would have scored zero behind a comment saying that
+    // was intentional.
     const { p } = providerWith([{ status: 200, body: PAYLOAD }])
     const games = await p.fetchActiveGames(Q)
     const def = await p.fetchTeamDefenseStatsForGames({ ...Q, games })
-    expect(def.size).toBe(0)
+    expect(def.size).toBe(2)
+    expect(def.get('nfl:def:WAS')?.sacks).toBe(3)
+    expect(def.get('nfl:def:WAS')?.defense_touchdowns).toBe(1)
+    expect(def.get('nfl:def:MIA')?.points_against_defense_special_teams).toBe(13)
+  })
+
+  it('fills real team abbreviations from full_box', async () => {
+    const { p } = providerWith([{ status: 200, body: PAYLOAD }])
+    const games = await p.fetchActiveGames(Q)
+    expect(games[0].awayTeam).toBe('WAS')
+    expect(games[0].homeTeam).toBe('MIA')
   })
 })

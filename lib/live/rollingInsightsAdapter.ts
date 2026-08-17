@@ -15,7 +15,7 @@
  * 304 forever and looks exactly like "no new data".
  */
 
-import type { GameSnapshot, PlayerStatLine } from './eventDetector'
+import type { GameSnapshot, PlayerStatLine, TeamStatLine } from './eventDetector'
 
 /**
  * Fields that are not cumulative stats and must never enter a stat payload.
@@ -101,11 +101,45 @@ export function parseLivePayload(payload: unknown, capturedAt: Date): GameSnapsh
       }
     }
 
+    /*
+     * ⚠ TEAM DEFENCE LIVES IN `full_box.team_stats`, NOT IN `player_box`.
+     * An earlier read of this feed checked only player_box, concluded team defence
+     * was absent, and had the provider return an empty map — which would have
+     * scored every DST slot at zero while looking like a deliberate design choice.
+     * It is all here: sacks, defense_touchdowns, defense_interceptions, every
+     * return-TD variant, and points_against_defense_special_teams.
+     */
+    const teams: TeamStatLine[] = []
+    const fullBox = g.full_box as Record<string, unknown> | undefined
+    for (const sideKey of ['away_team', 'home_team']) {
+      const side = fullBox?.[sideKey] as Record<string, unknown> | undefined
+      if (!side) continue
+      const abbrv = String(side.abbrv ?? '').trim().toUpperCase()
+      if (!abbrv) continue
+      const ts = side.team_stats as Record<string, unknown> | undefined
+      const stats: Record<string, number> = {}
+      for (const [k, v] of Object.entries(ts ?? {})) {
+        if (NON_STAT_FIELDS.has(k)) continue
+        if (typeof v === 'number' && Number.isFinite(v)) stats[k] = v
+      }
+      const score = typeof side.score === 'number' ? side.score : null
+      teams.push({ team: abbrv, score, stats })
+    }
+
+    // Game state — the provider seam documents fractionElapsed as an unfilled gap
+    // because no source supplied a clock. This one does.
+    const cur = (fullBox?.current ?? {}) as Record<string, unknown>
+    const redZone = cur.RedZone === true || cur.RedZone === 1
+    const quarter = cur.Quarter != null ? String(cur.Quarter) : null
+
     out.push({
       gameId,
       status: normaliseStatus(String(g.game_status ?? g.status ?? '')),
       capturedAt,
       players,
+      teams,
+      redZone,
+      quarter,
     })
   }
   return out

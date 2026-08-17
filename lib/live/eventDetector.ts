@@ -5,18 +5,20 @@
  * and synchronous so the whole state machine can be tested against replayed
  * historical games without a network, a clock, or a live Sunday.
  *
- * ⚠ THE HARD LIMIT OF BOX-SCORE DIFFING, STATED UP FRONT BECAUSE IT IS A PRODUCT
- * DECISION AND NOT AN IMPLEMENTATION DETAIL:
+ * ⚠ BIG PLAYS ARE DETECTED WITHOUT PLAY-BY-PLAY, AND THE TRICK IS ARITHMETIC RATHER
+ * THAN INFERENCE. The obvious signal, `rushing_long`, is a player's LONGEST run so
+ * far: it rises once and then stays, so a 25-yard run behind an earlier 40-yarder
+ * is invisible to it. That limitation is real but it is NOT the ceiling.
  *
- *   `rushing_long` is the player's LONGEST run SO FAR. It rises once and then
- *   stays put. A 25-yard run that follows an earlier 40-yarder moves nothing, so
- *   it is INVISIBLE to this detector.
+ * If carries rise by EXACTLY ONE between polls and rushing yards jump 25, that one
+ * carry WAS a 25-yard run. No play-by-play required, and no guessing. At a
+ * 12-second cadence most intervals contain zero or one touch per player, so this
+ * covers the large majority of big plays — including every one the longest-gain
+ * signal would miss.
  *
- * Box-score diffing therefore catches the FIRST big play per player per game, not
- * every one. Touchdowns and turnovers are counters and are detected exactly; only
- * long-gain alerts carry this limitation. Anyone promising users "every 20+ yard
- * play" from this input is promising something the data cannot support — the fix
- * is real play-by-play, not a cleverer diff.
+ * When two or more attempts land in the same interval, the yards cannot be
+ * attributed to a single play and the detector stays SILENT rather than
+ * guessing. Real play-by-play would close that last gap; it is a narrow one.
  */
 
 export type PlayerStatLine = {
@@ -26,12 +28,23 @@ export type PlayerStatLine = {
   stats: Record<string, number>
 }
 
+export type TeamStatLine = {
+  /** Team abbreviation, e.g. "WAS". */
+  team: string
+  score: number | null
+  stats: Record<string, number>
+}
+
 export type GameSnapshot = {
   gameId: string
   /** scheduled | in_progress | final — drives poll cadence, not detection. */
   status: string
   capturedAt: Date
   players: PlayerStatLine[]
+  /** Team-level lines — the source of DST scoring and defensive events. */
+  teams?: TeamStatLine[]
+  redZone?: boolean
+  quarter?: string | null
 }
 
 export type LiveEventType =
@@ -82,7 +95,22 @@ const TURNOVER_STATS: Record<string, string> = {
   passing_interceptions: 'threw an interception',
 }
 
-/** Longest-gain stats, subject to the first-only limitation above. */
+/**
+ * Yardage stats paired with the attempt counter that makes them attributable.
+ * When attempts rise by exactly one, the yardage delta IS a single play.
+ */
+const ATTEMPT_STATS: Record<string, { attempts: string; noun: string }> = {
+  rushing_yards: { attempts: 'rushing_attempts', noun: 'rush' },
+  receiving_yards: { attempts: 'receptions', noun: 'reception' },
+}
+
+/** Reverse map so the fallback can avoid double-emitting. */
+const LONG_TO_ATTEMPT: Record<string, { attempts: string }> = {
+  rushing_long: { attempts: 'rushing_attempts' },
+  receiving_long: { attempts: 'receptions' },
+}
+
+/** Longest-gain stats — the fallback path. */
 const LONG_STATS: Record<string, string> = {
   rushing_long: 'rush',
   receiving_long: 'reception',
@@ -169,17 +197,49 @@ export function detectEvents(
     }
 
     /*
-     * ── Long gains, with the limitation in force.
-     * Fires only when the player's longest gain INCREASES past the threshold, so
-     * a second long play behind an existing longer one is genuinely undetectable.
+     * ── Big plays, detected TWO ways.
+     *
+     * ⚠ SINGLE-ATTEMPT INFERENCE IS WHAT MAKES A SECOND BIG PLAY VISIBLE, AND IT
+     * IS EXACT RATHER THAN A HEURISTIC. If a player's carries rise by EXACTLY ONE
+     * between polls and his rushing yards jump 25, then that one carry WAS a
+     * 25-yard run — arithmetic, not inference. It works regardless of an earlier
+     * 40-yarder, which is precisely the case `rushing_long` cannot see.
+     *
+     * At a 12-second cadence most intervals contain zero or one touch per player,
+     * so this covers the large majority of big plays. When two or more attempts
+     * land in one interval the yards cannot be attributed to a single play and we
+     * deliberately stay silent rather than guess.
+     */
+    for (const [yardStat, cfg] of Object.entries(ATTEMPT_STATS)) {
+      const attemptsDelta = statOf(cur, cfg.attempts) - statOf(before, cfg.attempts)
+      const yardsDelta = statOf(cur, yardStat) - statOf(before, yardStat)
+      if (attemptsDelta === 1 && yardsDelta >= bigPlayYards) {
+        push('BIG_PLAY', yardStat, yardsDelta, statOf(cur, yardStat),
+          `${cur.playerName} — ${yardsDelta} yard ${cfg.noun}`)
+      }
+    }
+
+    /*
+     * Longest-gain fallback. Catches a big play in an interval that contained
+     * several touches (where the exact path above stays silent), at the cost of
+     * only ever firing when the player's personal best INCREASES.
+     *
+     * ⚠ DEDUPED AGAINST THE EXACT PATH. Without the guard, one 40-yard run in a
+     * single-carry interval raises both `rushing_yards` by 40 and `rushing_long`
+     * to 40, emitting the same play twice.
      */
     for (const [stat, noun] of Object.entries(LONG_STATS)) {
       const wasLong = statOf(before, stat)
       const nowLong = statOf(cur, stat)
-      if (nowLong > wasLong && nowLong >= bigPlayYards) {
-        push('BIG_PLAY', stat, nowLong - wasLong, nowLong,
-          `${cur.playerName} — ${nowLong} yard ${noun}`)
+      if (nowLong <= wasLong || nowLong < bigPlayYards) continue
+      const cfg = LONG_TO_ATTEMPT[stat]
+      if (cfg) {
+        const attemptsDelta = statOf(cur, cfg.attempts) - statOf(before, cfg.attempts)
+        // Already emitted precisely by the single-attempt path.
+        if (attemptsDelta === 1) continue
       }
+      push('BIG_PLAY', stat, nowLong - wasLong, nowLong,
+        `${cur.playerName} — ${nowLong} yard ${noun}`)
     }
   }
 

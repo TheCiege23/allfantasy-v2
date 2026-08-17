@@ -45,7 +45,7 @@ describe('event detection', () => {
     expect(e[0].type).toBe('TURNOVER')
   })
 
-  describe('the rushing_long limitation — the documented product constraint', () => {
+  describe('longest-gain fallback — used only when attempt counts are absent', () => {
     it('fires on the FIRST big play', () => {
       const e = detectEvents(snap({ rushing_long: 8 }), snap({ rushing_long: 40 }))
       expect(e).toHaveLength(1)
@@ -53,10 +53,10 @@ describe('event detection', () => {
       expect(e[0].detail).toContain('40 yard rush')
     })
 
-    it('CANNOT see a second big play behind a longer one — this is expected', () => {
-      // A 25-yard run after an existing 40-yarder leaves rushing_long at 40.
-      // Asserting the miss keeps the limitation honest: if someone later claims
-      // "every 20+ yard play", this test contradicts them.
+    it('alone, cannot see a second big play behind a longer one', () => {
+      // With NO attempt counts, rushing_long is the only signal and it is stuck at
+      // 40. This is why the single-attempt path exists — see the suite below,
+      // which detects exactly this case when attempt data IS present.
       const e = detectEvents(snap({ rushing_long: 40 }), snap({ rushing_long: 40 }))
       expect(e).toHaveLength(0)
     })
@@ -127,5 +127,52 @@ describe('notification selection — the attention budget', () => {
     const many = Array.from({ length: 50 }, (_, i) => mk(`p${i}`, 'TOUCHDOWN'))
     const ids = new Set(many.map((m) => m.playerId))
     expect(selectNotifiable(many, { rosteredPlayerIds: ids, maxPerWindow: 5 })).toHaveLength(5)
+  })
+})
+
+describe('single-attempt inference — big plays without play-by-play', () => {
+  const p = (stats: Record<string, number>): GameSnapshot => ({
+    gameId: 'G1', status: 'in_progress', capturedAt: AT,
+    players: [{ playerId: 'p1', playerName: 'Test Player', team: 'KC', stats }],
+  })
+
+  it('SEES a 25-yard run that follows an earlier 40-yarder', () => {
+    // The exact case longest-gain cannot detect: rushing_long stays at 40, but
+    // one extra carry produced 25 yards, so that carry was a 25-yard run.
+    const before = p({ rushing_attempts: 5, rushing_yards: 60, rushing_long: 40 })
+    const after = p({ rushing_attempts: 6, rushing_yards: 85, rushing_long: 40 })
+    const e = detectEvents(before, after)
+    expect(e).toHaveLength(1)
+    expect(e[0].type).toBe('BIG_PLAY')
+    expect(e[0].detail).toContain('25 yard rush')
+  })
+
+  it('detects a big reception the same way', () => {
+    const before = p({ receptions: 3, receiving_yards: 30, receiving_long: 18 })
+    const after = p({ receptions: 4, receiving_yards: 62, receiving_long: 32 })
+    const e = detectEvents(before, after)
+    expect(e.filter((x) => x.type === 'BIG_PLAY')).toHaveLength(1)
+  })
+
+  it('stays SILENT when several touches share one interval', () => {
+    // 30 yards across 3 carries cannot be attributed to one play. Guessing here
+    // would fabricate a big play that never happened.
+    const before = p({ rushing_attempts: 5, rushing_yards: 60, rushing_long: 40 })
+    const after = p({ rushing_attempts: 8, rushing_yards: 90, rushing_long: 40 })
+    expect(detectEvents(before, after)).toHaveLength(0)
+  })
+
+  it('does not double-emit when both signals fire on the same play', () => {
+    // One 45-yard carry raises yards by 45 AND rushing_long to 45.
+    const before = p({ rushing_attempts: 5, rushing_yards: 60, rushing_long: 20 })
+    const after = p({ rushing_attempts: 6, rushing_yards: 105, rushing_long: 45 })
+    const e = detectEvents(before, after).filter((x) => x.type === 'BIG_PLAY')
+    expect(e).toHaveLength(1)
+  })
+
+  it('ignores a single short carry', () => {
+    const before = p({ rushing_attempts: 5, rushing_yards: 60 })
+    const after = p({ rushing_attempts: 6, rushing_yards: 64 })
+    expect(detectEvents(before, after)).toHaveLength(0)
   })
 })

@@ -87,16 +87,19 @@ export class RollingInsightsLiveProvider implements LiveStatsProvider {
   async fetchActiveGames(_query: LiveStatsQuery): Promise<LiveGameLite[]> {
     const date = new Date().toISOString().slice(0, 10)
     const snaps = await this.poll(date)
-    return snaps.map((s) => ({
-      gameId: s.gameId,
-      // The adapter keeps team names on each player line; the game-level
-      // abbreviations are not in the live payload, so these stay blank rather
-      // than being guessed from a name.
-      homeTeam: '',
-      awayTeam: '',
-      status: this.normalizeGameStatus(s.status),
-      startTime: null,
-    }))
+    return snaps.map((s) => {
+      // `full_box` carries `abbrv` per side — away first, home second, matching
+      // the order the adapter reads them. Real abbreviations, not names guessed
+      // into codes.
+      const [away, home] = s.teams ?? []
+      return {
+        gameId: s.gameId,
+        homeTeam: home?.team ?? '',
+        awayTeam: away?.team ?? '',
+        status: this.normalizeGameStatus(s.status),
+        startTime: null,
+      }
+    })
   }
 
   async fetchPlayerStatsForGames(
@@ -120,18 +123,35 @@ export class RollingInsightsLiveProvider implements LiveStatsProvider {
   }
 
   /**
-   * ⚠ RETURNS EMPTY, AND THAT IS A MEASURED GAP RATHER THAN AN OVERSIGHT.
-   * Team-defense scoring needs `defense_touchdowns`, `sacks`, `points_allowed`
-   * and friends at TEAM level. RI's live payload carries `player_box` only —
-   * verified against a real 232 KB response, where `defense_touchdowns` appears
-   * nowhere. Returning an empty map means DEF slots score zero from this provider,
-   * so it must NOT be used as the sole provider for a league with DEF starters
-   * until the team box is wired.
+   * Team-defence lines, keyed `nfl:def:<TEAM>`.
+   *
+   * ⚠ I PREVIOUSLY RETURNED AN EMPTY MAP HERE AND CALLED IT A MEASURED GAP. It was
+   * not — it was an incomplete read. I had inspected `player_box` only and
+   * concluded team defence was absent from the feed. It lives in
+   * `full_box.team_stats`, alongside `abbrv`, and carries the whole set: sacks,
+   * defense_touchdowns, defense_interceptions, defense_fumble_recoveries,
+   * safeties, every return-TD variant and points_against_defense_special_teams.
+   *
+   * The lesson is narrow and worth keeping: "the field is not in the object I
+   * looked at" is not the same claim as "the provider does not supply it", and
+   * shipping the first as the second would have scored every DST slot at zero
+   * behind a comment explaining why that was intentional.
    */
   async fetchTeamDefenseStatsForGames(
-    _query: LiveStatsQuery & { games: readonly LiveGameLite[] }
+    query: LiveStatsQuery & { games: readonly LiveGameLite[] }
   ): Promise<Map<string, Record<string, number>>> {
-    return new Map<string, Record<string, number>>()
+    const date = new Date().toISOString().slice(0, 10)
+    const snaps = await this.poll(date)
+    const gameIds = new Set(query.games.map((g) => g.gameId))
+
+    const out = new Map<string, Record<string, number>>()
+    for (const snap of snaps) {
+      if (gameIds.size > 0 && !gameIds.has(snap.gameId)) continue
+      for (const t of snap.teams ?? []) {
+        out.set(defKey(t.team), t.stats)
+      }
+    }
+    return out
   }
 
   normalizeGameStatus(raw: string | null | undefined): LiveGameStatus {
@@ -139,7 +159,7 @@ export class RollingInsightsLiveProvider implements LiveStatsProvider {
   }
 }
 
-/** Team keys this provider would populate, once the team box is available. */
+/** Team keys for the given games, in the shared `nfl:def:<TEAM>` convention. */
 export function defenseKeysFor(games: readonly LiveGameLite[]): string[] {
   const out = new Set<string>()
   for (const g of games) {
