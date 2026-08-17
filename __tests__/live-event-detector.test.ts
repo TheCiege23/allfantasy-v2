@@ -92,7 +92,9 @@ describe('event detection', () => {
 
 describe('poll cadence', () => {
   it('polls fast while live and stops when final', () => {
-    expect(pollIntervalSeconds('in_progress')).toBe(12)
+    // 15s, not 12s: the provider's own SLA is ~60s, so polling faster cannot
+    // outrun data that refreshes once a minute.
+    expect(pollIntervalSeconds('in_progress')).toBe(15)
     expect(pollIntervalSeconds('Final')).toBe(0)
     expect(pollIntervalSeconds('scheduled')).toBe(60)
   })
