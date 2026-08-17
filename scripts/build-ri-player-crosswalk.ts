@@ -56,6 +56,13 @@ function normName(n: string): string {
  * abbreviations ("ARI"). The last word is the mascot, unique across the league
  * except for the New York and Los Angeles pairs, which the map handles.
  *
+ * WARNING: RAMS ARE 'LAR' HERE, NOT 'LA'. I first wrote 'LA' (nflverse's spelling)
+ * and our table uses LAR exclusively — so no Rams player could ever team-verify.
+ * It did not show as a failure because those players fell through to the
+ * duplicate-collapse path and mapped anyway, just unverified. A wrong constant
+ * that degrades silently is exactly the class of bug this file was written to
+ * fix.
+ *
  * WARNING: TEAM IS THE DISAMBIGUATOR THAT ACTUALLY EXISTS HERE. Birth year was the
  * obvious choice and is USELESS: birthYear and birthDate are null for all 13,931
  * of our NFL players. Measured before relying on it, which is why this pivoted
@@ -65,7 +72,7 @@ const TEAM_BY_MASCOT: Record<string, string> = {
   cardinals: 'ARI', falcons: 'ATL', ravens: 'BAL', bills: 'BUF', panthers: 'CAR',
   bears: 'CHI', bengals: 'CIN', browns: 'CLE', cowboys: 'DAL', broncos: 'DEN',
   lions: 'DET', packers: 'GB', texans: 'HOU', colts: 'IND', jaguars: 'JAX',
-  chiefs: 'KC', raiders: 'LV', chargers: 'LAC', rams: 'LA', dolphins: 'MIA',
+  chiefs: 'KC', raiders: 'LV', chargers: 'LAC', rams: 'LAR', dolphins: 'MIA',
   vikings: 'MIN', patriots: 'NE', saints: 'NO', giants: 'NYG', jets: 'NYJ',
   eagles: 'PHI', steelers: 'PIT', seahawks: 'SEA', niners: 'SF',
   buccaneers: 'TB', titans: 'TEN', commanders: 'WAS', redskins: 'WAS', football: 'WAS',
