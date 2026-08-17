@@ -66,6 +66,12 @@ scripts/ri-import-all.ts
 # local agent settings (may contain secrets)
 .claude/settings.local.json
 
+# Pre-write snapshots taken by the destructive maintenance scripts. These are verbatim dumps
+# of PRODUCTION rows, and this repo is public — they must never be committed. The dedupe
+# script has been writing to this path since before the rule existed.
+scripts/.dedupe-players-snapshot-*.json
+scripts/.orphan-player-images-snapshot-*.json
+
 # Player value reference docs (local updates; folder tracked via .gitkeep)
 app/player-values/*.md
 app/player-values/*.txt
