@@ -3059,6 +3059,9 @@ model Player {
   lastSyncedAt         DateTime  @updatedAt
   createdAt            DateTime  @default(now())
 
+  images               PlayerImage[]
+  providerIdentities   PlayerProviderIdentity[]
+
   @@index([league])
   @@index([devyEligible])
   @@index([sport, normalizedName])
@@ -16287,6 +16290,12 @@ model PlayerProviderIdentity {
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
+  // Cascade rather than restrict. An orphaned identity row is worse than useless: it still
+  // occupies the `uniq_player_provider_identity` slot below, so it BLOCKS re-linking that
+  // provider id to the correct player. Identity rows are re-derivable from providers, and the
+  // dedupe flow repoints them before deleting a player, so this never fires there.
+  player           Player?   @relation(fields: [playerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
   @@unique([provider, sportKey, leagueKey, providerPlayerId], name: "uniq_player_provider_identity")
   @@index([playerId])
   @@index([teamId])
@@ -16316,10 +16325,19 @@ model PlayerImage {
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
+  // The only FK on `Player.id` anywhere in the schema. Without it, 215 of 443 rows here
+  // silently pointed at players that do not exist — see the note on `writePrimaryPlayerImage`.
+  // Cascade is right because these rows are a derived image cache: if the player is gone the
+  // cached headshot is meaningless, and re-resolution costs one provider call.
+  player          Player?   @relation(fields: [playerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
   @@unique([playerId, imageType, url], name: "uniq_player_image_url")
   @@index([sportKey, leagueKey])
   @@index([imageType, isPrimary])
   @@index([fetchedAt])
+  // Postgres does not index the referencing side of a FK automatically, and without this
+  // every `Player` delete degrades to a sequential scan of this table.
+  @@index([playerId])
   @@map("sports_core_player_images")
 }
 
