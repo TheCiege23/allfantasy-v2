@@ -13,6 +13,38 @@ import { requireCronAuth } from '@/app/api/cron/_auth'
 import { prisma } from '@/lib/prisma'
 import { withSyncJobRun } from '@/lib/production-health/syncJobRunTelemetry'
 import { runLiveScoringForActiveSeasons } from '@/server/services/liveScoring/liveScoreRunner'
+import { RollingInsightsLiveProvider } from '@/lib/live/rollingInsightsLiveProvider'
+
+/**
+ * Opt-in Rolling Insights live provider, PRESEASON ONLY.
+ *
+ * ⚠ OFF UNLESS `LIVE_PROVIDER_RI_PRESEASON=1`. This swaps the data source under a
+ * live-scoring path that already works: the incumbent NflLiveStatsProvider reads
+ * prisma.sportsGame, filled by import-scores from API-Sports. A silent default
+ * change here would alter every active league's scoring with no way to attribute
+ * a regression. The flag exists so the swap can be turned off in one env edit
+ * rather than a redeploy.
+ *
+ * ⚠ AND THE PROVIDER ITSELF IS SCOPED TO PRESEASON, so even with the flag ON it
+ * returns nothing for a regular-season game — belt and braces, because the flag
+ * protects the rollout while the scope protects the users.
+ *
+ * What it buys: PLAYER-LEVEL live stats. The DB path carries team scores; RI's
+ * live feed carries per-player box lines, which is what fantasy scoring needs.
+ *
+ * ⚠ Construction THROWS without ROLLING_INSIGHTS_RSC_TOKEN (CLIENT_SECRET2 is the
+ * other-sports credential and 304s forever against NFL). Caught here so a missing
+ * token degrades to the incumbent provider instead of failing the whole tick.
+ */
+function resolveLiveProvider() {
+  if (process.env.LIVE_PROVIDER_RI_PRESEASON !== '1') return undefined
+  try {
+    return new RollingInsightsLiveProvider({ scope: 'preseason' })
+  } catch (err) {
+    console.error('[live-score-tick] RI provider unavailable, falling back:', err)
+    return undefined
+  }
+}
 
 export const dynamic = 'force-dynamic'
 
@@ -27,14 +59,26 @@ export async function GET(request: NextRequest) {
   }
 
   try {
+    const provider = resolveLiveProvider()
     const report = await withSyncJobRun(
-      { jobName: 'cron-live-score-tick', trigger: 'cron', provider: 'sleeper', sport: 'NFL' },
-      async () => runLiveScoringForActiveSeasons(prisma),
+      {
+        jobName: 'cron-live-score-tick',
+        trigger: 'cron',
+        // Telemetry records WHICH provider ran, so a scoring anomaly can be
+        // attributed to the swap rather than guessed at.
+        provider: provider ? 'rolling_insights_preseason' : 'sleeper',
+        sport: 'NFL',
+      },
+      async () => runLiveScoringForActiveSeasons(prisma, provider ? { provider } : {}),
       (r) => ({
         rowsRead: r.ticked,
         rowsUpdated: r.summaries.reduce((s, x) => s + x.affectedMatchups, 0),
         status: 'success',
-        metadata: { seasonsTicked: r.ticked, seasonsPolled: r.polled },
+        metadata: {
+          seasonsTicked: r.ticked,
+          seasonsPolled: r.polled,
+          liveProvider: provider ? 'rolling_insights_preseason' : 'sleeper',
+        },
       }),
     )
     return NextResponse.json({ ok: true, ...report, ranAt: new Date().toISOString() })
