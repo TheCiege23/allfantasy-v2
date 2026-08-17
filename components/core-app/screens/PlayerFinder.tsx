@@ -2,7 +2,7 @@
 
 import Link from 'next/link'
 import '@/components/core-app/af-player-finder.css'
-import { playerRef } from '@/lib/core-app/playerFinder'
+import { playerRef } from '@/lib/core-app/playerRef'
 import type { PlayerDetail, PlayerMatch } from '@/lib/core-app/playerFinder'
 import type { SectionState } from '@/lib/core-app/leagueHome'
 
