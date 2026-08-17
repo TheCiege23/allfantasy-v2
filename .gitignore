@@ -73,6 +73,8 @@ scripts/.dedupe-players-snapshot-*.json
 scripts/.orphan-player-images-snapshot-*.json
 # Holds prior password hashes for the fixture accounts being rotated — never commit.
 scripts/.fixture-accounts-snapshot-*.json
+# Full row dumps of the fixture users/leagues/players deleted by cleanup-fixture-data.
+scripts/.fixture-data-snapshot-*.json
 
 # Player value reference docs (local updates; folder tracked via .gitkeep)
 app/player-values/*.md
