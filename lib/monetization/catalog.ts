@@ -197,8 +197,16 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     title: "AF Supreme Monthly",
     // Supreme is the ONE bundling tier, and saying so is accurate here where it is
     // not on the others: it inherits Pro, Commissioner AND Legacy.
+    /*
+     * ⚠ NO LONGER "Pro, Commissioner and Legacy … largest token allowance". Both
+     * halves went stale the same morning: SUPREME_INCLUDED_PLAN_IDS dropped
+     * war_room, and subscriptions stopped granting tokens entirely. It survived
+     * two sweeps because the token guard required a DIGIT before "tokens" and
+     * "allowance" has none, and the Legacy guard only read planIncludes.ts. Both
+     * holes are now closed.
+     */
     description:
-      "Every AF tier in one — Pro, Commissioner and Legacy — plus the largest token allowance.",
+      "AF Pro and AF Commissioner in one tier, for less than buying both.",
     amountUsd: 19.99,
     currency: "usd",
     interval: "month",
@@ -224,8 +232,16 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     title: "AF Supreme Yearly",
     // Supreme is the ONE bundling tier, and saying so is accurate here where it is
     // not on the others: it inherits Pro, Commissioner AND Legacy.
+    /*
+     * ⚠ NO LONGER "Pro, Commissioner and Legacy … largest token allowance". Both
+     * halves went stale the same morning: SUPREME_INCLUDED_PLAN_IDS dropped
+     * war_room, and subscriptions stopped granting tokens entirely. It survived
+     * two sweeps because the token guard required a DIGIT before "tokens" and
+     * "allowance" has none, and the Legacy guard only read planIncludes.ts. Both
+     * holes are now closed.
+     */
     description:
-      "Every AF tier in one — Pro, Commissioner and Legacy — plus the largest token allowance.",
+      "AF Pro and AF Commissioner in one tier, for less than buying both.",
     /*
      * ⚠ NOT 179.99. At that price Supreme's YEARLY bundle saved only 14.3%
      * against buying Pro + Commissioner yearly ($209.98), while its MONTHLY
