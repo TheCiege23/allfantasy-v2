@@ -7,6 +7,8 @@ const PAYLOAD = {
       {
         game_ID: 'G1',
         game_status: 'In Progress',
+        // Required: the provider defaults to preseason-only scope.
+        season_type: 'Preseason',
         away_team_name: 'Washington Commanders',
         home_team_name: 'Miami Dolphins',
         full_box: {
@@ -105,5 +107,67 @@ describe('RollingInsightsLiveProvider', () => {
     const games = await p.fetchActiveGames(Q)
     expect(games[0].awayTeam).toBe('WAS')
     expect(games[0].homeTeam).toBe('MIA')
+  })
+})
+
+describe('preseason scope — the safe rollout lane', () => {
+  const mixed = {
+    data: {
+      NFL: [
+        {
+          game_ID: 'PRE1', game_status: 'In Progress', season_type: 'Preseason',
+          full_box: {
+            away_team: { abbrv: 'DAL', score: 7, team_stats: { sacks: 1 } },
+            home_team: { abbrv: 'SEA', score: 3, team_stats: { sacks: 2 } },
+          },
+          player_box: { away_team: { '1': { player: 'Pre Guy', rushing_touchdowns: 1 } } },
+        },
+        {
+          game_ID: 'REG1', game_status: 'In Progress', season_type: 'Regular Season',
+          full_box: {
+            away_team: { abbrv: 'KC', score: 21, team_stats: { sacks: 4 } },
+            home_team: { abbrv: 'BUF', score: 17, team_stats: { sacks: 3 } },
+          },
+          player_box: { away_team: { '2': { player: 'Reg Guy', rushing_touchdowns: 2 } } },
+        },
+      ],
+    },
+  }
+
+  it('defaults to preseason only — a regular-season game is invisible', () => {
+    const { p } = providerWith([{ status: 200, body: mixed }])
+    return p.fetchActiveGames(Q).then((games) => {
+      expect(games.map((g) => g.gameId)).toEqual(['PRE1'])
+    })
+  })
+
+  it('will not leak regular-season PLAYER stats', async () => {
+    const { p } = providerWith([{ status: 200, body: mixed }])
+    const games = await p.fetchActiveGames(Q)
+    const stats = await p.fetchPlayerStatsForGames({ ...Q, games, playerIds: ['1', '2'] })
+    expect([...stats.keys()]).toEqual(['1'])
+  })
+
+  it('will not leak regular-season TEAM defence', async () => {
+    const { p } = providerWith([{ status: 200, body: mixed }])
+    const games = await p.fetchActiveGames(Q)
+    const def = await p.fetchTeamDefenseStatsForGames({ ...Q, games })
+    expect([...def.keys()].sort()).toEqual(['nfl:def:DAL', 'nfl:def:SEA'])
+  })
+
+  it('scopes BEFORE caching, so 304 cannot serve an out-of-scope game', async () => {
+    // If filtering happened after the cache, the fallback path would replay
+    // regular-season games the gate was supposed to exclude.
+    const { p } = providerWith([{ status: 200, body: mixed }, { status: 304 }])
+    await p.fetchActiveGames(Q)
+    const cached = await p.fetchActiveGames(Q)
+    expect(cached.map((g) => g.gameId)).toEqual(['PRE1'])
+  })
+
+  it('scope "all" opts in explicitly', async () => {
+    const { p } = providerWith([{ status: 200, body: mixed }])
+    const all = new (p.constructor as any)({ token: 't', scope: 'all', fetchImpl: async () => ({ status: 200, json: async () => mixed }) })
+    const games = await all.fetchActiveGames(Q)
+    expect(games).toHaveLength(2)
   })
 })

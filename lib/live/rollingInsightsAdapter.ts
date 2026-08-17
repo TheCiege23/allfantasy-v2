@@ -140,6 +140,7 @@ export function parseLivePayload(payload: unknown, capturedAt: Date): GameSnapsh
       teams,
       redZone,
       quarter,
+      seasonType: g.season_type != null ? String(g.season_type) : null,
     })
   }
   return out

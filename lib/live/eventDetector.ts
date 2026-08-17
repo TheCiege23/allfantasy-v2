@@ -45,6 +45,8 @@ export type GameSnapshot = {
   teams?: TeamStatLine[]
   redZone?: boolean
   quarter?: string | null
+  /** "Preseason" | "Regular Season" | "Postseason" — verbatim from the feed. */
+  seasonType?: string | null
 }
 
 export type LiveEventType =

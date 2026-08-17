@@ -47,7 +47,25 @@ export class RollingInsightsLiveProvider implements LiveStatsProvider {
    */
   private lastGood = new Map<string, { snapshots: GameSnapshot[]; at: Date }>()
 
-  constructor(opts: { token?: string; fetchImpl?: FetchLike } = {}) {
+  /**
+   * Restrict this provider to a subset of games.
+   *
+   * ⚠ 'preseason' IS THE SAFE ROLLOUT LANE, AND THE FEED MAKES IT EXACT. Every game
+   * carries `season_type` verbatim ("Preseason" | "Regular Season" | "Postseason"),
+   * so scoping is a string match rather than a date heuristic that drifts every
+   * year. Preseason games are real, live, and score nobody's actual league — which
+   * makes them the one place a live-scoring provider can be proven under genuine
+   * game conditions without a bad poll costing a user their week.
+   *
+   * ⚠ FILTERING HERE, NOT AT THE CRON, IS DELIBERATE. If the gate lived upstream,
+   * a caller could still reach every method and quietly score a regular-season
+   * game through an unproven path. Returning nothing for out-of-scope games makes
+   * the restriction total.
+   */
+  private readonly scope: 'preseason' | 'all'
+
+  constructor(opts: { token?: string; fetchImpl?: FetchLike; scope?: 'preseason' | 'all' } = {}) {
+    this.scope = opts.scope ?? 'preseason'
     const token = opts.token ?? process.env.ROLLING_INSIGHTS_RSC_TOKEN?.trim()
     if (!token) {
       throw new Error(
@@ -56,6 +74,12 @@ export class RollingInsightsLiveProvider implements LiveStatsProvider {
     }
     this.token = token
     this.fetchImpl = opts.fetchImpl ?? ((url) => fetch(url) as unknown as ReturnType<FetchLike>)
+  }
+
+  /** True when a snapshot is inside this provider's configured scope. */
+  private inScope(s: GameSnapshot): boolean {
+    if (this.scope === 'all') return true
+    return (s.seasonType ?? '').toLowerCase().includes('pre')
   }
 
   /** Poll one date, honouring 304 by serving the cached snapshots. */
@@ -68,8 +92,11 @@ export class RollingInsightsLiveProvider implements LiveStatsProvider {
     const outcome = interpretPollResponse(res.status, body, new Date())
 
     if (outcome.kind === 'changed') {
-      this.lastGood.set(date, { snapshots: outcome.snapshots, at: new Date() })
-      return outcome.snapshots
+      // Scope BEFORE caching, so an out-of-scope game can never be served later
+      // from the fallback path either.
+      const scoped = outcome.snapshots.filter((s) => this.inScope(s))
+      this.lastGood.set(date, { snapshots: scoped, at: new Date() })
+      return scoped
     }
     // 'unchanged' (304) and 'error' both fall back to the last good read rather
     // than reporting an empty slate — an empty result would read as "no games"
