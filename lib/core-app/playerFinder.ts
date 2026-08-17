@@ -3,6 +3,7 @@ import 'server-only'
 import { prisma } from '@/lib/prisma'
 import { describeAge } from '@/lib/sports-data/freshnessPolicy'
 import type { SectionState, UnavailableSection } from './leagueHome'
+import { latestProjectionWeek, lookupProjections, positionRanks } from './playerProjections'
 
 /**
  * Player Finder — "one name in, every platform, league, slot, injury and the
@@ -37,6 +38,40 @@ export type PlayerMatch = {
   /** How many of the user's leagues roster him, when identity resolved. */
   rosteredIn: number | null
   platforms: string[]
+  /**
+   * ⚠ REQUIRED, BECAUSE `externalId` IS ONLY UNIQUE WITHIN A SPORT. Measured on
+   * production: externalId `340` is Nerlens Noel (NBA), Josh Allen (NCAAF), Leroy
+   * Sané (SOCCER) and Paul Goldschmidt (MLB) simultaneously. Without the sport,
+   * opening a search result returned an arbitrary one of them — a different
+   * athlete each page load, with our projections attached to whoever came back.
+   */
+  sport: string
+}
+
+/**
+ * The stable reference for a player, as it travels through the URL.
+ *
+ * Sport goes FIRST and the split is on the first colon only, because externalId
+ * legitimately contains colons of its own (`sleeper:2212`,
+ * `name:Josh Allen:QB:BUF`) and splitting on all of them would shred it.
+ */
+export function playerRef(sport: string, externalId: string): string {
+  return `${sport}:${externalId}`
+}
+
+const KNOWN_SPORTS = new Set(['NFL', 'NCAAF', 'NBA', 'NCAAB', 'MLB', 'NHL', 'SOCCER'])
+
+export function parsePlayerRef(raw: string): { sport: string | null; externalId: string } {
+  const cut = raw.indexOf(':')
+  if (cut > 0) {
+    const head = raw.slice(0, cut)
+    // Only treat the prefix as a sport when it IS one — otherwise `sleeper:2212`
+    // would be read as sport "sleeper" and match nothing at all.
+    if (KNOWN_SPORTS.has(head.toUpperCase())) {
+      return { sport: head.toUpperCase(), externalId: raw.slice(cut + 1) }
+    }
+  }
+  return { sport: null, externalId: raw }
 }
 
 export type LeagueSlot = {
@@ -56,9 +91,23 @@ export type PlayerDetail = {
   injury: SectionState<{ status: string | null; description: string | null; reportedAt: Date | null }>
   seasonStats: SectionState<Array<{ season: string; stats: Record<string, string> }>>
   leagues: SectionState<LeagueSlot[]>
-  projection: UnavailableSection
+  /**
+   * This week's projected points.
+   *
+   * ⚠ NOT LEAGUE-SPECIFIC, AND THE UI MUST NOT IMPLY IT IS. The handoff asked for
+   * a projection under "this league's own scoring settings"; what the feed carries
+   * is one number per player per week. Labelling a generic projection as a
+   * league-scored one would be a fabrication, so the season/week travel with it and
+   * the copy says "standard scoring".
+   */
+  projection: SectionState<{ points: number; season: string; week: number }>
   snapShare: UnavailableSection
-  positionRank: UnavailableSection
+  /**
+   * ⚠ `outOf` IS PART OF THE ANSWER. "WR12" sounds absolute and is not — it means
+   * twelfth among the WRs this feed projected, not among every WR alive. Shipping
+   * the rank without the denominator would claim a completeness the feed lacks.
+   */
+  positionRank: SectionState<{ rank: number; outOf: number; position: string }>
   recommendedMoves: UnavailableSection
   freshness: { label: string; stale: boolean }
 }
@@ -124,9 +173,26 @@ export async function searchPlayers(query: string, limit = 12): Promise<PlayerMa
 
   const rows = await prisma.sportsPlayer.findMany({
     where: { name: { contains: q, mode: 'insensitive' } },
-    // A player can exist under several sources; prefer rows that carry the
-    // sleeper id, because those are the ones that can be cross-referenced.
-    orderBy: [{ sleeperId: 'desc' }, { name: 'asc' }],
+    /*
+     * A player can exist under several sources; prefer rows that carry the
+     * sleeper id, because those are the ones that can be cross-referenced.
+     *
+     * ⚠ `nulls: 'last'` IS THE WHOLE FIX — WITHOUT IT THIS DID THE EXACT OPPOSITE
+     * OF ITS OWN COMMENT. Postgres sorts NULLS FIRST on DESC, so plain
+     * `sleeperId: 'desc'` floated every UNIDENTIFIED row to the top and the take
+     * limit could cut off the identified one entirely. Searching "Josh Allen"
+     * returned a projection on some runs and "we hold no Sleeper id for this
+     * player" on others, from the same query against the same data.
+     *
+     * `externalId` is the final tiebreak so the order is total: name and sleeperId
+     * both repeat across source rows, and any remaining tie was being broken by
+     * whatever the planner returned.
+     */
+    orderBy: [
+      { sleeperId: { sort: 'desc', nulls: 'last' } },
+      { name: 'asc' },
+      { externalId: 'asc' },
+    ],
     take: limit * 3,
     select: {
       externalId: true, sleeperId: true, name: true, position: true,
@@ -153,6 +219,7 @@ export async function searchPlayers(query: string, limit = 12): Promise<PlayerMa
 
   return [...seen.values()].slice(0, limit).map((r) => ({
     externalId: r.externalId,
+    sport: r.sport,
     sleeperId: r.sleeperId,
     name: r.name,
     position: r.position,
@@ -217,11 +284,23 @@ async function resolveLeagueSlots(
 }
 
 export async function getPlayerDetail(
-  externalId: string,
+  playerReference: string,
   userLeagueIds: string[]
 ): Promise<PlayerDetail | null> {
+  const { sport: refSport, externalId } = parsePlayerRef(playerReference)
+
+  /*
+   * ⚠ SPORT-SCOPED AND EXPLICITLY ORDERED, BOTH FOR THE SAME REASON. `externalId`
+   * is a provider id that only means anything inside one sport, so an unscoped
+   * lookup can match several unrelated athletes; and an unordered findFirst then
+   * picks between them on whatever order the planner happened to return, which is
+   * why this page showed a different person run to run. Scoping fixes the ambiguity
+   * and the ordering makes the remaining case (same sport, duplicated row) stable
+   * rather than a coin flip.
+   */
   const row = await prisma.sportsPlayer.findFirst({
-    where: { externalId },
+    where: refSport ? { externalId, sport: refSport } : { externalId },
+    orderBy: [{ sleeperId: 'desc' }, { fetchedAt: 'desc' }],
     select: {
       externalId: true, sleeperId: true, name: true, position: true, team: true,
       imageUrl: true, number: true, height: true, weight: true, age: true,
@@ -276,9 +355,56 @@ export async function getPlayerDetail(
 
   const age = describeAge('player_bio', row.fetchedAt)
 
+  /*
+   * ⚠ EVERYTHING BELOW HANGS ON `sleeperId`, AND IT IS NULLABLE. The projection
+   * feed is keyed by Sleeper id; a player we hold only under a TheSportsDB
+   * external id cannot be joined to it at all. That is a real and common gap —
+   * `sleeperId` is NFL-only and covers 87.2% of the table — so it produces an
+   * explicit "we can't price this one", never a zero.
+   */
+  const projectionWeek = row.sleeperId ? await latestProjectionWeek() : null
+  const projKey = row.sleeperId ?? ''
+
+  const projRow = projectionWeek
+    ? (await lookupProjections([projKey], projectionWeek)).get(projKey)
+    : undefined
+
+  const projection: PlayerDetail['projection'] = projRow
+    ? {
+        available: true,
+        data: {
+          points: Math.round(projRow.projectedPoints * 100) / 100,
+          season: projectionWeek!.season,
+          week: projectionWeek!.week,
+        },
+      }
+    : {
+        available: false,
+        reason: row.sleeperId
+          ? 'this week’s projection feed does not carry this player'
+          : 'we hold no Sleeper id for this player, and the projection feed is keyed by one',
+      }
+
+  /*
+   * ⚠ RANK IS COMPUTED ONLY WHEN THE PLAYER HIMSELF IS PROJECTED. Ranking a player
+   * the feed never priced would place him last among everyone it did — a confident
+   * "WR143 of 143" built entirely from his absence.
+   */
+  const rankRow = projRow ? (await positionRanks([projKey], projectionWeek)).get(projKey) : undefined
+  const rank: PlayerDetail['positionRank'] = rankRow
+    ? {
+        available: true,
+        data: { rank: rankRow.rank, outOf: rankRow.outOf, position: rankRow.position },
+      }
+    : {
+        available: false,
+        reason: 'a rank needs this player to appear in the projection set, and he does not',
+      }
+
   return {
     player: {
       externalId: row.externalId,
+      sport: row.sport,
       sleeperId: row.sleeperId,
       name: row.name,
       position: row.position,
@@ -293,16 +419,15 @@ export async function getPlayerDetail(
     injury,
     seasonStats,
     leagues,
-    // Each of these is a number the handoff shows and we cannot compute. A
-    // projection under "this league's own scoring settings" needs a projection
-    // feed we do not have; snap share is not ingested at all; position rank
-    // needs a full-position ranking rather than one player's stats.
-    projection: { available: false, reason: 'no weekly projection feed ingested' },
+    projection,
+    // Still genuinely absent: no current provider gives us snap counts, so this
+    // stays an honest gap rather than being approximated from targets.
     snapShare: { available: false, reason: 'snap share is not ingested by any current provider' },
-    positionRank: { available: false, reason: 'requires a ranked positional set we do not compute yet' },
+    positionRank: rank,
     recommendedMoves: {
       available: false,
-      reason: 'a move recommendation needs projections and your lineup — neither is ingested for imported leagues',
+      reason:
+        'a move recommendation needs this player weighed against your actual lineup, which we do not yet compute',
     },
     freshness: { label: age.label, stale: age.stale },
   }

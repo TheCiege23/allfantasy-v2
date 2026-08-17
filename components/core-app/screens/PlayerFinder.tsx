@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import '@/components/core-app/af-player-finder.css'
+import { playerRef } from '@/lib/core-app/playerFinder'
 import type { PlayerDetail, PlayerMatch } from '@/lib/core-app/playerFinder'
 import type { SectionState } from '@/lib/core-app/leagueHome'
 
@@ -98,9 +99,13 @@ export function PlayerFinder({ query, matches, detail, leagueCount }: PlayerFind
               {matches.map((m) => (
                 <li key={m.externalId}>
                   <Link
-                    href={`/core/players?q=${encodeURIComponent(query)}&player=${encodeURIComponent(m.externalId)}`}
+                    // Sport-qualified: `externalId` alone is ambiguous across
+                    // sports and opened whichever athlete came back first.
+                    href={`/core/players?q=${encodeURIComponent(query)}&player=${encodeURIComponent(playerRef(m.sport, m.externalId))}`}
                     className="af-pf-match"
-                    data-active={detail?.player.externalId === m.externalId}
+                    data-active={
+                      detail?.player.externalId === m.externalId && detail?.player.sport === m.sport
+                    }
                   >
                     <span className="af-pf-match-name">{m.name}</span>
                     <span className="af-pf-match-meta">
@@ -160,9 +165,40 @@ export function PlayerFinder({ query, matches, detail, leagueCount }: PlayerFind
 
             {/* Stat tiles — a missing one says why rather than showing a bare dash */}
             <div className="af-pf-tiles">
-              <StatTile label="Proj this week" state={detail.projection} />
+              {/*
+                ⚠ "STANDARD SCORING" IS SAID OUT LOUD BECAUSE THE FEED IS NOT
+                LEAGUE-SPECIFIC. This screen spans every league the user is in, and
+                the same player is worth different points in each. An unqualified
+                "Proj this week" would read as a projection under whichever league
+                the reader has in mind, which is a claim we cannot support.
+              */}
+              <StatTile
+                label="Proj this week"
+                state={detail.projection}
+                value={detail.projection.available ? detail.projection.data.points.toFixed(1) : null}
+                help={
+                  detail.projection.available
+                    ? `Standard scoring · ${detail.projection.data.season} week ${detail.projection.data.week}`
+                    : undefined
+                }
+              />
               <StatTile label="Snap share" state={detail.snapShare} />
-              <StatTile label="Pos rank" state={detail.positionRank} />
+              <StatTile
+                label="Pos rank"
+                state={detail.positionRank}
+                value={
+                  detail.positionRank.available
+                    ? `${detail.positionRank.data.position}${detail.positionRank.data.rank}`
+                    : null
+                }
+                // The denominator lives here rather than in the value so the tile
+                // reads "WR12 / of 143 projected" — a rank AND its universe.
+                help={
+                  detail.positionRank.available
+                    ? `of ${detail.positionRank.data.outOf} projected ${detail.positionRank.data.position}s`
+                    : undefined
+                }
+              />
               <StatTile
                 label="Age"
                 value={detail.bio.age != null ? String(detail.bio.age) : null}

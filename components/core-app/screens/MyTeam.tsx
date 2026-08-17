@@ -98,6 +98,25 @@ function StatusChip({ status }: { status: string | null }) {
   )
 }
 
+/**
+ * A player's projected points, or an em dash.
+ *
+ * ⚠ THE EM DASH IS NOT DECORATION AND MUST NEVER BECOME "0.0". Null means the feed
+ * does not carry this player; zero means we expect him to score nothing. Rendering
+ * the first as the second tells a manager to bench someone on the strength of data
+ * we do not have.
+ */
+function ProjectedPoints({ value }: { value: number | null }) {
+  if (value == null) {
+    return (
+      <span className="af-mt-proj af-num af-mt-proj--none" title="No projection on file for this player">
+        —
+      </span>
+    )
+  }
+  return <span className="af-mt-proj af-num">{value.toFixed(1)}</span>
+}
+
 function SlotRow({ slot, platform }: { slot: LineupSlot; platform: string }) {
   return (
     <li className="af-mt-row" data-empty={slot.empty}>
@@ -107,6 +126,7 @@ function SlotRow({ slot, platform }: { slot: LineupSlot; platform: string }) {
         <>
           <PlayerCell player={slot.player} />
           <StatusChip status={slot.player.injuryStatus} />
+          <ProjectedPoints value={slot.player.projectedPoints} />
         </>
       ) : slot.unresolvedId ? (
         // A player IS here — we just could not identify him. Saying "Empty"
@@ -259,9 +279,36 @@ export function MyTeam({ data }: MyTeamProps) {
         </section>
       ) : null}
 
-      <p className="af-mt-footnote">
-        Projections are not shown because {data.projections.reason}.
-      </p>
+      {data.projections.available ? (
+        <section className="af-mt-projtotal">
+          <div>
+            <div className="af-label">Projected total</div>
+            <div className="af-mt-projtotal-value af-num">
+              {data.projections.data.total.toFixed(1)}
+            </div>
+          </div>
+          {/*
+            ⚠ THE COVERAGE LINE IS LOAD-BEARING, NOT A CAVEAT. A total built from 5
+            of 8 starters always reads LOW, and low is the direction that makes a
+            manager bench someone they should start. Two of six sampled production
+            lineups are only partly priced, so this is the common case, not an edge
+            one — the number is only safe to read next to what it was built from.
+          */}
+          <p className="af-mt-projtotal-note">
+            {data.projections.data.unprojected === 0
+              ? `All ${data.projections.data.projected} starters projected · ${data.projections.data.season} week ${data.projections.data.week}`
+              : `From ${data.projections.data.projected} of ${
+                  data.projections.data.projected + data.projections.data.unprojected
+                } starters — ${data.projections.data.unprojected} ${
+                  data.projections.data.unprojected === 1 ? 'has' : 'have'
+                } no projection on file, so this total reads low.`}
+          </p>
+        </section>
+      ) : (
+        <p className="af-mt-footnote">
+          Projections are not shown because {data.projections.reason}.
+        </p>
+      )}
     </div>
   )
 }

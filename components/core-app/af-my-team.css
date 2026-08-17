@@ -310,6 +310,51 @@
   color: var(--faint);
 }
 
+/* Per-slot projection. Right-aligned so the column reads as a column. */
+.af-mt-proj {
+  flex: 0 0 auto;
+  margin-left: auto;
+  min-width: 48px;
+  text-align: right;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+/*
+  ⚠ THE "NO PROJECTION" DASH IS DELIBERATELY QUIET, NOT RED. It is not an error the
+  user caused or can fix — it means our feed does not carry that player. Styling it
+  as a fault would send someone hunting a problem in their own lineup.
+*/
+.af-mt-proj--none {
+  color: var(--faint);
+  font-weight: 500;
+}
+
+.af-mt-projtotal {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--panel);
+}
+.af-mt-projtotal-value {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--ink);
+}
+.af-mt-projtotal-note {
+  margin: 0;
+  flex: 1 1 240px;
+  align-self: center;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--faint);
+}
+
 @media (max-width: 720px) {
   .af-mt-tiles {
     margin-left: 0;

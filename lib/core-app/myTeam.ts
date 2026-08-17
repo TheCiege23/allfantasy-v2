@@ -2,6 +2,7 @@ import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { leagueDisplayName, type SectionState, type UnavailableSection } from './leagueHome'
+import { latestProjectionWeek, lookupProjections, summariseLineup } from './playerProjections'
 
 /**
  * My team · roster — "read-only view of your real lineup, with the fix and where
@@ -33,6 +34,14 @@ export type LineupPlayer = {
   gameContext: string | null
   kickoff: Date | null
   injuryStatus: string | null
+  /**
+   * Weekly projection for this player, or null when the feed does not carry him.
+   *
+   * ⚠ NULL IS NOT ZERO. A slot showing "—" is a player we cannot price; a slot
+   * showing 0.0 would claim we expect him to score nothing. Those are different
+   * statements and only one of them is true.
+   */
+  projectedPoints: number | null
 }
 
 export type LineupSlot = {
@@ -70,7 +79,21 @@ export type MyTeamData = {
   reserve: SectionState<LineupPlayer[]>
   /** Earliest kickoff among starters — the real lineup lock. */
   lock: SectionState<{ at: Date; anyEmptySlot: boolean }>
-  projections: UnavailableSection
+  /**
+   * The lineup's projected total.
+   *
+   * ⚠ CARRIES `unprojected` SO A FRAGMENT CANNOT POSE AS A TOTAL. Two of six
+   * sampled production lineups are only partly priced, so this is the common case.
+   * A total built from 5 of 8 starters always reads LOW — the direction that makes
+   * a manager bench someone they should start.
+   */
+  projections: SectionState<{
+    total: number
+    projected: number
+    unprojected: number
+    season: string
+    week: number
+  }>
   rosterGrade: UnavailableSection
   liveScore: UnavailableSection
 }
@@ -93,7 +116,8 @@ function formatKickoff(d: Date | null): string | null {
 
 async function resolvePlayers(
   ids: string[],
-  sport: string
+  sport: string,
+  projectionWeek: { season: string; week: number } | null
 ): Promise<Map<string, LineupPlayer>> {
   const out = new Map<string, LineupPlayer>()
   if (ids.length === 0) return out
@@ -143,6 +167,15 @@ async function resolvePlayers(
     .catch(() => [])
   const injuryByName = new Map(injuries.map((i) => [i.playerName.toLowerCase(), i.status]))
 
+  /*
+   * ⚠ PROJECTIONS ARE JOINED HERE BECAUSE THIS IS WHERE THE IDS ALREADY ARE, and
+   * because the ids are the same shape the feed is keyed by — Sleeper ids. That
+   * coincidence is the whole reason both screens can be priced at all; it is not a
+   * given for every platform and the join will silently return nothing the day an
+   * importer writes a different id space.
+   */
+  const projections = await lookupProjections(ids, projectionWeek)
+
   for (const r of rows) {
     if (!r.sleeperId) continue
     const g = r.team ? nextGameFor.get(r.team) : undefined
@@ -156,6 +189,7 @@ async function resolvePlayers(
       gameContext: g ? `${r.team} ${g.home ? 'vs' : '@'} ${g.opponent}${time ? ` · ${time}` : ''}` : null,
       kickoff: g?.at ?? null,
       injuryStatus: injuryByName.get(r.name.toLowerCase()) ?? null,
+      projectedPoints: projections.get(r.sleeperId)?.projectedPoints ?? null,
     })
   }
 
@@ -177,7 +211,16 @@ export async function getMyTeamData(leagueId: string, userId: string): Promise<M
       platform: String(league.platform ?? 'manual').toLowerCase(),
       format: league.leagueType ?? null,
     },
-    projections: { available: false as const, reason: 'no weekly projection feed ingested' },
+    /*
+     * The default for the early-return paths only — a roster we never found cannot
+     * be projected. The full path overrides this with a real summary. It is
+     * deliberately NOT phrased as "no feed exists", which is what it used to say
+     * and was false: the feed carries 994 rows.
+     */
+    projections: {
+      available: false as const,
+      reason: 'no lineup found to project',
+    },
     rosterGrade: {
       available: false as const,
       reason: 'a roster grade needs projections and positional replacement levels we do not compute yet',
@@ -232,9 +275,24 @@ export async function getMyTeamData(leagueId: string, userId: string): Promise<M
     },
   }
 
-  // Roster.platformUserId is always set; LeagueTeam.platformUserId is not, so it
-  // is one candidate among several rather than the key.
-  const candidates = [myTeamRow.platformUserId, myTeamRow.externalId].filter(Boolean) as string[]
+  /*
+   * Roster.platformUserId is always set; LeagueTeam.platformUserId is not, so it
+   * is one candidate among several rather than the key.
+   *
+   * ⚠ `userId` IS IN THIS LIST BECAUSE Roster.platformUserId SOMETIMES HOLDS OUR
+   * OWN User UUID, NOT THE PLATFORM'S ID. Measured on production: with only the
+   * first two candidates, 38 of 106 claimed teams joined to a roster and just 11
+   * had a lineup — so My Team rendered "no roster imported" to roughly two thirds
+   * of the people it was built for, over rosters that were sitting right there.
+   * Adding this candidate takes it to 93 joined / 51 with lineups and matches more
+   * than one roster for exactly ZERO teams, so it widens recall without ever
+   * risking showing someone another manager's team.
+   */
+  const candidates = [
+    myTeamRow.platformUserId,
+    myTeamRow.externalId,
+    userId,
+  ].filter(Boolean) as string[]
   const roster =
     candidates.length > 0
       ? await prisma.roster.findFirst({
@@ -260,9 +318,18 @@ export async function getMyTeamData(leagueId: string, userId: string): Promise<M
   const reserveIds = asIds(pd.reserve)
   const taxiIds = asIds(pd.taxi)
 
+  /*
+   * ⚠ THE WEEK COMES FROM THE FEED, NOT FROM THE LEAGUE'S CLOCK. `currentWeek` and
+   * the week the projection cron last wrote drift apart constantly, and asking for
+   * a week nobody has written yet returns nothing — which would render "no
+   * projections" on a screen whose actual problem was asking the wrong question.
+   */
+  const projectionWeek = await latestProjectionWeek()
+
   const resolved = await resolvePlayers(
     [...new Set([...starterIds, ...allIds, ...reserveIds, ...taxiIds])],
-    sport
+    sport,
+    projectionWeek
   )
 
   // Sleeper encodes an unfilled starting slot as "0" — that is the handoff's
@@ -288,9 +355,42 @@ export async function getMyTeamData(leagueId: string, userId: string): Promise<M
     .filter((d): d is Date => d instanceof Date)
     .sort((a, b) => a.getTime() - b.getTime())
 
+  /*
+   * ⚠ SUMMARISED OVER THE STARTERS AS STORED — INCLUDING THE "0" HOLES. An empty
+   * slot is genuinely worth nothing to the lineup, but it is also not a player we
+   * failed to price, so it must not inflate `unprojected` into a coverage problem.
+   * Filtering it out here keeps the two failure modes — "you have a hole" and "we
+   * can't price this guy" — separate, because the fixes are different.
+   */
+  const projectedIds = starterIds.filter((id) => id !== '0')
+  const lineup = summariseLineup(
+    projectedIds,
+    new Map(
+      projectedIds
+        .map((id) => [id, resolved.get(id)] as const)
+        .filter(([, p]) => p != null && p.projectedPoints != null)
+        .map(([id, p]) => [
+          id,
+          { playerId: id, projectedPoints: p!.projectedPoints as number, name: p!.name, position: p!.position, team: p!.team },
+        ])
+    )
+  )
+
   return {
     ...base,
     team,
+    projections:
+      projectionWeek && projectedIds.length > 0
+        ? {
+            available: true,
+            data: { ...lineup, season: projectionWeek.season, week: projectionWeek.week },
+          }
+        : {
+            available: false,
+            reason: projectionWeek
+              ? 'no starters to project on this roster'
+              : 'no weekly projection feed has been ingested yet',
+          },
     starters:
       starters.length > 0
         ? { available: true, data: starters }
