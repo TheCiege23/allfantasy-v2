@@ -9,7 +9,9 @@
  * shows either.
  */
 import { getMyTeamData } from '../lib/core-app/myTeam'
+import { latestProjectionWeek } from '../lib/core-app/playerProjections'
 import { getPlayerDetail, searchPlayers, playerRef } from '../lib/core-app/playerFinder'
+import { loadSideProjections, winProbabilityFor } from '../lib/core-app/matchupProjections'
 import { prisma } from '../lib/prisma'
 
 async function main() {
@@ -84,6 +86,46 @@ async function main() {
       : `— (${d.positionRank.reason})`
     console.log(`  ${d.player.name}: proj ${proj} · rank ${rank}`)
   }
+
+  /*
+   * ⚠ MATCHUP IS EXERCISED AT THE WEEK THE FEED COVERS, NOT AT THE WEEK STORED ON
+   * THE LEAGUE — AND THAT IS THE POINT OF RUNNING IT AT ALL. Production's
+   * WeeklyMatchup rows are 2025 wk1/wk2 while the projection feed holds 2026 wk1,
+   * so getMatchupData correctly refuses for every real league today. Testing only
+   * through that path would mean the win-probability branch had never once been
+   * observed producing a number, and a code path seen only refusing is a code path
+   * nobody has verified.
+   */
+  console.log(`
+matchup (positive control at the feed's own week):`)
+  const withRosters = await prisma.league.findMany({
+    where: { rosters: { some: {} } },
+    select: { id: true, rosters: { select: { platformUserId: true }, take: 2 } },
+    take: 40,
+  })
+  let matchupsPriced = 0
+  for (const lg of withRosters) {
+    if (lg.rosters.length < 2) continue
+    const at = await latestProjectionWeek()
+    if (!at) break
+    const sides = await loadSideProjections({
+      leagueId: lg.id,
+      season: Number(at.season),
+      week: at.week,
+      yourPlatformUserId: lg.rosters[0].platformUserId,
+      opponentPlatformUserId: lg.rosters[1].platformUserId,
+    })
+    if (!sides) continue
+    const wp = winProbabilityFor(sides, { you: 0, opponent: 0 })
+    if (!wp.available) continue
+    matchupsPriced++
+    console.log(
+      `  ${sides.you.projectedRemaining} v ${sides.opponent.projectedRemaining} -> ${Math.round(wp.data.pWin * 100)}% ` +
+        `margin ${wp.data.projectedMargin.toFixed(1)} (${wp.data.confidence})`
+    )
+    if (matchupsPriced >= 4) break
+  }
+  if (matchupsPriced === 0) console.log('  none — no league had two fully-projected lineups')
 
   await prisma.$disconnect()
 }

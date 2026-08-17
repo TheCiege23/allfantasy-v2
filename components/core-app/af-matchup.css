@@ -227,6 +227,33 @@
   color: var(--faint);
 }
 
+/* The win probability, when we have one. Sized to match the dash it replaces so
+   the centre column does not jump between the two states. */
+.af-mu-centre-value {
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--ink);
+}
+
+.af-mu-missing-value {
+  flex: 1 1 240px;
+  font-size: 13.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--ink);
+}
+/*
+  The coverage caveat is quieter than the total but NOT hidden — it qualifies the
+  number it sits beside, and a caveat nobody reads is the same as no caveat.
+*/
+.af-mu-missing-caveat {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--faint);
+}
+
 @media (max-width: 780px) {
   .af-mu-h2h {
     grid-template-columns: minmax(0, 1fr);

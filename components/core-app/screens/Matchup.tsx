@@ -72,14 +72,35 @@ export function Matchup({ data }: MatchupProps) {
 
             <div className="af-mu-centre">
               <div className="af-label af-mu-centre-label">Win probability</div>
-              {/*
-                No percentage, on purpose. The reason is shown in its place so the
-                gap reads as a known absence rather than a value still loading.
-              */}
-              <div className="af-mu-centre-dash af-num" aria-hidden>
-                —
-              </div>
-              <p className="af-mu-centre-why">{data.winProbability.reason}</p>
+              {data.winProbability.available ? (
+                <>
+                  <div className="af-mu-centre-value af-num">
+                    {Math.round(data.winProbability.data.pWin * 100)}%
+                  </div>
+                  {/*
+                    ⚠ THE CONFIDENCE AND THE MODEL'S OWN SENTENCE STAY ATTACHED TO
+                    THE NUMBER. A bare percentage reads as a measurement; this one
+                    is a Gaussian over projected margins, and the detail line is
+                    what stops it being mistaken for a count of simulated seasons.
+                  */}
+                  <p className="af-mu-centre-why">
+                    {data.winProbability.data.detail} · {data.winProbability.data.confidence}{' '}
+                    confidence
+                  </p>
+                </>
+              ) : (
+                <>
+                  {/*
+                    No percentage, on purpose. The reason is shown in its place so
+                    the gap reads as a known absence rather than a value still
+                    loading.
+                  */}
+                  <div className="af-mu-centre-dash af-num" aria-hidden>
+                    —
+                  </div>
+                  <p className="af-mu-centre-why">{data.winProbability.reason}</p>
+                </>
+              )}
 
               {leader ? (
                 <div className="af-mu-margin af-num" data-leader={leader}>
@@ -126,7 +147,30 @@ export function Matchup({ data }: MatchupProps) {
           </li>
           <li>
             <span className="af-mu-missing-key">Projected final</span>
-            <span className="af-mu-missing-why">{data.projectedFinal.reason}</span>
+            {data.projectedFinal.available ? (
+              <span className="af-mu-missing-value af-num">
+                {data.projectedFinal.data.you.toFixed(1)} –{' '}
+                {data.projectedFinal.data.opponent.toFixed(1)}
+                {/*
+                  ⚠ SHOWN WHENEVER EITHER SIDE IS SHORT, BECAUSE THE TWO SIDES CAN
+                  BE SHORT BY DIFFERENT AMOUNTS. That does not just make both totals
+                  low, it tilts the comparison — the side missing more starters
+                  looks like it is losing when it may not be.
+                */}
+                {data.projectedFinal.data.unprojected.you +
+                  data.projectedFinal.data.unprojected.opponent >
+                0 ? (
+                  <em className="af-mu-missing-caveat">
+                    {' '}
+                    — built without {data.projectedFinal.data.unprojected.you} of your starters and{' '}
+                    {data.projectedFinal.data.unprojected.opponent} of theirs, so both totals read
+                    low
+                  </em>
+                ) : null}
+              </span>
+            ) : (
+              <span className="af-mu-missing-why">{data.projectedFinal.reason}</span>
+            )}
           </li>
         </ul>
       </section>
