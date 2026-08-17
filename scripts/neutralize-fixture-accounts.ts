@@ -150,12 +150,17 @@ async function main() {
   }
 
   console.log(
-    '\nRemaining follow-ups, deliberately NOT done here:\n' +
+    '\nRemaining follow-up, deliberately NOT done here:\n' +
       '  - The fixture rows themselves (10 leagues, 79 rosters, 52 Player rows, 5 subscriptions)\n' +
       '    are still present. They are inert without logins; removing them is a separate job.\n' +
-      '  - `Password123!` is still hardcoded in the seed scripts. That is now only a problem for\n' +
-      '    whatever database you seed, and the guard refuses production — but consider moving it\n' +
-      '    to an env var so the public repo stops publishing a credential at all.',
+      '\nAnd one that was considered and REJECTED after measuring it:\n' +
+      '  - Moving `Password123!` out of the seeds into an env var. It is not read from the seed\n' +
+      '    constant — roughly twenty e2e specs, unit tests and docs each hardcode their own copy,\n' +
+      '    so this is a wide refactor across a suite that is already red on main, and it cannot be\n' +
+      '    validated here. It also buys nothing now: a fixed password in test fixtures is only a\n' +
+      '    vulnerability if the fixtures reach a real database, and both halves of that are closed\n' +
+      '    — the guard refuses production, and the accounts that leaked are rotated. Revisit only\n' +
+      '    if fixtures end up in a real environment again.',
   )
 
   await prisma.$disconnect()
