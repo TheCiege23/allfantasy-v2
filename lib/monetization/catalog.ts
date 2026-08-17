@@ -69,7 +69,12 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_commissioner_monthly",
     type: "subscription",
     title: "AF Commissioner Monthly",
-    description: "Everything in Pro plus the tools to run your leagues.",
+    // ⚠ NOT "Everything in Pro plus …", which is what this said and which is false.
+    // Only Supreme bundles other tiers (SUPREME_INCLUDED_PLAN_IDS in
+    // lib/subscription/feature-access.ts = [pro, commissioner, war_room]).
+    // Commissioner does NOT grant Pro's player tools, so a subscriber who bought on
+    // that sentence would find the trade and waiver tools still locked.
+    description: "The tools to run your leagues — health, integrity, recaps and the Commissioner OS.",
     amountUsd: 14.99,
     currency: "usd",
     // Must match subscription-policy.ts's commissioner.monthlyIncludedPremiumCredits (100).
@@ -84,7 +89,12 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_commissioner_yearly",
     type: "subscription",
     title: "AF Commissioner Yearly",
-    description: "Everything in Pro plus the tools to run your leagues.",
+    // ⚠ NOT "Everything in Pro plus …", which is what this said and which is false.
+    // Only Supreme bundles other tiers (SUPREME_INCLUDED_PLAN_IDS in
+    // lib/subscription/feature-access.ts = [pro, commissioner, war_room]).
+    // Commissioner does NOT grant Pro's player tools, so a subscriber who bought on
+    // that sentence would find the trade and waiver tools still locked.
+    description: "The tools to run your leagues — health, integrity, recaps and the Commissioner OS.",
     amountUsd: 149.99,
     currency: "usd",
     // Must match subscription-policy.ts's commissioner.yearlyIncludedPremiumCredits (1500).
@@ -98,7 +108,12 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_war_room_monthly",
     type: "subscription",
     title: "AF Legacy Monthly",
-    description: "Everything in Supreme plus the live draft room, dynasty tools, and priority access.",
+    // ⚠ THIS CLAIM WAS BACKWARDS, NOT MERELY LADDER-ISH. SUPREME_INCLUDED_PLAN_IDS
+    // contains war_room, so SUPREME INCLUDES LEGACY — not the reverse. Legacy also
+    // grants 300 tokens/mo against Supreme's 1,000 while costing $10 MORE, so
+    // "everything in Supreme plus" was false in the one dimension a pricing grid
+    // shows side by side.
+    description: "The live draft room, dynasty tools, and priority access.",
     amountUsd: 29.99,
     currency: "usd",
     // Must match subscription-policy.ts's war_room.monthlyIncludedPremiumCredits (300). Previously
@@ -113,7 +128,12 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_war_room_yearly",
     type: "subscription",
     title: "AF Legacy Yearly",
-    description: "Everything in Supreme plus the live draft room, dynasty tools, and priority access.",
+    // ⚠ THIS CLAIM WAS BACKWARDS, NOT MERELY LADDER-ISH. SUPREME_INCLUDED_PLAN_IDS
+    // contains war_room, so SUPREME INCLUDES LEGACY — not the reverse. Legacy also
+    // grants 300 tokens/mo against Supreme's 1,000 while costing $10 MORE, so
+    // "everything in Supreme plus" was false in the one dimension a pricing grid
+    // shows side by side.
+    description: "The live draft room, dynasty tools, and priority access.",
     amountUsd: 299.99,
     currency: "usd",
     // Must match subscription-policy.ts's war_room.yearlyIncludedPremiumCredits (3500). Previously
@@ -127,8 +147,10 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_supreme_monthly",
     type: "subscription",
     title: "AF Supreme Monthly",
+    // Supreme is the ONE bundling tier, and saying so is accurate here where it is
+    // not on the others: it inherits Pro, Commissioner AND Legacy.
     description:
-      "Everything in Commissioner plus projections, cross-league analytics, and higher token allowances.",
+      "Every AF tier in one — Pro, Commissioner and Legacy — plus the largest token allowance.",
     amountUsd: 19.99,
     currency: "usd",
     interval: "month",
@@ -144,8 +166,10 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     sku: "af_supreme_yearly",
     type: "subscription",
     title: "AF Supreme Yearly",
+    // Supreme is the ONE bundling tier, and saying so is accurate here where it is
+    // not on the others: it inherits Pro, Commissioner AND Legacy.
     description:
-      "Everything in Commissioner plus projections, cross-league analytics, and higher token allowances.",
+      "Every AF tier in one — Pro, Commissioner and Legacy — plus the largest token allowance.",
     amountUsd: 199.99,
     currency: "usd",
     interval: "year",
