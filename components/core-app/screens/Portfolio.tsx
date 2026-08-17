@@ -98,11 +98,24 @@ export function Portfolio({ data, importHref = '/import?returnTo=%2Fcore%2Fportf
                 {l.team ? (
                   <>
                     <span className="af-pf-team-name">{l.team.name}</span>
+                    {/*
+                      ⚠ A RANK WITHOUT A RECORD IS NOT A STANDING, AND SHOWING BOTH
+                      READ AS A CONTRADICTION: "no record yet · #6 of 18". Seen on
+                      production across most of a 60-league portfolio. If no games
+                      have been played, currentRank is draft order or a seed, not a
+                      position earned — so it is withheld and only the league size
+                      is stated, which is true either way.
+                    */}
                     <span className="af-pf-team-meta af-num">
-                      {l.team.record ?? 'no record yet'}
-                      {l.team.rank != null
-                        ? ` · #${l.team.rank}${l.team.teamCount ? ` of ${l.team.teamCount}` : ''}`
-                        : ''}
+                      {l.team.record
+                        ? `${l.team.record}${
+                            l.team.rank != null
+                              ? ` · #${l.team.rank}${l.team.teamCount ? ` of ${l.team.teamCount}` : ''}`
+                              : ''
+                          }`
+                        : l.team.teamCount
+                          ? `${l.team.teamCount}-team league · season not started`
+                          : 'season not started'}
                     </span>
                   </>
                 ) : (
