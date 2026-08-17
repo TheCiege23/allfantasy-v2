@@ -131,7 +131,17 @@ function navItems(props: AfCoreShellProps): NavItem[] {
         : '/core/draft-hq',
     },
     { key: 'portfolio', label: 'Portfolio', glyph: '◈', href: '/core/portfolio' },
-    { key: 'career', label: 'Your career', glyph: '★', href: '/core/career' },
+    /*
+     * ⚠ 'career' IS DELIBERATELY ABSENT FROM THE RAIL UNTIL IT IS BUILT. It
+     * rendered "this screen has not been built yet" in one of the primary nav
+     * slots — an apology occupying prime real estate, which is worse than the
+     * item simply not being there. The route still resolves for anyone holding a
+     * link; it is only unadvertised.
+     *
+     * The data exists (/api/user/rank supplies leagues, seasons, record, titles,
+     * playoff appearances) so this is a build, not a research problem. Restore
+     * this line the moment the screen renders that.
+     */
     {
       key: 'rankings',
       label: 'Rankings',

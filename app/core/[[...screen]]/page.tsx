@@ -28,6 +28,7 @@ import LandingV4 from '@/components/core-app/screens/LandingV4'
 import AuthV4 from '@/components/core-app/screens/AuthV4'
 import ImportV4, { type ImportPreviewState } from '@/components/core-app/screens/ImportV4'
 import { Portfolio } from '@/components/core-app/screens/Portfolio'
+import { Tools } from '@/components/core-app/screens/Tools'
 import { getPortfolio } from '@/lib/core-app/portfolio'
 
 export const dynamic = 'force-dynamic'
@@ -311,6 +312,8 @@ export default async function AfCorePage({
           detail={playerDetail}
           leagueCount={leagues.length}
         />
+      ) : activeKey === 'tools' ? (
+        <Tools />
       ) : activeKey === 'portfolio' ? (
         portfolio ? (
           <Portfolio data={portfolio} />
