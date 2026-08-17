@@ -130,3 +130,60 @@ export function assertSafeSeedTarget(seedName: string): void {
       `  If you genuinely intend to write fixtures to this target, set ALLOW_PROD_SEED=1.\n`,
   )
 }
+
+/**
+ * Fail-closed guard for seed scripts that create objects in STRIPE rather than the database.
+ *
+ * `seed-bracket-products.ts` calls `stripe.products.create` / `stripe.prices.create`, so the
+ * hazard is not a database at all — it is which Stripe account the key belongs to. `.env` here
+ * holds a test key but `.env.local` holds a LIVE one, and `.env.local` wins in the same
+ * resolution order everything else uses, so the default path creates real billable products.
+ *
+ * Only the key's PREFIX is ever inspected or logged. The value is never printed.
+ */
+export function assertSafeStripeTarget(seedName: string): void {
+  const repoRoot = findRepoRoot(process.cwd())
+
+  let key = process.env.STRIPE_SECRET_KEY
+  if (!key) {
+    let dir = path.resolve(repoRoot)
+    for (let i = 0; i < 8; i++) {
+      const local = readEnvFile(path.join(dir, '.env.local'))
+      const base = readEnvFile(path.join(dir, '.env'))
+      key = local.STRIPE_SECRET_KEY || base.STRIPE_SECRET_KEY
+      if (key) break
+      const up = path.dirname(dir)
+      if (up === dir) break
+      dir = up
+    }
+  }
+
+  // Classify by prefix only. Anything unrecognised is refused, not assumed safe.
+  const mode = !key
+    ? 'missing'
+    : key.startsWith('sk_live_') || key.startsWith('rk_live_')
+      ? 'LIVE'
+      : key.startsWith('sk_test_') || key.startsWith('rk_test_')
+        ? 'test'
+        : 'unrecognised'
+
+  console.log(`[${seedName}] stripe key mode: ${mode}`)
+  if (mode === 'test') return
+
+  if (process.env.ALLOW_LIVE_STRIPE_SEED === '1') {
+    console.warn(
+      `[${seedName}] ⚠ ALLOW_LIVE_STRIPE_SEED=1 — creating Stripe objects with a ${mode} key. ` +
+        `Products and prices created here are real and chargeable.`,
+    )
+    return
+  }
+
+  throw new Error(
+    `\n[${seedName}] REFUSED: Stripe key mode is ${mode}, not test.\n\n` +
+      `  This script creates Stripe products and prices. With a live key those are real,\n` +
+      `  chargeable objects in your actual account, and Stripe products cannot simply be\n` +
+      `  un-created. Note that \`.env.local\` in this repo holds a LIVE key and takes\n` +
+      `  precedence over \`.env\`, so the default path is the dangerous one.\n\n` +
+      `  Export a test key for this run, or set ALLOW_LIVE_STRIPE_SEED=1 to override.\n`,
+  )
+}
