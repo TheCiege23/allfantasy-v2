@@ -5,7 +5,7 @@ import { PageJsonLd } from '@/components/seo/JsonLd'
 import { LandingInviteCapture } from '@/components/landing/LandingInviteCapture'
 import { LandingViewBeacon } from '@/components/landing/LandingViewBeacon'
 import { getHomeInitialSession } from '@/lib/landing/get-home-initial-session'
-import LandingNocturne from '@/components/landing/nocturne/LandingNocturne'
+import { LandingV4 } from '@/components/core-app/screens/LandingV4'
 import {
   buildSeoMeta,
   getSoftwareApplicationSchema,
@@ -87,7 +87,14 @@ export default async function HomePage() {
         campaign-driven acquisition.
       */}
       <LandingViewBeacon landingPath="/" />
-      <LandingNocturne initialSession={initialSession} />
+      {/*
+        ⚠ CUTOVER: LandingV4 replaced LandingNocturne here. Everything AROUND this
+        line is deliberately untouched — the JSON-LD schemas, invite capture, the
+        landing-view beacon, and the signed-in redirect above. Those carry the SEO
+        and the acquisition attribution; swapping the visual must not cost them.
+        One-line rollback: restore the LandingNocturne import and this element.
+      */}
+      <LandingV4 />
     </>
   )
 }
