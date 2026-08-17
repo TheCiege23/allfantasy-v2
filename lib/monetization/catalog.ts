@@ -46,7 +46,15 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     amountUsd: 9.99,
     currency: "usd",
     interval: "month",
-    tokenAmount: 250,
+    /*
+     * ⚠ SUBSCRIPTIONS NO LONGER CARRY TOKENS — null, NOT 0. Tokens are the
+     * pay-per-use path for people who do not want a subscription; a subscriber
+     * has the features unlocked outright and should never need to spend them.
+     * null means "this plan does not deal in tokens"; 0 would mean "it grants
+     * you zero of them", which invites the reasonable question of why it is
+     * mentioned at all.
+     */
+    tokenAmount: null,
     planFamily: "af_pro",
     stripePriceEnvVar: "STRIPE_PRICE_AF_PRO_MONTHLY",
   },
@@ -55,13 +63,21 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     type: "subscription",
     title: "AF Pro Yearly",
     description: "Player tools for active fantasy managers — trades, waivers, lineups, and drafts.",
-    amountUsd: 99.99,
+    amountUsd: 79.99,
     currency: "usd",
     // Must match subscription-policy.ts's pro.yearlyIncludedPremiumCredits (3500). Previously 3000,
     // which UNDER-stated the grant — the opposite direction to the other drifts, and the only one
     // that was costing us goodwill rather than owing it.
     interval: "year",
-    tokenAmount: 3500,
+    /*
+     * ⚠ SUBSCRIPTIONS NO LONGER CARRY TOKENS — null, NOT 0. Tokens are the
+     * pay-per-use path for people who do not want a subscription; a subscriber
+     * has the features unlocked outright and should never need to spend them.
+     * null means "this plan does not deal in tokens"; 0 would mean "it grants
+     * you zero of them", which invites the reasonable question of why it is
+     * mentioned at all.
+     */
+    tokenAmount: null,
     planFamily: "af_pro",
     stripePriceEnvVar: "STRIPE_PRICE_AF_PRO_YEARLY",
   },
@@ -81,7 +97,15 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // Previously 500 — a 5x overpromise against what invoice.payment_succeeded actually credits.
     // Same bug already fixed on Supreme below; this tier and Legacy were missed.
     interval: "month",
-    tokenAmount: 100,
+    /*
+     * ⚠ SUBSCRIPTIONS NO LONGER CARRY TOKENS — null, NOT 0. Tokens are the
+     * pay-per-use path for people who do not want a subscription; a subscriber
+     * has the features unlocked outright and should never need to spend them.
+     * null means "this plan does not deal in tokens"; 0 would mean "it grants
+     * you zero of them", which invites the reasonable question of why it is
+     * mentioned at all.
+     */
+    tokenAmount: null,
     planFamily: "af_commissioner",
     stripePriceEnvVar: "STRIPE_PRICE_AF_COMMISSIONER_MONTHLY",
   },
@@ -95,12 +119,20 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // Commissioner does NOT grant Pro's player tools, so a subscriber who bought on
     // that sentence would find the trade and waiver tools still locked.
     description: "The tools to run your leagues — health, integrity, recaps and the Commissioner OS.",
-    amountUsd: 149.99,
+    amountUsd: 129.99,
     currency: "usd",
     // Must match subscription-policy.ts's commissioner.yearlyIncludedPremiumCredits (1500).
     // Previously 6000 — a 4x overpromise.
     interval: "year",
-    tokenAmount: 1500,
+    /*
+     * ⚠ SUBSCRIPTIONS NO LONGER CARRY TOKENS — null, NOT 0. Tokens are the
+     * pay-per-use path for people who do not want a subscription; a subscriber
+     * has the features unlocked outright and should never need to spend them.
+     * null means "this plan does not deal in tokens"; 0 would mean "it grants
+     * you zero of them", which invites the reasonable question of why it is
+     * mentioned at all.
+     */
+    tokenAmount: null,
     planFamily: "af_commissioner",
     stripePriceEnvVar: "STRIPE_PRICE_AF_COMMISSIONER_YEARLY",
   },
@@ -114,13 +146,21 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // "everything in Supreme plus" was false in the one dimension a pricing grid
     // shows side by side.
     description: "The live draft room, dynasty tools, and priority access.",
-    amountUsd: 29.99,
+    amountUsd: 9.99,
     currency: "usd",
     // Must match subscription-policy.ts's war_room.monthlyIncludedPremiumCredits (300). Previously
     // 3000 — a 10x overpromise, and the largest of the set. Note this tier is surfaced as
     // "AF Legacy"; the planFamily keeps the historical war_room key.
     interval: "month",
-    tokenAmount: 300,
+    /*
+     * ⚠ SUBSCRIPTIONS NO LONGER CARRY TOKENS — null, NOT 0. Tokens are the
+     * pay-per-use path for people who do not want a subscription; a subscriber
+     * has the features unlocked outright and should never need to spend them.
+     * null means "this plan does not deal in tokens"; 0 would mean "it grants
+     * you zero of them", which invites the reasonable question of why it is
+     * mentioned at all.
+     */
+    tokenAmount: null,
     planFamily: "af_war_room",
     stripePriceEnvVar: "STRIPE_PRICE_AF_WAR_ROOM_MONTHLY",
   },
@@ -134,12 +174,20 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // "everything in Supreme plus" was false in the one dimension a pricing grid
     // shows side by side.
     description: "The live draft room, dynasty tools, and priority access.",
-    amountUsd: 299.99,
+    amountUsd: 79.99,
     currency: "usd",
     // Must match subscription-policy.ts's war_room.yearlyIncludedPremiumCredits (3500). Previously
     // 36000 — a 10.3x overpromise.
     interval: "year",
-    tokenAmount: 3500,
+    /*
+     * ⚠ SUBSCRIPTIONS NO LONGER CARRY TOKENS — null, NOT 0. Tokens are the
+     * pay-per-use path for people who do not want a subscription; a subscriber
+     * has the features unlocked outright and should never need to spend them.
+     * null means "this plan does not deal in tokens"; 0 would mean "it grants
+     * you zero of them", which invites the reasonable question of why it is
+     * mentioned at all.
+     */
+    tokenAmount: null,
     planFamily: "af_war_room",
     stripePriceEnvVar: "STRIPE_PRICE_AF_WAR_ROOM_YEARLY",
   },
@@ -158,7 +206,15 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // policy value is what the invoice.payment_succeeded webhook actually grants (TokenSpendService
     // .grantMonthlySubscriptionCredits). This field was previously 1500, overpromising vs. the 1000
     // actually credited.
-    tokenAmount: 1000,
+    /*
+     * ⚠ SUBSCRIPTIONS NO LONGER CARRY TOKENS — null, NOT 0. Tokens are the
+     * pay-per-use path for people who do not want a subscription; a subscriber
+     * has the features unlocked outright and should never need to spend them.
+     * null means "this plan does not deal in tokens"; 0 would mean "it grants
+     * you zero of them", which invites the reasonable question of why it is
+     * mentioned at all.
+     */
+    tokenAmount: null,
     planFamily: "af_supreme",
     stripePriceEnvVar: "STRIPE_PRICE_AF_SUPREME_MONTHLY",
   },
@@ -170,12 +226,20 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // not on the others: it inherits Pro, Commissioner AND Legacy.
     description:
       "Every AF tier in one — Pro, Commissioner and Legacy — plus the largest token allowance.",
-    amountUsd: 199.99,
+    amountUsd: 179.99,
     currency: "usd",
     interval: "year",
     // Must match subscription-policy.ts's supreme.yearlyIncludedPremiumCredits (15000). Previously
     // 18000, overpromising vs. what invoice.payment_succeeded actually grants.
-    tokenAmount: 15000,
+    /*
+     * ⚠ SUBSCRIPTIONS NO LONGER CARRY TOKENS — null, NOT 0. Tokens are the
+     * pay-per-use path for people who do not want a subscription; a subscriber
+     * has the features unlocked outright and should never need to spend them.
+     * null means "this plan does not deal in tokens"; 0 would mean "it grants
+     * you zero of them", which invites the reasonable question of why it is
+     * mentioned at all.
+     */
+    tokenAmount: null,
     planFamily: "af_supreme",
     stripePriceEnvVar: "STRIPE_PRICE_AF_SUPREME_YEARLY",
   },
