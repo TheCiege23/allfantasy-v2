@@ -226,7 +226,16 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // not on the others: it inherits Pro, Commissioner AND Legacy.
     description:
       "Every AF tier in one — Pro, Commissioner and Legacy — plus the largest token allowance.",
-    amountUsd: 179.99,
+    /*
+     * ⚠ NOT 179.99. At that price Supreme's YEARLY bundle saved only 14.3%
+     * against buying Pro + Commissioner yearly ($209.98), while its MONTHLY
+     * bundle saved 20% against buying them monthly — so committing for a year
+     * made the bundle worth LESS, which is the opposite of everything else on
+     * the page. 159.99 is 33.3% off 12x its own monthly (exactly matching Pro
+     * and Legacy) and 23.8% off buying the two tiers separately, so it beats the
+     * monthly bundle on both axes. Effective $13.33/mo.
+     */
+    amountUsd: 159.99,
     currency: "usd",
     interval: "year",
     // Must match subscription-policy.ts's supreme.yearlyIncludedPremiumCredits (15000). Previously

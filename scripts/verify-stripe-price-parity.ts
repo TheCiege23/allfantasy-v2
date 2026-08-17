@@ -19,8 +19,28 @@
  *
  * Exits non-zero on any mismatch so it can gate a deploy.
  */
+import * as dotenv from 'dotenv'
 import Stripe from 'stripe'
 import { getMonetizationCatalog } from '../lib/monetization/catalog'
+
+/*
+ * ⚠ tsx DOES NOT LOAD .env — Next.js does that, and a script run with `npx tsx`
+ * gets a bare process.env, so this check reported "STRIPE_SECRET_KEY is not set"
+ * on a machine where the key was in .env.local all along.
+ *
+ * ⚠ BUT LOADING BOTH FILES IS WORSE THAN LOADING NEITHER, WHICH IS WHY THIS TAKES
+ * AN EXPLICIT FILE. Measured in this repo: .env.local holds a TEST key with 4
+ * price vars, .env holds a LIVE key with 11. dotenv does not overwrite a value
+ * already set, so loading .env.local then .env yields the TEST key paired with
+ * LIVE price ids — and every lookup fails with "No such price". That reads as
+ * "all our prices are broken" when the truth is "you mixed two accounts". An hour
+ * of the wrong panic is a worse outcome than the check not running at all.
+ *
+ * So: name the file. Defaults to .env; pass --env=.env.local for test mode.
+ */
+const envArg = process.argv.find((a) => a.startsWith('--env='))
+const ENV_FILE = envArg ? envArg.slice('--env='.length) : '.env'
+dotenv.config({ path: ENV_FILE })
 
 type Row = {
   sku: string
@@ -40,6 +60,17 @@ async function main() {
     )
     process.exit(2)
   }
+
+  /*
+   * Name the account being questioned, every run. A parity report that does not
+   * state its mode is unreadable the moment two modes exist — and both exist here.
+   */
+  const mode = secret.startsWith('sk_live')
+    ? 'LIVE'
+    : secret.startsWith('sk_test')
+      ? 'TEST'
+      : 'UNKNOWN'
+  console.log(`Env file: ${ENV_FILE}    Stripe key mode: ${mode}\n`)
 
   const stripe = new Stripe(secret, { apiVersion: '2026-02-25.clover' })
   const items = getMonetizationCatalog().all
