@@ -155,7 +155,8 @@ export default async function AfCorePage({
     activeKey === 'players' && selectedPlayerId
       ? await getPlayerDetail(
           selectedPlayerId,
-          leagues.map((l) => l.id)
+          leagues.map((l) => l.id),
+          userId
         ).catch(() => null)
       : null
 

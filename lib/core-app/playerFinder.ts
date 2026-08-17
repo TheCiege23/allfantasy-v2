@@ -4,6 +4,9 @@ import { prisma } from '@/lib/prisma'
 import { describeAge } from '@/lib/sports-data/freshnessPolicy'
 import type { SectionState, UnavailableSection } from './leagueHome'
 import { latestProjectionWeek, lookupProjections, positionRanks } from './playerProjections'
+import { normalizePosition } from './positionNormalization'
+import { getPlayerImpact, type LeagueImpact } from './playerImpact'
+export type { LeagueImpact, ReplacementOption } from './playerImpact'
 // Re-exported so server callers keep one import site; the definitions live in a
 // server-only-free module because the client link builder needs them too.
 import { parsePlayerRef } from './playerRef'
@@ -86,50 +89,22 @@ export type PlayerDetail = {
    * the rank without the denominator would claim a completeness the feed lacks.
    */
   positionRank: SectionState<{ rank: number; outOf: number; position: string }>
+  /**
+   * The game-day answer: every league where you have him, whether he is starting,
+   * what he is worth under THAT league's scoring, and who on your bench to play
+   * instead.
+   *
+   * ⚠ THIS IS THE SECTION THE SCREEN EXISTS FOR. Everything else here is
+   * reference; this is the decision. It is ordered starters-first and by the size
+   * of the drop-off, because on a Sunday the question is not "tell me about this
+   * player" — it is "which of my leagues needs me in the next four minutes".
+   */
+  impact: SectionState<LeagueImpact[]>
   recommendedMoves: UnavailableSection
   freshness: { label: string; stale: boolean }
 }
 
 const SLOT_ORDER = ['starters', 'reserve', 'taxi', 'players'] as const
-
-/**
- * Positions arrive spelled differently per source — Sleeper says "TE", the
- * TheSportsDB ingest says "Tight End". Deduplicating on the raw string listed
- * Dalton Kincaid twice in the same result set, which reads as two players rather
- * than one player from two feeds.
- */
-const POSITION_ALIASES: Record<string, string> = {
-  quarterback: 'QB',
-  'running back': 'RB',
-  'wide receiver': 'WR',
-  'tight end': 'TE',
-  kicker: 'K',
-  'place kicker': 'K',
-  'defensive end': 'DE',
-  'defensive tackle': 'DT',
-  linebacker: 'LB',
-  cornerback: 'CB',
-  safety: 'S',
-  'offensive tackle': 'OT',
-  guard: 'G',
-  center: 'C',
-  'point guard': 'PG',
-  'shooting guard': 'SG',
-  'small forward': 'SF',
-  'power forward': 'PF',
-  goalkeeper: 'GK',
-  midfielder: 'MF',
-  defender: 'DF',
-  forward: 'FW',
-  pitcher: 'P',
-  catcher: 'C',
-}
-
-function normalizePosition(raw: string | null): string {
-  if (!raw) return ''
-  const t = raw.trim().toLowerCase()
-  return (POSITION_ALIASES[t] ?? raw.trim()).toUpperCase()
-}
 
 /** Team strings vary too ("BUF" vs "Buffalo Bills"); compare on the first token. */
 function teamKey(raw: string | null): string {
@@ -263,7 +238,14 @@ async function resolveLeagueSlots(
 
 export async function getPlayerDetail(
   playerReference: string,
-  userLeagueIds: string[]
+  userLeagueIds: string[],
+  /**
+   * ⚠ REQUIRED FOR THE GAME-DAY SECTION, AND OPTIONAL SO NOTHING ELSE BREAKS.
+   * Without it we can still say which leagues roster this player; we cannot say
+   * which of them is YOURS to act on, because roster ownership resolves through
+   * the claimed-team predicate, not through the league list.
+   */
+  userId?: string | null
 ): Promise<PlayerDetail | null> {
   const { sport: refSport, externalId } = parsePlayerRef(playerReference)
 
@@ -334,6 +316,26 @@ export async function getPlayerDetail(
   const age = describeAge('player_bio', row.fetchedAt)
 
   /*
+   * ⚠ KEYED ON sleeperId, WHICH IS NULLABLE — the same bridge every other
+   * cross-league feature here depends on. No Sleeper id means we cannot find him
+   * on a roster at all, which is a different statement from "he is on none of
+   * your teams" and must not be rendered as one.
+   */
+  const impactRows =
+    userId && row.sleeperId ? await getPlayerImpact(row.sleeperId, userId).catch(() => null) : null
+
+  const impact: PlayerDetail['impact'] = impactRows
+    ? { available: true, data: impactRows }
+    : {
+        available: false,
+        reason: !userId
+          ? 'sign in to see which of your leagues this affects'
+          : !row.sleeperId
+            ? 'we hold no Sleeper id for this player, so we cannot locate him on your rosters'
+            : 'we could not read your rosters for this player',
+      }
+
+  /*
    * ⚠ EVERYTHING BELOW HANGS ON `sleeperId`, AND IT IS NULLABLE. The projection
    * feed is keyed by Sleeper id; a player we hold only under a TheSportsDB
    * external id cannot be joined to it at all. That is a real and common gap —
@@ -397,6 +399,7 @@ export async function getPlayerDetail(
     injury,
     seasonStats,
     leagues,
+    impact,
     projection,
     // Still genuinely absent: no current provider gives us snap counts, so this
     // stays an honest gap rather than being approximated from targets.

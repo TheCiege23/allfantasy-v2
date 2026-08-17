@@ -223,6 +223,93 @@ export function PlayerFinder({ query, matches, detail, leagueCount }: PlayerFind
               )}
             </section>
 
+            {/*
+              ── What this means for you ──────────────────────────────
+              ⚠ THIS SITS ABOVE THE REFERENCE MATERIAL BECAUSE IT IS THE DECISION.
+              On a Sunday the question is not "tell me about this player", it is
+              "which of my leagues needs me right now, and who do I play instead".
+              Bio, stats and cross-league presence are context for that answer,
+              not a preamble to scroll past while a lineup locks.
+            */}
+            {detail.impact.available && detail.impact.data.length > 0 ? (
+              <section className="af-pf-block af-pf-impact">
+                <h3 className="af-label">What this means for your teams</h3>
+                <ul className="af-pf-impact-list">
+                  {detail.impact.data.map((im) => (
+                    <li
+                      key={im.leagueId}
+                      className="af-pf-impact-row"
+                      data-starting={im.isStarting}
+                    >
+                      <div className="af-pf-impact-head">
+                        <span className="af-pf-league-name">{im.leagueName}</span>
+                        <span className="af-pf-impact-slot" data-slot={im.slot}>
+                          {im.slot}
+                        </span>
+                        {/*
+                          The league-scored number, never the generic one. The
+                          key coverage is shown because "10 of 52 scoring keys"
+                          is normal for a QB in an IDP league and alarming-looking
+                          without the explanation.
+                        */}
+                        {im.afPoints.available ? (
+                          <span className="af-pf-impact-pts af-num">
+                            {im.afPoints.data.points.toFixed(1)}
+                            <em className="af-pf-impact-pts-note">
+                              your league&rsquo;s scoring · {im.afPoints.data.matchedKeys}/
+                              {im.afPoints.data.scoredKeys} keys
+                            </em>
+                          </span>
+                        ) : (
+                          <span className="af-pf-impact-pts af-pf-impact-pts--none">
+                            <em className="af-pf-impact-pts-note">{im.afPoints.reason}</em>
+                          </span>
+                        )}
+                      </div>
+
+                      {im.replacements.available ? (
+                        <ul className="af-pf-swap-list">
+                          {im.replacements.data.slice(0, 4).map((r) => (
+                            <li key={r.playerId} className="af-pf-swap">
+                              <span className="af-pf-swap-name">{r.name}</span>
+                              <span className="af-pf-swap-meta">
+                                {[r.position, r.team].filter(Boolean).join(' · ')} · {r.from}
+                              </span>
+                              {/*
+                                ⚠ AN UNPRICED OPTION SHOWS A DASH AND STAYS IN THE
+                                LIST. He is unknown, not worthless — dropping him
+                                or scoring him zero would hide a legitimate swap.
+                              */}
+                              {r.afPoints == null ? (
+                                <span className="af-pf-swap-pts af-pf-swap-pts--none af-num">—</span>
+                              ) : (
+                                <span className="af-pf-swap-pts af-num">
+                                  {r.afPoints.toFixed(1)}
+                                  {r.delta != null ? (
+                                    <em className="af-pf-swap-delta" data-up={r.delta > 0}>
+                                      {r.delta > 0 ? '+' : ''}
+                                      {r.delta.toFixed(1)}
+                                    </em>
+                                  ) : null}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      ) : (
+                        <p className="af-pf-swap-none">{im.replacements.reason}</p>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            ) : !detail.impact.available ? (
+              <section className="af-pf-block">
+                <h3 className="af-label">What this means for your teams</h3>
+                <Unavailable reason={detail.impact.reason} />
+              </section>
+            ) : null}
+
             {/* ── Every platform, every league ──────────────────────── */}
             <section className="af-pf-block">
               <h3 className="af-label">Every platform, every league</h3>

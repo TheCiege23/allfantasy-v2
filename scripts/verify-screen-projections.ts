@@ -12,6 +12,7 @@ import { getMyTeamData } from '../lib/core-app/myTeam'
 import { latestProjectionWeek } from '../lib/core-app/playerProjections'
 import { getPlayerDetail, searchPlayers, playerRef } from '../lib/core-app/playerFinder'
 import { loadSideProjections, winProbabilityFor } from '../lib/core-app/matchupProjections'
+import { getPlayerImpact } from '../lib/core-app/playerImpact'
 import { prisma } from '../lib/prisma'
 
 async function main() {
@@ -126,6 +127,54 @@ matchup (positive control at the feed's own week):`)
     if (matchupsPriced >= 4) break
   }
   if (matchupsPriced === 0) console.log('  none — no league had two fully-projected lineups')
+
+  /*
+   * ⚠ THE GAME-DAY PATH IS ASSERTED ON THE THING THAT MAKES IT USEFUL: that the
+   * SAME player is priced DIFFERENTLY in different leagues. If every league
+   * returned the same number, the league-specific scoring would not be running
+   * and nothing on screen would reveal it — the numbers would simply all be the
+   * generic projection wearing a different label.
+   */
+  console.log(`
+game-day impact (league-specific scoring):`)
+  const claimedTeams = await prisma.leagueTeam.findMany({
+    where: { claimedByUserId: { not: null } },
+    select: { leagueId: true, platformUserId: true, externalId: true, claimedByUserId: true },
+    take: 400,
+  })
+  const seenUsers = new Set<string>()
+  let proven = 0
+  for (const t of claimedTeams) {
+    if (proven >= 2 || seenUsers.has(t.claimedByUserId!)) continue
+    const cands = [t.platformUserId, t.externalId, t.claimedByUserId].filter(Boolean) as string[]
+    const r = await prisma.roster.findFirst({
+      where: { leagueId: t.leagueId, platformUserId: { in: cands } },
+      select: { playerData: true },
+    })
+    const pd = (r?.playerData ?? {}) as Record<string, unknown>
+    const starters = Array.isArray(pd.starters)
+      ? (pd.starters as unknown[]).map(String).filter((x) => x !== '0' && !x.startsWith('name:'))
+      : []
+    if (!starters.length) continue
+    seenUsers.add(t.claimedByUserId!)
+    const impacts = await getPlayerImpact(starters[0], t.claimedByUserId!)
+    const priced = impacts.filter((i) => i.afPoints.available)
+    if (priced.length < 2) continue
+    proven++
+    const who = await prisma.sportsPlayer.findFirst({ where: { sleeperId: starters[0] }, select: { name: true } })
+    const pts = priced.map((i) => (i.afPoints.available ? i.afPoints.data.points : 0))
+    const distinct = new Set(pts).size
+    console.log(
+      `  ${who?.name ?? starters[0]}: ${pts.map((x) => x.toFixed(1)).join(' / ')} across ${priced.length} leagues ` +
+        `-> ${distinct > 1 ? 'DIFFER (league scoring is live)' : 'IDENTICAL — league scoring is NOT being applied'}`
+    )
+    const withSwaps = impacts.filter((i) => i.replacements.available)
+    withSwaps.slice(0, 2).forEach((i) => {
+      const best = i.replacements.available ? i.replacements.data[0] : null
+      if (best) console.log(`    best swap in ${i.leagueName.slice(0, 22)}: ${best.name} ${best.delta ?? '—'}`)
+    })
+  }
+  if (proven === 0) console.log('  none — no player was priced in 2+ leagues')
 
   await prisma.$disconnect()
 }

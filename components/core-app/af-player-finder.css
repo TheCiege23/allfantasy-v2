@@ -312,3 +312,137 @@
     text-align: left;
   }
 }
+
+/* ── Game-day impact ──────────────────────────────────────────────────
+   The decision block. Sits above the reference material and is the only
+   part of this screen designed to be read in seconds. */
+.af-pf-impact-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.af-pf-impact-row {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--panel);
+}
+/*
+  ⚠ THE STARTING LEAGUES ARE MARKED, NOT MERELY SORTED FIRST. Sort order is
+  invisible once you are scrolling a list of six leagues; a player on your bench
+  needs no action today and must not read like one that does.
+*/
+.af-pf-impact-row[data-starting='true'] {
+  border-color: var(--accent, var(--ink));
+  box-shadow: inset 3px 0 0 var(--accent, var(--ink));
+}
+
+.af-pf-impact-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.af-pf-impact-slot {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  padding: 2px 7px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--faint);
+}
+.af-pf-impact-slot[data-slot='STARTER'] {
+  color: var(--ink);
+  border-color: currentColor;
+}
+
+.af-pf-impact-pts {
+  margin-left: auto;
+  text-align: right;
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--ink);
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.af-pf-impact-pts--none {
+  font-size: 11.5px;
+  font-weight: 500;
+}
+.af-pf-impact-pts-note {
+  font-style: normal;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--faint);
+  max-width: 30ch;
+}
+
+.af-pf-swap-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.af-pf-swap {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.af-pf-swap-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.af-pf-swap-meta {
+  font-size: 10.5px;
+  color: var(--faint);
+}
+.af-pf-swap-pts {
+  margin-left: auto;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--ink);
+}
+/* Unknown, not zero — quiet rather than red, because it is not the user's fault. */
+.af-pf-swap-pts--none {
+  color: var(--faint);
+  font-weight: 500;
+}
+.af-pf-swap-delta {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  margin-left: 6px;
+  color: var(--bad, #b4433c);
+}
+.af-pf-swap-delta[data-up='true'] {
+  color: var(--good, #2f7d5b);
+}
+
+.af-pf-swap-none {
+  margin: 8px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--line);
+  font-size: 11.5px;
+  color: var(--faint);
+}
+
+@media (max-width: 720px) {
+  .af-pf-impact-pts {
+    margin-left: 0;
+    align-items: flex-start;
+    text-align: left;
+  }
+}
