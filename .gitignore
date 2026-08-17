@@ -71,6 +71,8 @@ scripts/ri-import-all.ts
 # script has been writing to this path since before the rule existed.
 scripts/.dedupe-players-snapshot-*.json
 scripts/.orphan-player-images-snapshot-*.json
+# Holds prior password hashes for the fixture accounts being rotated — never commit.
+scripts/.fixture-accounts-snapshot-*.json
 
 # Player value reference docs (local updates; folder tracked via .gitkeep)
 app/player-values/*.md
