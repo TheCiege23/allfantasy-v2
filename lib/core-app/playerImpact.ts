@@ -90,6 +90,33 @@ type PlayerRow = {
  * `roster_positions` for 75 of 120 leagues, so the real slot rules are available
  * and there is no reason to approximate them. See ./slotEligibility.
  */
+/**
+ * Statuses that mean he cannot be played at all, as opposed to "might be limited".
+ *
+ * ⚠ THE DISTINCTION IS THE POINT. Questionable is a risk the manager should weigh
+ * — it stays in the list, ranked on points, with the designation shown. OUT, IR
+ * and Doubtful are not risks, they are unavailability, and ranking one of those
+ * first on points alone would recommend a player who cannot enter the lineup.
+ *
+ * Matched loosely because sources spell it differently: "I.L.", "IR", "Inj Res".
+ * An unrecognised status is treated as PLAYABLE — we should not bench someone on
+ * the strength of a string we do not understand.
+ */
+function isUnavailable(status: string | null): boolean {
+  if (!status) return false
+  const s = status.trim().toLowerCase()
+  return (
+    s.startsWith('out') ||
+    s.startsWith('doubt') ||
+    s.startsWith('susp') ||
+    s.includes('i.l') ||
+    s === 'ir' ||
+    s.includes('inj res') ||
+    s.includes('pup') ||
+    s.includes('nfi')
+  )
+}
+
 function asIds(v: unknown): string[] {
   return Array.isArray(v) ? v.map((x) => (x == null ? '' : String(x))).filter(Boolean) : []
 }
@@ -173,7 +200,7 @@ export async function getPlayerImpact(
     const rosterIds = [
       ...new Set([...asIds(pd.players), ...asIds(pd.starters), ...asIds(pd.reserve), ...asIds(pd.taxi)]),
     ]
-    const [players, projections] = await Promise.all([
+    const [players, projections, injuries] = await Promise.all([
       prisma.sportsPlayer.findMany({
         where: { sleeperId: { in: rosterIds } },
         select: { sleeperId: true, name: true, position: true, team: true },
@@ -182,7 +209,39 @@ export async function getPlayerImpact(
         where: { playerId: { in: rosterIds }, season: at.season, week: at.week },
         select: { playerId: true, stats: true },
       }),
+      /*
+       * ⚠ A REPLACEMENT WHO IS HIMSELF HURT IS THE WORST POSSIBLE SUGGESTION, AND
+       * THIS FIELD WAS HARDCODED TO null. Injury data is the freshest thing we
+       * hold — measured 12 minutes old against a projection feed refreshed daily —
+       * so on game day it is the signal that actually moves. Ranking purely on
+       * points would confidently offer a Questionable backup over a healthy one
+       * projected a fraction lower.
+       *
+       * ⚠ JOINED BY NAME, WHICH IS THE WEAK LINK. SportsInjury carries no player
+       * id, so this is the same lossy join My Team uses. A miss shows no
+       * designation rather than a wrong one — the safe direction, but "no
+       * designation" is NOT the same claim as "healthy" and the UI must not say
+       * the latter.
+       */
+      prisma.sportsInjury
+        .findMany({
+          where: { sport: 'NFL' },
+          orderBy: { fetchedAt: 'desc' },
+          select: { playerName: true, status: true },
+          take: 4000,
+        })
+        .catch(() => []),
     ])
+
+    const injuryByName = new Map<string, string>()
+    for (const i of injuries) {
+      const k = i.playerName.trim().toLowerCase()
+      // `status` is nullable — a row with no designation carries no information
+      // and must not overwrite a real one, nor be rendered as a blank badge.
+      if (!i.status) continue
+      // First wins — the list is newest-first, so this keeps the latest report.
+      if (!injuryByName.has(k)) injuryByName.set(k, i.status)
+    }
 
     const playerById = new Map<string, PlayerRow>(
       players.filter((p) => p.sleeperId).map((p) => [p.sleeperId as string, p as PlayerRow])
@@ -243,7 +302,7 @@ export async function getPlayerImpact(
         team: row.team,
         afPoints: priced?.points ?? null,
         delta: priced && mine ? Math.round((priced.points - mine.points) * 100) / 100 : null,
-        injuryStatus: null,
+        injuryStatus: injuryByName.get(row.name.trim().toLowerCase()) ?? null,
         from,
       })
     }
@@ -255,6 +314,17 @@ export async function getPlayerImpact(
      * the right answer.
      */
     replacements.sort((a, b) => {
+      /*
+       * ⚠ UNAVAILABLE PLAYERS SINK BELOW AVAILABLE ONES BEFORE POINTS ARE
+       * CONSIDERED AT ALL. This is not a tiebreak: a player who is OUT scores
+       * zero regardless of what he is projected for, so putting him top of a
+       * list titled "play instead" would be the single most damaging thing this
+       * screen could do. Questionable is NOT treated this way — that is a risk to
+       * weigh, not an impossibility, and it stays ranked on merit.
+       */
+      const au = isUnavailable(a.injuryStatus)
+      const bu = isUnavailable(b.injuryStatus)
+      if (au !== bu) return au ? 1 : -1
       if (a.afPoints == null && b.afPoints == null) return a.name.localeCompare(b.name)
       if (a.afPoints == null) return 1
       if (b.afPoints == null) return -1

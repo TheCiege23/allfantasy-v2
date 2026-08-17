@@ -295,6 +295,16 @@ export function PlayerFinder({ query, matches, detail, leagueCount }: PlayerFind
                                 {[r.position, r.team].filter(Boolean).join(' · ')} · {r.from}
                               </span>
                               {/*
+                                ⚠ SHOWN, NEVER INFERRED IN REVERSE. A missing
+                                designation means we hold no injury report for
+                                him — it does NOT mean he is healthy, and this
+                                renders nothing rather than a "healthy" badge we
+                                cannot back.
+                              */}
+                              {r.injuryStatus ? (
+                                <span className="af-pf-swap-inj">{r.injuryStatus}</span>
+                              ) : null}
+                              {/*
                                 ⚠ AN UNPRICED OPTION SHOWS A DASH AND STAYS IN THE
                                 LIST. He is unknown, not worthless — dropping him
                                 or scoring him zero would hide a legitimate swap.

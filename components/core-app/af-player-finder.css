@@ -454,3 +454,16 @@
   color: var(--faint);
   flex-basis: 100%;
 }
+
+/* A replacement's own injury designation. Sits with his name, not with the
+   points, because it qualifies whether he can play at all — not how much. */
+.af-pf-swap-inj {
+  font-size: 9.5px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 1px 6px;
+  border-radius: 999px;
+  border: 1px solid currentColor;
+  color: var(--warn, #a8701f);
+}
