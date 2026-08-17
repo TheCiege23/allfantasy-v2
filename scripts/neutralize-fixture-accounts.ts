@@ -35,15 +35,37 @@ const APPLY = process.argv.includes('--apply')
 /** Anchored to this file, not cwd: the snapshot holds production rows and must land beside the matching .gitignore rule. */
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 
-/** The password published in this repo's seed scripts. Used only to CONFIRM exposure. */
-const PUBLISHED_PASSWORD = 'Password123!'
+/**
+ * ⚠ SELECTION IS BY HASH, NOT BY NAME. The first version of this script matched id prefixes
+ * (`rwr-%`, `bbwr-%`, …) and found 22 accounts. That undercounted by eightfold: scanning every
+ * row instead found 184 of 256 production accounts (72%) accepting a published password. Most
+ * were `e2e.<timestamp>@example.com`, created by the Playwright suite pointing itself at
+ * production — a family no id-prefix list would ever have guessed.
+ *
+ * So the rule is: read every account, and let bcrypt decide. A credential sweep scoped by
+ * pattern tells you about the patterns you thought of.
+ */
+const KNOWN_FIXTURE_PASSWORDS = ['Password123!', 'Password1!', 'password123', 'Test1234!']
 
-/** Identifier shapes used by the fixture seed families. */
-const FIXTURE_LIKES = [
-  'rwr-%', 'bbwr-%', 'dwr-%', 'kwr-%', 'gwr-%', '%-runtime-%', 'survivor-phase%',
-]
+/**
+ * ⚠ AND ROTATE ONLY TEST ADDRESSES. Accepting a weak password does NOT make an account a
+ * fixture. Exactly one real user (`@gmail.com`, email-verified) also uses one of these
+ * passwords; rotating them would lock a live person out of their own account, which is an
+ * outage, not a remediation. That is a password-policy problem for the owner to handle by
+ * forced reset or notification — not something this script should decide.
+ *
+ * Hence two independent conditions, both required: the hash accepts a published password AND
+ * the address is a test domain. Anything else is reported and left untouched.
+ */
+const TEST_EMAIL_DOMAINS = ['@example.com', '@example.org', '@example.net', '@allfantasy.local']
 
 type Row = { id: string; email: string | null; username: string | null; passwordHash: string | null }
+
+function isTestAddress(email: string | null): boolean {
+  const e = (email ?? '').trim().toLowerCase()
+  if (!e) return false
+  return TEST_EMAIL_DOMAINS.some((d) => e.endsWith(d))
+}
 
 async function main() {
   const target = await prisma.$queryRawUnsafe<Array<{ db: string; host: string | null }>>(
@@ -52,37 +74,45 @@ async function main() {
   console.log(`target: ${target[0].db} @ ${target[0].host ?? 'local'}`)
   console.log(APPLY ? 'MODE: APPLY (writes)' : 'MODE: dry run (no writes)')
 
+  // Every account, no pattern filter. See the note on KNOWN_FIXTURE_PASSWORDS.
   const candidates = await prisma.$queryRawUnsafe<Row[]>(
-    `SELECT id, email, username, "passwordHash"
-     FROM "app_users"
-     WHERE id LIKE ANY($1::text[]) OR email LIKE ANY($1::text[]) OR username LIKE ANY($1::text[])
-     ORDER BY id`,
-    FIXTURE_LIKES,
+    `SELECT id, email, username, "passwordHash" FROM "app_users" ORDER BY id`,
   )
 
-  /*
-   * ⚠ ONLY TOUCH ACCOUNTS THAT ACTUALLY ACCEPT THE PUBLISHED PASSWORD. Matching on an id prefix
-   * alone is not evidence of a fixture — a real user could pick a username that matches one of
-   * these patterns, and rotating their password would be an outage for them. The bcrypt check
-   * is what makes this safe: it proves the account carries the credential we are revoking.
-   */
   const exposed: Row[] = []
-  const skipped: Row[] = []
+  const realUsers: Row[] = []
+  let safe = 0
   for (const u of candidates) {
-    if (u.passwordHash && (await bcrypt.compare(PUBLISHED_PASSWORD, u.passwordHash))) exposed.push(u)
-    else skipped.push(u)
+    if (!u.passwordHash) continue
+    let hit = false
+    for (const p of KNOWN_FIXTURE_PASSWORDS) {
+      if (await bcrypt.compare(p, u.passwordHash)) { hit = true; break }
+    }
+    if (!hit) { safe++; continue }
+    if (isTestAddress(u.email)) exposed.push(u)
+    else realUsers.push(u)
   }
 
-  console.log(`\nfixture-shaped accounts: ${candidates.length}`)
-  console.log(`  accept the published password (will rotate): ${exposed.length}`)
-  console.log(`  do NOT accept it (left completely alone):     ${skipped.length}`)
-  if (skipped.length) {
-    console.log('\n  left alone — these may be real users whose ids merely match the pattern:')
-    skipped.forEach((u) => console.log(`    ${u.id}  ${u.email ?? ''}`))
+  console.log(`\naccounts scanned: ${candidates.length}`)
+  console.log(`  already safe (no known password):            ${safe}`)
+  console.log(`  exposed AND a test address (will rotate):    ${exposed.length}`)
+  console.log(`  exposed but NOT a test address (untouched):  ${realUsers.length}`)
+
+  /*
+   * Surface these loudly. They are the reason this script cannot simply rotate everything that
+   * matches, and leaving them unmentioned would hide a real security issue behind a clean-looking
+   * summary.
+   */
+  if (realUsers.length) {
+    console.log('\n  ⚠ REAL ACCOUNTS using a published password — NOT rotated, needs a human decision:')
+    realUsers.forEach((u) => console.log(`      ${u.email ?? u.id}  (${u.username ?? 'no username'})`))
+    console.log('    Rotating these would lock real people out. Force a password reset or notify them.')
   }
   if (exposed.length) {
+    const shown = exposed.slice(0, 10)
     console.log('\n  will rotate:')
-    exposed.forEach((u) => console.log(`    ${u.id}  ${u.email ?? ''}  ${u.username ?? ''}`))
+    shown.forEach((u) => console.log(`      ${u.id}  ${u.email ?? ''}`))
+    if (exposed.length > shown.length) console.log(`      … and ${exposed.length - shown.length} more`)
   }
 
   if (exposed.length === 0) {
@@ -141,7 +171,10 @@ async function main() {
   )
   let stillExposed = 0
   for (const u of after) {
-    if (u.passwordHash && (await bcrypt.compare(PUBLISHED_PASSWORD, u.passwordHash))) stillExposed++
+    if (!u.passwordHash) continue
+    for (const p of KNOWN_FIXTURE_PASSWORDS) {
+      if (await bcrypt.compare(p, u.passwordHash)) { stillExposed++; break }
+    }
   }
   console.log(`accounts still accepting the published password: ${stillExposed} (must be 0)`)
   if (stillExposed !== 0) {
