@@ -30,6 +30,11 @@
  * Usage:
  *   npx tsx scripts/cleanup-orphan-player-images.ts            # dry run, writes nothing
  *   npx tsx scripts/cleanup-orphan-player-images.ts --apply    # snapshot, then delete
+ *
+ * NOTE ON PATHS: these examples assume cwd is the checkout that CONTAINS this file. This
+ * branch is usually checked out as a git worktree while the primary tree sits on another
+ * branch, in which case run it from the primary tree with the worktree path, e.g.
+ *   npx tsx .claude/worktrees/admiring-bassi-bff03b/scripts/cleanup-orphan-player-images.ts
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

@@ -29,6 +29,11 @@
  * Usage:
  *   npx tsx scripts/cleanup-fixture-data.ts            # deletes, measures, ROLLS BACK
  *   npx tsx scripts/cleanup-fixture-data.ts --apply    # snapshots parents, deletes, commits
+ *
+ * NOTE ON PATHS: these examples assume cwd is the checkout that CONTAINS this file. This
+ * branch is usually checked out as a git worktree while the primary tree sits on another
+ * branch, in which case run it from the primary tree with the worktree path, e.g.
+ *   npx tsx .claude/worktrees/admiring-bassi-bff03b/scripts/cleanup-fixture-data.ts
  */
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

@@ -23,6 +23,11 @@
  * Usage:
  *   npx tsx scripts/neutralize-fixture-accounts.ts            # dry run, writes nothing
  *   npx tsx scripts/neutralize-fixture-accounts.ts --apply    # snapshot, then rotate
+ *
+ * NOTE ON PATHS: these examples assume cwd is the checkout that CONTAINS this file. This
+ * branch is usually checked out as a git worktree while the primary tree sits on another
+ * branch, in which case run it from the primary tree with the worktree path, e.g.
+ *   npx tsx .claude/worktrees/admiring-bassi-bff03b/scripts/neutralize-fixture-accounts.ts
  */
 import crypto from 'node:crypto'
 import path from 'node:path'
