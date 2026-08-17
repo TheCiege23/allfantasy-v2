@@ -265,6 +265,19 @@ export async function getPlayerImpact(
     }
 
     const mine = priceOf(playerSleeperId)
+
+    /*
+     * ⚠ "WE HAVE NO RULES" AND "WE HAVE NO PROJECTION" ARE DIFFERENT FAILURES AND
+     * WERE REPORTED AS THE SAME ONE. `extractScoringSettings` returns a truthy
+     * object for 8 production leagues that is METADATA, not rules —
+     * {rules, sport, preset, modifiers, defaultMode, categoryType, scoringFormat,
+     * scoringTemplateId} — with an empty nested `rules`. The scoring engine
+     * correctly refuses those (zero matched keys -> null, so no wrong number is
+     * ever shown), but the message blamed the projection feed, which is intact.
+     * That sends someone looking for a missing player instead of a missing league
+     * import.
+     */
+    const hasProjectionRow = statsById.get(playerSleeperId) != null
     const injured = playerById.get(playerSleeperId)
 
     /*
@@ -343,9 +356,11 @@ export async function getPlayerImpact(
         ? { available: true, data: mine }
         : {
             available: false,
-            reason: scoring
-              ? 'this week’s projection feed does not carry this player'
-              : 'we hold no scoring settings for this league, and a generic projection would not be yours',
+            reason: !scoring
+              ? 'we hold no scoring settings for this league, and a generic projection would not be yours'
+              : hasProjectionRow
+                ? 'we hold no usable scoring rules for this league — only a preset label, not the rules themselves'
+                : 'this week’s projection feed does not carry this player',
           },
       replacements:
         replacements.length > 0
