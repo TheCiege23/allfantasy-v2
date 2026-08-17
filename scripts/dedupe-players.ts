@@ -256,8 +256,26 @@ async function main() {
     })
   }
   const fs = await import('node:fs')
-  const snapPath = `scripts/.dedupe-players-snapshot-${SCOPE}-${snapshot.takenAtIso.replace(/[:.]/g, '-')}.json`
+  const nodePath = await import('node:path')
+  const { fileURLToPath } = await import('node:url')
+  /*
+   * ⚠ ANCHORED TO THIS FILE, NOT cwd. The snapshot is a verbatim dump of PRODUCTION rows and
+   * this repo is public, so it must land beside the `.gitignore` rule that covers it no matter
+   * which directory the command was run from. A cwd-relative path writes the dump into whichever
+   * checkout you happened to be standing in — and from a git worktree that is a different tree,
+   * where the ignore rule may not exist yet.
+   */
+  const snapPath = nodePath.join(
+    nodePath.dirname(fileURLToPath(import.meta.url)),
+    `.dedupe-players-snapshot-${SCOPE}-${snapshot.takenAtIso.replace(/[:.]/g, '-')}.json`,
+  )
   fs.writeFileSync(snapPath, JSON.stringify(snapshot, null, 2), 'utf8')
+  // The snapshot is the only undo for the deletes below — refuse to proceed without it.
+  if (!fs.statSync(snapPath).size) {
+    console.error('\nABORTED: snapshot is empty. Nothing merged or deleted.')
+    await prisma.$disconnect()
+    process.exit(1)
+  }
   console.log(`\nsnapshot written: ${snapPath} (${snapshot.groups.length} groups)`)
 
   /*
