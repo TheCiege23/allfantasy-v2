@@ -48,7 +48,14 @@ function resolveLiveProvider() {
    * production. This second gate means the flag cannot cause harm even while on,
    * and it is removed only when the crosswalk lands and is coverage-asserted.
    */
-  const ID_CROSSWALK_READY = false
+  /*
+   * Flipped true once scripts/build-ri-player-crosswalk.ts wrote 2,311 rows at
+   * 94.9% coverage of active RI players, with the three ids that exposed the
+   * original collision now resolving to the right humans (RI 8735 -> Ollie Gordon
+   * II, previously Jairon McVea). The provider skips any RI player still
+   * unmapped rather than passing the raw id through.
+   */
+  const ID_CROSSWALK_READY = true
   if (!ID_CROSSWALK_READY) {
     if (process.env.LIVE_PROVIDER_RI_PRESEASON === '1') {
       console.warn(

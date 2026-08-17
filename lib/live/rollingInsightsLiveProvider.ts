@@ -28,6 +28,7 @@ import type { LiveGameStatus } from '@/lib/live-scoring/types'
 import { normalizeLiveGameStatus } from '@/lib/live-scoring/cadence'
 import { liveUrl, parseLivePayload, interpretPollResponse } from './rollingInsightsAdapter'
 import type { GameSnapshot } from './eventDetector'
+import { prisma } from '@/lib/prisma'
 
 /** Team-defense key convention shared with the incumbent provider. */
 const defKey = (team: string) => `nfl:def:${team.toUpperCase()}`
@@ -130,32 +131,59 @@ export class RollingInsightsLiveProvider implements LiveStatsProvider {
   }
 
   /**
-   * ⚠⚠ DISABLED — ROLLING INSIGHTS PLAYER IDS ARE NOT SLEEPER PLAYER IDS, AND THE
-   * TWO SPACES COLLIDE NUMERICALLY. This is the single most dangerous defect found
-   * in this work, because the wrong answer looks entirely correct.
+   * Cached RI-id -> our-player-id map, loaded once per instance.
    *
-   * Verified against production data:
-   *     RI 8735 = Ollie Gordon II (RB)  ->  our sleeper:8735 = Jairon McVea (DB)
-   *     RI 143  = Marcus Mariota (QB)   ->  our sleeper:143  = John Carlson (TE)
-   *     RI 3185 = Nick Mullens (QB)     ->  our sleeper:3185 = Taylor Decker (T)
+   * ⚠ THIS TRANSLATION IS THE ONLY THING STANDING BETWEEN THIS PROVIDER AND
+   * CREDITING ONE PLAYER'S STATS TO ANOTHER. RI keys players by its own numeric
+   * ids, which collide numerically with Sleeper ids while meaning different
+   * people: RI 8735 is Ollie Gordon II, our sleeper:8735 is Jairon McVea. Passing
+   * RI ids straight through produced a 64% "match rate" against entirely wrong
+   * humans — a working-looking join with plausible numbers and no error.
    *
-   * 16 of 25 sampled RI ids resolved to one of our players — EVERY ONE A DIFFERENT
-   * HUMAN. Returning these keyed by RI id would credit a quarterback's passing
-   * yards to a tight end, silently, with plausible-looking numbers and no error
-   * anywhere. A high match rate made it look like the join was working.
-   *
-   * Returning EMPTY until a real crosswalk exists. Empty is visible — a manager
-   * sees zeros and asks why. Wrong is invisible, and someone loses a week to it.
-   *
-   * To re-enable: build an RI-id -> our-player-id mapping (their /player-info/NFL
-   * endpoint returns 2.5 MB of player records and is the obvious source), verify
-   * it by NAME as well as id, and assert a coverage floor the way the nflverse
-   * ingest does.
+   * The crosswalk is built by NAME and POSITION (never by id), team-disambiguated,
+   * and coverage-asserted at 85% before it may be written. See
+   * scripts/build-ri-player-crosswalk.ts.
    */
+  private crosswalk: Map<string, string> | null = null
+
+  private async loadCrosswalk(): Promise<Map<string, string>> {
+    if (this.crosswalk) return this.crosswalk
+    const rows = await prisma.playerProviderIdentity.findMany({
+      where: { provider: 'rolling_insights', sportKey: 'NFL', playerId: { not: null } },
+      select: { providerPlayerId: true, playerId: true },
+    })
+    this.crosswalk = new Map(rows.map((r) => [r.providerPlayerId, r.playerId as string]))
+    return this.crosswalk
+  }
+
   async fetchPlayerStatsForGames(
-    _query: LiveStatsQuery & { games: readonly LiveGameLite[]; playerIds: readonly string[] }
+    query: LiveStatsQuery & { games: readonly LiveGameLite[]; playerIds: readonly string[] }
   ): Promise<Map<string, Record<string, number>>> {
-    return new Map<string, Record<string, number>>()
+    const [snaps, crosswalk] = await Promise.all([
+      this.poll(new Date().toISOString().slice(0, 10)),
+      this.loadCrosswalk(),
+    ])
+    const wanted = new Set(query.playerIds.map(String))
+    const gameIds = new Set(query.games.map((g) => g.gameId))
+
+    const out = new Map<string, Record<string, number>>()
+    for (const snap of snaps) {
+      if (gameIds.size > 0 && !gameIds.has(snap.gameId)) continue
+      for (const p of snap.players) {
+        /*
+         * ⚠ AN UNMAPPED RI PLAYER IS SKIPPED, NEVER PASSED THROUGH UNDER ITS OWN
+         * ID. Falling back to the raw id is precisely the bug: it would resolve
+         * to a real but different player. Skipping costs a stat line; falling
+         * back costs someone's week.
+         */
+        const ourId = crosswalk.get(p.playerId)
+        if (!ourId) continue
+        // Scoped to rostered players only — never the whole league.
+        if (wanted.size > 0 && !wanted.has(ourId)) continue
+        out.set(ourId, p.stats)
+      }
+    }
+    return out
   }
 
   /**
