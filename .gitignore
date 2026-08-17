@@ -97,3 +97,6 @@ spotify-final-results.txt
 
 .env.redraft-test
 .env*
+
+# dedupe snapshots contain production row dumps — never commit them
+scripts/.dedupe-players-snapshot-*.json

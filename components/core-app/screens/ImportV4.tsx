@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import '@/components/core-app/af-import.css'
 import {
   IMPORT_PROVIDER_UI_OPTIONS,
@@ -126,9 +126,32 @@ function Working({ label }: { label: string }) {
   )
 }
 
-export function ImportV4({ state }: { state?: ImportPreviewState }) {
-  const [provider, setProvider] = useState<ImportProvider>('sleeper')
-  const [account, setAccount] = useState('')
+/**
+ * ⚠ THESE PROPS ARE NOT DECORATION — THEY ARE THE PAGE'S EXISTING ENTRY POINTS.
+ * /import is linked to with `?provider=`, `?username=`, `?leagueId=`/`?sourceId=`
+ * and `?returnTo=` from the legacy funnel, the create-league flow and the
+ * source-platform deep links. Rendering this screen without honouring them would
+ * silently drop every one of those into a blank Sleeper form — the link would
+ * still "work", it would just ignore what it was asked to do.
+ */
+export type ImportV4Props = {
+  state?: ImportPreviewState
+  defaultProvider?: ImportProvider
+  initialAccount?: string
+  initialLeagueSourceId?: string
+  /** Where "not now" goes back to. Validated by the server as a relative path. */
+  returnTo?: string
+}
+
+export function ImportV4({
+  state,
+  defaultProvider,
+  initialAccount,
+  initialLeagueSourceId,
+  returnTo,
+}: ImportV4Props) {
+  const [provider, setProvider] = useState<ImportProvider>(defaultProvider ?? 'sleeper')
+  const [account, setAccount] = useState(initialAccount ?? '')
   const [leagues, setLeagues] = useState<DiscoveredLeague[]>([])
   const [accountLabel, setAccountLabel] = useState<string | null>(null)
   const [phase, setPhase] = useState<Phase>({ k: 'idle' })
@@ -190,6 +213,16 @@ export function ImportV4({ state }: { state?: ImportPreviewState }) {
     }
   }, [provider])
 
+  /*
+   * ⚠ A DEEP LINK CARRYING A LEAGUE ID GOES STRAIGHT TO PREVIEW, ONCE. That link
+   * is someone clicking "import this league" from somewhere else; making them
+   * re-find it in a discovery list would discard the only thing the link knew.
+   * The ref guard matters because `runPreview` is rebuilt whenever provider
+   * changes, and re-firing would restart a preview the user had already moved on
+   * from.
+   */
+  const deepLinked = useRef(false)
+
   const runPreview = useCallback(
     async (sourceId: string, attest = false) => {
       setError(null)
@@ -218,6 +251,13 @@ export function ImportV4({ state }: { state?: ImportPreviewState }) {
     },
     [provider]
   )
+
+  useEffect(() => {
+    if (!initialLeagueSourceId || deepLinked.current) return
+    if (!isImportProviderAvailable(provider)) return
+    deepLinked.current = true
+    void runPreview(initialLeagueSourceId)
+  }, [initialLeagueSourceId, provider, runPreview])
 
   const runCommit = useCallback(
     async (sourceId: string, attested: boolean) => {
@@ -500,6 +540,18 @@ export function ImportV4({ state }: { state?: ImportPreviewState }) {
             {phase.leagueId ? (
               <Link href={`/league/${phase.leagueId}`} className="af-btn af-im-submit">
                 Open your league
+              </Link>
+            ) : null}
+            {/*
+              ⚠ THE RETURN PATH IS OFFERED, NOT FORCED. Someone who arrived from
+              create-league came here to finish THAT flow and would otherwise be
+              stranded on a success screen with no way back to it. It sits beside
+              "Open your league" rather than replacing it, because the import
+              having succeeded does not tell us which of the two they now want.
+            */}
+            {returnTo ? (
+              <Link href={returnTo} className="af-btn af-btn--ghost">
+                Back to where you were
               </Link>
             ) : null}
             <button
