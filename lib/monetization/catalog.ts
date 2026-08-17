@@ -57,8 +57,11 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     description: "Player tools for active fantasy managers — trades, waivers, lineups, and drafts.",
     amountUsd: 99.99,
     currency: "usd",
+    // Must match subscription-policy.ts's pro.yearlyIncludedPremiumCredits (3500). Previously 3000,
+    // which UNDER-stated the grant — the opposite direction to the other drifts, and the only one
+    // that was costing us goodwill rather than owing it.
     interval: "year",
-    tokenAmount: 3000,
+    tokenAmount: 3500,
     planFamily: "af_pro",
     stripePriceEnvVar: "STRIPE_PRICE_AF_PRO_YEARLY",
   },
@@ -69,8 +72,11 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     description: "Everything in Pro plus the tools to run your leagues.",
     amountUsd: 14.99,
     currency: "usd",
+    // Must match subscription-policy.ts's commissioner.monthlyIncludedPremiumCredits (100).
+    // Previously 500 — a 5x overpromise against what invoice.payment_succeeded actually credits.
+    // Same bug already fixed on Supreme below; this tier and Legacy were missed.
     interval: "month",
-    tokenAmount: 500,
+    tokenAmount: 100,
     planFamily: "af_commissioner",
     stripePriceEnvVar: "STRIPE_PRICE_AF_COMMISSIONER_MONTHLY",
   },
@@ -81,8 +87,10 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     description: "Everything in Pro plus the tools to run your leagues.",
     amountUsd: 149.99,
     currency: "usd",
+    // Must match subscription-policy.ts's commissioner.yearlyIncludedPremiumCredits (1500).
+    // Previously 6000 — a 4x overpromise.
     interval: "year",
-    tokenAmount: 6000,
+    tokenAmount: 1500,
     planFamily: "af_commissioner",
     stripePriceEnvVar: "STRIPE_PRICE_AF_COMMISSIONER_YEARLY",
   },
@@ -93,8 +101,11 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     description: "Everything in Supreme plus the live draft room, dynasty tools, and priority access.",
     amountUsd: 29.99,
     currency: "usd",
+    // Must match subscription-policy.ts's war_room.monthlyIncludedPremiumCredits (300). Previously
+    // 3000 — a 10x overpromise, and the largest of the set. Note this tier is surfaced as
+    // "AF Legacy"; the planFamily keeps the historical war_room key.
     interval: "month",
-    tokenAmount: 3000,
+    tokenAmount: 300,
     planFamily: "af_war_room",
     stripePriceEnvVar: "STRIPE_PRICE_AF_WAR_ROOM_MONTHLY",
   },
@@ -105,8 +116,10 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     description: "Everything in Supreme plus the live draft room, dynasty tools, and priority access.",
     amountUsd: 299.99,
     currency: "usd",
+    // Must match subscription-policy.ts's war_room.yearlyIncludedPremiumCredits (3500). Previously
+    // 36000 — a 10.3x overpromise.
     interval: "year",
-    tokenAmount: 36000,
+    tokenAmount: 3500,
     planFamily: "af_war_room",
     stripePriceEnvVar: "STRIPE_PRICE_AF_WAR_ROOM_YEARLY",
   },
