@@ -23,6 +23,14 @@
  *
  *   node --require ./scripts/_audit-preload.cjs --import tsx scripts/notify-weak-password-users.ts
  *   node --require ./scripts/_audit-preload.cjs --import tsx scripts/notify-weak-password-users.ts --apply
+ *
+ * NOTE ON PATHS: the examples above assume cwd is the checkout that CONTAINS this file. This
+ * branch is usually a git worktree while the primary tree sits on another branch, so from the
+ * primary tree give the worktree path for the SCRIPT and keep the preload local (both copies of
+ * the shim are identical):
+ *
+ *   node --require ./scripts/_audit-preload.cjs --import tsx \
+ *     ./.claude/worktrees/<worktree>/scripts/notify-weak-password-users.ts --apply
  */
 import bcrypt from 'bcryptjs'
 import { prisma } from '../lib/prisma'
