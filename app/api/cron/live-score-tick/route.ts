@@ -37,6 +37,27 @@ import { RollingInsightsLiveProvider } from '@/lib/live/rollingInsightsLiveProvi
  * token degrades to the incumbent provider instead of failing the whole tick.
  */
 function resolveLiveProvider() {
+  /*
+   * ⚠⚠ HARD-DISABLED PENDING AN ID CROSSWALK. Rolling Insights keys players by its
+   * OWN numeric ids, which collide numerically with Sleeper ids while referring to
+   * different people (RI 143 = Marcus Mariota; our sleeper:143 = John Carlson).
+   * With this provider live, a QB's stats would be credited to a TE — silently,
+   * with plausible numbers.
+   *
+   * The env flag alone is NOT sufficient protection: it is already set in
+   * production. This second gate means the flag cannot cause harm even while on,
+   * and it is removed only when the crosswalk lands and is coverage-asserted.
+   */
+  const ID_CROSSWALK_READY = false
+  if (!ID_CROSSWALK_READY) {
+    if (process.env.LIVE_PROVIDER_RI_PRESEASON === '1') {
+      console.warn(
+        '[live-score-tick] LIVE_PROVIDER_RI_PRESEASON is set but the RI provider is disabled: ' +
+          'RI player ids are not Sleeper player ids and collide numerically. Using the incumbent provider.'
+      )
+    }
+    return undefined
+  }
   if (process.env.LIVE_PROVIDER_RI_PRESEASON !== '1') return undefined
   try {
     return new RollingInsightsLiveProvider({ scope: 'preseason' })

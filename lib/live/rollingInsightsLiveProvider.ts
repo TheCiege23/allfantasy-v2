@@ -129,24 +129,33 @@ export class RollingInsightsLiveProvider implements LiveStatsProvider {
     })
   }
 
+  /**
+   * ⚠⚠ DISABLED — ROLLING INSIGHTS PLAYER IDS ARE NOT SLEEPER PLAYER IDS, AND THE
+   * TWO SPACES COLLIDE NUMERICALLY. This is the single most dangerous defect found
+   * in this work, because the wrong answer looks entirely correct.
+   *
+   * Verified against production data:
+   *     RI 8735 = Ollie Gordon II (RB)  ->  our sleeper:8735 = Jairon McVea (DB)
+   *     RI 143  = Marcus Mariota (QB)   ->  our sleeper:143  = John Carlson (TE)
+   *     RI 3185 = Nick Mullens (QB)     ->  our sleeper:3185 = Taylor Decker (T)
+   *
+   * 16 of 25 sampled RI ids resolved to one of our players — EVERY ONE A DIFFERENT
+   * HUMAN. Returning these keyed by RI id would credit a quarterback's passing
+   * yards to a tight end, silently, with plausible-looking numbers and no error
+   * anywhere. A high match rate made it look like the join was working.
+   *
+   * Returning EMPTY until a real crosswalk exists. Empty is visible — a manager
+   * sees zeros and asks why. Wrong is invisible, and someone loses a week to it.
+   *
+   * To re-enable: build an RI-id -> our-player-id mapping (their /player-info/NFL
+   * endpoint returns 2.5 MB of player records and is the obvious source), verify
+   * it by NAME as well as id, and assert a coverage floor the way the nflverse
+   * ingest does.
+   */
   async fetchPlayerStatsForGames(
-    query: LiveStatsQuery & { games: readonly LiveGameLite[]; playerIds: readonly string[] }
+    _query: LiveStatsQuery & { games: readonly LiveGameLite[]; playerIds: readonly string[] }
   ): Promise<Map<string, Record<string, number>>> {
-    const date = new Date().toISOString().slice(0, 10)
-    const snaps = await this.poll(date)
-    const wanted = new Set(query.playerIds.map(String))
-    const gameIds = new Set(query.games.map((g) => g.gameId))
-
-    const out = new Map<string, Record<string, number>>()
-    for (const snap of snaps) {
-      if (gameIds.size > 0 && !gameIds.has(snap.gameId)) continue
-      for (const p of snap.players) {
-        // Scoped to rostered players only — never the whole league.
-        if (wanted.size > 0 && !wanted.has(p.playerId)) continue
-        out.set(p.playerId, p.stats)
-      }
-    }
-    return out
+    return new Map<string, Record<string, number>>()
   }
 
   /**

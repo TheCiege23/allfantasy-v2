@@ -81,12 +81,15 @@ describe('RollingInsightsLiveProvider', () => {
     expect(afterError).toHaveLength(1)
   })
 
-  it('scopes player stats to the requested roster, never the whole league', async () => {
+  it('returns NO player stats — RI ids are not Sleeper ids and collide', async () => {
+    // Verified in production: RI 8735 is Ollie Gordon II, our sleeper:8735 is
+    // Jairon McVea. RI 143 is Marcus Mariota, our sleeper:143 is John Carlson.
+    // Keying stats by RI id would credit a QB's yards to a TE, silently.
+    // Empty is visible; wrong is not.
     const { p } = providerWith([{ status: 200, body: PAYLOAD }])
     const games = await p.fetchActiveGames(Q)
     const stats = await p.fetchPlayerStatsForGames({ ...Q, games, playerIds: ['8735'] })
-    expect([...stats.keys()]).toEqual(['8735'])
-    expect(stats.get('8735')?.rushing_touchdowns).toBe(1)
+    expect(stats.size).toBe(0)
   })
 
   it('returns REAL team defence from full_box.team_stats', async () => {
@@ -141,11 +144,11 @@ describe('preseason scope — the safe rollout lane', () => {
     })
   })
 
-  it('will not leak regular-season PLAYER stats', async () => {
+  it('returns no player stats at all while the id crosswalk is missing', async () => {
     const { p } = providerWith([{ status: 200, body: mixed }])
     const games = await p.fetchActiveGames(Q)
     const stats = await p.fetchPlayerStatsForGames({ ...Q, games, playerIds: ['1', '2'] })
-    expect([...stats.keys()]).toEqual(['1'])
+    expect(stats.size).toBe(0)
   })
 
   it('will not leak regular-season TEAM defence', async () => {
