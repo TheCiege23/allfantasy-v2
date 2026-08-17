@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import Link from 'next/link'
+import { LeagueInvitePanel } from '@/components/core-app/LeagueInvitePanel'
 import type { PortfolioData } from '@/lib/core-app/portfolio'
 import '@/components/core-app/af-portfolio.css'
 
@@ -25,6 +27,13 @@ export type PortfolioProps = {
 }
 
 export function Portfolio({ data, importHref = '/import?returnTo=%2Fcore%2Fportfolio' }: PortfolioProps) {
+  /*
+   * ⚠ ONE OPEN AT A TIME, AND FETCHED ONLY WHEN OPENED. One production account
+   * commissions 40 leagues. Rendering an invite panel per row would fire forty
+   * simultaneous requests to /api/leagues/join on page load, for links nobody
+   * asked to see. The panel fetches on mount, so not mounting it IS the guard.
+   */
+  const [openInvite, setOpenInvite] = useState<string | null>(null)
   if (!data.leagues.available) {
     return (
       <div className="af-pf">
@@ -65,7 +74,7 @@ export function Portfolio({ data, importHref = '/import?returnTo=%2Fcore%2Fportf
 
       <ul className="af-pf-list">
         {leagues.map((l) => (
-          <li key={l.leagueId}>
+          <li key={l.leagueId} className="af-pf-item">
             <Link href={`/league/${l.leagueId}`} className="af-pf-row">
               <span className="af-pf-row-main">
                 <span className="af-pf-row-name">
@@ -117,6 +126,28 @@ export function Portfolio({ data, importHref = '/import?returnTo=%2Fcore%2Fportf
                 )}
               </span>
             </Link>
+
+            {/*
+              Invites belong to whoever runs the league, so the control only
+              exists on rows where you do. Before this, the only place a
+              commissioner could get an invite link was inside the dashboard we
+              are retiring.
+            */}
+            {l.isCommissioner ? (
+              <div className="af-pf-invite">
+                <button
+                  type="button"
+                  className="af-pf-invite-toggle"
+                  aria-expanded={openInvite === l.leagueId}
+                  onClick={() => setOpenInvite(openInvite === l.leagueId ? null : l.leagueId)}
+                >
+                  {openInvite === l.leagueId ? 'Hide invite link' : 'Invite managers'}
+                </button>
+                {openInvite === l.leagueId ? (
+                  <LeagueInvitePanel leagueId={l.leagueId} compact />
+                ) : null}
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
