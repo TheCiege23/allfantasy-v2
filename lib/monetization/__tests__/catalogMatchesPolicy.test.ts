@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { getMonetizationCatalog } from '../catalog'
+import { getMonetizationCatalog, PLANNED_PRICE_USD } from '../catalog'
 import { SUBSCRIPTION_TOKEN_POLICY_CONFIG } from '@/lib/tokens/subscription-policy'
 import { SUPREME_INCLUDED_PLAN_IDS } from '@/lib/subscription/feature-access'
 
@@ -141,4 +141,38 @@ describe('tier descriptions vs entitlement inheritance', () => {
       ).toBe(true)
     }
   )
+})
+
+describe('planned prices are valid before we ever switch to them', () => {
+  /*
+   * ⚠ THE PLANNED PRICES ARE CHECKED NOW SO THE FLIP IS BORING LATER. They sit in
+   * PLANNED_PRICE_USD waiting on Stripe Price objects; the day someone moves them
+   * into amountUsd should not be the day we discover one of them breaks the
+   * yearly-is-cheaper promise. Validating a value before it goes live is the
+   * whole point of having written it down.
+   */
+  const subs = getMonetizationCatalog().subscriptions
+  const bySku = new Map(subs.map((s) => [s.sku, s]))
+
+  it('every planned sku exists in the catalog', () => {
+    for (const sku of Object.keys(PLANNED_PRICE_USD)) {
+      expect(bySku.has(sku as never), `PLANNED_PRICE_USD names "${sku}", which is not a catalog SKU`).toBe(true)
+    }
+  })
+
+  it('planned yearly prices still beat 12 x the effective monthly price', () => {
+    for (const [sku, planned] of Object.entries(PLANNED_PRICE_USD)) {
+      const item = bySku.get(sku as never)
+      if (!item || item.interval !== 'year') continue
+      const monthly = subs.find((s) => s.planFamily === item.planFamily && s.interval === 'month')
+      if (!monthly) continue
+      // Use the planned monthly price when there is one — Legacy's monthly moves too.
+      const monthlyAmount = PLANNED_PRICE_USD[monthly.sku] ?? monthly.amountUsd
+      const twelve = Number((monthlyAmount * 12).toFixed(2))
+      expect(
+        planned,
+        `${sku}: planned yearly $${planned} is not cheaper than 12 x $${monthlyAmount} = $${twelve}`
+      ).toBeLessThan(twelve)
+    }
+  })
 })

@@ -63,7 +63,14 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     type: "subscription",
     title: "AF Pro Yearly",
     description: "Player tools for active fantasy managers — trades, waivers, lineups, and drafts.",
-    amountUsd: 79.99,
+    /*
+     * ⚠ HOLDING AT THE PRICE STRIPE ACTUALLY BILLS. The agreed new price is
+     * $79.99 (see PLANNED_PRICE_USD below), but the charge comes from a
+     * Stripe Price object, not from this number. Showing $79.99 before that
+     * Price exists would quote a customer one figure and bill another.
+     * Flip this to $79.99 only once verify-stripe-price-parity reads 11/11.
+     */
+    amountUsd: 99.99,
     currency: "usd",
     // Must match subscription-policy.ts's pro.yearlyIncludedPremiumCredits (3500). Previously 3000,
     // which UNDER-stated the grant — the opposite direction to the other drifts, and the only one
@@ -119,7 +126,14 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // Commissioner does NOT grant Pro's player tools, so a subscriber who bought on
     // that sentence would find the trade and waiver tools still locked.
     description: "The tools to run your leagues — health, integrity, recaps and the Commissioner OS.",
-    amountUsd: 129.99,
+    /*
+     * ⚠ HOLDING AT THE PRICE STRIPE ACTUALLY BILLS. The agreed new price is
+     * $129.99 (see PLANNED_PRICE_USD below), but the charge comes from a
+     * Stripe Price object, not from this number. Showing $129.99 before that
+     * Price exists would quote a customer one figure and bill another.
+     * Flip this to $129.99 only once verify-stripe-price-parity reads 11/11.
+     */
+    amountUsd: 149.99,
     currency: "usd",
     // Must match subscription-policy.ts's commissioner.yearlyIncludedPremiumCredits (1500).
     // Previously 6000 — a 4x overpromise.
@@ -146,7 +160,14 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // "everything in Supreme plus" was false in the one dimension a pricing grid
     // shows side by side.
     description: "The live draft room, dynasty tools, and priority access.",
-    amountUsd: 9.99,
+    /*
+     * ⚠ HOLDING AT THE PRICE STRIPE ACTUALLY BILLS. The agreed new price is
+     * $9.99 (see PLANNED_PRICE_USD below), but the charge comes from a
+     * Stripe Price object, not from this number. Showing $9.99 before that
+     * Price exists would quote a customer one figure and bill another.
+     * Flip this to $9.99 only once verify-stripe-price-parity reads 11/11.
+     */
+    amountUsd: 29.99,
     currency: "usd",
     // Must match subscription-policy.ts's war_room.monthlyIncludedPremiumCredits (300). Previously
     // 3000 — a 10x overpromise, and the largest of the set. Note this tier is surfaced as
@@ -174,7 +195,14 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
     // "everything in Supreme plus" was false in the one dimension a pricing grid
     // shows side by side.
     description: "The live draft room, dynasty tools, and priority access.",
-    amountUsd: 79.99,
+    /*
+     * ⚠ HOLDING AT THE PRICE STRIPE ACTUALLY BILLS. The agreed new price is
+     * $79.99 (see PLANNED_PRICE_USD below), but the charge comes from a
+     * Stripe Price object, not from this number. Showing $79.99 before that
+     * Price exists would quote a customer one figure and bill another.
+     * Flip this to $79.99 only once verify-stripe-price-parity reads 11/11.
+     */
+    amountUsd: 299.99,
     currency: "usd",
     // Must match subscription-policy.ts's war_room.yearlyIncludedPremiumCredits (3500). Previously
     // 36000 — a 10.3x overpromise.
@@ -235,7 +263,14 @@ const CATALOG_ITEMS: readonly MonetizationCatalogItem[] = [
      * and Legacy) and 23.8% off buying the two tiers separately, so it beats the
      * monthly bundle on both axes. Effective $13.33/mo.
      */
-    amountUsd: 159.99,
+    /*
+     * ⚠ HOLDING AT THE PRICE STRIPE ACTUALLY BILLS. The agreed new price is
+     * $159.99 (see PLANNED_PRICE_USD below), but the charge comes from a
+     * Stripe Price object, not from this number. Showing $159.99 before that
+     * Price exists would quote a customer one figure and bill another.
+     * Flip this to $159.99 only once verify-stripe-price-parity reads 11/11.
+     */
+    amountUsd: 199.99,
     currency: "usd",
     interval: "year",
     // Must match subscription-policy.ts's supreme.yearlyIncludedPremiumCredits (15000). Previously
@@ -298,6 +333,30 @@ export type MonetizationCatalog = {
   subscriptions: MonetizationCatalogItem[]
   tokenPacks: MonetizationCatalogItem[]
   all: MonetizationCatalogItem[]
+}
+
+/**
+ * The prices we intend to charge, once the Stripe Prices exist.
+ *
+ * ⚠ THIS IS A WORK ORDER, NOT A PRICE LIST. `amountUsd` above still shows what
+ * Stripe bills today, because a page must never quote a figure the checkout will
+ * not honour. These are the agreed new prices; each needs a NEW Stripe Price
+ * object (Prices are immutable) and its STRIPE_PRICE_AF_* env var repointed, on
+ * Vercel as well as locally.
+ *
+ * The flip is then: move each of these into `amountUsd`, run
+ * `npx tsx scripts/verify-stripe-price-parity.ts`, and require 11/11.
+ *
+ * Keeping the target in code rather than in a ticket is deliberate — the last
+ * three pricing bugs in this repo all came from a number living in one place and
+ * the truth living in another.
+ */
+export const PLANNED_PRICE_USD: Partial<Record<MonetizationSku, number>> = {
+  af_pro_yearly: 79.99,
+  af_commissioner_yearly: 129.99,
+  af_war_room_monthly: 9.99,
+  af_war_room_yearly: 79.99,
+  af_supreme_yearly: 159.99,
 }
 
 export function getMonetizationCatalog(): MonetizationCatalog {
