@@ -196,7 +196,7 @@ async function main() {
 
   let before: Record<string, number> = {}
   let after: Record<string, number> = {}
-  let deleted = { claims: 0, leagues: 0, users: 0, players: 0 }
+  let deleted = { claims: 0, leagues: 0, rostersReparented: 0, users: 0, players: 0 }
 
   await prisma
     .$transaction(
@@ -214,6 +214,27 @@ async function main() {
           `DELETE FROM "leagues" WHERE id LIKE ANY($1::text[]) AND id NOT IN (${PROTECTED_LEAGUES_SQL})`,
           FIXTURE_ID_LIKES,
         )
+        /*
+         * ⚠ RE-PREFIX BEFORE DELETING THE USERS, NOT AFTER.
+         * `rosters` has NO foreign key on `platformUserId` — only on `leagueId` — so deleting a
+         * user does NOT cascade to their rosters in leagues that survive. Those rosters are then
+         * left pointing at an id that no longer resolves, and this repo's `orphan-` convention is
+         * load-bearing: at least six services branch on `startsWith('orphan-')`, including
+         * InviteEngine (seat counts) and DraftNotificationService (who to notify). Un-prefixed,
+         * such a roster is treated as having a live owner — it holds a seat and gets notified.
+         *
+         * The first apply left exactly one of these behind, in a league two real users are in.
+         * Scoped to the users being deleted, so the 677 numeric SLEEPER ids in this column (a
+         * different namespace, from imported leagues) are untouched.
+         */
+        deleted.rostersReparented = await tx.$executeRawUnsafe(
+          `UPDATE "rosters" SET "platformUserId" = 'orphan-' || "platformUserId"
+           WHERE "platformUserId" NOT LIKE 'orphan-%'
+             AND "platformUserId" IN (
+               SELECT id FROM "app_users"
+               WHERE ${domainClause('email')} AND id NOT IN (${PROTECTED_USERS_SQL}))`,
+        )
+
         deleted.users = await tx.$executeRawUnsafe(
           `DELETE FROM "app_users" WHERE ${domainClause('email')} AND id NOT IN (${PROTECTED_USERS_SQL})`,
         )
