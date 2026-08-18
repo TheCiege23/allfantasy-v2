@@ -1,0 +1,995 @@
+/*
+ * Dashboard v2 — left panel + section-header system.
+ *
+ * Scoped under `.af-core` like every other af-*.css file, so it inherits the
+ * token layer (--surface, --line, --accent …) rather than defining a second set
+ * that would drift. The screen that renders this MUST import af-core.css itself:
+ * that layer is imported by AfCoreShell, and anything rendering outside the shell
+ * gets undefined tokens — which computes to transparent backgrounds and 0px
+ * borders, not to an error. That failure shipped twice (landing, auth) before
+ * being caught, so it is written down here.
+ *
+ * Every colour below is a token. No literal hex, so light / dark / AF all work
+ * from the same rules.
+ */
+
+/* ── Section header ──────────────────────────────────────────────────── */
+
+.af-core .af-d2-sec-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+}
+
+.af-core .af-d2-sec-tab {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: var(--accent);
+  flex: none;
+}
+
+.af-core .af-d2-sec-label {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text2);
+}
+
+/* Right-aligned counter. `margin-left:auto` rather than a spacer element so the
+   header collapses correctly when there is no counter to show. */
+.af-core .af-d2-sec-count {
+  margin-left: auto;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ── Left panel ──────────────────────────────────────────────────────── */
+
+.af-core .af-d2-panel {
+  width: 300px;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px 14px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  min-height: 100vh;
+}
+
+.af-core .af-d2-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.af-core .af-d2-brand {
+  text-decoration: none;
+}
+
+.af-core .af-d2-wordmark {
+  font-weight: 900;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.af-core .af-d2-brand:hover .af-d2-wordmark {
+  color: var(--accent);
+}
+
+.af-core .af-d2-panel-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.af-core .af-d2-h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--text);
+}
+
+.af-core .af-d2-total {
+  margin-left: auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--faint);
+}
+
+/* ── Sport filters ───────────────────────────────────────────────────── */
+
+.af-core .af-d2-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.af-core .af-d2-filter {
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid var(--chip-line);
+  background: var(--chip);
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  cursor: pointer;
+}
+
+.af-core .af-d2-filter.is-active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ── Groups ──────────────────────────────────────────────────────────── */
+
+.af-core .af-d2-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  flex: 1 1 auto;
+}
+
+.af-core .af-d2-group-label {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 7px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.af-core .af-d2-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.af-core .af-d2-row {
+  display: flex;
+  /* Top-aligned, not centred: the text column is now three lines and a centred
+     avatar drifts against a two-line row (no format label) vs a three-line one. */
+  align-items: flex-start;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--surface2);
+  text-decoration: none;
+  /* 44px minimum touch target — the handoff's mobile rule, applied everywhere
+     so the desktop and mobile rows cannot diverge. */
+  min-height: 44px;
+}
+
+.af-core .af-d2-row:hover {
+  border-color: var(--accent-line);
+}
+
+.af-core .af-d2-tile {
+  width: 34px;
+  height: 34px;
+  overflow: hidden;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--chip);
+  border: 1px solid var(--chip-line);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--text2);
+}
+
+.af-core .af-d2-row-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.af-core .af-d2-row-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+  /* League names are user-supplied and frequently long; clip rather than let a
+     single name widen the fixed-width panel. */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.af-core .af-d2-row-meta {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── State chips ─────────────────────────────────────────────────────── */
+
+.af-core .af-d2-chip {
+  margin-left: auto;
+  flex: none;
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  background: var(--chip);
+  border: 1px solid var(--chip-line);
+  color: var(--muted);
+}
+
+/* Urgency colours per the handoff: red = act now, amber = soon,
+   blue = this week, gold = commissioner. */
+.af-core .af-d2-chip--urgent {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+
+.af-core .af-d2-chip--draft {
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/* ── Quiet + empty ───────────────────────────────────────────────────── */
+
+.af-core .af-d2-quiet,
+.af-core .af-d2-empty {
+  padding: 11px 12px;
+  border-radius: 11px;
+  border: 1px dashed var(--line2);
+  background: transparent;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--muted);
+  margin: 0;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────── */
+
+.af-core .af-d2-panel-foot {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.af-core .af-d2-import {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 11px 12px;
+  border-radius: 11px;
+  border: 1px dashed var(--line2);
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.af-core .af-d2-import:hover {
+  border-color: var(--accent);
+}
+
+.af-core .af-d2-import-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text2);
+}
+
+.af-core .af-d2-import-plats {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+
+.af-core .af-d2-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.af-core .af-d2-user-avatar {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.af-core .af-d2-user-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.af-core .af-d2-user-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.af-core .af-d2-user-level {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+/* ── Shell ───────────────────────────────────────────────────────────── */
+
+.af-core .af-d2-shell {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+}
+
+.af-core .af-d2-main {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 20px 22px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+.af-core .af-d2-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+/* The panel is fixed-width by design; below the breakpoint it becomes a normal
+   stacked block rather than squeezing the main column to nothing. */
+@media (max-width: 900px) {
+  .af-core .af-d2-shell {
+    flex-direction: column;
+  }
+
+  .af-core .af-d2-panel {
+    width: 100%;
+    min-height: 0;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+}
+
+/* ── Import CTA ──────────────────────────────────────────────────────── */
+
+/*
+ * Solid accent, above the league list. Import is the one action a user with no
+ * leagues must be able to find without hunting, so it carries real weight rather
+ * than the handoff's dashed footer row.
+ */
+.af-core .af-d2-import-cta {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 12px 14px;
+  border-radius: 11px;
+  background: var(--accent);
+  border: 1px solid var(--accent);
+  text-decoration: none;
+  min-height: 44px;
+}
+
+.af-core .af-d2-import-cta:hover {
+  filter: brightness(1.06);
+}
+
+.af-core .af-d2-import-cta-label {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  color: var(--accent-ink);
+}
+
+.af-core .af-d2-import-cta-plats {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  color: var(--accent-ink);
+  opacity: 0.8;
+}
+
+/* ── Account-wide notice ─────────────────────────────────────────────── */
+
+.af-core .af-d2-notice {
+  border: 1px solid var(--warn);
+  background: var(--warn-soft);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+
+.af-core .af-d2-notice-title {
+  margin: 0 0 4px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.af-core .af-d2-notice-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--text2);
+}
+
+.af-core .af-d2-notice-link {
+  display: inline-block;
+  margin-top: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+/* ── Priority cards ──────────────────────────────────────────────────── */
+
+.af-core .af-d2-prio {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+}
+
+.af-core .af-d2-prio-card {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 15px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  /* Urgency reads as a top bar, per the handoff. */
+  border-top-width: 3px;
+}
+
+.af-core .af-d2-prio-card--bad {
+  border-top-color: var(--bad);
+}
+
+.af-core .af-d2-prio-card--warn {
+  border-top-color: var(--warn);
+}
+
+.af-core .af-d2-prio-top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.af-core .af-d2-prio-rank {
+  font-size: 10px;
+  font-weight: 800;
+  color: var(--faint);
+}
+
+.af-core .af-d2-prio-badge {
+  padding: 3px 7px;
+  border-radius: 5px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+}
+
+.af-core .af-d2-prio-badge--bad {
+  background: var(--bad-soft);
+  color: var(--bad);
+}
+
+.af-core .af-d2-prio-badge--warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.af-core .af-d2-prio-timer {
+  margin-left: auto;
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.af-core .af-d2-prio-headline {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.015em;
+  color: var(--text);
+}
+
+.af-core .af-d2-prio-body {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.af-core .af-d2-prio-league {
+  margin: 0;
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+
+.af-core .af-d2-prio-cta {
+  margin-top: 4px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  text-align: center;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 800;
+  background: var(--chip);
+  border: 1px solid var(--chip-line);
+  color: var(--text2);
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Exactly one card gets this — the lead. See the note in Priorities.tsx. */
+.af-core .af-d2-prio-cta.is-primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+/* ── Chimmy launcher ─────────────────────────────────────────────────── */
+
+.af-core .af-d2-fab {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: 58px;
+  height: 58px;
+  border-radius: 999px;
+  border: 1px solid var(--accent-line);
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 800;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  box-shadow: var(--shadow);
+}
+
+.af-core .af-d2-fab-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--bad);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 800;
+  display: grid;
+  place-items: center;
+}
+
+.af-core .af-d2-chat {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  width: min(392px, calc(100vw - 32px));
+  border-radius: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line2);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.af-core .af-d2-chat-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.af-core .af-d2-chat-mark,
+.af-core .af-d2-fab-mark {
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.af-core .af-d2-chat-mark {
+  width: 28px;
+  height: 28px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.af-core .af-d2-chat-who {
+  display: flex;
+  flex-direction: column;
+}
+
+.af-core .af-d2-chat-name {
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--text);
+}
+
+.af-core .af-d2-chat-status {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+
+.af-core .af-d2-chat-min {
+  margin-left: auto;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+.af-core .af-d2-chat-body {
+  padding: 14px;
+}
+
+.af-core .af-d2-chat-hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.af-core .af-d2-chat-foot {
+  padding: 12px 14px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.af-core .af-d2-chat-input {
+  width: 100%;
+  padding: 11px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line2);
+  background: var(--surface2);
+  color: var(--text);
+  font-size: 13px;
+  min-height: 44px;
+}
+
+.af-core .af-d2-chat-soon {
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+
+/* ── Legacy ──────────────────────────────────────────────────────────── */
+
+.af-core .af-d2-legacy { display: flex; flex-direction: column; gap: 12px; }
+.af-core .af-d2-legacy-top { display: flex; align-items: flex-start; gap: 14px; }
+.af-core .af-d2-legacy-id { display: flex; flex-direction: column; gap: 3px; }
+.af-core .af-d2-legacy-tier {
+  font-size: 9px; font-weight: 800; letter-spacing: 0.16em; color: var(--accent);
+}
+.af-core .af-d2-legacy-level { font-size: 17px; font-weight: 800; color: var(--text); }
+.af-core .af-d2-legacy-xp { font-size: 10px; letter-spacing: 0.06em; color: var(--faint); }
+.af-core .af-d2-legacy-score { margin-left: auto; text-align: right; }
+.af-core .af-d2-legacy-score-num { font-size: 24px; font-weight: 800; color: var(--accent); }
+.af-core .af-d2-legacy-score-label {
+  display: block; font-size: 9px; letter-spacing: 0.14em; color: var(--faint);
+}
+.af-core .af-d2-legacy-bar {
+  height: 6px; border-radius: 999px; background: var(--chip); overflow: hidden;
+}
+.af-core .af-d2-legacy-bar > span { display: block; height: 100%; background: var(--accent); }
+.af-core .af-d2-legacy-tiles {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px;
+}
+.af-core .af-d2-legacy-tile {
+  display: flex; flex-direction: column; gap: 2px; padding: 10px;
+  border-radius: 11px; background: var(--surface2); border: 1px solid var(--line);
+}
+.af-core .af-d2-legacy-tile-val { font-size: 16px; font-weight: 800; color: var(--text); }
+.af-core .af-d2-legacy-tile-lab {
+  font-size: 9px; letter-spacing: 0.12em; color: var(--faint);
+}
+.af-core .af-d2-legacy-gaps {
+  margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted);
+}
+.af-core .af-d2-legacy-link {
+  align-self: flex-start; font-size: 12px; font-weight: 700; color: var(--accent);
+  text-decoration: none;
+}
+
+/* ── Portfolio inventory ─────────────────────────────────────────────── */
+
+.af-core .af-d2-portfolio { list-style: none; margin: 0 0 10px; padding: 0; }
+.af-core .af-d2-portfolio-row {
+  display: flex; align-items: baseline; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+}
+.af-core .af-d2-portfolio-row:last-child { border-bottom: 0; }
+.af-core .af-d2-portfolio-name {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.af-core .af-d2-portfolio-meta {
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint);
+}
+.af-core .af-d2-portfolio-right {
+  margin-left: auto; display: flex; align-items: center; gap: 8px;
+  font-size: 10px; color: var(--muted); white-space: nowrap;
+}
+.af-core .af-d2-portfolio-commish {
+  padding: 2px 6px; border-radius: 5px; font-size: 9px; font-weight: 800;
+  letter-spacing: 0.1em; background: var(--p-gold-soft, var(--chip)); color: var(--p-gold-fg, var(--muted));
+}
+.af-core .af-d2-portfolio-foot {
+  margin: 0 0 10px; font-size: 11px; line-height: 1.5; color: var(--muted);
+}
+
+/* ── Draft rail ──────────────────────────────────────────────────────── */
+
+.af-core .af-d2-rail {
+  display: flex; gap: 10px; overflow-x: auto; padding-bottom: 6px;
+}
+.af-core .af-d2-draft {
+  flex: 0 0 186px; display: flex; flex-direction: column; gap: 6px; padding: 13px;
+  border-radius: 14px; background: var(--surface); border: 1px solid var(--line);
+  border-top-width: 3px; border-top-color: var(--line);
+}
+.af-core .af-d2-draft--live { border-top-color: var(--bad); }
+.af-core .af-d2-draft--upcoming { border-top-color: var(--warn); }
+.af-core .af-d2-draft--done { border-top-color: var(--good); }
+.af-core .af-d2-draft-top { display: flex; align-items: center; gap: 6px; }
+.af-core .af-d2-draft-state {
+  padding: 2px 6px; border-radius: 5px; font-size: 9px; font-weight: 800;
+  letter-spacing: 0.1em; background: var(--chip); color: var(--muted);
+}
+.af-core .af-d2-draft-state--live { background: var(--bad-soft); color: var(--bad); }
+.af-core .af-d2-draft-state--upcoming { background: var(--warn-soft); color: var(--warn); }
+.af-core .af-d2-draft-state--done { background: var(--good-soft); color: var(--good); }
+.af-core .af-d2-draft-slot { margin-left: auto; font-size: 9px; color: var(--faint); }
+.af-core .af-d2-draft-name {
+  margin: 0; font-size: 13px; font-weight: 800; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.af-core .af-d2-draft-meta {
+  margin: 0; font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint);
+}
+.af-core .af-d2-draft-detail { margin: 0; font-size: 11px; color: var(--muted); }
+.af-core .af-d2-draft-cta {
+  margin-top: auto; padding: 8px; border-radius: 9px; text-align: center;
+  text-decoration: none; font-size: 12px; font-weight: 700;
+  background: var(--chip); border: 1px solid var(--chip-line); color: var(--text2);
+  min-height: 44px; display: flex; align-items: center; justify-content: center;
+}
+.af-core .af-d2-rail-foot {
+  margin: 8px 0 0; font-size: 11px; color: var(--muted);
+}
+
+/* ── Your week ───────────────────────────────────────────────────────── */
+
+.af-core .af-d2-week { list-style: none; margin: 0 0 10px; padding: 0; }
+.af-core .af-d2-week-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+}
+.af-core .af-d2-week-row:last-child { border-bottom: 0; }
+.af-core .af-d2-week-mark {
+  width: 22px; height: 22px; flex: none; display: grid; place-items: center;
+  border-radius: 6px; font-size: 10px; font-weight: 800;
+}
+.af-core .af-d2-week-mark.is-win { background: var(--good-soft); color: var(--good); }
+.af-core .af-d2-week-mark.is-loss { background: var(--bad-soft); color: var(--bad); }
+.af-core .af-d2-week-name {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.af-core .af-d2-week-score { margin-left: auto; font-size: 12px; color: var(--text2); }
+.af-core .af-d2-week-margin { font-size: 12px; font-weight: 800; min-width: 62px; text-align: right; }
+.af-core .af-d2-week-margin.is-win { color: var(--good); }
+.af-core .af-d2-week-margin.is-loss { color: var(--bad); }
+.af-core .af-d2-week-foot { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+
+/* Platform avatar fills the tile; initials remain the fallback. */
+.af-core .af-d2-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/*
+ * State line, Sleeper-style: a colour-coded dot then the label, sitting under
+ * the league info rather than as a right-aligned chip. Colour is the scanning
+ * cue in a long list.
+ */
+.af-core .af-d2-row-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: var(--muted);
+}
+
+.af-core .af-d2-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: currentColor;
+  flex: none;
+}
+
+.af-core .af-d2-row-state--urgent { color: var(--bad); }
+.af-core .af-d2-row-state--draft { color: var(--warn); }
+.af-core .af-d2-row-state--plain { color: var(--faint); }
+
+/* ── Player exposure ─────────────────────────────────────────────────── */
+
+.af-core .af-d2-exposure { list-style: none; margin: 0 0 10px; padding: 0; }
+.af-core .af-d2-exp-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 0; border-bottom: 1px solid var(--line);
+}
+.af-core .af-d2-exp-row:last-child { border-bottom: 0; }
+.af-core .af-d2-exp-mark {
+  width: 28px; height: 28px; flex: none; display: grid; place-items: center;
+  border-radius: 999px; background: var(--chip); border: 1px solid var(--chip-line);
+  font-size: 10px; font-weight: 800; color: var(--text2);
+}
+.af-core .af-d2-exp-text { display: flex; flex-direction: column; min-width: 0; }
+.af-core .af-d2-exp-name {
+  font-size: 13px; font-weight: 700; color: var(--text);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.af-core .af-d2-exp-note {
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--faint);
+}
+.af-core .af-d2-exp-note.is-bad { color: var(--bad); }
+.af-core .af-d2-exp-note.is-warn { color: var(--warn); }
+.af-core .af-d2-exp-bar {
+  margin-left: auto; width: 96px; height: 6px; flex: none;
+  border-radius: 999px; background: var(--chip); overflow: hidden;
+}
+.af-core .af-d2-exp-bar > span { display: block; height: 100%; }
+.af-core .af-d2-exp-bar > span.is-bad { background: var(--bad); }
+.af-core .af-d2-exp-bar > span.is-warn { background: var(--warn); }
+.af-core .af-d2-exp-share {
+  font-size: 10px; color: var(--muted); min-width: 78px; text-align: right; white-space: nowrap;
+}
+.af-core .af-d2-exp-foot { margin: 0; font-size: 11px; line-height: 1.5; color: var(--muted); }
+
+/* ── Top bar ─────────────────────────────────────────────────────────── */
+
+.af-core .af-d2-topbar {
+  display: flex; align-items: center; gap: 14px; min-height: 62px;
+  padding: 10px 0 14px; border-bottom: 1px solid var(--line); margin-bottom: 6px;
+}
+.af-core .af-d2-topbar-when { display: flex; flex-direction: column; }
+.af-core .af-d2-topbar-time { font-size: 15px; font-weight: 800; color: var(--text); }
+.af-core .af-d2-topbar-sub {
+  font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--faint);
+}
+.af-core .af-d2-topbar-search {
+  flex: 1 1 auto; display: flex; align-items: center; gap: 10px; min-width: 0;
+  padding: 9px 12px; border-radius: 10px; background: var(--surface2);
+  border: 1px solid var(--line); text-decoration: none; min-height: 44px;
+}
+.af-core .af-d2-topbar-search:hover { border-color: var(--accent-line); }
+.af-core .af-d2-topbar-search-text {
+  font-size: 12px; color: var(--muted);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.af-core .af-d2-topbar-kbd {
+  margin-left: auto; font-size: 9px; letter-spacing: 0.08em; color: var(--faint);
+  padding: 2px 6px; border-radius: 5px; border: 1px solid var(--chip-line); background: var(--chip);
+}
+.af-core .af-d2-topbar-right { display: flex; align-items: center; gap: 8px; flex: none; }
+.af-core .af-d2-topbar-plan {
+  padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 800;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  background: var(--accent-soft); color: var(--accent); border: 1px solid var(--accent-line);
+}
+.af-core .af-d2-topbar-sync {
+  padding: 4px 8px; border-radius: 6px; font-size: 9px; font-weight: 800;
+  letter-spacing: 0.1em; background: var(--chip); color: var(--muted); border: 1px solid var(--chip-line);
+}
+.af-core .af-d2-topbar-sync.is-never { background: var(--warn-soft); color: var(--warn); border-color: var(--warn); }
+
+/* ── Needs your call ─────────────────────────────────────────────────── */
+
+.af-core .af-d2-calls { list-style: none; margin: 0; padding: 0; }
+.af-core .af-d2-call {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--line);
+}
+.af-core .af-d2-call:last-child { border-bottom: 0; }
+.af-core .af-d2-call-dot {
+  width: 7px; height: 7px; flex: none; border-radius: 999px; background: var(--faint);
+}
+.af-core .af-d2-call-dot.is-warn { background: var(--warn); }
+.af-core .af-d2-call-dot.is-accent { background: var(--accent); }
+.af-core .af-d2-call-text { font-size: 13px; color: var(--text2); }
+.af-core .af-d2-call-time {
+  margin-left: auto; font-size: 11px; color: var(--faint);
+  /* Tabular figures + fixed width so a tick never reflows the row. */
+  font-variant-numeric: tabular-nums; min-width: 64px; text-align: right;
+}
+
+/* ── Mobile (390×844) ────────────────────────────────────────────────── */
+
+@media (max-width: 640px) {
+  .af-core .af-d2-main { padding: 14px 14px 84px; gap: 20px; }
+
+  /* The bar stacks: clock line, then search full width. */
+  .af-core .af-d2-topbar { flex-wrap: wrap; gap: 10px; }
+  .af-core .af-d2-topbar-search { order: 3; flex-basis: 100%; }
+
+  /* Priority cards go single-column so the lead card is never half-width. */
+  .af-core .af-d2-prio { grid-template-columns: 1fr; }
+
+  /* Rails keep their horizontal scroll but lose the desktop card width. */
+  .af-core .af-d2-draft { flex-basis: 74vw; }
+
+  /* Exposure: the bar is the first thing to go — the share number carries it. */
+  .af-core .af-d2-exp-bar { display: none; }
+  .af-core .af-d2-exp-share { min-width: 0; }
+
+  /* Week rows drop the raw score line and keep W/L, league and margin. */
+  .af-core .af-d2-week-score { display: none; }
+
+  /* Clear the FAB, which is pinned bottom-right. */
+  .af-core .af-d2-legacy-link { margin-bottom: 8px; }
+  .af-core .af-d2-fab { right: 16px; bottom: 16px; }
+  .af-core .af-d2-chat {
+    right: 0; bottom: 0; left: 0;
+    width: 100%; max-height: 86vh; border-radius: 16px 16px 0 0;
+  }
+}

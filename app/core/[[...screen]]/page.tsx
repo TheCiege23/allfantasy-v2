@@ -27,6 +27,7 @@ import { getDraftHqData } from '@/lib/core-app/draftHq'
 import WarRoom from '@/components/core-app/screens/WarRoom'
 import { getWarRoomData } from '@/lib/core-app/warRoom'
 import LandingV4 from '@/components/core-app/screens/LandingV4'
+import DashboardV2 from '@/components/core-app/screens/DashboardV2'
 import Partners from '@/components/core-app/screens/Partners'
 import AuthV4 from '@/components/core-app/screens/AuthV4'
 import ImportV4, { type ImportPreviewState } from '@/components/core-app/screens/ImportV4'
@@ -35,6 +36,8 @@ import { Tools } from '@/components/core-app/screens/Tools'
 import { Career } from '@/components/core-app/screens/Career'
 import { getCareerData } from '@/lib/core-app/career'
 import { getPortfolio } from '@/lib/core-app/portfolio'
+import { getDraftHqAll } from '@/lib/core-app/draftHqAll'
+import { getWeekAll } from '@/lib/core-app/weekAll'
 
 export const dynamic = 'force-dynamic'
 
@@ -253,9 +256,19 @@ export default async function AfCorePage({
    * cost for something nobody is looking at.
    */
   const dash34 =
-    activeKey === 'home' && !selectedLeagueId
+    (activeKey === 'home' || segment === 'dashboard-v2') && !selectedLeagueId
       ? await getDash34Data(userId, leagues as unknown as Dash34LeagueRow[], now).catch(() => null)
       : null
+
+  /*
+   * Dashboard v2 — served AFTER the session gate (a signed-in surface that needs
+   * the user's leagues) but OUTSIDE AfCoreShell, because it brings its own 300px
+   * left panel. Inside the shell it would render a league rail beside a league
+   * panel.
+   *
+   * No new route: a segment on the existing catch-all, which is what this route
+   * exists for. The repo sits at Vercel's hard 2048-route ceiling.
+   */
 
   /*
    * ⚠ SYNC AGE IS NOW READ, NOT ASSUMED. This was hardcoded to `null` — "never
@@ -294,6 +307,59 @@ export default async function AfCorePage({
         tokensLeft: access.tokenBalance,
       }
     : null
+
+  /*
+   * Placed AFTER `plan` and `syncAge` are computed, not before. It reads both,
+   * and the first version of this dispatch sat above their declarations — tsc
+   * caught it as use-before-declaration rather than it failing at runtime.
+   */
+  if (segment === 'dashboard-v2') {
+    /*
+     * Both of these are CROSS-LEAGUE, which is why they can feed this screen.
+     * getDraftHqData and getWarRoomData take a leagueId — they are per-league
+     * and cannot back a cross-league module. Wiring one of them to a single
+     * arbitrary league would put one league's draft under a header that says
+     * "all leagues", so those sections stay placeholders until an aggregator
+     * exists.
+     */
+    const [careerData, portfolioData, draftData, weekData] = await Promise.all([
+      getCareerData(userId).catch(() => null),
+      getPortfolio(userId).catch(() => null),
+      /*
+       * playedLeagues, NOT leagues. The unfiltered list carries AF Legacy board
+       * rows (hasUnifiedRecord: false) — 543 of them on one production account
+       * against 60 real teams. Passing those in would widen the IN () clause to
+       * 604 ids and put past-season snapshots in a live draft rail. Same filter
+       * the rail and the home loader apply, for the same reason.
+       */
+      getDraftHqAll(
+        userId,
+        playedLeagues.map((l) => ({ id: l.id, name: l.name, platform: String(l.platform ?? '') })),
+      ).catch(() => null),
+      getWeekAll(
+        userId,
+        playedLeagues.map((l) => ({
+          id: l.id,
+          name: l.name,
+          platform: String(l.platform ?? ''),
+          platformLeagueId: (l as { platformLeagueId?: string | null }).platformLeagueId ?? null,
+        })),
+      ).catch(() => null),
+    ])
+    return (
+      <DashboardV2
+        data={dash34}
+        weekLabel={dash34?.weekLabel ?? null}
+        career={careerData}
+        portfolio={portfolioData}
+        drafts={draftData}
+        week={weekData}
+        nowIso={now.toISOString()}
+        planName={plan?.name ?? null}
+        syncedLabel={syncAge.stale ? null : syncAge.label}
+      />
+    )
+  }
 
   const commissionerCount = playedLeagues.filter((l) => Boolean(l.isCommissioner)).length
 

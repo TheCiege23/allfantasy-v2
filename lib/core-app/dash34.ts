@@ -494,6 +494,7 @@ export async function getDash34Data(
       platform,
       imageUrl: imageOf(row),
       formatLabel: formatLabelOf(row),
+      sport: row.sport ?? null,
       /*
        * ⚠ `ownerName` IS THE HANDLE; `teamName` IS THE TEAM. The handoff asks for
        * "your username in that league", and reading `teamName` first put "$20 SF",
@@ -632,6 +633,12 @@ export async function getDash34Data(
       name: b.name,
       note: [b.position, b.status].filter(Boolean).join(' · '),
       exposure: `${b.leagues.size} of ${totalActive}`,
+      /*
+       * The same fact as numbers. A share bar needs a ratio, and parsing it back
+       * out of the display string would break the moment the wording changes.
+       */
+      exposureCount: b.leagues.size,
+      exposureTotal: totalActive,
       tone: isUnavailable(b.status) ? ('bad' as const) : ('warn' as const),
     }))
 
