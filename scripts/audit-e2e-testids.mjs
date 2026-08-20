@@ -54,15 +54,39 @@ function walk(dir, out = []) {
   return out
 }
 
-const appFiles = [...walk(path.join(ROOT, 'app')), ...walk(path.join(ROOT, 'components'))]
+/*
+ * pages/ IS PART OF THE APP AND MUST BE IN THE CORPUS.
+ *
+ * The first version walked only app/ and components/, so every id rendered by
+ * the legacy Pages Router read as absent -- 19 of the 54 ids it reported. The
+ * specs asserting them PASS, which is how it was caught: g39 and g40 drive
+ * pages/e2e-g39-nfl-redraft-trade-runtime.tsx and its g40 sibling, wait on the
+ * harness being visible, and go green while the audit called their ids missing.
+ *
+ * tsconfig.json already compiles the pages tsx glob. A corpus that
+ * disagrees with the compiler about where the app lives will invent absences.
+ */
+const appFiles = [
+  ...walk(path.join(ROOT, 'app')),
+  ...walk(path.join(ROOT, 'components')),
+  ...walk(path.join(ROOT, 'pages')),
+]
 const blob = appFiles.map((f) => fs.readFileSync(f, 'utf8')).join('\n')
 
 // Positive control. "No matches" is untrustworthy on this repo, so prove the
 // corpus is readable before drawing any conclusion from an absence.
 if (!blob.includes('data-testid')) {
-  console.error('POSITIVE CONTROL FAILED: no data-testid anywhere in app/ or components/.')
+  console.error('POSITIVE CONTROL FAILED: no data-testid anywhere in app/, components/ or pages/.')
   console.error('The corpus did not load; every result would be a false "absent".')
   process.exit(2)
+}
+// Per-root control: a silently-empty root is indistinguishable from "the app
+// does not render that id", which is the exact failure this file exists to avoid.
+for (const root of ['app', 'components', 'pages']) {
+  if (!appFiles.some((f) => f.includes(path.sep + root + path.sep))) {
+    console.error(`POSITIVE CONTROL FAILED: no files walked under ${root}/.`)
+    process.exit(2)
+  }
 }
 
 /** Stems the app concatenates onto, e.g. `draft-board-cell-${i}`. */
@@ -70,12 +94,37 @@ const stems = new Set()
 for (const m of blob.matchAll(/`([a-zA-Z0-9_-]{4,})\$\{/g)) stems.add(m[1])
 for (const m of blob.matchAll(/["']([a-zA-Z0-9_-]{4,})["']\s*\+/g)) stems.add(m[1])
 
+/*
+ * Prefixes the app declares as a PROP, then concatenates onto in the child.
+ *
+ * This is the composition style the stem rule above cannot see. The literal
+ * never sits next to a `${`, because the two halves live in different files:
+ *
+ *   <ReferralShareBar testIdPrefix="referral-share" />        // components/settings
+ *   data-testid={`${testIdPrefix}-${key}`}                    // components/referral
+ *
+ * A declared testIdPrefix is authoritative, so unlike the inferred stems above
+ * these need no hyphen-count guard -- they are not a guess about what might be a
+ * stem, they are the app saying so. The id must still start with `prefix-`.
+ *
+ * 18 of the ids this audit reported were this class, including all seven in
+ * viral-league-invite, whose two tests pass.
+ */
+const prefixStems = new Set()
+for (const m of blob.matchAll(/testIdPrefix\s*[=:]\s*["']([a-zA-Z0-9_-]+)["']/g)) prefixStems.add(m[1])
+
 const appHas = (tid) =>
   blob.includes(tid) ||
-  [...stems].some((s) => tid.startsWith(s) && (s.match(/-/g) ?? []).length >= 2)
+  [...stems].some((s) => tid.startsWith(s) && (s.match(/-/g) ?? []).length >= 2) ||
+  [...prefixStems].some((p) => tid.startsWith(p + '-'))
 
 // ---- validation ------------------------------------------------------------
 const PRESENT = [
+  // Corrected: this was pinned ABSENT. components/referral/ReferralShareBar.tsx
+  // lists { key: 'twitter' } in CHANNELS and renders `${testIdPrefix}-${key}`,
+  // with ReferralSection passing testIdPrefix="referral-share". Settled by
+  // running it: referral-system-click-audit clicks this id and passes.
+  'referral-share-twitter',
   'discovery-format-bracket',
   'content-feed-article-link-blog_soccer_1',
   'draft-board-cell-1',
@@ -85,7 +134,6 @@ const PRESENT = [
 const ABSENT = [
   'dashboard-global-empty-state',
   'draft-selected-player-panel',
-  'referral-share-twitter',
   'trade-ai-explanation-link',
   'draft-open-commissioner-controls',
 ]
