@@ -44,12 +44,12 @@ const SAFE_HEADER_KEYS = [
  * "the runtime skipped it". Returns only filenames, sizes and booleans --
  * never file contents, env values or secrets.
  */
-function inspectBuild() {
+function inspectBuild(marker?: string) {
   const fs = nodeFs
   const path = nodePath
   const cwd = process.cwd()
   // The layout's own signature: className="scroll-smooth" on <html>.
-  const MARKER = "scroll-smooth"
+  const MARKER = marker && /^[A-Za-z0-9_-]{3,40}$/.test(marker) ? marker : "scroll-smooth"
   const out: Record<string, unknown> = {
     node: process.version,
     platform: process.platform,
@@ -147,7 +147,7 @@ export async function GET(request: Request) {
 
   const url = new URL(request.url)
   // ?build=1 adds deployed-build introspection (no secrets).
-  const buildInfo = url.searchParams.get("build") === "1" ? inspectBuild() : undefined
+  const buildInfo = url.searchParams.get("build") === "1" ? inspectBuild(url.searchParams.get("marker") ?? undefined) : undefined
 
   return NextResponse.json(
     {
