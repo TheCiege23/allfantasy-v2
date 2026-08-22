@@ -117,6 +117,9 @@ function forwardRequest(req, res) {
         delete responseHeaders['content-encoding']
         delete responseHeaders['transfer-encoding']
         responseHeaders['content-length'] = String(body.length)
+        // DIAGNOSTIC: what Next actually emits before the proxy touches it.
+        responseHeaders['x-af-raw-prefix'] = encodeURIComponent(original.slice(0, 200))
+        responseHeaders['x-af-raw-len'] = String(original.length)
         if (normalized.changed) {
           responseHeaders['x-af-railway-shell-normalized'] = '1'
         }
