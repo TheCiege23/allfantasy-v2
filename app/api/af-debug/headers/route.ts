@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
+import nodeFs from "node:fs"
+import nodePath from "node:path"
 
 /**
  * Safe diagnostic endpoint. Returns a small, non-secret slice of request
@@ -35,6 +37,72 @@ const SAFE_HEADER_KEYS = [
   "user-agent",
 ] as const
 
+
+/**
+ * Build introspection. Reports whether the DEPLOYED build output actually
+ * contains the root layout, which distinguishes "the build dropped it" from
+ * "the runtime skipped it". Returns only filenames, sizes and booleans --
+ * never file contents, env values or secrets.
+ */
+function inspectBuild() {
+  const fs = nodeFs
+  const path = nodePath
+  const cwd = process.cwd()
+  // The layout's own signature: className="scroll-smooth" on <html>.
+  const MARKER = "scroll-smooth"
+  const out: Record<string, unknown> = {
+    node: process.version,
+    platform: process.platform,
+    nodeEnv: process.env.NODE_ENV ?? null,
+    afNextDistDir: process.env.AF_NEXT_DIST_DIR ?? null,
+    cwd,
+  }
+  try {
+    out.distDirsPresent = fs
+      .readdirSync(cwd)
+      .filter((n) => n === ".next" || n.startsWith(".next-"))
+      .slice(0, 20)
+  } catch {
+    out.distDirsPresent = "unreadable"
+  }
+  const dist = path.join(cwd, process.env.AF_NEXT_DIST_DIR || ".next")
+  out.distDir = dist
+  try {
+    out.buildId = fs.readFileSync(path.join(dist, "BUILD_ID"), "utf8").trim()
+  } catch {
+    out.buildId = null
+  }
+  // Does the server build contain the layout at all? The layout's markup is
+  // compiled into <dist>/server/chunks/*.js -- verified against a known-good
+  // local build, where it lands in exactly 3 of ~1056 chunk files.
+  const hits: string[] = []
+  let scanned = 0
+  try {
+    const chunkDir = path.join(dist, "server", "chunks")
+    for (const name of fs.readdirSync(chunkDir)) {
+      if (!name.endsWith(".js")) continue
+      if (scanned >= 2000 || hits.length >= 8) break
+      scanned++
+      try {
+        if (fs.readFileSync(path.join(chunkDir, name), "utf8").includes(MARKER)) {
+          hits.push("server/chunks/" + name)
+        }
+      } catch { /* unreadable chunk */ }
+    }
+  } catch { /* no chunks dir */ }
+  out.filesScanned = scanned
+  out.layoutMarker = MARKER
+  out.layoutMarkerFoundIn = hits
+  out.layoutPresentInBuild = hits.length > 0
+  try {
+    const appDir = path.join(dist, "server", "app")
+    out.serverAppEntries = fs.readdirSync(appDir).slice(0, 15)
+  } catch {
+    out.serverAppEntries = "unreadable"
+  }
+  return out
+}
+
 export async function GET(request: Request) {
   const headerList = await headers()
   const safeHeaders: Record<string, string | null> = {}
@@ -43,6 +111,8 @@ export async function GET(request: Request) {
   }
 
   const url = new URL(request.url)
+  // ?build=1 adds deployed-build introspection (no secrets).
+  const buildInfo = url.searchParams.get("build") === "1" ? inspectBuild() : undefined
 
   return NextResponse.json(
     {
@@ -52,6 +122,7 @@ export async function GET(request: Request) {
         search: url.search,
       },
       headers: safeHeaders,
+      build: buildInfo,
       timestamp: new Date().toISOString(),
     },
     {
