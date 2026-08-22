@@ -100,6 +100,41 @@ function inspectBuild() {
   } catch {
     out.serverAppEntries = "unreadable"
   }
+  // The route tree itself. If the layout is on disk but absent from these
+  // manifests, Next has no way to wrap /page in it -- which is the difference
+  // between "the build dropped it" and "the manifest lost it".
+  try {
+    const m = JSON.parse(
+      fs.readFileSync(path.join(dist, "app-build-manifest.json"), "utf8"),
+    ) as { pages?: Record<string, string[]> }
+    const pages = m.pages ?? {}
+    out.appBuildManifest = {
+      totalKeys: Object.keys(pages).length,
+      hasLayoutKey: Object.prototype.hasOwnProperty.call(pages, "/layout"),
+      layoutFileCount: pages["/layout"]?.length ?? null,
+      pageFileCount: pages["/page"]?.length ?? null,
+      firstKeys: Object.keys(pages).slice(0, 6),
+    }
+  } catch (err) {
+    out.appBuildManifest = "unreadable: " + (err instanceof Error ? err.message : String(err))
+  }
+  try {
+    const m = JSON.parse(
+      fs.readFileSync(path.join(dist, "server", "app-paths-manifest.json"), "utf8"),
+    ) as Record<string, string>
+    out.appPathsManifest = {
+      totalKeys: Object.keys(m).length,
+      rootPage: m["/page"] ?? null,
+      hasRootLayout: Object.prototype.hasOwnProperty.call(m, "/layout"),
+    }
+  } catch (err) {
+    out.appPathsManifest = "unreadable: " + (err instanceof Error ? err.message : String(err))
+  }
+  try {
+    out.rootPageJsExists = fs.existsSync(path.join(dist, "server", "app", "page.js"))
+  } catch {
+    out.rootPageJsExists = "unknown"
+  }
   return out
 }
 
