@@ -21,6 +21,7 @@ export interface ImportPreviewLeague {
   name: string
   sport: string
   season: number | null
+  seasonPhase?: 'pre_draft' | 'offseason' | 'in_season' | 'unknown'
   type: string
   teamCount: number
   playoffTeams: number | undefined
@@ -257,6 +258,10 @@ export function buildImportedLeaguePreview(normalized: NormalizedImportResult): 
     name: normalized.league.name,
     sport: normalized.league.sport,
     season: normalized.league.season,
+    seasonPhase: normalized.source.source_provider === 'fantrax' &&
+      ['pre_draft', 'offseason', 'in_season', 'unknown'].includes(String(leagueSettings.season_phase))
+      ? leagueSettings.season_phase as ImportPreviewLeague['seasonPhase']
+      : undefined,
     type: normalized.league.isDynasty ? 'Dynasty' : 'Redraft',
     teamCount: normalized.league.leagueSize,
     playoffTeams: normalized.league.playoff_team_count,
