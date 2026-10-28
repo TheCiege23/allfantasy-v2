@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { FantraxAdapter } from '@/lib/league-import/adapters/fantrax/FantraxAdapter'
 import {
   fetchFantraxApiLeagueForImport,
   FantraxApiImportError,
@@ -94,6 +95,12 @@ describe('Fantrax REST import', () => {
     expect(result.settings?.rosterPositions).toEqual([])
     expect(result.draftPicks[0].playerId).toBe('p1')
     expect(result.schedule[0].matchups).toHaveLength(1)
+    const normalized = await FantraxAdapter.normalize(result)
+    expect(normalized.rosters.map((roster) => roster.player_ids)).toEqual([['p1'], ['p2']])
+    expect(normalized.league.rosterSize).toBe(24)
+    expect(normalized.league.playoff_team_count).toBe(4)
+    expect(normalized.league.matchup_frequency).toBe('head_to_head')
+    expect(normalized.coverage.leagueSettings.state).toBe('partial')
     expect(fetcher).toHaveBeenCalledTimes(5)
   })
 
