@@ -399,6 +399,9 @@ async function syncImportedFantraxLeague(userId: string, sourceInput: string): P
       select: { id: true, platformUserId: true, playerData: true },
     }),
   ]);
+  if (leagueTeams.length !== payload.teams.length) {
+    throw new Error('Fantrax team count changed. Review and re-import this league before refreshing.');
+  }
   const teamsByExternalId = new Map(leagueTeams.map((team) => [team.externalId, team]));
   const rostersByExternalId = new Map<string, typeof existingRosters[number]>();
   for (const roster of existingRosters) {
