@@ -109,6 +109,27 @@ describe('Fantrax refresh', () => {
     expect(mocks.transaction).toHaveBeenCalledTimes(1)
   })
 
+  it('moves a pre-draft import into season after Fantrax rosters appear', async () => {
+    mocks.findLeague.mockResolvedValue({
+      id: 'local-league', name: 'My NBA League', sport: 'NBA', season: 2026,
+      scoring: 'custom', isDynasty: true, lifecycleState: 'pre_draft',
+      settings: { season_phase: 'pre_draft', customRule: 'keep' },
+    })
+    mocks.findRosters.mockResolvedValue([{
+      id: 'local-roster', platformUserId: 'claimed-app-user',
+      playerData: { source_team_id: 't1', players: [] },
+    }])
+    mocks.fetchFantrax.mockResolvedValue({
+      ...payload,
+      settings: { raw: { standingsAvailable: true, seasonPhase: 'in_season' } },
+    })
+    await syncLeague('owner', 'fantrax', leagueId)
+    expect(mocks.updateLeague.mock.calls[0][0].data).toMatchObject({
+      lifecycleState: 'in_season',
+      settings: { season_phase: 'in_season', customRule: 'keep' },
+    })
+  })
+
   it('does not overwrite standings when Fantrax returned incomplete standings', async () => {
     mocks.fetchFantrax.mockResolvedValue({
       ...payload,
