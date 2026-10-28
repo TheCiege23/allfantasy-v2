@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Gate at preview too — no reason to surface data to someone who can't commit.
+  // Apply provider access rules at preview; public Fantrax leagues are open to signed-in users.
   const gate = await assertImportCommissioner({
     appUserId: auth.userId,
     provider,
