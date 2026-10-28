@@ -1,6 +1,7 @@
 import { prisma } from '@/lib/prisma';
 import { decrypt, encrypt } from '@/lib/league-auth-crypto';
 import { XMLParser } from 'fast-xml-parser';
+import { fetchFantraxApiLeagueForImport, parseFantraxApiSource } from '@/lib/league-import/fantrax/FantraxApiFetchService';
 
 export interface LeaguePayload {
   name: string;
@@ -347,8 +348,127 @@ export async function fetchYahooLeague(
   };
 }
 
-export async function fetchFantraxLeague(_platformLeagueId: string): Promise<LeaguePayload> {
-  throw new Error('Fantrax sync is under development — check back soon.');
+export async function fetchFantraxLeague(platformLeagueId: string): Promise<LeaguePayload> {
+  const source = parseFantraxApiSource(platformLeagueId);
+  if (!source) throw new Error('Enter a Fantrax league ID, SPORT:ID, or league URL.');
+  const payload = await fetchFantraxApiLeagueForImport(platformLeagueId, source);
+  return {
+    name: payload.league.name,
+    leagueSize: payload.league.size,
+    scoring: payload.settings?.scoringType ?? 'custom',
+    isDynasty: payload.league.isDevy,
+    settings: payload.settings?.raw ?? {},
+    season: payload.league.season ?? new Date().getFullYear(),
+    rosters: payload.teams.map((team) => ({
+      platformUserId: team.managerId,
+      playerData: team.rosterPlayerIds,
+      faabRemaining: team.faabRemaining,
+    })),
+  };
+}
+
+/** Refresh an imported Fantrax league without replacing its commissioner-reviewed settings or claimed owners. */
+async function syncImportedFantraxLeague(userId: string, sourceInput: string): Promise<SyncResult> {
+  const source = parseFantraxApiSource(sourceInput);
+  if (!source) throw new Error('Legacy Fantrax CSV snapshots require manual re-import.');
+  const league = await prisma.league.findFirst({
+    where: { userId, platform: 'fantrax', platformLeagueId: source.leagueId },
+    orderBy: { season: 'desc' },
+    select: { id: true, name: true, sport: true, season: true, scoring: true, isDynasty: true },
+  });
+  if (!league) throw new Error('Import this Fantrax league before refreshing it.');
+
+  const payload = await fetchFantraxApiLeagueForImport(
+    `${league.sport}:${source.leagueId}`,
+    { leagueId: source.leagueId, sport: league.sport }
+  );
+  if (payload.league.season !== league.season) {
+    throw new Error('Fantrax has moved to a new season. Import the new season before refreshing.');
+  }
+  if (payload.league.sport.toUpperCase() !== league.sport.toUpperCase()) {
+    throw new Error('Fantrax sport does not match the imported league.');
+  }
+
+  const [leagueTeams, existingRosters] = await Promise.all([
+    prisma.leagueTeam.findMany({
+      where: { leagueId: league.id },
+      select: { id: true, externalId: true },
+    }),
+    prisma.roster.findMany({
+      where: { leagueId: league.id },
+      select: { id: true, platformUserId: true, playerData: true },
+    }),
+  ]);
+  const teamsByExternalId = new Map(leagueTeams.map((team) => [team.externalId, team]));
+  const rostersByExternalId = new Map<string, typeof existingRosters[number]>();
+  for (const roster of existingRosters) {
+    const data = roster.playerData;
+    if (data && typeof data === 'object' && !Array.isArray(data)) {
+      const externalId = (data as Record<string, unknown>).source_team_id;
+      if (typeof externalId === 'string') rostersByExternalId.set(externalId, roster);
+    }
+  }
+  const standingsAvailable = payload.settings?.raw.standingsAvailable === true;
+  const refreshedAt = new Date();
+  const operations: any[] = [];
+
+  for (const team of payload.teams) {
+    const leagueTeam = teamsByExternalId.get(team.teamId);
+    const roster = rostersByExternalId.get(team.teamId) ??
+      existingRosters.find((row) => row.platformUserId === team.managerId);
+    if (!leagueTeam || !roster) {
+      throw new Error('An imported Fantrax team or roster is missing. Re-import before refreshing.');
+    }
+    const current = roster.playerData && typeof roster.playerData === 'object' && !Array.isArray(roster.playerData)
+      ? roster.playerData as Record<string, unknown>
+      : {};
+    operations.push(prisma.leagueTeam.update({
+      where: { id: leagueTeam.id },
+      data: {
+        teamName: team.teamName,
+        ...(team.logoUrl ? { avatarUrl: team.logoUrl } : {}),
+        ...(standingsAvailable ? {
+          wins: team.wins,
+          losses: team.losses,
+          ties: team.ties,
+          pointsFor: team.pointsFor,
+          pointsAgainst: team.pointsAgainst ?? 0,
+          currentRank: team.rank,
+        } : {}),
+      },
+    }));
+    operations.push(prisma.roster.update({
+      where: { id: roster.id },
+      data: {
+        playerData: {
+          ...current,
+          players: team.rosterPlayerIds,
+          starters: team.starterPlayerIds,
+          reserve: team.reservePlayerIds,
+          source_provider: 'fantrax',
+          source_league_id: source.leagueId,
+          source_team_id: team.teamId,
+          refreshed_at: refreshedAt.toISOString(),
+        },
+      },
+    }));
+  }
+  operations.push(prisma.league.update({
+    where: { id: league.id },
+    data: { lastSyncedAt: refreshedAt, syncStatus: 'success', syncError: null },
+  }));
+  await prisma.$transaction(operations);
+
+  return {
+    success: true,
+    leagueId: league.id,
+    leagueName: league.name,
+    platform: 'fantrax',
+    rostersSync: payload.teams.length,
+    scoring: league.scoring ?? 'custom',
+    isDynasty: league.isDynasty,
+    lastSyncedAt: refreshedAt,
+  };
 }
 
 export async function getDecryptedAuth(userId: string, platform: string) {
@@ -407,6 +527,7 @@ export async function syncLeague(
   platform: string,
   platformLeagueId: string
 ): Promise<SyncResult> {
+  if (platform === 'fantrax') return syncImportedFantraxLeague(userId, platformLeagueId);
   const leaguePayload = await fetchLeaguePayload(userId, platform, platformLeagueId);
   const season = leaguePayload.season;
 
