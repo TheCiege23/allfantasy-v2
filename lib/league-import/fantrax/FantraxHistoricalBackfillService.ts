@@ -331,6 +331,7 @@ export async function syncFantraxHistoricalBackfillAfterImport(args: {
       platform: true,
       platformLeagueId: true,
       season: true,
+      sport: true,
     },
   })
 
@@ -351,9 +352,12 @@ export async function syncFantraxHistoricalBackfillAfterImport(args: {
   }
 
   try {
+    const sourceInput = /^[a-z0-9]{16}$/i.test(league.platformLeagueId)
+      ? `${league.sport}:${league.platformLeagueId}`
+      : `id:${league.platformLeagueId}`
     const currentPayload = await fetchFantraxLeagueForImport(
       args.userId,
-      `id:${league.platformLeagueId}`
+      sourceInput
     )
     const additionalPayloadResults = await Promise.allSettled(
       currentPayload.previousSeasons.map((season) =>
