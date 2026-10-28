@@ -103,11 +103,16 @@ function buildSnapshotPlayers(
   })
 }
 
+function hasReliableStandings(payload: FantraxImportPayload): boolean {
+  const raw = payload.settings?.raw ?? {}
+  return raw.source !== 'fantrax_api' || raw.standingsAvailable === true
+}
+
 function inferChampionFromFantraxStandings(
   payload: FantraxImportPayload,
   team: FantraxImportTeam
 ): boolean {
-  if (!payload.league.isFinished) return false
+  if (!payload.league.isFinished || !hasReliableStandings(payload)) return false
   return team.rank === 1
 }
 
@@ -224,7 +229,7 @@ async function persistFantraxSeasonWarehouseFacts(args: {
   })
 
   const matchupCreates = args.payload.schedule.flatMap((week) =>
-    week.matchups.map((matchup) =>
+    week.matchups.filter((matchup) => matchup.points1 != null && matchup.points2 != null).map((matchup) =>
       prisma.matchupFact.create({
         data: {
           leagueId: args.leagueId,
@@ -411,7 +416,7 @@ export async function syncFantraxHistoricalBackfillAfterImport(args: {
         buildFantraxSeasonMetadata(payload)
       )
 
-      const finishedSeasonRows = payload.league.isFinished
+      const finishedSeasonRows = payload.league.isFinished && hasReliableStandings(payload)
         ? payload.teams.map((team) => ({
             rosterId: team.managerId || team.teamId,
             wins: team.wins,
@@ -427,7 +432,7 @@ export async function syncFantraxHistoricalBackfillAfterImport(args: {
         standingsPersisted += finishedSeasonRows.length
       }
 
-      for (const team of payload.teams) {
+      for (const team of hasReliableStandings(payload) ? payload.teams : []) {
         await prisma.seasonStandingFact.upsert({
           where: {
             uniq_dw_standing_league_season_team: {
