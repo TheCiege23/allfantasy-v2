@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FantraxAdapter } from '@/lib/league-import/adapters/fantrax/FantraxAdapter'
 import {
   fetchFantraxApiLeagueForImport,
+  fetchFantraxPlayerPoolPage,
   FantraxApiImportError,
   parseFantraxApiSource,
 } from '@/lib/league-import/fantrax/FantraxApiFetchService'
@@ -123,6 +124,40 @@ describe('Fantrax REST import', () => {
       leagueId: 'abcdefghijklmnop',
       sport: null,
     })).rejects.toBeInstanceOf(FantraxApiImportError)
+  })
+
+  it('retrieves league-specific waiver players with directory names and pagination', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: URL) => {
+      if (url.pathname.endsWith('getLeagueInfo')) return response({
+        leagueName: 'Road To Glory NFL',
+        playerInfo: {
+          p1: { status: 'WW', eligiblePos: 'QB' },
+          p2: { status: 'WW', eligiblePos: 'RB' },
+          p3: { status: 'FA', eligiblePos: 'WR' },
+          p4: { status: 'T', eligiblePos: 'TE' },
+        },
+      })
+      return response({
+        p1: { name: 'Quarterback One', position: 'QB', team: 'A' },
+        p2: { name: 'Running Back Two', position: 'RB', team: 'B' },
+        p3: { name: 'Receiver Three', position: 'WR', team: 'C' },
+      })
+    }))
+    const page = await fetchFantraxPlayerPoolPage('abcdefghijklmnop', 'NFL', {
+      status: 'WW',
+      page: 1,
+      limit: 1,
+      search: 'quarterback',
+    })
+    expect(page.counts).toEqual({ WW: 2, FA: 1 })
+    expect(page.total).toBe(1)
+    expect(page.players).toEqual([{
+      id: 'p1',
+      name: 'Quarterback One',
+      position: 'QB',
+      team: 'A',
+      status: 'WW',
+    }])
   })
 
   it('previews an undrafted league and reports its waiver and free-agent counts', async () => {
