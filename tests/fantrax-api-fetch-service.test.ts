@@ -123,6 +123,41 @@ describe('Fantrax REST import', () => {
     })).rejects.toBeInstanceOf(FantraxApiImportError)
   })
 
+  it('rejects a league whose API lists teams but no rostered players', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: URL) => {
+      if (url.pathname.endsWith('getLeagueInfo')) return response({
+        leagueName: 'Rosterless League',
+        sport: 'NFL',
+        teamInfo: { t1: { name: 'Alpha' } },
+      })
+      if (url.pathname.endsWith('getTeamRosters')) return response({
+        period: 8,
+        rosters: { t1: { teamName: 'Alpha', rosterItems: [] } },
+      })
+      return response([])
+    }))
+    await expect(fetchFantraxApiLeagueForImport('NFL:abcdefghijklmnop', {
+      leagueId: 'abcdefghijklmnop',
+      sport: 'NFL',
+    })).rejects.toThrow('no rostered players')
+  })
+
+  it('rejects leagues beyond the current 32-team play limit', async () => {
+    const teamInfo = Object.fromEntries(
+      Array.from({ length: 33 }, (_, index) => [`t${index}`, { name: `Team ${index}` }])
+    )
+    const fetcher = vi.fn(async () => response({
+      leagueName: 'Mega League',
+      teamInfo,
+    }))
+    vi.stubGlobal('fetch', fetcher)
+    await expect(fetchFantraxApiLeagueForImport('EPL:abcdefghijklmnop', {
+      leagueId: 'abcdefghijklmnop',
+      sport: 'EPL',
+    })).rejects.toThrow('supports up to 32')
+    expect(fetcher).toHaveBeenCalledTimes(1)
+  })
+
   it('rejects unsupported sports rather than silently creating an NFL league', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => response({
       leagueName: 'Racing League',
