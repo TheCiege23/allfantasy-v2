@@ -35,6 +35,7 @@ export const FantraxLeagueMapper: IExternalLeagueMapper<FantraxImportPayload> = 
       faab_budget: null,
       roster_positions: source.settings?.rosterPositions.map((slot) => `${slot.position}:${slot.count}`) ?? [],
       fantrax_settings: source.settings?.raw ?? null,
+      season_phase: isApi && typeof raw.seasonPhase === 'string' ? raw.seasonPhase : undefined,
     } satisfies NormalizedLeagueSettings
   },
 }
