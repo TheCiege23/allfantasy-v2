@@ -364,6 +364,15 @@ export async function syncFantraxHistoricalBackfillAfterImport(args: {
       args.userId,
       sourceInput
     )
+    if (currentPayload.settings?.raw.preDraft === true) {
+      return {
+        attempted: true,
+        skipped: true,
+        reason: 'Fantrax draft and current rosters are not populated yet.',
+        seasonsDiscovered: 0,
+        seasonsImported: 0,
+      }
+    }
     const additionalPayloadResults = await Promise.allSettled(
       currentPayload.previousSeasons.map((season) =>
         fetchFantraxLeagueForImport(args.userId, `id:${season.sourceLeagueId}`)
