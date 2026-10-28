@@ -375,7 +375,7 @@ async function syncImportedFantraxLeague(userId: string, sourceInput: string): P
   const league = await prisma.league.findFirst({
     where: { userId, platform: 'fantrax', platformLeagueId: source.leagueId },
     orderBy: { season: 'desc' },
-    select: { id: true, name: true, sport: true, season: true, scoring: true, isDynasty: true },
+    select: { id: true, name: true, sport: true, season: true, scoring: true, isDynasty: true, settings: true, lifecycleState: true },
   });
   if (!league) throw new Error('Import this Fantrax league before refreshing it.');
 
@@ -460,9 +460,33 @@ async function syncImportedFantraxLeague(userId: string, sourceInput: string): P
       },
     }));
   }
+  const currentSettings = league.settings && typeof league.settings === 'object' && !Array.isArray(league.settings)
+    ? league.settings as Record<string, unknown>
+    : null;
+  const previousPhase = currentSettings?.season_phase;
+  const sourcePhase = payload.settings?.raw.seasonPhase;
+  const nextPhase = typeof sourcePhase === 'string' &&
+    ['pre_draft', 'offseason', 'in_season', 'unknown'].includes(sourcePhase)
+    ? sourcePhase
+    : null;
+  const phaseChanged = typeof previousPhase === 'string' && nextPhase !== null && previousPhase !== nextPhase;
+  const sourceHasRosters = payload.teams.some((team) => team.rosterPlayerIds.length > 0);
+  const nextLifecycle = phaseChanged && league.lifecycleState === previousPhase
+    ? nextPhase === 'pre_draft' || nextPhase === 'offseason' || nextPhase === 'in_season'
+      ? nextPhase
+      : previousPhase === 'pre_draft' && sourceHasRosters ? 'post_draft' : null
+    : null;
   operations.push(prisma.league.update({
     where: { id: league.id },
-    data: { lastSyncedAt: refreshedAt, syncStatus: 'success', syncError: null },
+    data: {
+      lastSyncedAt: refreshedAt,
+      syncStatus: 'success',
+      syncError: null,
+      ...(phaseChanged && currentSettings ? {
+        settings: { ...currentSettings, season_phase: nextPhase } as Prisma.InputJsonValue,
+      } : {}),
+      ...(nextLifecycle ? { lifecycleState: nextLifecycle } : {}),
+    },
   }));
   await prisma.$transaction(operations);
 
