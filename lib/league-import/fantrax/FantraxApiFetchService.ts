@@ -280,6 +280,8 @@ export async function fetchFantraxApiLeagueForImport(
       scoringRules: scoringRules(scoringSystem),
       raw: {
         source: 'fantrax_api',
+        standingsAvailable: standings.size > 0,
+        playerNamesAvailable: playerResult.status === 'fulfilled',
         scoringSystem,
         rosterInfo,
         playoffs,
