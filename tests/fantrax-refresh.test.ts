@@ -104,7 +104,7 @@ describe('Fantrax refresh', () => {
       losses: 1,
     })
     expect(mocks.updateTeam.mock.calls[0][0].data).not.toHaveProperty('role')
-    expect(mocks.leagueUpdate.mock.calls[0][0].data).not.toHaveProperty('settings')
+    expect(mocks.updateLeague.mock.calls[0][0].data).not.toHaveProperty('settings')
     expect(mocks.updateRoster.mock.calls[0][0].data).not.toHaveProperty('platformUserId')
     expect(mocks.transaction).toHaveBeenCalledTimes(1)
   })
