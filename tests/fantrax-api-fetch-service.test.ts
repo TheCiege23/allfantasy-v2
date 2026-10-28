@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FantraxAdapter } from '@/lib/league-import/adapters/fantrax/FantraxAdapter'
 import { buildImportedLeaguePreview } from '@/lib/league-import/ImportedLeaguePreviewBuilder'
+import { validateNormalizedImport } from '@/lib/league-import/importValidationService'
 import {
   fetchFantraxApiLeagueForImport,
   fetchFantraxPlayerPoolPage,
@@ -167,7 +168,7 @@ describe('Fantrax REST import', () => {
       if (endpoint === 'getLeagueInfo') return response({
         leagueName: 'Road To Glory NFL',
         seasonYear: 2026,
-        teamInfo: { t1: { name: 'Alpha' } },
+        teamInfo: { t1: { name: 'Alpha' }, t2: { name: 'Beta' } },
         playerInfo: {
           p1: { status: 'WW', eligiblePos: 'QB' },
           p2: { status: 'FA', eligiblePos: 'RB' },
@@ -176,7 +177,10 @@ describe('Fantrax REST import', () => {
       })
       if (endpoint === 'getTeamRosters') return response({
         period: 8,
-        rosters: { t1: { teamName: 'Alpha', rosterItems: [] } },
+        rosters: {
+          t1: { teamName: 'Alpha', rosterItems: [] },
+          t2: { teamName: 'Beta', rosterItems: [] },
+        },
       })
       if (endpoint === 'getDraftResults') return response({
         draftState: 'running',
@@ -184,6 +188,7 @@ describe('Fantrax REST import', () => {
       })
       if (endpoint === 'getStandings') return response([
         { teamId: 't1', rank: 1, points: '0-0-0' },
+        { teamId: 't2', rank: 2, points: '0-0-0' },
       ])
       return response({})
     }))
@@ -197,6 +202,7 @@ describe('Fantrax REST import', () => {
     expect(result.draftPicks).toEqual([])
     const normalized = await FantraxAdapter.normalize(result)
     expect(normalized.coverage.currentRosters.state).toBe('missing')
+    expect(validateNormalizedImport(normalized)).toEqual({ ok: true })
     const preview = buildImportedLeaguePreview(normalized)
     expect(preview.availablePlayerCounts).toEqual({ waiverWire: 1, freeAgents: 1 })
   })
