@@ -22,6 +22,7 @@ function string(value: unknown): string {
 }
 
 function number(value: unknown): number | null {
+  if (value == null || value === '') return null
   const parsed = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(parsed) ? parsed : null
 }
@@ -62,9 +63,9 @@ export function parseFantraxApiSource(sourceInput: string): { leagueId: string; 
   return null
 }
 
-async function getFantrax(endpoint: string, leagueId: string, extra?: Record<string, string>): Promise<Json> {
+async function getFantrax(endpoint: string, leagueId: string | null, extra?: Record<string, string>): Promise<Json> {
   const url = new URL('https://www.fantrax.com/fxea/general/' + endpoint)
-  url.searchParams.set('leagueId', leagueId)
+  if (leagueId) url.searchParams.set('leagueId', leagueId)
   for (const [key, value] of Object.entries(extra ?? {})) url.searchParams.set(key, value)
   let response: Response
   try {
@@ -157,7 +158,7 @@ export async function fetchFantraxApiLeagueForImport(
     getFantrax('getTeamRosters', source.leagueId),
     getFantrax('getStandings', source.leagueId),
     getFantrax('getDraftResults', source.leagueId),
-    getFantrax('getPlayerIds', source.leagueId, { sport: sport.fantrax }),
+    getFantrax('getPlayerIds', null, { sport: sport.fantrax }),
   ])
   if (rosterResult.status !== 'fulfilled') {
     throw new FantraxApiImportError('Fantrax team rosters could not be loaded; import stopped to avoid empty teams.')
@@ -198,6 +199,11 @@ export async function fetchFantraxApiLeagueForImport(
         team: string(directory.team ?? pool.team),
       }
     }
+    const teamPlayerMap: FantraxImportTeam['playerMap'] = {}
+    for (const id of allIds) {
+      const player = playerMap[id]
+      if (player) teamPlayerMap[id] = player
+    }
     return {
       teamId,
       managerId: 'fantrax-manager:' + teamId,
@@ -215,7 +221,7 @@ export async function fetchFantraxApiLeagueForImport(
       rosterPlayerIds: allIds,
       starterPlayerIds: starters,
       reservePlayerIds: reserves,
-      playerMap: Object.fromEntries(allIds.map((id) => [id, playerMap[id]])),
+      playerMap: teamPlayerMap,
     }
   })
 
