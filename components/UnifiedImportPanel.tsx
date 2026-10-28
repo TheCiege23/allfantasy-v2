@@ -47,10 +47,10 @@ export function UnifiedImportPanel({
               provider={provider}
               sourceInput={inputs[provider] || ''}
               onSourceInputChange={(val) => setInputs((prev) => ({ ...prev, [provider]: val }))}
-              onFetchPreview={async () => {
+              onFetchPreview={async (sourceOverride) => {
                 setErrors((prev) => ({ ...prev, [provider]: null }));
                 try {
-                  await onImport(provider, inputs[provider] || '');
+                  await onImport(provider, sourceOverride ?? inputs[provider] ?? '');
                 } catch (e: any) {
                   setErrors((prev) => ({ ...prev, [provider]: e.message || 'Import failed' }));
                 }
