@@ -175,6 +175,8 @@ export interface NormalizedImportResult {
   transactions: NormalizedTransaction[]
   standings: NormalizedStandingsEntry[]
   player_map: Record<string, { name: string; position: string; team: string }>
+  /** League-specific available players returned by Fantrax; counts are a preview snapshot. */
+  available_player_counts?: { waiverWire: number; freeAgents: number }
   identity_mappings?: ExternalIdentityMapping[]
   league_branding?: { avatar_url?: string | null; name?: string }
   previous_seasons?: Array<{ season: string; source_league_id: string }>

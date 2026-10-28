@@ -28,6 +28,7 @@ import {
   fetchFleaflickerLeagueForImport,
   FleaflickerImportLeagueNotFoundError,
 } from './fleaflicker/FleaflickerLeagueFetchService'
+import { FantraxApiImportError } from './fantrax/FantraxApiFetchService'
 import { runImportNormalizationPipeline } from './ImportNormalizationPipeline'
 import type { ImportProvider, NormalizedImportResult } from './types'
 
@@ -139,6 +140,9 @@ export async function runImportedLeagueNormalizationPipeline(
     }
     if (e instanceof MflImportLeagueNotFoundError) {
       return { success: false, error: e.message, code: 'LEAGUE_NOT_FOUND' }
+    }
+    if (e instanceof FantraxApiImportError) {
+      return { success: false, error: e.message, code: 'CONNECTION_REQUIRED' }
     }
     if (e instanceof FantraxImportConnectionError) {
       return { success: false, error: e.message, code: 'CONNECTION_REQUIRED' }

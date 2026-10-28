@@ -21,6 +21,7 @@ export interface ImportPreviewLeague {
   name: string
   sport: string
   season: number | null
+  seasonPhase?: 'pre_draft' | 'offseason' | 'in_season' | 'unknown'
   type: string
   teamCount: number
   playoffTeams: number | undefined
@@ -133,6 +134,7 @@ export interface ImportPreviewResponse {
     formatCardLabel: string
   }
   playerMap: Record<string, { name: string; position: string; team: string }>
+  availablePlayerCounts?: { waiverWire: number; freeAgents: number }
   draftPickCount: number
   transactionCount: number
   matchupWeeks: number
@@ -256,6 +258,10 @@ export function buildImportedLeaguePreview(normalized: NormalizedImportResult): 
     name: normalized.league.name,
     sport: normalized.league.sport,
     season: normalized.league.season,
+    seasonPhase: normalized.source.source_provider === 'fantrax' &&
+      ['pre_draft', 'offseason', 'in_season', 'unknown'].includes(String(leagueSettings.season_phase))
+      ? leagueSettings.season_phase as ImportPreviewLeague['seasonPhase']
+      : undefined,
     type: normalized.league.isDynasty ? 'Dynasty' : 'Redraft',
     teamCount: normalized.league.leagueSize,
     playoffTeams: normalized.league.playoff_team_count,
@@ -332,6 +338,7 @@ export function buildImportedLeaguePreview(normalized: NormalizedImportResult): 
       formatCardLabel: intro.title,
     },
     playerMap: normalized.player_map ?? {},
+    availablePlayerCounts: normalized.available_player_counts,
     draftPickCount: normalized.draft_picks?.length ?? 0,
     transactionCount: normalized.transactions?.length ?? 0,
     matchupWeeks: normalized.schedule?.length ?? 0,

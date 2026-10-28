@@ -74,6 +74,11 @@ export function ImportedLeaguePreviewPanel({
             <CardTitle className="text-lg text-white">Import preview: {league.name}</CardTitle>
             <div className="flex flex-wrap items-center gap-2 text-sm text-white/70 mt-0.5">
               <span>{league.sport}</span>
+              {(league.seasonPhase === 'pre_draft' || league.seasonPhase === 'offseason') && (
+                <span className="rounded border border-amber-400/40 bg-amber-400/10 px-2 py-0.5 text-amber-200" data-testid="fantrax-season-phase">
+                  {league.seasonPhase === 'pre_draft' ? 'Pre-draft' : 'Offseason'}
+                </span>
+              )}
               <span>·</span>
               <span>{league.type}</span>
               <span>·</span>
@@ -128,6 +133,12 @@ export function ImportedLeaguePreviewPanel({
                 </span>
               );
             })}
+          </div>
+        )}
+
+        {preview.availablePlayerCounts && (
+          <div className="rounded border border-cyan-400/25 bg-[#030a20]/80 p-3 text-xs text-white/80" data-testid="fantrax-player-pool-counts">
+            Available Fantrax players: {preview.availablePlayerCounts.waiverWire.toLocaleString()} on waiver wire · {preview.availablePlayerCounts.freeAgents.toLocaleString()} free agents
           </div>
         )}
 

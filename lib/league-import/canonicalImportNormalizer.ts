@@ -142,6 +142,16 @@ function inferLeagueConceptFromNormalized(normalized: NormalizedImportResult): {
     reviewReasons.push('keeper_settings_confirm')
   }
 
+  const fantraxSettings = raw.fantrax_settings as Record<string, unknown> | null
+  if (normalized.source.source_provider === 'fantrax' && fantraxSettings?.source === 'fantrax_api') {
+    reviewReasons.push('fantrax_rules_and_manager_identity')
+    warnings.push({
+      code: 'fantrax_commissioner_review',
+      message: 'Confirm roster slots, scoring categories, dynasty status, and manager identities before using this league for play.',
+      severity: 'warn',
+    })
+  }
+
   const leagueType = conceptFormat.formatId
 
   return {

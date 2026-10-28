@@ -2107,7 +2107,7 @@ export const translations: Record<string, Record<string, string>> = {
     "import.provider.espn.detail":
       "Any league member with a linked ESPN account can import. Private leagues require your ESPN cookies saved in Settings.",
     "import.provider.yahoo.detail": "Any league member with a linked Yahoo account can import.",
-    "import.provider.fantrax.detail": "Fantrax leagues are publicly readable. Paste your league ID to import.",
+    "import.provider.fantrax.detail": "Paste a Fantrax league ID to preview an accessible league. Review custom rules before creating.",
     "import.provider.mfl.detail": "MFL leagues are importable via your saved MFL API key in Settings.",
     "import.provider.fleaflicker.detail":
       "Fleaflicker leagues are publicly readable. Paste your league ID (or SPORT:ID:YEAR) to import.",
@@ -3835,7 +3835,7 @@ export const translations: Record<string, Record<string, string>> = {
     "import.provider.espn.detail":
       "Cualquier miembro con ESPN vinculada puede importar. Las ligas privadas requieren cookies de ESPN guardadas en Ajustes.",
     "import.provider.yahoo.detail": "Cualquier miembro con Yahoo vinculada puede importar.",
-    "import.provider.fantrax.detail": "Las ligas Fantrax son legibles públicamente. Pega el ID de tu liga para importar.",
+    "import.provider.fantrax.detail": "Pega un ID de Fantrax para previsualizar una liga accesible. Revisa las reglas personalizadas antes de crearla.",
     "import.provider.mfl.detail": "Las ligas MFL se importan con tu clave API de MFL guardada en Ajustes.",
     "import.provider.fleaflicker.detail":
       "Fleaflicker es legible públicamente. Pega el ID de la liga (o DEPORTE:ID:AÑO) para importar.",

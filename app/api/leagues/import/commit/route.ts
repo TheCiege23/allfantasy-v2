@@ -63,7 +63,7 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // Only the commissioner/co-commissioner of the source league may import.
+  // Apply provider access rules; public Fantrax leagues are open to signed-in users.
   const gate = await assertImportCommissioner({
     appUserId: auth.userId,
     provider,

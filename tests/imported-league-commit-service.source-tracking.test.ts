@@ -190,6 +190,7 @@ describe('ImportedLeagueCommitService source tracking', () => {
           rosterSize: 20,
           scoring: 'devy',
           isDynasty: true,
+          season_phase: 'pre_draft',
         },
         rosters: [],
         scoring: null,
@@ -219,6 +220,12 @@ describe('ImportedLeagueCommitService source tracking', () => {
         leagueId: 'league-fantrax',
         userId: 'u1',
       })
+    })
+    expect(leagueCreateMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        lifecycleState: 'pre_draft',
+        settings: expect.objectContaining({ season_phase: 'pre_draft' }),
+      }),
     })
     expect(result.historicalBackfill).toMatchObject({ status: 'pending' })
     expect(calculateAndSaveRankMock).toHaveBeenCalledWith('u1')

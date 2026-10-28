@@ -223,9 +223,14 @@ export function LeagueSidebarCard({
                   RENEW
                 </span>
               )}
+              {league.lifecycleState === 'pre_draft' && (
+                <span className="shrink-0 rounded border border-amber-500/30 bg-amber-500/10 px-1 py-0.5 text-[8px] font-medium text-amber-300">
+                  Pre-draft
+                </span>
+              )}
               {league.lifecycleState === 'offseason' && (
-                <span className="shrink-0 rounded bg-white/[0.06] px-1 py-0.5 text-[8px] font-medium text-white/30">
-                  OFF
+                <span className="shrink-0 rounded bg-white/[0.06] px-1 py-0.5 text-[8px] font-medium text-white/50">
+                  Offseason
                 </span>
               )}
               {league.lifecycleState === 'archived' && (

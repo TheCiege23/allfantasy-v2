@@ -1,9 +1,12 @@
 import { withApiUsage } from "@/lib/telemetry/usage"
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { requireAdmin } from '@/lib/adminAuth'
 import { parseFantraxFiles } from '@/lib/fantrax-parser'
 
 export const POST = withApiUsage({ endpoint: "/api/legacy/fantrax", tool: "LegacyFantrax" })(async (request: NextRequest) => {
+  const gate = await requireAdmin()
+  if (!gate.ok) return gate.res
   try {
     const formData = await request.formData()
     const username = formData.get('username') as string
@@ -152,6 +155,8 @@ export const POST = withApiUsage({ endpoint: "/api/legacy/fantrax", tool: "Legac
 })
 
 export const GET = withApiUsage({ endpoint: "/api/legacy/fantrax", tool: "LegacyFantrax" })(async (request: NextRequest) => {
+  const gate = await requireAdmin()
+  if (!gate.ok) return gate.res
   try {
     const { searchParams } = new URL(request.url)
     const username = searchParams?.get('username')

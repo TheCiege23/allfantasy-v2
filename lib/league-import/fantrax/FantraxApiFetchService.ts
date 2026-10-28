@@ -1,0 +1,433 @@
+import type {
+  FantraxImportDraftPick,
+  FantraxImportPayload,
+  FantraxImportTeam,
+} from '@/lib/league-import/adapters/fantrax/types'
+import { isSupportedSport, normalizeToSupportedSport } from '@/lib/sport-scope'
+
+type Json = Record<string, unknown>
+
+export class FantraxApiImportError extends Error {}
+
+function record(value: unknown): Json {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Json : {}
+}
+
+function entries(value: unknown): Array<[string, Json]> {
+  return Object.entries(record(value)).map(([key, item]) => [key, record(item)])
+}
+
+function string(value: unknown): string {
+  return typeof value === 'string' ? value.trim() : ''
+}
+
+function number(value: unknown): number | null {
+  if (value == null || value === '') return null
+  const parsed = typeof value === 'number' ? value : Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function timestamp(value: unknown): number | null {
+  const numeric = number(value)
+  if (numeric != null) return numeric > 0 && numeric < 100_000_000_000 ? numeric * 1000 : numeric
+  const parsed = Date.parse(string(value))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function list(value: unknown): Json[] {
+  return Array.isArray(value) ? value.map(record) : []
+}
+
+function apiData(value: unknown): Json {
+  const outer = record(value)
+  return Object.keys(record(outer.data)).length > 0 ? record(outer.data) : outer
+}
+
+/** Fantrax URLs and 16-character IDs use the REST API. Legacy UUIDs stay on the CSV path. */
+export function parseFantraxApiSource(sourceInput: string): { leagueId: string; sport: string | null } | null {
+  const trimmed = sourceInput.trim()
+  const prefixed = trimmed.match(/^(NFL|NBA|NHL|MLB|NCAAF|NCAAB|EPL|SOCCER|PGA|NASCAR):([a-z0-9]{16})$/i)
+  if (prefixed) return { leagueId: prefixed[2], sport: prefixed[1].toUpperCase() }
+  if (/^[a-z0-9]{16}$/i.test(trimmed)) return { leagueId: trimmed, sport: null }
+
+  if (/^https?:\/\//i.test(trimmed)) {
+    let url: URL
+    try {
+      url = new URL(trimmed)
+    } catch {
+      throw new FantraxApiImportError('Enter a valid Fantrax league URL or league ID.')
+    }
+    if (url.hostname !== 'fantrax.com' && url.hostname !== 'www.fantrax.com') {
+      throw new FantraxApiImportError('Only fantrax.com league URLs are supported.')
+    }
+    const leagueId = url.searchParams.get('leagueId') ||
+      url.pathname.match(/\/fantasy\/league\/([a-z0-9]{16})(?:\/|$)/i)?.[1] || ''
+    if (!/^[a-z0-9]{16}$/i.test(leagueId)) {
+      throw new FantraxApiImportError('The Fantrax URL does not contain a valid league ID.')
+    }
+    return { leagueId, sport: url.searchParams.get('sport')?.toUpperCase() || null }
+  }
+  return null
+}
+
+async function getFantrax(endpoint: string, leagueId: string | null, extra?: Record<string, string>): Promise<Json> {
+  const url = new URL('https://www.fantrax.com/fxea/general/' + endpoint)
+  if (leagueId) url.searchParams.set('leagueId', leagueId)
+  for (const [key, value] of Object.entries(extra ?? {})) url.searchParams.set(key, value)
+  let response: Response
+  try {
+    response = await fetch(url, {
+      headers: { Accept: 'application/json', 'User-Agent': 'AllFantasyLeagueImport/1.0' },
+      cache: 'no-store',
+      signal: AbortSignal.timeout(12000),
+    })
+  } catch {
+    throw new FantraxApiImportError('Fantrax could not be reached. Try again shortly.')
+  }
+  if (!response.ok) {
+    throw new FantraxApiImportError(
+      response.status === 401 || response.status === 403
+        ? 'Fantrax denied access to this league. Check its visibility or use a commissioner-provided export.'
+        : response.status === 404
+          ? 'Fantrax league not found. Check the league ID.'
+          : 'Fantrax returned HTTP ' + response.status + ' for ' + endpoint + '.'
+    )
+  }
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
+    throw new FantraxApiImportError('Fantrax returned an unreadable response for ' + endpoint + '.')
+  }
+  const outer = record(body)
+  if (outer.status === 'error' || outer.success === false) {
+    throw new FantraxApiImportError('Fantrax rejected ' + endpoint + ' for this league.')
+  }
+  if (Array.isArray(body)) return { items: body }
+  if (Array.isArray(outer.data)) return { items: outer.data }
+  return apiData(body)
+}
+
+function sportForImport(raw: string): { fantrax: string; app: string } {
+  const fantrax = raw.toUpperCase()
+  if (!fantrax) {
+    throw new FantraxApiImportError(
+      'Fantrax did not identify the sport. Prefix the ID, for example NFL:leagueId or NCAAF:leagueId.'
+    )
+  }
+  if (fantrax === 'PGA' || fantrax === 'NASCAR') {
+    throw new FantraxApiImportError(fantrax + ' leagues are not supported in AllFantasy yet.')
+  }
+  const app = fantrax === 'EPL' ? 'SOCCER' : fantrax
+  if (!isSupportedSport(app)) {
+    throw new FantraxApiImportError('Unsupported Fantrax sport: ' + fantrax + '.')
+  }
+  return { fantrax: fantrax === 'SOCCER' ? 'EPL' : fantrax, app: normalizeToSupportedSport(app) }
+}
+
+function readStandings(raw: Json): Map<string, Json> {
+  const result = new Map<string, Json>()
+  for (const item of list(raw.items ?? raw.standings ?? raw.teams)) {
+    const id = string(item.teamId ?? item.id)
+    if (id) result.set(id, item)
+  }
+  return result
+}
+
+function scoringRules(scoringSystem: Json): Array<{ statKey: string; points: number }> {
+  const rules: Array<{ statKey: string; points: number }> = []
+  for (const group of list(scoringSystem.scoringCategorySettings)) {
+    for (const config of list(group.configs)) {
+      const category = record(config.scoringCategory)
+      const position = record(config.position)
+      const stat = string(category.code ?? category.id)
+      const value = number(config.points)
+      if (stat && value != null) {
+        const positionCode = string(position.code ?? position.id)
+        rules.push({ statKey: positionCode ? stat + ':' + positionCode : stat, points: value })
+      }
+    }
+  }
+  return rules
+}
+
+export async function fetchFantraxApiLeagueForImport(
+  sourceInput: string,
+  source: { leagueId: string; sport: string | null }
+): Promise<FantraxImportPayload> {
+  const info = await getFantrax('getLeagueInfo', source.leagueId)
+  const leagueName = string(info.leagueName)
+  const infoTeams = entries(info.teamInfo)
+  if (!leagueName || infoTeams.length === 0) {
+    throw new FantraxApiImportError('Fantrax returned no league name or teams for this ID.')
+  }
+  if (infoTeams.length > 32) {
+    throw new FantraxApiImportError(`This Fantrax league has ${infoTeams.length} teams; AllFantasy league play currently supports up to 32.`)
+  }
+
+  const sport = sportForImport(source.sport || string(info.sport ?? info.sportId ?? info.leagueSport))
+  const [rosterResult, standingsResult, draftResult, playerResult] = await Promise.allSettled([
+    getFantrax('getTeamRosters', source.leagueId),
+    getFantrax('getStandings', source.leagueId),
+    getFantrax('getDraftResults', source.leagueId),
+    getFantrax('getPlayerIds', null, { sport: sport.fantrax }),
+  ])
+  if (rosterResult.status !== 'fulfilled') {
+    throw new FantraxApiImportError('Fantrax team rosters could not be loaded; import stopped to avoid empty teams.')
+  }
+  const rosters = record(rosterResult.value.rosters)
+  if (Object.keys(rosters).length === 0 || infoTeams.some(([teamId]) => !Object.hasOwn(rosters, teamId))) {
+    throw new FantraxApiImportError('Fantrax returned incomplete team rosters; import stopped to avoid empty teams.')
+  }
+  const rosteredPlayerCount = infoTeams.reduce((total, [teamId]) => total + list(record(rosters[teamId]).rosterItems).filter((item) => string(item.id ?? item.playerId)).length, 0)
+  const draft = draftResult.status === 'fulfilled' ? draftResult.value : {}
+  const draftState = string(draft.draftState).toLowerCase()
+  const selectedPickCount = list(draft.draftPicks).filter((pick) => string(pick.playerId)).length
+  const preDraft = rosteredPlayerCount === 0 && selectedPickCount === 0 &&
+    ['running', 'pending', 'scheduled', 'not_started', 'not started'].includes(draftState)
+  const season = number(info.seasonYear) ?? new Date().getFullYear()
+  const startDate = timestamp(info.startDate)
+  const endDate = timestamp(info.endDate)
+  const now = Date.now()
+  const seasonEnded = endDate != null ? endDate < now : season < new Date().getFullYear()
+  const offseason = !preDraft && (seasonEnded || (startDate != null && startDate > now))
+  const seasonPhase = preDraft ? 'pre_draft' : offseason ? 'offseason' :
+    startDate != null && endDate != null && startDate <= now && endDate >= now ? 'in_season' : 'unknown'
+  const emptyOffseason = offseason && rosteredPlayerCount === 0 && selectedPickCount === 0
+  if (rosteredPlayerCount === 0 && !preDraft && !emptyOffseason) {
+    throw new FantraxApiImportError('Fantrax returned no rostered players and did not confirm a pre-draft or offseason league. Import stopped to avoid empty teams.')
+  }
+  const standings = standingsResult.status === 'fulfilled' ? readStandings(standingsResult.value) : new Map<string, Json>()
+  const playerDirectory = playerResult.status === 'fulfilled' ? playerResult.value : {}
+  const playerInfo = record(info.playerInfo)
+  const playerPoolStatusCounts = Object.values(playerInfo).reduce<Record<string, number>>((counts, entry) => {
+    const status = string(record(entry).status).toUpperCase()
+    if (status) counts[status] = (counts[status] ?? 0) + 1
+    return counts
+  }, {})
+  const sourceRosterExtras = Object.fromEntries(entries(rosters).map(([teamId, roster]) => [
+    teamId,
+    list(roster.rosterItems).filter((item) => Object.keys(item).some((key) => !['id', 'position', 'status'].includes(key))),
+  ]))
+  const playerMap: FantraxImportPayload['playerMap'] = {}
+  const warnings: string[] = []
+  if (standings.size !== infoTeams.length) warnings.push('Standings were unavailable or incomplete.')
+  if (draftResult.status !== 'fulfilled') warnings.push('Draft results were unavailable.')
+  if (playerResult.status !== 'fulfilled') warnings.push('Player names were unavailable; Fantrax IDs were preserved.')
+  if (preDraft) warnings.push('Fantrax has no rostered players yet; teams and player-pool counts are available for a pre-draft import.')
+  if (offseason) warnings.push('Fantrax season dates indicate an offseason league; verify the target season and refresh after league activity resumes.')
+  warnings.push('Fantrax does not identify managers in this response; team names are used as placeholders.')
+  if (Object.values(sourceRosterExtras).some((items) => items.length > 0)) {
+    warnings.push('Extra Fantrax roster item fields were preserved; salary and contract rules require commissioner review.')
+  }
+
+  const teams: FantraxImportTeam[] = infoTeams.map(([teamId, teamInfo], index) => {
+    const roster = record(rosters[teamId])
+    const teamName = string(teamInfo.name ?? roster.teamName) || teamId
+    const standing = standings.get(teamId) ?? {}
+    const recordParts = string(standing.points).match(/^(\d+)-(\d+)-(\d+)$/)
+    const items = list(roster.rosterItems)
+    const allIds: string[] = []
+    const starters: string[] = []
+    const reserves: string[] = []
+    for (const item of items) {
+      const id = string(item.id ?? item.playerId)
+      if (!id) continue
+      allIds.push(id)
+      if (string(item.status).toUpperCase() === 'ACTIVE') starters.push(id)
+      else reserves.push(id)
+      const directory = record(playerDirectory[id])
+      const pool = record(playerInfo[id])
+      playerMap[id] = {
+        name: string(directory.name ?? pool.name) || id,
+        position: string(directory.position ?? item.position ?? pool.eligiblePos) || 'N/A',
+        team: string(directory.team ?? pool.team),
+      }
+    }
+    const teamPlayerMap: FantraxImportTeam['playerMap'] = {}
+    for (const id of allIds) {
+      const player = playerMap[id]
+      if (player) teamPlayerMap[id] = player
+    }
+    return {
+      teamId,
+      managerId: 'fantrax-manager:' + teamId,
+      managerName: teamName,
+      teamName,
+      logoUrl: string(teamInfo.logoUrl ?? teamInfo.logoUrl512) || null,
+      wins: number(standing.wins) ?? Number(recordParts?.[1] ?? 0),
+      losses: number(standing.losses) ?? Number(recordParts?.[2] ?? 0),
+      ties: number(standing.ties) ?? Number(recordParts?.[3] ?? 0),
+      rank: number(standing.rank) ?? index + 1,
+      pointsFor: number(standing.totalPointsFor) ?? number(standing.pointsFor) ?? number(standing.points) ?? 0,
+      pointsAgainst: number(standing.pointsAgainst),
+      faabRemaining: null,
+      waiverPriority: number(standing.waiverOrder),
+      rosterPlayerIds: allIds,
+      starterPlayerIds: starters,
+      reservePlayerIds: reserves,
+      playerMap: teamPlayerMap,
+    }
+  })
+
+  const scoringSystem = record(info.scoringSystem)
+  const scoringType = string(scoringSystem.type)
+  const rosterInfo = record(info.rosterInfo)
+  const playoffs = record(info.playoffs)
+  const draftSettings = record(info.draftSettings)
+  const schedule = list(info.matchups).map((period) => {
+    const week = number(period.period ?? period.number)
+    if (week == null || week < 1) return null
+    const matchups = list(period.matchupList).map((matchup) => {
+      const away = record(matchup.away)
+      const home = record(matchup.home)
+      const teamId1 = string(away.id ?? away.teamId)
+      const teamId2 = string(home.id ?? home.teamId)
+      return teamId1 && teamId2 ? { teamId1, teamId2 } : null
+    }).filter((item): item is { teamId1: string; teamId2: string } => item !== null)
+    return { week, season: number(info.seasonYear) ?? new Date().getFullYear(), matchups }
+  }).filter((item): item is NonNullable<typeof item> => item !== null)
+  const draftPicks: FantraxImportDraftPick[] = list(draft.draftPicks).map((pick) => {
+    const round = number(pick.round)
+    const pickNumber = number(pick.pick ?? pick.pickNumber)
+    const teamId = string(pick.teamId)
+    const playerId = string(pick.playerId)
+    if (round == null || pickNumber == null || !teamId || !playerId) return null
+    const player = playerMap[playerId]
+    return { round, pickNumber, teamId, playerId, playerName: player?.name ?? playerId,
+      position: player?.position ?? null, team: player?.team ?? null }
+  }).filter((item): item is FantraxImportDraftPick => item !== null)
+
+  if (!scoringType) warnings.push('Fantrax scoring format was not identified.')
+  if (scoringType && !scoringType.includes('HEAD_TO_HEAD')) {
+    warnings.push('This scoring format needs commissioner review before playing in AllFantasy.')
+  }
+  const positionConstraints = record(rosterInfo.positionConstraints)
+  if (Object.keys(positionConstraints).length > 0) {
+    warnings.push('Fantrax position limits are maximums, not fixed lineup slots; commissioner review is required.')
+  } else {
+    warnings.push('Starter slot counts were not identified; commissioner review is required.')
+  }
+  return {
+    sourceInput,
+    league: {
+      leagueId: source.leagueId,
+      name: leagueName,
+      sport: sport.app,
+      season,
+      size: teams.length,
+      currentWeek: number(rosterResult.value.period),
+      isFinished: seasonEnded,
+      url: 'https://www.fantrax.com/fantasy/league/' + source.leagueId,
+      isDevy: false,
+    },
+    settings: {
+      scoringType: scoringType || null,
+      rosterPositions: [],
+      scoringRules: scoringRules(scoringSystem),
+      raw: {
+        source: 'fantrax_api',
+        standingsAvailable: standings.size === infoTeams.length,
+        preDraft,
+        seasonPhase,
+        startDate,
+        endDate,
+        draftState,
+        rosteredPlayerCount,
+        playerPoolStatusCounts,
+        playerNamesAvailable: playerResult.status === 'fulfilled',
+        scoringSystem,
+        rosterInfo,
+        playoffs,
+        draftSettings,
+        playerPool: record(info.poolSettings),
+        rosterPeriods: info.rosterPeriods ?? [],
+        scoringPeriods: info.scoringPeriods ?? [],
+        sourceRosterExtras,
+        positionConstraintsReview: Object.entries(positionConstraints).map(([position, limit]) => ({
+          position,
+          maxActive: number(record(limit).maxActive),
+        })),
+        warnings,
+      },
+    },
+    teams,
+    schedule,
+    transactions: [],
+    draftPicks,
+    playerMap,
+    previousSeasons: [],
+  }
+}
+
+export interface FantraxPlayerPoolPage {
+  leagueId: string
+  leagueName: string
+  sport: string
+  counts: { WW: number; FA: number }
+  status: 'WW' | 'FA' | 'ALL'
+  page: number
+  limit: number
+  total: number
+  players: Array<{
+    id: string
+    name: string
+    position: string
+    team: string
+    status: 'WW' | 'FA'
+  }>
+}
+
+/** Read-only league-specific available-player list; WW and FA are Fantrax status codes. */
+export async function fetchFantraxPlayerPoolPage(
+  leagueId: string,
+  sportInput: string,
+  options: { status?: 'WW' | 'FA' | 'ALL'; page?: number; limit?: number; search?: string } = {}
+): Promise<FantraxPlayerPoolPage> {
+  if (!/^[a-z0-9]{16}$/i.test(leagueId)) {
+    throw new FantraxApiImportError('Enter a valid 16-character Fantrax league ID.')
+  }
+  const sport = sportForImport(sportInput)
+  const [info, directory] = await Promise.all([
+    getFantrax('getLeagueInfo', leagueId),
+    getFantrax('getPlayerIds', null, { sport: sport.fantrax }),
+  ])
+  if (!string(info.leagueName)) {
+    throw new FantraxApiImportError('Fantrax league not found or unavailable.')
+  }
+  const playerInfo = record(info.playerInfo)
+  const status = options.status ?? 'ALL'
+  const page = Math.max(1, Math.min(1000, Math.floor(options.page ?? 1)))
+  const limit = Math.max(1, Math.min(100, Math.floor(options.limit ?? 50)))
+  const search = string(options.search).toLowerCase()
+  const counts = { WW: 0, FA: 0 }
+  const available = Object.entries(playerInfo).flatMap(([id, raw]) => {
+    const pool = record(raw)
+    const playerStatus = string(pool.status).toUpperCase()
+    if (playerStatus !== 'WW' && playerStatus !== 'FA') return []
+    counts[playerStatus] += 1
+    const player = record(directory[id])
+    return [{
+      id,
+      name: string(player.name) || id,
+      position: string(player.position ?? pool.eligiblePos),
+      team: string(player.team),
+      status: playerStatus,
+    }]
+  })
+  const filtered = available
+    .filter((player) => status === 'ALL' || player.status === status)
+    .filter((player) => !search || [player.name, player.position, player.team].some((value) => value.toLowerCase().includes(search)))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return {
+    leagueId,
+    leagueName: string(info.leagueName),
+    sport: sport.app,
+    counts,
+    status,
+    page,
+    limit,
+    total: filtered.length,
+    players: filtered.slice((page - 1) * limit, page * limit),
+  }
+}

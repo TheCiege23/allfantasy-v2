@@ -33,6 +33,12 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
     const scoring = FantraxScoringMapper.map(raw)
     const schedule = FantraxScheduleMapper.map(raw)
     const history = FantraxHistoryMapper.map(raw)
+    const rawSettings = raw.settings?.raw ?? {}
+    const isApi = rawSettings.source === 'fantrax_api'
+    const importWarnings = Array.isArray(rawSettings.warnings)
+      ? (rawSettings.warnings as string[])
+      : []
+    const poolCounts = rawSettings.playerPoolStatusCounts as Record<string, number> | undefined
     const playerMapCount = Object.keys(raw.playerMap ?? {}).length
     const rosterWithPlayersCount = rosters.filter((roster) => roster.player_ids.length > 0).length
 
@@ -49,26 +55,35 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
       transactions: history.transactions,
       standings: history.standings,
       player_map: raw.playerMap ?? {},
+      available_player_counts: isApi ? {
+        waiverWire: poolCounts?.WW ?? 0,
+        freeAgents: poolCounts?.FA ?? 0,
+      } : undefined,
       previous_seasons: raw.previousSeasons.map((season) => ({
         season: season.season,
         source_league_id: season.sourceLeagueId,
       })),
       coverage: {
         leagueSettings: {
-          state: 'full',
+          state: 'partial',
           count: 1,
+          note: isApi ? importWarnings.join(' ') : 'Fantrax CSV settings do not include the full source league configuration.',
         },
         currentRosters: {
           state:
-            rosters.length === 0
+            rosters.length === 0 || rosterWithPlayersCount === 0
               ? 'missing'
               : rosterWithPlayersCount === rosters.length
                 ? 'full'
                 : 'partial',
           count: rosters.length,
           note:
-            rosters.length > 0 && rosterWithPlayersCount !== rosters.length
-              ? 'Fantrax roster exports include full player details only for teams included in uploaded CSV history.'
+            isApi && rawSettings.preDraft === true
+              ? `Fantrax has no drafted rosters yet. Available pool: ${poolCounts?.WW ?? 0} waiver wire, ${poolCounts?.FA ?? 0} free agents.`
+              : rosters.length > 0 && rosterWithPlayersCount !== rosters.length
+              ? isApi
+                ? 'Some Fantrax teams returned no players. Check whether the league has drafted or roster access is limited.'
+                : 'Fantrax roster exports include full player details only for teams included in uploaded CSV history.'
               : null,
         },
         historicalRosterSnapshots: {
@@ -92,7 +107,9 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
           note: 'Playoff structure is inferred from playoff matchup flags when present in uploaded schedule data.',
         },
         currentStandings: {
-          state: history.standings.length > 0 ? 'full' : 'missing',
+          state: isApi && rawSettings.standingsAvailable !== true
+            ? 'missing'
+            : history.standings.length > 0 ? 'full' : 'missing',
           count: history.standings.length,
         },
         currentSchedule: {
@@ -100,24 +117,30 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
           count: schedule.length,
           note:
             schedule.length > 0
-              ? 'Fantrax schedule coverage depends on uploaded standings/matchup exports.'
-              : 'No Fantrax matchup data was available in imported CSV history.',
+              ? isApi
+                ? 'Fantrax matchup pairings were imported; historical scores are not included in this pass.'
+                : 'Fantrax schedule coverage depends on uploaded standings/matchup exports.'
+              : 'No Fantrax matchup data was available.',
         },
         draftHistory: {
           state: history.draft_picks.length > 0 ? 'partial' : 'missing',
           count: history.draft_picks.length,
           note:
             history.draft_picks.length > 0
-              ? 'Fantrax draft history currently reflects traded draft-pick events when available.'
-              : 'No Fantrax draft pick history was available from uploaded data.',
+              ? isApi
+                ? 'Fantrax draft results were imported for this season; traded future picks need a separate check.'
+                : 'Fantrax draft history currently reflects traded draft-pick events when available.'
+              : 'No Fantrax draft results were available.',
         },
         tradeHistory: {
           state: history.transactions.length > 0 ? 'partial' : 'missing',
           count: history.transactions.length,
           note:
             history.transactions.length > 0
-              ? 'Fantrax transaction history is normalized from claims, drops, trades, and lineup change exports.'
-              : 'No Fantrax transaction history was available from uploaded data.',
+              ? 'Fantrax transaction history was normalized from CSV exports.'
+              : isApi
+                ? 'Transactions are not included in this REST API import.'
+                : 'No Fantrax transaction history was available from uploaded data.',
         },
         previousSeasons: {
           state: raw.previousSeasons.length > 0 ? 'partial' : 'missing',
@@ -128,7 +151,9 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
           count: playerMapCount,
           note:
             playerMapCount > 0
-              ? 'Fantrax player IDs are mapped from imported roster exports and remain stable for future sync.'
+              ? isApi
+                ? 'Fantrax player IDs are preserved; player names may be unavailable if the player directory request failed.'
+                : 'Fantrax player IDs are mapped from imported roster exports and remain stable for future sync.'
               : 'No Fantrax player identity map was available in imported roster exports.',
         },
       },

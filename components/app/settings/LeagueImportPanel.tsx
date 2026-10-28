@@ -28,7 +28,7 @@ const PROVIDER_HELP: Partial<Record<ImportProvider, string>> = {
   sleeper: 'Sleeper league ID (from league URL or settings)',
   espn: 'ESPN league ID, season:id, or ESPN league URL',
   yahoo: 'Yahoo league key (e.g. 461.l.12345) or numeric league id',
-  fantrax: 'Fantrax source id (or legacy resolver source)',
+  fantrax: 'Fantrax league ID, sport:ID, URL, or legacy CSV snapshot ID',
   mfl: 'MyFantasyLeague id (or season:id)',
   fleaflicker: 'League id from URL, or NFL:12345 / NBA:99:2024 (sport, id, season)',
 }

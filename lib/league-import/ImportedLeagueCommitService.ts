@@ -215,6 +215,10 @@ export async function persistImportedLeagueFromNormalization(
   const settingsJson = canonicalBundle
     ? mergeCanonicalBundleIntoSettings(normalized, canonicalBundle)
     : buildImportedLeagueSettings(normalized)
+  const sourcePhase = provider === 'fantrax' ? normalized.league.season_phase : null
+  const initialLifecycleState = !existing && (sourcePhase === 'pre_draft' || sourcePhase === 'offseason')
+    ? sourcePhase
+    : null
 
   const leaguePayload = {
     name: normalized.league.name,
@@ -230,6 +234,8 @@ export async function persistImportedLeagueFromNormalization(
     avatarUrl: normalized.league_branding?.avatar_url ?? undefined,
     settings: settingsJson,
     syncStatus: 'pending',
+    // Existing leagues may have moved through the native lifecycle; preserve that state on re-import.
+    ...(initialLifecycleState ? { lifecycleState: initialLifecycleState } : {}),
     leagueVariant: resolvedVariant,
     leagueType: canonicalBundle?.leagueTypeColumn ?? undefined,
     presetKey: canonicalBundle?.presetKey ?? undefined,

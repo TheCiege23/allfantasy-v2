@@ -83,14 +83,16 @@ export default function StartupDynastyForm({ userId }: { userId: string }) {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleFetchImportPreview = async () => {
+  const handleFetchImportPreview = async (sourceOverride?: string) => {
     if (!importProvider) {
       toast.error('Select an import platform');
       return;
     }
     setImportPreviewLoading(true);
     setImportPreview(null);
-    const result = await fetchImportPreview(importProvider, importSourceInput);
+    const resolvedSource = sourceOverride ?? importSourceInput;
+    if (sourceOverride && sourceOverride !== importSourceInput) setImportSourceInput(sourceOverride);
+    const result = await fetchImportPreview(importProvider, resolvedSource);
     setImportPreviewLoading(false);
     if (!result.ok) {
       toast.error(result.error ?? 'Failed to load league');

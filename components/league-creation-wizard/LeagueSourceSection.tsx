@@ -145,7 +145,7 @@ export function LeagueSourceSection({
           <p className="font-medium text-cyan-100">Import from another host</p>
           <p className="mt-1 text-xs text-white/55">
             Use the import page to connect Sleeper, ESPN, Yahoo, Fantrax, MFL, or Fleaflicker. After import, your league
-            appears in the app with live sync.
+            appears in the app. Sync support varies by provider; Fantrax currently imports a snapshot.
           </p>
           <Link
             href="/import?returnTo=%2Fcreate-league"
