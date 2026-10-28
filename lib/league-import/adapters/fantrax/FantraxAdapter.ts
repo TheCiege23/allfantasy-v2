@@ -66,14 +66,16 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
         },
         currentRosters: {
           state:
-            rosters.length === 0
+            rosters.length === 0 || rosterWithPlayersCount === 0
               ? 'missing'
               : rosterWithPlayersCount === rosters.length
                 ? 'full'
                 : 'partial',
           count: rosters.length,
           note:
-            rosters.length > 0 && rosterWithPlayersCount !== rosters.length
+            isApi && rawSettings.preDraft === true
+              ? 'Fantrax has no drafted rosters yet; teams and the eligible player pool are available.'
+              : rosters.length > 0 && rosterWithPlayersCount !== rosters.length
               ? isApi
                 ? 'Some Fantrax teams returned no players. Check whether the league has drafted or roster access is limited.'
                 : 'Fantrax roster exports include full player details only for teams included in uploaded CSV history.'
