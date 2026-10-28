@@ -426,6 +426,9 @@ async function syncImportedFantraxLeague(userId: string, sourceInput: string): P
     const current = roster.playerData && typeof roster.playerData === 'object' && !Array.isArray(roster.playerData)
       ? roster.playerData as Record<string, unknown>
       : {};
+    if (Array.isArray(current.players) && current.players.length > 0 && team.rosterPlayerIds.length === 0) {
+      throw new Error('Fantrax returned an empty roster for a previously rostered team. Refresh stopped to protect existing players.');
+    }
     operations.push(prisma.leagueTeam.update({
       where: { id: leagueTeam.id },
       data: {
