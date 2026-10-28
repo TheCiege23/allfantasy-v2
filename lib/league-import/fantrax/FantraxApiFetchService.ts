@@ -164,15 +164,15 @@ export async function fetchFantraxApiLeagueForImport(
     throw new FantraxApiImportError('Fantrax team rosters could not be loaded; import stopped to avoid empty teams.')
   }
   const rosters = record(rosterResult.value.rosters)
-  if (Object.keys(rosters).length === 0) {
-    throw new FantraxApiImportError('Fantrax returned no team rosters; import stopped to avoid empty teams.')
+  if (Object.keys(rosters).length === 0 || infoTeams.some(([teamId]) => !Object.hasOwn(rosters, teamId))) {
+    throw new FantraxApiImportError('Fantrax returned incomplete team rosters; import stopped to avoid empty teams.')
   }
   const standings = standingsResult.status === 'fulfilled' ? readStandings(standingsResult.value) : new Map<string, Json>()
   const playerDirectory = playerResult.status === 'fulfilled' ? playerResult.value : {}
   const playerInfo = record(info.playerInfo)
   const playerMap: FantraxImportPayload['playerMap'] = {}
   const warnings: string[] = []
-  if (standingsResult.status !== 'fulfilled') warnings.push('Standings were unavailable.')
+  if (standings.size !== infoTeams.length) warnings.push('Standings were unavailable or incomplete.')
   if (draftResult.status !== 'fulfilled') warnings.push('Draft results were unavailable.')
   if (playerResult.status !== 'fulfilled') warnings.push('Player names were unavailable; Fantrax IDs were preserved.')
   warnings.push('Fantrax does not identify managers in this response; team names are used as placeholders.')
@@ -280,7 +280,7 @@ export async function fetchFantraxApiLeagueForImport(
       scoringRules: scoringRules(scoringSystem),
       raw: {
         source: 'fantrax_api',
-        standingsAvailable: standings.size > 0,
+        standingsAvailable: standings.size === infoTeams.length,
         playerNamesAvailable: playerResult.status === 'fulfilled',
         scoringSystem,
         rosterInfo,
