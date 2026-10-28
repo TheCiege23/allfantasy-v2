@@ -102,6 +102,7 @@ describe('Fantrax REST import', () => {
     expect(normalized.league.matchup_frequency).toBe('head_to_head')
     expect(normalized.coverage.leagueSettings.state).toBe('partial')
     expect(fetcher).toHaveBeenCalledTimes(5)
+    expect(fetcher.mock.calls[0][1]?.headers).toMatchObject({ 'User-Agent': 'AllFantasyLeagueImport/1.0' })
   })
 
   it('stops when Fantrax returns an empty roster response', async () => {
