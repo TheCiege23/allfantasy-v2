@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/prisma';
 import { decrypt, encrypt } from '@/lib/league-auth-crypto';
 import { XMLParser } from 'fast-xml-parser';
@@ -452,7 +453,7 @@ async function syncImportedFantraxLeague(userId: string, sourceInput: string): P
           source_league_id: source.leagueId,
           source_team_id: team.teamId,
           refreshed_at: refreshedAt.toISOString(),
-        },
+        } as unknown as Prisma.InputJsonValue,
       },
     }));
   }
