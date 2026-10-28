@@ -27,6 +27,13 @@ function number(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null
 }
 
+function timestamp(value: unknown): number | null {
+  const numeric = number(value)
+  if (numeric != null) return numeric > 0 && numeric < 100_000_000_000 ? numeric * 1000 : numeric
+  const parsed = Date.parse(string(value))
+  return Number.isFinite(parsed) ? parsed : null
+}
+
 function list(value: unknown): Json[] {
   return Array.isArray(value) ? value.map(record) : []
 }
@@ -178,8 +185,17 @@ export async function fetchFantraxApiLeagueForImport(
   const selectedPickCount = list(draft.draftPicks).filter((pick) => string(pick.playerId)).length
   const preDraft = rosteredPlayerCount === 0 && selectedPickCount === 0 &&
     ['running', 'pending', 'scheduled', 'not_started', 'not started'].includes(draftState)
-  if (rosteredPlayerCount === 0 && !preDraft) {
-    throw new FantraxApiImportError('Fantrax returned no rostered players and the draft state did not confirm an undrafted league. Import stopped to avoid empty teams.')
+  const season = number(info.seasonYear) ?? new Date().getFullYear()
+  const startDate = timestamp(info.startDate)
+  const endDate = timestamp(info.endDate)
+  const now = Date.now()
+  const seasonEnded = endDate != null ? endDate < now : season < new Date().getFullYear()
+  const offseason = !preDraft && (seasonEnded || (startDate != null && startDate > now))
+  const seasonPhase = preDraft ? 'pre_draft' : offseason ? 'offseason' :
+    startDate != null && endDate != null && startDate <= now && endDate >= now ? 'in_season' : 'unknown'
+  const emptyOffseason = offseason && rosteredPlayerCount === 0 && selectedPickCount === 0
+  if (rosteredPlayerCount === 0 && !preDraft && !emptyOffseason) {
+    throw new FantraxApiImportError('Fantrax returned no rostered players and did not confirm a pre-draft or offseason league. Import stopped to avoid empty teams.')
   }
   const standings = standingsResult.status === 'fulfilled' ? readStandings(standingsResult.value) : new Map<string, Json>()
   const playerDirectory = playerResult.status === 'fulfilled' ? playerResult.value : {}
@@ -199,6 +215,7 @@ export async function fetchFantraxApiLeagueForImport(
   if (draftResult.status !== 'fulfilled') warnings.push('Draft results were unavailable.')
   if (playerResult.status !== 'fulfilled') warnings.push('Player names were unavailable; Fantrax IDs were preserved.')
   if (preDraft) warnings.push('Fantrax has no rostered players yet; teams and player-pool counts are available for a pre-draft import.')
+  if (offseason) warnings.push('Fantrax season dates indicate an offseason league; verify the target season and refresh after league activity resumes.')
   warnings.push('Fantrax does not identify managers in this response; team names are used as placeholders.')
   if (Object.values(sourceRosterExtras).some((items) => items.length > 0)) {
     warnings.push('Extra Fantrax roster item fields were preserved; salary and contract rules require commissioner review.')
@@ -291,8 +308,6 @@ export async function fetchFantraxApiLeagueForImport(
   } else {
     warnings.push('Starter slot counts were not identified; commissioner review is required.')
   }
-  const season = number(info.seasonYear) ?? new Date().getFullYear()
-  const endDate = number(info.endDate) ?? (string(info.endDate) ? Date.parse(string(info.endDate)) : null)
   return {
     sourceInput,
     league: {
@@ -302,7 +317,7 @@ export async function fetchFantraxApiLeagueForImport(
       season,
       size: teams.length,
       currentWeek: number(rosterResult.value.period),
-      isFinished: endDate != null ? endDate < Date.now() : season < new Date().getFullYear(),
+      isFinished: seasonEnded,
       url: 'https://www.fantrax.com/fantasy/league/' + source.leagueId,
       isDevy: false,
     },
@@ -314,6 +329,9 @@ export async function fetchFantraxApiLeagueForImport(
         source: 'fantrax_api',
         standingsAvailable: standings.size === infoTeams.length,
         preDraft,
+        seasonPhase,
+        startDate,
+        endDate,
         draftState,
         rosteredPlayerCount,
         playerPoolStatusCounts,
