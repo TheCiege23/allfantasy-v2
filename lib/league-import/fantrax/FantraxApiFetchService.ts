@@ -341,3 +341,75 @@ export async function fetchFantraxApiLeagueForImport(
     previousSeasons: [],
   }
 }
+
+export interface FantraxPlayerPoolPage {
+  leagueId: string
+  leagueName: string
+  sport: string
+  counts: { WW: number; FA: number }
+  status: 'WW' | 'FA' | 'ALL'
+  page: number
+  limit: number
+  total: number
+  players: Array<{
+    id: string
+    name: string
+    position: string
+    team: string
+    status: 'WW' | 'FA'
+  }>
+}
+
+/** Read-only league-specific available-player list; WW and FA are Fantrax status codes. */
+export async function fetchFantraxPlayerPoolPage(
+  leagueId: string,
+  sportInput: string,
+  options: { status?: 'WW' | 'FA' | 'ALL'; page?: number; limit?: number; search?: string } = {}
+): Promise<FantraxPlayerPoolPage> {
+  if (!/^[a-z0-9]{16}$/i.test(leagueId)) {
+    throw new FantraxApiImportError('Enter a valid 16-character Fantrax league ID.')
+  }
+  const sport = sportForImport(sportInput)
+  const [info, directory] = await Promise.all([
+    getFantrax('getLeagueInfo', leagueId),
+    getFantrax('getPlayerIds', null, { sport: sport.fantrax }),
+  ])
+  if (!string(info.leagueName)) {
+    throw new FantraxApiImportError('Fantrax league not found or unavailable.')
+  }
+  const playerInfo = record(info.playerInfo)
+  const status = options.status ?? 'ALL'
+  const page = Math.max(1, Math.min(1000, Math.floor(options.page ?? 1)))
+  const limit = Math.max(1, Math.min(100, Math.floor(options.limit ?? 50)))
+  const search = string(options.search).toLowerCase()
+  const counts = { WW: 0, FA: 0 }
+  const available = Object.entries(playerInfo).flatMap(([id, raw]) => {
+    const pool = record(raw)
+    const playerStatus = string(pool.status).toUpperCase()
+    if (playerStatus !== 'WW' && playerStatus !== 'FA') return []
+    counts[playerStatus] += 1
+    const player = record(directory[id])
+    return [{
+      id,
+      name: string(player.name) || id,
+      position: string(player.position ?? pool.eligiblePos),
+      team: string(player.team),
+      status: playerStatus,
+    }]
+  })
+  const filtered = available
+    .filter((player) => status === 'ALL' || player.status === status)
+    .filter((player) => !search || [player.name, player.position, player.team].some((value) => value.toLowerCase().includes(search)))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return {
+    leagueId,
+    leagueName: string(info.leagueName),
+    sport: sport.app,
+    counts,
+    status,
+    page,
+    limit,
+    total: filtered.length,
+    players: filtered.slice((page - 1) * limit, page * limit),
+  }
+}
