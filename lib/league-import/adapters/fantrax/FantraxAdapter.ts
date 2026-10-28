@@ -33,9 +33,10 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
     const scoring = FantraxScoringMapper.map(raw)
     const schedule = FantraxScheduleMapper.map(raw)
     const history = FantraxHistoryMapper.map(raw)
-    const isApi = raw.settings?.raw?.source === 'fantrax_api'
-    const importWarnings = Array.isArray(raw.settings?.raw?.warnings)
-      ? (raw.settings.raw.warnings as string[])
+    const rawSettings = raw.settings?.raw ?? {}
+    const isApi = rawSettings.source === 'fantrax_api'
+    const importWarnings = Array.isArray(rawSettings.warnings)
+      ? (rawSettings.warnings as string[])
       : []
     const playerMapCount = Object.keys(raw.playerMap ?? {}).length
     const rosterWithPlayersCount = rosters.filter((roster) => roster.player_ids.length > 0).length
@@ -99,7 +100,7 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
           note: 'Playoff structure is inferred from playoff matchup flags when present in uploaded schedule data.',
         },
         currentStandings: {
-          state: isApi && raw.settings?.raw?.standingsAvailable !== true
+          state: isApi && rawSettings.standingsAvailable !== true
             ? 'missing'
             : history.standings.length > 0 ? 'full' : 'missing',
           count: history.standings.length,
