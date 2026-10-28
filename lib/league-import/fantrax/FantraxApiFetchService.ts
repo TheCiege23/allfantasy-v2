@@ -70,7 +70,7 @@ async function getFantrax(endpoint: string, leagueId: string | null, extra?: Rec
   let response: Response
   try {
     response = await fetch(url, {
-      headers: { Accept: 'application/json' },
+      headers: { Accept: 'application/json', 'User-Agent': 'AllFantasyLeagueImport/1.0' },
       cache: 'no-store',
       signal: AbortSignal.timeout(12000),
     })
