@@ -38,6 +38,7 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
     const importWarnings = Array.isArray(rawSettings.warnings)
       ? (rawSettings.warnings as string[])
       : []
+    const poolCounts = rawSettings.playerPoolStatusCounts as Record<string, number> | undefined
     const playerMapCount = Object.keys(raw.playerMap ?? {}).length
     const rosterWithPlayersCount = rosters.filter((roster) => roster.player_ids.length > 0).length
 
@@ -54,6 +55,10 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
       transactions: history.transactions,
       standings: history.standings,
       player_map: raw.playerMap ?? {},
+      available_player_counts: isApi ? {
+        waiverWire: poolCounts?.WW ?? 0,
+        freeAgents: poolCounts?.FA ?? 0,
+      } : undefined,
       previous_seasons: raw.previousSeasons.map((season) => ({
         season: season.season,
         source_league_id: season.sourceLeagueId,
@@ -74,7 +79,7 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
           count: rosters.length,
           note:
             isApi && rawSettings.preDraft === true
-              ? 'Fantrax has no drafted rosters yet; teams and the eligible player pool are available.'
+              ? `Fantrax has no drafted rosters yet. Available pool: ${poolCounts?.WW ?? 0} waiver wire, ${poolCounts?.FA ?? 0} free agents.`
               : rosters.length > 0 && rosterWithPlayersCount !== rosters.length
               ? isApi
                 ? 'Some Fantrax teams returned no players. Check whether the league has drafted or roster access is limited.'
