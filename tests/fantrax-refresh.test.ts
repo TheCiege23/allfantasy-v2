@@ -119,6 +119,17 @@ describe('Fantrax refresh', () => {
     expect(mocks.updateTeam.mock.calls[0][0].data).not.toHaveProperty('currentRank')
   })
 
+  it('protects a claimed team when Fantrax unexpectedly returns an empty roster', async () => {
+    mocks.fetchFantrax.mockResolvedValue({
+      ...payload,
+      teams: [{ ...payload.teams[0], rosterPlayerIds: [], starterPlayerIds: [], reservePlayerIds: [] }],
+    })
+    await expect(syncLeague('owner', 'fantrax', leagueId)).rejects.toThrow(
+      'Refresh stopped to protect existing players'
+    )
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
   it('stops without writing when an imported roster is missing', async () => {
     mocks.findRosters.mockResolvedValue([])
     await expect(syncLeague('owner', 'fantrax', leagueId)).rejects.toThrow(
