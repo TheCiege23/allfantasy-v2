@@ -31,7 +31,7 @@ describe('Fantrax REST import', () => {
   })
 
   it('imports every team roster and preserves format, scoring, and draft source data', async () => {
-    const fetcher = vi.fn(async (url: URL) => {
+    const fetcher = vi.fn(async (url: URL, _init?: RequestInit) => {
       const endpoint = url.pathname.split('/').pop()
       if (endpoint === 'getLeagueInfo') return response({
         leagueName: 'College Custom League',
