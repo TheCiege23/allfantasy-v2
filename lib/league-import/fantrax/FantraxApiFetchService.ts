@@ -173,12 +173,22 @@ export async function fetchFantraxApiLeagueForImport(
     throw new FantraxApiImportError('Fantrax returned incomplete team rosters; import stopped to avoid empty teams.')
   }
   const rosteredPlayerCount = infoTeams.reduce((total, [teamId]) => total + list(record(rosters[teamId]).rosterItems).filter((item) => string(item.id ?? item.playerId)).length, 0)
-  if (rosteredPlayerCount === 0) {
-    throw new FantraxApiImportError('Fantrax returned no rostered players for this league, including its current period. Ask the commissioner for a roster export or try again when rosters are available.')
+  const draft = draftResult.status === 'fulfilled' ? draftResult.value : {}
+  const draftState = string(draft.draftState).toLowerCase()
+  const selectedPickCount = list(draft.draftPicks).filter((pick) => string(pick.playerId)).length
+  const preDraft = rosteredPlayerCount === 0 && selectedPickCount === 0 &&
+    ['running', 'pending', 'scheduled', 'not_started', 'not started'].includes(draftState)
+  if (rosteredPlayerCount === 0 && !preDraft) {
+    throw new FantraxApiImportError('Fantrax returned no rostered players and the draft state did not confirm an undrafted league. Import stopped to avoid empty teams.')
   }
   const standings = standingsResult.status === 'fulfilled' ? readStandings(standingsResult.value) : new Map<string, Json>()
   const playerDirectory = playerResult.status === 'fulfilled' ? playerResult.value : {}
   const playerInfo = record(info.playerInfo)
+  const playerPoolStatusCounts = Object.values(playerInfo).reduce<Record<string, number>>((counts, entry) => {
+    const status = string(record(entry).status).toUpperCase()
+    if (status) counts[status] = (counts[status] ?? 0) + 1
+    return counts
+  }, {})
   const sourceRosterExtras = Object.fromEntries(entries(rosters).map(([teamId, roster]) => [
     teamId,
     list(roster.rosterItems).filter((item) => Object.keys(item).some((key) => !['id', 'position', 'status'].includes(key))),
@@ -188,6 +198,7 @@ export async function fetchFantraxApiLeagueForImport(
   if (standings.size !== infoTeams.length) warnings.push('Standings were unavailable or incomplete.')
   if (draftResult.status !== 'fulfilled') warnings.push('Draft results were unavailable.')
   if (playerResult.status !== 'fulfilled') warnings.push('Player names were unavailable; Fantrax IDs were preserved.')
+  if (preDraft) warnings.push('Fantrax has no rostered players yet; teams and player-pool counts are available for a pre-draft import.')
   warnings.push('Fantrax does not identify managers in this response; team names are used as placeholders.')
   if (Object.values(sourceRosterExtras).some((items) => items.length > 0)) {
     warnings.push('Extra Fantrax roster item fields were preserved; salary and contract rules require commissioner review.')
@@ -259,7 +270,6 @@ export async function fetchFantraxApiLeagueForImport(
     }).filter((item): item is { teamId1: string; teamId2: string } => item !== null)
     return { week, season: number(info.seasonYear) ?? new Date().getFullYear(), matchups }
   }).filter((item): item is NonNullable<typeof item> => item !== null)
-  const draft = draftResult.status === 'fulfilled' ? draftResult.value : {}
   const draftPicks: FantraxImportDraftPick[] = list(draft.draftPicks).map((pick) => {
     const round = number(pick.round)
     const pickNumber = number(pick.pick ?? pick.pickNumber)
@@ -303,6 +313,10 @@ export async function fetchFantraxApiLeagueForImport(
       raw: {
         source: 'fantrax_api',
         standingsAvailable: standings.size === infoTeams.length,
+        preDraft,
+        draftState,
+        rosteredPlayerCount,
+        playerPoolStatusCounts,
         playerNamesAvailable: playerResult.status === 'fulfilled',
         scoringSystem,
         rosterInfo,
