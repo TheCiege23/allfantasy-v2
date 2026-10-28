@@ -59,7 +59,7 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
       })),
       coverage: {
         leagueSettings: {
-          state: isApi ? 'partial' : 'partial',
+          state: 'partial',
           count: 1,
           note: isApi ? importWarnings.join(' ') : 'Fantrax CSV settings do not include the full source league configuration.',
         },
@@ -99,7 +99,9 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
           note: 'Playoff structure is inferred from playoff matchup flags when present in uploaded schedule data.',
         },
         currentStandings: {
-          state: history.standings.length > 0 ? 'full' : 'missing',
+          state: isApi && raw.settings?.raw?.standingsAvailable !== true
+            ? 'missing'
+            : history.standings.length > 0 ? 'full' : 'missing',
           count: history.standings.length,
         },
         currentSchedule: {
@@ -141,7 +143,9 @@ export const FantraxAdapter: ILeagueImportAdapter<FantraxImportPayload> = {
           count: playerMapCount,
           note:
             playerMapCount > 0
-              ? 'Fantrax player IDs are mapped from imported roster exports and remain stable for future sync.'
+              ? isApi
+                ? 'Fantrax player IDs are preserved; player names may be unavailable if the player directory request failed.'
+                : 'Fantrax player IDs are mapped from imported roster exports and remain stable for future sync.'
               : 'No Fantrax player identity map was available in imported roster exports.',
         },
       },
