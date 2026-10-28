@@ -364,11 +364,12 @@ export async function syncFantraxHistoricalBackfillAfterImport(args: {
       args.userId,
       sourceInput
     )
-    if (currentPayload.settings?.raw.preDraft === true) {
+    if (currentPayload.settings?.raw.preDraft === true ||
+        currentPayload.settings?.raw.rosteredPlayerCount === 0) {
       return {
         attempted: true,
         skipped: true,
-        reason: 'Fantrax draft and current rosters are not populated yet.',
+        reason: 'Fantrax current rosters are not populated; season-end roster history was not inferred.',
         seasonsDiscovered: 0,
         seasonsImported: 0,
       }
