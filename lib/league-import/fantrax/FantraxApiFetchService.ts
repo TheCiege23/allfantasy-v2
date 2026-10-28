@@ -154,6 +154,9 @@ export async function fetchFantraxApiLeagueForImport(
   if (!leagueName || infoTeams.length === 0) {
     throw new FantraxApiImportError('Fantrax returned no league name or teams for this ID.')
   }
+  if (infoTeams.length > 32) {
+    throw new FantraxApiImportError(`This Fantrax league has ${infoTeams.length} teams; AllFantasy league play currently supports up to 32.`)
+  }
 
   const sport = sportForImport(source.sport || string(info.sport ?? info.sportId ?? info.leagueSport))
   const [rosterResult, standingsResult, draftResult, playerResult] = await Promise.allSettled([
@@ -168,6 +171,10 @@ export async function fetchFantraxApiLeagueForImport(
   const rosters = record(rosterResult.value.rosters)
   if (Object.keys(rosters).length === 0 || infoTeams.some(([teamId]) => !Object.hasOwn(rosters, teamId))) {
     throw new FantraxApiImportError('Fantrax returned incomplete team rosters; import stopped to avoid empty teams.')
+  }
+  const rosteredPlayerCount = infoTeams.reduce((total, [teamId]) => total + list(record(rosters[teamId]).rosterItems).length, 0)
+  if (rosteredPlayerCount === 0) {
+    throw new FantraxApiImportError('Fantrax returned no rostered players for this league, including its current period. Ask the commissioner for a roster export or try again when rosters are available.')
   }
   const standings = standingsResult.status === 'fulfilled' ? readStandings(standingsResult.value) : new Map<string, Json>()
   const playerDirectory = playerResult.status === 'fulfilled' ? playerResult.value : {}
