@@ -131,6 +131,12 @@ export function ImportedLeaguePreviewPanel({
           </div>
         )}
 
+        {preview.availablePlayerCounts && (
+          <div className="rounded border border-cyan-400/25 bg-[#030a20]/80 p-3 text-xs text-white/80" data-testid="fantrax-player-pool-counts">
+            Available Fantrax players: {preview.availablePlayerCounts.waiverWire.toLocaleString()} on waiver wire · {preview.availablePlayerCounts.freeAgents.toLocaleString()} free agents
+          </div>
+        )}
+
         {/* Settings summary: roster, scoring, playoff, draft */}
         <div className="rounded border border-cyan-400/25 bg-[#030a20]/80 p-3 space-y-2">
           <p className="text-xs font-medium text-white/70 flex items-center gap-1.5">
