@@ -1,0 +1,41 @@
+name: Fantrax Import Validation
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/fantrax-import-validation.yml'
+      - 'lib/league-import/fantrax/**'
+      - 'lib/league-import/adapters/fantrax/**'
+      - 'lib/league-import/canonicalImportNormalizer.ts'
+      - 'lib/league-import/ImportedLeagueNormalizationPipeline.ts'
+      - 'tests/fantrax-api-fetch-service.test.ts'
+      - 'components/league-creation/ImportSourceInputPanel.tsx'
+      - 'components/app/settings/LeagueImportPanel.tsx'
+      - 'components/league-creation-wizard/LeagueSourceSection.tsx'
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fantrax-import-validation.yml'
+      - 'lib/league-import/fantrax/**'
+      - 'lib/league-import/adapters/fantrax/**'
+      - 'lib/league-import/canonicalImportNormalizer.ts'
+      - 'lib/league-import/ImportedLeagueNormalizationPipeline.ts'
+      - 'tests/fantrax-api-fetch-service.test.ts'
+
+jobs:
+  fantrax-import:
+    name: Fantrax import unit test and types
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Run Fantrax import tests
+        run: npx vitest run tests/fantrax-api-fetch-service.test.ts
+      - name: Check TypeScript
+        run: npm run typecheck
