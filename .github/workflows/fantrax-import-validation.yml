@@ -10,6 +10,10 @@ on:
       - 'lib/league-import/ImportedLeagueNormalizationPipeline.ts'
       - 'tests/fantrax-api-fetch-service.test.ts'
       - 'tests/fantrax-refresh.test.ts'
+      - 'tests/imported-league-commit-service.source-tracking.test.ts'
+      - 'lib/league-import/ImportedLeagueCommitService.ts'
+      - 'lib/league-import/ImportedLeaguePreviewBuilder.ts'
+      - 'components/league/LeagueSidebarCard.tsx'
       - 'lib/league-sync-core.ts'
       - 'components/league-creation/ImportSourceInputPanel.tsx'
       - 'components/app/settings/LeagueImportPanel.tsx'
@@ -40,6 +44,6 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Run Fantrax import tests
-        run: npx vitest run tests/fantrax-api-fetch-service.test.ts tests/fantrax-refresh.test.ts
+        run: npx vitest run tests/fantrax-api-fetch-service.test.ts tests/fantrax-refresh.test.ts tests/imported-league-commit-service.source-tracking.test.ts
       - name: Check TypeScript
         run: npm run typecheck
