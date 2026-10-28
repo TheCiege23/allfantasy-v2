@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { FantraxAdapter } from '@/lib/league-import/adapters/fantrax/FantraxAdapter'
+import { buildImportedLeaguePreview } from '@/lib/league-import/ImportedLeaguePreviewBuilder'
 import {
   fetchFantraxApiLeagueForImport,
   fetchFantraxPlayerPoolPage,
@@ -196,6 +197,8 @@ describe('Fantrax REST import', () => {
     expect(result.draftPicks).toEqual([])
     const normalized = await FantraxAdapter.normalize(result)
     expect(normalized.coverage.currentRosters.state).toBe('missing')
+    const preview = buildImportedLeaguePreview(normalized)
+    expect(preview.availablePlayerCounts).toEqual({ waiverWire: 1, freeAgents: 1 })
   })
 
   it('rejects a league whose API lists teams but no rostered players', async () => {
