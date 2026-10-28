@@ -96,6 +96,8 @@ async function getFantrax(endpoint: string, leagueId: string | null, extra?: Rec
   if (outer.status === 'error' || outer.success === false) {
     throw new FantraxApiImportError('Fantrax rejected ' + endpoint + ' for this league.')
   }
+  if (Array.isArray(body)) return { items: body }
+  if (Array.isArray(outer.data)) return { items: outer.data }
   return apiData(body)
 }
 
@@ -181,6 +183,7 @@ export async function fetchFantraxApiLeagueForImport(
     const roster = record(rosters[teamId])
     const teamName = string(teamInfo.name ?? roster.teamName) || teamId
     const standing = standings.get(teamId) ?? {}
+    const recordParts = string(standing.points).match(/^(\d+)-(\d+)-(\d+)$/)
     const items = list(roster.rosterItems)
     const allIds: string[] = []
     const starters: string[] = []
@@ -210,11 +213,11 @@ export async function fetchFantraxApiLeagueForImport(
       managerName: teamName,
       teamName,
       logoUrl: string(teamInfo.logoUrl ?? teamInfo.logoUrl512) || null,
-      wins: number(standing.wins) ?? 0,
-      losses: number(standing.losses) ?? 0,
-      ties: number(standing.ties) ?? 0,
+      wins: number(standing.wins) ?? Number(recordParts?.[1] ?? 0),
+      losses: number(standing.losses) ?? Number(recordParts?.[2] ?? 0),
+      ties: number(standing.ties) ?? Number(recordParts?.[3] ?? 0),
       rank: number(standing.rank) ?? index + 1,
-      pointsFor: number(standing.pointsFor) ?? number(standing.points) ?? 0,
+      pointsFor: number(standing.totalPointsFor) ?? number(standing.pointsFor) ?? number(standing.points) ?? 0,
       pointsAgainst: number(standing.pointsAgainst),
       faabRemaining: null,
       waiverPriority: number(standing.waiverOrder),
@@ -258,9 +261,14 @@ export async function fetchFantraxApiLeagueForImport(
   if (scoringType && !scoringType.includes('HEAD_TO_HEAD')) {
     warnings.push('This scoring format needs commissioner review before playing in AllFantasy.')
   }
-  warnings.push('Roster position constraints are retained as source data; starter slot counts need commissioner review.')
+  const positionConstraints = record(rosterInfo.positionConstraints)
+  if (Object.keys(positionConstraints).length > 0) {
+    warnings.push('Fantrax position limits are maximums, not fixed lineup slots; commissioner review is required.')
+  } else {
+    warnings.push('Starter slot counts were not identified; commissioner review is required.')
+  }
   const season = number(info.seasonYear) ?? new Date().getFullYear()
-  const endDate = number(info.endDate)
+  const endDate = number(info.endDate) ?? (string(info.endDate) ? Date.parse(string(info.endDate)) : null)
   return {
     sourceInput,
     league: {
@@ -287,6 +295,16 @@ export async function fetchFantraxApiLeagueForImport(
         playoffs,
         draftSettings,
         playerPool: record(info.poolSettings),
+        rosterPeriods: info.rosterPeriods ?? [],
+        scoringPeriods: info.scoringPeriods ?? [],
+        sourceRosterExtras: Object.fromEntries(entries(rosters).map(([teamId, roster]) => [
+          teamId,
+          list(roster.rosterItems).filter((item) => Object.keys(item).some((key) => !['id', 'position', 'status'].includes(key))),
+        ])),
+        positionConstraintsReview: Object.entries(positionConstraints).map(([position, limit]) => ({
+          position,
+          maxActive: number(record(limit).maxActive),
+        })),
         warnings,
       },
     },
