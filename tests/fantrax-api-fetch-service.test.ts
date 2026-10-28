@@ -125,6 +125,44 @@ describe('Fantrax REST import', () => {
     })).rejects.toBeInstanceOf(FantraxApiImportError)
   })
 
+  it('previews an undrafted league and reports its waiver and free-agent counts', async () => {
+    vi.stubGlobal('fetch', vi.fn(async (url: URL) => {
+      const endpoint = url.pathname.split('/').pop()
+      if (endpoint === 'getLeagueInfo') return response({
+        leagueName: 'Road To Glory NFL',
+        seasonYear: 2026,
+        teamInfo: { t1: { name: 'Alpha' } },
+        playerInfo: {
+          p1: { status: 'WW', eligiblePos: 'QB' },
+          p2: { status: 'FA', eligiblePos: 'RB' },
+        },
+        scoringSystem: { type: 'HEAD_TO_HEAD_POINTS_BASED' },
+      })
+      if (endpoint === 'getTeamRosters') return response({
+        period: 8,
+        rosters: { t1: { teamName: 'Alpha', rosterItems: [] } },
+      })
+      if (endpoint === 'getDraftResults') return response({
+        draftState: 'running',
+        draftPicks: [{ round: 1, pick: 1, teamId: 't1', playerId: null }],
+      })
+      if (endpoint === 'getStandings') return response([
+        { teamId: 't1', rank: 1, points: '0-0-0' },
+      ])
+      return response({})
+    }))
+    const result = await fetchFantraxApiLeagueForImport('NFL:abcdefghijklmnop', {
+      leagueId: 'abcdefghijklmnop',
+      sport: 'NFL',
+    })
+    expect(result.settings?.raw.preDraft).toBe(true)
+    expect(result.settings?.raw.playerPoolStatusCounts).toEqual({ WW: 1, FA: 1 })
+    expect(result.teams[0].rosterPlayerIds).toEqual([])
+    expect(result.draftPicks).toEqual([])
+    const normalized = await FantraxAdapter.normalize(result)
+    expect(normalized.coverage.currentRosters.state).toBe('missing')
+  })
+
   it('rejects a league whose API lists teams but no rostered players', async () => {
     vi.stubGlobal('fetch', vi.fn(async (url: URL) => {
       if (url.pathname.endsWith('getLeagueInfo')) return response({
