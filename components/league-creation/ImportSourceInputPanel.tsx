@@ -41,7 +41,7 @@ const PROVIDER_INPUT_CONFIG: Record<
   fantrax: {
     label: 'Fantrax League ID or URL',
     placeholder: 'e.g. NCAAF:abcdefgh12345678 or a Fantrax league URL',
-    help: 'Publicly accessible Fantrax leagues can be previewed by ID. If Fantrax omits the sport, prefix it (NFL:, NBA:, MLB:, NHL:, NCAAF:, NCAAB:, or EPL:). Existing CSV snapshots still accept id:<legacy-uuid>. Review custom rules before creating.',
+    help: 'Paste a public Fantrax league URL or ID and choose its sport. REST import currently supports up to 32 teams and requires current roster players. Existing CSV snapshots still accept id:<legacy-uuid>. Review custom rules before creating.',
   },
   mfl: {
     label: 'MFL League ID',
