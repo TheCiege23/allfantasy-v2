@@ -62,12 +62,10 @@ describe('Fantrax REST import', () => {
           t2: { teamName: 'Beta', rosterItems: [{ id: 'p2', position: 'RB', status: 'RESERVE' }] },
         },
       })
-      if (endpoint === 'getStandings') return response({
-        items: [
-          { teamId: 't1', rank: 1, wins: 2, losses: 0, pointsFor: 130 },
-          { teamId: 't2', rank: 2, wins: 0, losses: 2, pointsFor: 90 },
-        ],
-      })
+      if (endpoint === 'getStandings') return response([
+        { teamId: 't1', rank: 1, points: '2-0-0', totalPointsFor: 130 },
+        { teamId: 't2', rank: 2, points: '0-2-0', totalPointsFor: 90 },
+      ])
       if (endpoint === 'getDraftResults') return response({
         draftState: 'completed',
         draftPicks: [{ round: 1, pick: 1, teamId: 't1', playerId: 'p1' }],
@@ -88,6 +86,10 @@ describe('Fantrax REST import', () => {
     expect(result.teams).toHaveLength(2)
     expect(result.teams[0].rosterPlayerIds).toEqual(['p1'])
     expect(result.teams[1].rosterPlayerIds).toEqual(['p2'])
+    expect(result.teams[0].wins).toBe(2)
+    expect(result.teams[1].losses).toBe(2)
+    expect(result.teams[0].pointsFor).toBe(130)
+    expect(result.settings?.raw.standingsAvailable).toBe(true)
     expect(result.playerMap.p2.name).toBe('Running Back Two')
     expect(result.settings?.scoringType).toBe('HEAD_TO_HEAD_POINTS_BASED')
     expect(result.settings?.scoringRules).toEqual([{ statKey: 'PASS_TD:QB', points: 6 }])
