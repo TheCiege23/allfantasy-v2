@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -12,7 +14,7 @@ export interface ImportSourceInputPanelProps {
   /** For available providers: league ID or provider-specific source input. */
   sourceInput: string;
   onSourceInputChange: (value: string) => void;
-  onFetchPreview: () => void;
+  onFetchPreview: (sourceOverride?: string) => void;
   loading: boolean;
   disabled?: boolean;
 }
@@ -56,8 +58,16 @@ export function ImportSourceInputPanel({
   loading,
   disabled,
 }: ImportSourceInputPanelProps) {
+  const [fantraxSport, setFantraxSport] = useState('');
   if (!provider) return null;
 
+  const trimmedSource = sourceInput.trim();
+  const fantraxId = provider === 'fantrax'
+    ? /^[a-z0-9]{16}$/i.test(trimmedSource)
+      ? trimmedSource
+      : trimmedSource.match(/\/fantasy\/league\/([a-z0-9]{16})(?:[/?#]|$)/i)?.[1] ?? null
+    : null;
+  const needsSport = Boolean(fantraxId);
   const available = isImportProviderAvailable(provider);
   const config = PROVIDER_INPUT_CONFIG[provider] ?? {
     label: `${getImportProviderLabel(provider)} ID`,
@@ -90,14 +100,35 @@ export function ImportSourceInputPanel({
         />
         <Button
           type="button"
-          onClick={onFetchPreview}
-          disabled={loading || !sourceInput.trim() || disabled}
+          onClick={() => {
+            const resolved = needsSport && fantraxSport ? `${fantraxSport}:${fantraxId}` : sourceInput;
+            if (resolved !== sourceInput) onSourceInputChange(resolved);
+            onFetchPreview(resolved);
+          }}
+          disabled={loading || !sourceInput.trim() || disabled || (needsSport && !fantraxSport)}
           variant="outline"
           className="shrink-0 border-cyan-300/40 text-cyan-200 hover:bg-cyan-300/10"
         >
           {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Fetch & Preview'}
         </Button>
       </div>
+      {provider === 'fantrax' && needsSport && (
+        <div className="space-y-1">
+          <Label className="text-xs text-cyan-200" htmlFor="fantrax-import-sport">Fantrax sport</Label>
+          <select
+            id="fantrax-import-sport"
+            value={fantraxSport}
+            onChange={(event) => setFantraxSport(event.target.value)}
+            disabled={loading || disabled}
+            className="block min-h-10 rounded-md border border-cyan-400/35 bg-[#030a20] px-3 text-sm text-white"
+          >
+            <option value="">Choose the league sport</option>
+            {['NFL', 'NBA', 'MLB', 'NHL', 'NCAAF', 'NCAAB', 'EPL'].map((sport) => (
+              <option key={sport} value={sport}>{sport === 'EPL' ? 'Soccer (EPL)' : sport}</option>
+            ))}
+          </select>
+        </div>
+      )}
       {config.help && (
         <p className="text-xs text-white/50">{config.help}</p>
       )}
