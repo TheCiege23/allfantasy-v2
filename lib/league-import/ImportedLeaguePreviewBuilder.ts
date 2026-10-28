@@ -133,6 +133,7 @@ export interface ImportPreviewResponse {
     formatCardLabel: string
   }
   playerMap: Record<string, { name: string; position: string; team: string }>
+  availablePlayerCounts?: { waiverWire: number; freeAgents: number }
   draftPickCount: number
   transactionCount: number
   matchupWeeks: number
@@ -332,6 +333,7 @@ export function buildImportedLeaguePreview(normalized: NormalizedImportResult): 
       formatCardLabel: intro.title,
     },
     playerMap: normalized.player_map ?? {},
+    availablePlayerCounts: normalized.available_player_counts,
     draftPickCount: normalized.draft_picks?.length ?? 0,
     transactionCount: normalized.transactions?.length ?? 0,
     matchupWeeks: normalized.schedule?.length ?? 0,
