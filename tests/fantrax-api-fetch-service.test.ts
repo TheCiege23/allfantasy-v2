@@ -58,7 +58,7 @@ describe('Fantrax REST import', () => {
       if (endpoint === 'getTeamRosters') return response({
         period: 3,
         rosters: {
-          t1: { teamName: 'Alpha', rosterItems: [{ id: 'p1', position: 'QB', status: 'ACTIVE' }] },
+          t1: { teamName: 'Alpha', rosterItems: [{ id: 'p1', position: 'QB', status: 'ACTIVE', salary: 12 }] },
           t2: { teamName: 'Beta', rosterItems: [{ id: 'p2', position: 'RB', status: 'RESERVE' }] },
         },
       })
@@ -94,6 +94,8 @@ describe('Fantrax REST import', () => {
     expect(result.settings?.scoringType).toBe('HEAD_TO_HEAD_POINTS_BASED')
     expect(result.settings?.scoringRules).toEqual([{ statKey: 'PASS_TD:QB', points: 6 }])
     expect(result.settings?.raw.playoffs).toEqual({ numPlayoffTeams: 4 })
+    expect(result.settings?.raw.sourceRosterExtras).toMatchObject({ t1: [{ salary: 12 }] })
+    expect(result.settings?.raw.warnings).toContain('Extra Fantrax roster item fields were preserved; salary and contract rules require commissioner review.')
     expect(result.settings?.rosterPositions).toEqual([])
     expect(result.draftPicks[0].playerId).toBe('p1')
     expect(result.schedule[0].matchups).toHaveLength(1)
