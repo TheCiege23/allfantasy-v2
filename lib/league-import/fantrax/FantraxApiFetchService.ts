@@ -172,19 +172,26 @@ export async function fetchFantraxApiLeagueForImport(
   if (Object.keys(rosters).length === 0 || infoTeams.some(([teamId]) => !Object.hasOwn(rosters, teamId))) {
     throw new FantraxApiImportError('Fantrax returned incomplete team rosters; import stopped to avoid empty teams.')
   }
-  const rosteredPlayerCount = infoTeams.reduce((total, [teamId]) => total + list(record(rosters[teamId]).rosterItems).length, 0)
+  const rosteredPlayerCount = infoTeams.reduce((total, [teamId]) => total + list(record(rosters[teamId]).rosterItems).filter((item) => string(item.id ?? item.playerId)).length, 0)
   if (rosteredPlayerCount === 0) {
     throw new FantraxApiImportError('Fantrax returned no rostered players for this league, including its current period. Ask the commissioner for a roster export or try again when rosters are available.')
   }
   const standings = standingsResult.status === 'fulfilled' ? readStandings(standingsResult.value) : new Map<string, Json>()
   const playerDirectory = playerResult.status === 'fulfilled' ? playerResult.value : {}
   const playerInfo = record(info.playerInfo)
+  const sourceRosterExtras = Object.fromEntries(entries(rosters).map(([teamId, roster]) => [
+    teamId,
+    list(roster.rosterItems).filter((item) => Object.keys(item).some((key) => !['id', 'position', 'status'].includes(key))),
+  ]))
   const playerMap: FantraxImportPayload['playerMap'] = {}
   const warnings: string[] = []
   if (standings.size !== infoTeams.length) warnings.push('Standings were unavailable or incomplete.')
   if (draftResult.status !== 'fulfilled') warnings.push('Draft results were unavailable.')
   if (playerResult.status !== 'fulfilled') warnings.push('Player names were unavailable; Fantrax IDs were preserved.')
   warnings.push('Fantrax does not identify managers in this response; team names are used as placeholders.')
+  if (Object.values(sourceRosterExtras).some((items) => items.length > 0)) {
+    warnings.push('Extra Fantrax roster item fields were preserved; salary and contract rules require commissioner review.')
+  }
 
   const teams: FantraxImportTeam[] = infoTeams.map(([teamId, teamInfo], index) => {
     const roster = record(rosters[teamId])
@@ -304,10 +311,7 @@ export async function fetchFantraxApiLeagueForImport(
         playerPool: record(info.poolSettings),
         rosterPeriods: info.rosterPeriods ?? [],
         scoringPeriods: info.scoringPeriods ?? [],
-        sourceRosterExtras: Object.fromEntries(entries(rosters).map(([teamId, roster]) => [
-          teamId,
-          list(roster.rosterItems).filter((item) => Object.keys(item).some((key) => !['id', 'position', 'status'].includes(key))),
-        ])),
+        sourceRosterExtras,
         positionConstraintsReview: Object.entries(positionConstraints).map(([position, limit]) => ({
           position,
           maxActive: number(record(limit).maxActive),
