@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { fetchFantraxApiLeagueForImport, parseFantraxApiSource } from './FantraxApiFetchService'
 import { normalizeToSupportedSport } from '@/lib/sport-scope'
 import type {
   FantraxImportDraftPick,
@@ -272,6 +273,9 @@ export async function fetchFantraxLeagueForImport(
   if (!userId) {
     throw new FantraxImportConnectionError('Sign in before importing from Fantrax.')
   }
+
+  const apiSource = parseFantraxApiSource(sourceInput)
+  if (apiSource) return fetchFantraxApiLeagueForImport(sourceInput, apiSource)
 
   const lookup = parseFantraxSourceInput(sourceInput)
   const includeConfig = {
