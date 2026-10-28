@@ -197,6 +197,7 @@ describe('Fantrax REST import', () => {
       sport: 'NFL',
     })
     expect(result.settings?.raw.preDraft).toBe(true)
+    expect(result.settings?.raw.seasonPhase).toBe('pre_draft')
     expect(result.settings?.raw.playerPoolStatusCounts).toEqual({ WW: 1, FA: 1 })
     expect(result.teams[0].rosterPlayerIds).toEqual([])
     expect(result.draftPicks).toEqual([])
@@ -205,6 +206,39 @@ describe('Fantrax REST import', () => {
     expect(validateNormalizedImport(normalized)).toEqual({ ok: true })
     const preview = buildImportedLeaguePreview(normalized)
     expect(preview.availablePlayerCounts).toEqual({ waiverWire: 1, freeAgents: 1 })
+    expect(preview.league.seasonPhase).toBe('pre_draft')
+  })
+
+  it('labels an ended season as offseason and allows confirmed empty rosters', async () => {
+    const yesterdaySeconds = Math.floor((Date.now() - 86_400_000) / 1000)
+    vi.stubGlobal('fetch', vi.fn(async (url: URL) => {
+      const endpoint = url.pathname.split('/').pop()
+      if (endpoint === 'getLeagueInfo') return response({
+        leagueName: 'Offseason League',
+        seasonYear: new Date().getFullYear(),
+        endDate: yesterdaySeconds,
+        teamInfo: { t1: { name: 'Alpha' }, t2: { name: 'Beta' } },
+        playerInfo: { p1: { status: 'FA' } },
+      })
+      if (endpoint === 'getTeamRosters') return response({
+        rosters: {
+          t1: { rosterItems: [] },
+          t2: { rosterItems: [] },
+        },
+      })
+      if (endpoint === 'getDraftResults') return response({ draftState: 'completed', draftPicks: [] })
+      return response([])
+    }))
+    const result = await fetchFantraxApiLeagueForImport('NHL:abcdefghijklmnop', {
+      leagueId: 'abcdefghijklmnop',
+      sport: 'NHL',
+    })
+    expect(result.league.isFinished).toBe(true)
+    expect(result.settings?.raw.seasonPhase).toBe('offseason')
+    const normalized = await FantraxAdapter.normalize(result)
+    expect(normalized.league.season_phase).toBe('offseason')
+    expect(validateNormalizedImport(normalized)).toEqual({ ok: true })
+    expect(buildImportedLeaguePreview(normalized).league.seasonPhase).toBe('offseason')
   })
 
   it('rejects a league whose API lists teams but no rostered players', async () => {
